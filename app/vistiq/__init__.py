@@ -1,0 +1,18 @@
+"""Vistiq: sharper images, one drop away."""
+import os
+
+_here = os.path.dirname(os.path.abspath(__file__))
+
+
+def version():
+    try:
+        with open(os.path.join(os.path.dirname(_here), "VERSION"), encoding="utf-8") as fh:
+            return fh.read().strip()
+    except Exception:
+        return "0.0.0"
+
+
+def main(app_dir=None, notice=""):
+    """Entry point used by the launcher and by run_dev.py."""
+    from .app import run
+    run(app_dir or os.path.dirname(_here), version(), notice)

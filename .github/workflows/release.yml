@@ -1,0 +1,81 @@
+name: Release
+
+# Push a tag like v0.1.1 and this builds and publishes the release.
+# The installed Vistiq.exe picks up the new vistiq-app.zip by itself on its
+# next start, so nobody has to download a new exe.
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Read version
+        shell: pwsh
+        run: |
+          $v = (Get-Content app/VERSION -Raw).Trim()
+          if ("${{ github.ref_type }}" -eq "tag" -and "v$v" -ne "${{ github.ref_name }}") {
+            throw "Tag ${{ github.ref_name }} doesn't match app/VERSION ($v)"
+          }
+          "VERSION=$v" >> $env:GITHUB_ENV
+
+      - name: Install
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt pyinstaller
+
+      - name: Test
+        run: python -m unittest discover -s tests -v
+
+      - name: Package the app
+        shell: pwsh
+        run: |
+          Get-ChildItem -Path app -Recurse -Directory -Filter __pycache__ | Remove-Item -Recurse -Force
+          Compress-Archive -Path app/VERSION, app/vistiq, app/ui, app/workflow_seedvr2_image.json -DestinationPath vistiq-app.zip
+
+      - name: Build Vistiq.exe
+        run: >
+          pyinstaller --noconfirm --onefile --windowed --name Vistiq
+          --icon launcher/icon.ico
+          --add-data "app;app"
+          --collect-all webview
+          --collect-submodules websocket
+          --hidden-import clr
+          launcher/launcher.py
+
+      - name: Check the exe can load the app
+        shell: pwsh
+        run: |
+          $env:VISTIQ_NO_UPDATE = "1"
+          $p = Start-Process -FilePath dist/Vistiq.exe -ArgumentList "--selftest" -Wait -PassThru
+          if ($p.ExitCode -ne 0) {
+            Get-Content "$env:LOCALAPPDATA/Vistiq/launcher.log" -ErrorAction SilentlyContinue
+            throw "Self-test failed with exit code $($p.ExitCode)"
+          }
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: vistiq-${{ env.VERSION }}
+          path: |
+            dist/Vistiq.exe
+            vistiq-app.zip
+
+      - name: Publish release
+        if: github.ref_type == 'tag'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: pwsh
+        run: |
+          gh release create "${{ github.ref_name }}" dist/Vistiq.exe vistiq-app.zip `
+            --title "Vistiq ${{ env.VERSION }}" --notes-file CHANGELOG.md --latest
