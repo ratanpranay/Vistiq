@@ -21,7 +21,7 @@ def default_output():
 
 DEFAULTS = {
     "scale": "2",                 # "2" | "4" | "max"
-    "model": wf.DEFAULT_DIT,
+    "model": "auto",
     "format": "PNG",              # PNG | JPG | WEBP
     "out_dir": None,
     "max_res": wf.DEFAULT_MAX_RES,
@@ -29,7 +29,8 @@ DEFAULTS = {
     "comfy_url": "",
     "keep_engine": True,          # leave the engine running when the app closes
     "engine_port": 0,             # where Vistiq's own engine last listened
-    "speeds": {},                 # seconds per output megapixel, by model
+    "speeds": {},
+    "auto_migrated": False,                 # seconds per output megapixel, by model
 }
 
 

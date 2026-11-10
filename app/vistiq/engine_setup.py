@@ -47,19 +47,26 @@ VAE = ("numz/SeedVR2_comfyUI", "ema_vae_fp16.safetensors",
 #: The models offered at setup, best first. `vram` is the graphics memory
 #: (GB) below which a lighter choice is suggested instead.
 MODELS = [
-    {"key": "ultra-sharp", "name": "Vistiq Ultra Sharp", "repo": "numz/SeedVR2_comfyUI",
-     "file": "seedvr2_ema_7b_sharp_fp16.safetensors", "vram": 16,
+    {"key": "ultra-sharp", "name": "Ultra Sharp", "repo": "numz/SeedVR2_comfyUI",
+     "file": "seedvr2_ema_7b_sharp_fp16.safetensors", "fits": 24, "blocks": 36, "gb": 16.5,
      "about": "Most detail, crispest edges.",
      "sha256": "20a93e01ff24beaeebc5de4e4e5be924359606c356c9c51509fba245bd2d77dd"},
-    {"key": "ultra-sharp-lite", "name": "Vistiq Ultra Sharp Lite", "repo": "AInVFX/SeedVR2_comfyUI",
-     "file": "seedvr2_ema_7b_sharp_fp8_e4m3fn_mixed_block35_fp16.safetensors", "vram": 10,
-     "about": "Nearly the same detail, half the download.",
+    {"key": "ultra-sharp-lite", "name": "Ultra Sharp Lite", "repo": "AInVFX/SeedVR2_comfyUI",
+     "file": "seedvr2_ema_7b_sharp_fp8_e4m3fn_mixed_block35_fp16.safetensors", "fits": 12, "blocks": 36, "gb": 8.6,
+     "about": "Near-identical detail, half the size.",
      "sha256": "0d2c5b8be0fda94351149c5115da26aef4f4932a7a2a928c6f184dda9186e0be"},
-    {"key": "swift", "name": "Vistiq Swift", "repo": "numz/SeedVR2_comfyUI",
-     "file": "seedvr2_ema_3b_fp16.safetensors", "vram": 6,
-     "about": "Faster, for smaller cards and big batches.",
+    {"key": "ultra", "name": "Ultra", "repo": "numz/SeedVR2_comfyUI",
+     "file": "seedvr2_ema_7b_fp16.safetensors", "fits": 24, "blocks": 36, "gb": 16.5,
+     "about": "Same detail, softer look.",
+     "sha256": "7b8241aa957606ab6cfb66edabc96d43234f9819c5392b44d2492d9f0b0bbe4a"},
+    {"key": "swift", "name": "Swift", "repo": "numz/SeedVR2_comfyUI",
+     "file": "seedvr2_ema_3b_fp16.safetensors", "fits": 9, "blocks": 32, "gb": 6.8,
+     "about": "Fastest. Less fine detail.",
      "sha256": "2fd0e03a3dad24e07086750360727ca437de4ecd456f769856e960ae93e2b304"},
 ]
+
+#: What Auto reaches for, best first: the first that fits the card fully.
+AUTO_ORDER = ["ultra-sharp", "ultra-sharp-lite", "swift"]
 
 
 class Cancelled(Exception):
@@ -132,10 +139,18 @@ def gpu():
 
 
 def suggested_model(vram):
+    """The best model that fits fully in this much graphics memory."""
+    for key in AUTO_ORDER:
+        if vram >= model_by_key(key)["fits"]:
+            return key
+    return AUTO_ORDER[-1]
+
+
+def model_by_file(name):
     for m in MODELS:
-        if vram >= m["vram"]:
-            return m["key"]
-    return MODELS[-1]["key"]
+        if m["file"] == name:
+            return m
+    return None
 
 
 def model_by_key(key):

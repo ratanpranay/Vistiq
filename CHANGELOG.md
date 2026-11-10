@@ -1,5 +1,15 @@
 ## Unreleased
 
+- Model: Auto. Vistiq picks the best model that fits this PC's graphics
+  memory (Ultra Sharp Lite on a 16 GB card) and says why
+- Download other models from the Model list, with progress; Auto switches
+  to the better one when it arrives
+- Remove a downloaded model from the list (asks first; keeps at least one)
+- Memory tuning: swaps only the part of a model that doesn't fit, keeps the
+  model loaded between images, and retries with safer settings if the card
+  runs out of memory
+- New model: Ultra (same detail as Ultra Sharp, softer look)
+
 - Progress moves smoothly: for a single image the upscaler barely reports
   progress, so Vistiq learns how long each model takes per megapixel and
   fills the bar from that ("0:39 of about 1:30")

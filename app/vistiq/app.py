@@ -15,7 +15,7 @@ import uuid
 
 import webview
 
-from . import engine_setup, imaging, updater, workflow as wf
+from . import engine_setup, imaging, models, updater, workflow as wf
 from .engine import Engine, EngineError
 from .settings import Settings, data_dir
 
@@ -38,6 +38,7 @@ class Api:
             "items": [a.public(i) for i in a.items],
             "notice": a.notice,
             "update": a.updater.info(),
+            "models": a.model_info(),
         }
 
     def set_setting(self, key, value):
@@ -120,7 +121,7 @@ class Api:
         key = engine_setup.suggested_model(vram)
         models = []
         for m in engine_setup.MODELS:
-            models.append({"key": m["key"], "name": m["name"], "about": m["about"],
+            models.append({"key": m["key"], "name": "Vistiq " + m["name"], "about": m["about"],
                            "size": engine_setup.sizes(m["key"]).get("model", 0)})
         rest = engine_setup.sizes(key)
         return {"gpu": name, "vram": vram, "suggested": key, "models": models,
@@ -140,6 +141,24 @@ class Api:
         if not picked:
             return []
         return engine_setup.import_models(picked[0])
+
+    # models
+
+    def model_info(self):
+        return self._app.model_info()
+
+    def download_model(self, key):
+        return self._app.downloads.start(key)
+
+    def cancel_model_download(self):
+        self._app.downloads.cancel()
+
+    def remove_model(self, key):
+        msg = models.remove(key, self._app._model_in_use)
+        if not msg:
+            self._app.engine.refresh_models()
+        self._app.emit("models", self._app.model_info())
+        return msg
 
     # updates
 
@@ -190,6 +209,12 @@ class App:
         self.window = None
         self.installer = None
         self.updater = updater.Updater(version, lambda info: self.emit("update", info))
+        self.downloads = models.Downloads(self._on_model_download)
+        self._model_in_use = None
+        if not self.settings.get("auto_migrated"):
+            # Everyone starts on Auto once; picking a model by hand sticks.
+            self.settings.set("model", models.AUTO)
+            self.settings.set("auto_migrated", True)
         self._worker = None
         self._cancel = threading.Event()
         self._emit_lock = threading.Lock()
@@ -242,7 +267,19 @@ class App:
                 "engine", {"state": s, "message": m, "models": self.engine.models}))
             self.emit("engine", {"state": self.engine.state, "message": self.engine.message,
                                  "models": self.engine.models})
+            self.emit("models", self.model_info())
         threading.Thread(target=run, daemon=True).start()
+
+    def _on_model_download(self, info):
+        self.emit("model-dl", info)
+        if info.get("state") == "done":
+            self.engine.refresh_models()
+            self.emit("models", self.model_info())
+
+    def model_info(self):
+        info = models.catalog() if self.engine.own or engine_setup.installed() else None
+        return {"catalog": info, "engine_models": self.engine.models,
+                "download": self.downloads.job}
 
     def install(self, model_key):
         if self.installer:
@@ -304,19 +341,30 @@ class App:
             # with the same model, per megapixel of output.
             ow, oh = wf.output_size(item["w"], item["h"], "max" if scale == "max" else float(scale), max_res)
             mp = max(0.1, ow * oh / 1e6)
-            rate = (s.get("speeds") or {}).get(s.get("model") or "")
+            tuning = retry = None
+            if self.engine.own:
+                model = models.resolve(s.get("model"))
+                tuning = models.tuning(model)
+                retry = models.tuning(model, retry=True)
+            else:
+                model = s.get("model")
+                if model == models.AUTO or (self.engine.models and model not in self.engine.models):
+                    model = wf.DEFAULT_DIT if wf.DEFAULT_DIT in self.engine.models else self.engine.models[0]
+            if not model:
+                self.update(item, status="error", error="No model is installed. Download one from the Model list.")
+                break
+            self._model_in_use = model
+            rate = (s.get("speeds") or {}).get(model)
             self.update(item, status="running", stage="Starting", progress=0,
                         started=time.time() * 1000,
                         estimate=round(rate * mp, 1) if rate else 0)
-            model = s.get("model")
-            if self.engine.models and model not in self.engine.models:
-                model = wf.DEFAULT_DIT if wf.DEFAULT_DIT in self.engine.models else self.engine.models[0]
+            log.info("upscale %s with %s, tuning %s", item["name"], model, tuning)
             try:
                 data = self.engine.upscale(
                     item["path"], item["w"], item["h"], scale, model, max_res,
                     on_progress=lambda stage, frac, it=item: self.update(
                         it, stage=stage, progress=frac if frac is not None else it.get("progress", 0)),
-                    cancelled=self._cancel.is_set)
+                    cancelled=self._cancel.is_set, tuning=tuning, retry_tuning=retry)
                 tag = "vistiq_max" if scale == "max" else "vistiq_%sx" % scale
                 path, w, h = imaging.save(data, item["path"], s.get("out_dir"), s.get("format"), tag, limit=max_res)
                 took = time.time() - started
@@ -337,6 +385,7 @@ class App:
                 log.exception("job failed")
                 self.update(item, status="error", error="Something went wrong: %s" % exc,
                             stage="", progress=0)
+        self._model_in_use = None
         for i in self.items:
             if i["status"] == "queued":
                 self.update(i, status="ready", stage="")

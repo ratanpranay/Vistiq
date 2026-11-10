@@ -61,12 +61,14 @@ def target_resolution(width, height, scale, max_res=DEFAULT_MAX_RES):
 
 def build_prompt(image_name, width, height, scale="4", dit_model=DEFAULT_DIT,
                  vae_model=DEFAULT_VAE, max_res=DEFAULT_MAX_RES, seed=42,
-                 prefix="Vistiq/out", resolution_key="new_resolution"):
+                 prefix="Vistiq/out", resolution_key="new_resolution", tuning=None):
     """The API-format prompt for one image already uploaded to ComfyUI."""
     if scale != "max":
         scale = float(scale)
     max_res = min(int(max_res or LIMIT), CEILING)
     resolution = target_resolution(width, height, scale, max_res)
+    t = {"blocks_to_swap": 36, "cache_model": False, "tile": 1024, "overlap": 128}
+    t.update(tuning or {})
     return {
         NODE_LOAD: {
             "class_type": "LoadImage",
@@ -81,10 +83,10 @@ def build_prompt(image_name, width, height, scale="4", dit_model=DEFAULT_DIT,
             "inputs": {
                 "model": dit_model,
                 "device": "cuda:0",
-                "blocks_to_swap": 36,
+                "blocks_to_swap": int(t["blocks_to_swap"]),
                 "swap_io_components": False,
                 "offload_device": "cpu",
-                "cache_model": False,
+                "cache_model": bool(t["cache_model"]),
                 "attention_mode": "sdpa",
             },
         },
@@ -94,14 +96,14 @@ def build_prompt(image_name, width, height, scale="4", dit_model=DEFAULT_DIT,
                 "model": vae_model,
                 "device": "cuda:0",
                 "encode_tiled": True,
-                "encode_tile_size": 1024,
-                "encode_tile_overlap": 128,
+                "encode_tile_size": int(t["tile"]),
+                "encode_tile_overlap": int(t["overlap"]),
                 "decode_tiled": True,
-                "decode_tile_size": 1024,
-                "decode_tile_overlap": 128,
+                "decode_tile_size": int(t["tile"]),
+                "decode_tile_overlap": int(t["overlap"]),
                 "tile_debug": "false",
                 "offload_device": "cpu",
-                "cache_model": False,
+                "cache_model": bool(t["cache_model"]),
             },
         },
         NODE_UPSCALE: {

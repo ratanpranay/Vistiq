@@ -261,11 +261,8 @@ class Engine:
             self.models = _options(spec)
         except Exception:
             self.models = []
-        if self.own and self.models:
-            # The nodes list every model they could download. In Vistiq's
-            # own engine, offer only the ones that are actually here.
-            here = set(engine_setup.local_models())
-            self.models = [m for m in self.models if m in here] or self.models
+        self.all_models = list(self.models)
+        self.refresh_models()
         if not self.models:
             import logging
             logging.getLogger("vistiq").error(
@@ -290,6 +287,13 @@ class Engine:
             self.vaes = []
         say("ready", "Engine ready")
         return True
+
+    def refresh_models(self):
+        """The nodes list every model they could download. In Vistiq's own
+        engine, offer only the ones that are actually here."""
+        if self.own and getattr(self, "all_models", None):
+            here = set(engine_setup.local_models())
+            self.models = [m for m in self.all_models if m in here] or list(self.all_models)
 
     def stop_own(self):
         """Stop Vistiq's own engine, whichever run of the app started it."""
@@ -318,15 +322,30 @@ class Engine:
     # one job
 
     def upscale(self, path, width, height, scale, model, max_res, on_progress=None,
-                cancelled=lambda: False):
+                cancelled=lambda: False, tuning=None, retry_tuning=None):
         """Run one image through the workflow. Returns the result's bytes."""
         if self.state != "ready" or not self.url:
             raise EngineError("The engine isn't ready yet.")
         name = self._upload(path)
         vae = wf.DEFAULT_VAE if (not self.vaes or wf.DEFAULT_VAE in self.vaes) else self.vaes[0]
+        try:
+            return self._run(name, width, height, scale, model, vae, max_res,
+                             on_progress, cancelled, tuning)
+        except EngineError as exc:
+            # Out of graphics memory with the lighter settings: once more,
+            # with everything swapped out and smaller tiles.
+            if retry_tuning and "ran out of memory" in str(exc):
+                if on_progress:
+                    on_progress("Retrying with less memory", None)
+                return self._run(name, width, height, scale, model, vae, max_res,
+                                 on_progress, cancelled, retry_tuning)
+            raise
+
+    def _run(self, name, width, height, scale, model, vae, max_res, on_progress,
+             cancelled, tuning):
         prompt = wf.build_prompt(name, width, height, scale=scale, dit_model=model,
                                  vae_model=vae, max_res=max_res,
-                                 resolution_key=self.resolution_key)
+                                 resolution_key=self.resolution_key, tuning=tuning)
         ws = self._open_socket()
         try:
             r = requests.post(self.url + "/prompt",

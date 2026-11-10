@@ -30,13 +30,15 @@
     else { name = "Custom"; hint = "A model added to the engine by hand."; }
     if (sharp && (big || small)) name += " Sharp";
     if (lite) { name += " Lite"; hint += " Uses less graphics memory."; }
-    return { name: "Vistiq " + name, hint: hint };
+    return { name: name, hint: hint };
   }
 
   var state = { settings: {}, engine: { state: "idle", message: "", models: [] },
                 items: [], sel: null, running: false, version: "",
                 setup: { info: null, choice: null, run: null, error: "", loading: false },
-                update: { state: "idle" }, toastHidden: false, notice: "" };
+                update: { state: "idle" }, toastHidden: false, notice: "",
+                models: { catalog: null, engine_models: [], download: null },
+                menu: { open: false, confirm: null, msg: "" }, dlError: "" };
   var $ = function (id) { return document.getElementById(id); };
   var api = function () { return window.pywebview && window.pywebview.api; };
 
@@ -97,17 +99,7 @@
       c.setAttribute("aria-checked", String(c.dataset.format === s.format));
     });
 
-    var sel = $("model"), models = state.engine.models.length ? state.engine.models : (s.model ? [s.model] : []);
-    var seen = {};
-    var html = models.map(function (m) {
-      var label = modelInfo(m).name;
-      seen[label] = (seen[label] || 0) + 1;
-      if (seen[label] > 1) label += " " + seen[label];
-      return '<option value="' + m.replace(/"/g, "&quot;") + '">' + label + "</option>";
-    }).join("");
-    if (sel.dataset.html !== html) { sel.innerHTML = html; sel.dataset.html = html; }
-    sel.value = models.indexOf(s.model) >= 0 ? s.model : models[0];
-    $("model-hint").textContent = sel.value ? modelInfo(sel.value).hint : "";
+    renderModel();
 
     $("out-dir-text").textContent = s.out_dir || "";
     $("out-dir").title = s.out_dir || "";
@@ -215,6 +207,152 @@
       $("go-meta").hidden = true;
     }
   }
+
+
+  // ---------------------------------------------------------------- model picker
+  var ICON_DL = '<svg viewBox="0 0 24 24"><path d="M12 4v11M7.5 10.5L12 15l4.5-4.5M5 20h14"/></svg>';
+  var ICON_BIN = '<svg viewBox="0 0 24 24"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/></svg>';
+  var ICON_CHECK = '<svg class="check" viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>';
+  var ICON_X = '<svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg>';
+
+  function esc(t) { return String(t).replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); }
+  function byKey(key) { var c = state.models.catalog; return c && c.models.filter(function (m) { return m.key === key; })[0]; }
+  function byFile(file) { var c = state.models.catalog; return c && c.models.filter(function (m) { return m.file === file; })[0]; }
+  function isAuto() { return !state.settings.model || state.settings.model === "auto"; }
+
+  function renderModel() {
+    var c = state.models.catalog, dl = state.models.download;
+    var badge = $("mdl-auto"), name = $("mdl-name"), sub = $("mdl-sub"), note = $("mdl-note");
+    badge.hidden = !isAuto() || !c;
+    note.className = "mdl-note"; note.hidden = true; note.innerHTML = "";
+    if (!c) {
+      // Someone else's ComfyUI: list what it has, no downloads.
+      var f = state.settings.model && state.settings.model !== "auto" ? state.settings.model : (state.engine.models[0] || "");
+      name.textContent = f ? modelInfo(f).name : "No model";
+      sub.textContent = f ? modelInfo(f).hint : "";
+      $("mdl-btn").title = f;
+      return;
+    }
+    var vram = c.vram ? c.vram + " GB" : "this";
+    var target = byKey(c.auto_target), now = byKey(c.auto_now), pick;
+    if (isAuto()) {
+      pick = now;
+      name.textContent = now ? now.name : "No model yet";
+      sub.textContent = c.auto_ready ? "Fits your " + vram + " card" : "Slower on this card";
+    } else {
+      pick = byFile(state.settings.model);
+      name.textContent = pick ? pick.name : modelInfo(state.settings.model).name;
+      sub.textContent = pick ? (pick.fits ? "Fits your " + vram + " card" : "Bigger than this card, slower") : "";
+    }
+    $("mdl-btn").title = "";
+
+    if (dl) {
+      var m = byKey(dl.key), f2 = dl.fraction || 0;
+      note.className = "mdl-note plain"; note.hidden = false;
+      var amount = (dl.detail || "").replace(/^[^:]*: /, "").replace(/, about.*$/, "").replace(" GB of ", " of ");
+      var left = /about (.*) left/.test(dl.detail || "") ? ", about " + RegExp.$1 + " left" : "";
+      note.innerHTML = '<span class="row2"><span>Getting ' + esc(m ? m.name : "the model") + '</span><span>' + Math.round(f2 * 100) + '%</span></span>' +
+        '<div class="mini"><span style="width:' + Math.round(f2 * 100) + '%"></span></div>' +
+        '<span>' + esc(amount + left + ".") + (isAuto() && m && m.auto ? " Auto switches to it when done." : "") + '</span>';
+    } else if (state.dlError) {
+      note.className = "mdl-note bad"; note.hidden = false; note.textContent = state.dlError;
+    } else if (isAuto() && !c.auto_ready && target) {
+      note.className = "mdl-note plain"; note.hidden = false;
+      note.innerHTML = '<span>' + esc(target.name) + ' is the best fit for this PC. </span><button type="button" class="lnk" data-dl="' + target.key + '">Download it (' + target.gb + ' GB)</button>';
+    } else if (pick) {
+      note.hidden = false;
+      note.textContent = pick.fits ? "Tuned for this PC: fits fully in graphics memory and stays loaded between images."
+        : "Tuned for this PC: swaps only the part that doesn't fit, and stays loaded between images.";
+    }
+    if (state.menu.open) renderMenu();
+  }
+
+  function renderMenu() {
+    var c = state.models.catalog, menu = $("mdl-menu"), html = "", dl = state.models.download;
+    if (c) {
+      var now = byKey(c.auto_now), target = byKey(c.auto_target);
+      html += '<div class="opt' + (isAuto() ? " on" : "") + '" role="option" aria-selected="' + isAuto() + '" data-pick="auto">' +
+        '<span class="auto-badge">AUTO</span><span class="t"><b>Let Vistiq choose</b><small>' +
+        esc(c.auto_ready ? "Uses " + target.name + " on this PC" : (now ? "Uses " + now.name + " until " + target.name + " is downloaded" : "Picks " + target.name + " once it's downloaded")) +
+        '</small></span>' + (isAuto() ? ICON_CHECK : "") + '</div><div class="sep"></div>';
+      c.models.forEach(function (m) {
+        var chosen = !isAuto() && state.settings.model === m.file;
+        var right;
+        if (state.menu.confirm === m.key) {
+          right = '<span class="acts"><button type="button" class="pill danger" data-rm-yes="' + m.key + '">Remove ' + m.on_disk_gb + ' GB</button><button type="button" class="pill" data-rm-no="1">Keep</button></span>';
+        } else if (dl && dl.key === m.key) {
+          right = '<span class="acts"><span class="dlbar"><span>' + Math.round((dl.fraction || 0) * 100) + '%</span><span class="mini"><span style="width:' + Math.round((dl.fraction || 0) * 100) + '%"></span></span></span><button type="button" class="bin" data-dl-cancel="1" aria-label="Stop download">' + ICON_X + '</button></span>';
+        } else if (m.installed) {
+          right = '<span class="acts">' + (chosen ? ICON_CHECK : '<span class="gbsz">' + m.on_disk_gb + ' GB</span>') +
+            '<button type="button" class="bin" data-rm="' + m.key + '" aria-label="Remove ' + esc(m.name) + '" title="Remove from this PC">' + ICON_BIN + '</button></span>';
+        } else {
+          right = '<span class="acts"><button type="button" class="pill" data-dl="' + m.key + '"' + (dl ? " disabled" : "") + '>' + ICON_DL + m.gb + ' GB</button></span>';
+        }
+        html += '<div class="opt' + (chosen ? " on" : "") + (m.installed ? "" : " off") + '" role="option" aria-selected="' + chosen + '"' +
+          (m.installed ? ' data-pick="' + esc(m.file) + '"' : "") + '><span class="t"><b>' + esc(m.name) +
+          (m.installed ? ' <span class="here">Installed</span>' : "") + '</b><small>' + esc(m.note) + '</small></span>' + right + '</div>';
+      });
+      if (state.menu.msg) html += '<p class="menu-msg">' + esc(state.menu.msg) + '</p>';
+    } else {
+      (state.engine.models || []).forEach(function (f) {
+        var chosen = state.settings.model === f;
+        html += '<div class="opt' + (chosen ? " on" : "") + '" role="option" data-pick="' + esc(f) + '"><span class="t"><b>' + esc(modelInfo(f).name) +
+          '</b><small>' + esc(modelInfo(f).hint) + '</small></span>' + (chosen ? ICON_CHECK : "") + '</div>';
+      });
+    }
+    menu.innerHTML = html;
+    placeMenu();
+  }
+
+  function placeMenu() {
+    var r = $("mdl-btn").getBoundingClientRect(), menu = $("mdl-menu");
+    menu.style.left = Math.max(12, r.left) + "px";
+    var h = menu.offsetHeight, below = window.innerHeight - r.bottom - 12;
+    menu.style.top = (h <= below ? r.bottom + 6 : Math.max(12, r.top - h - 6)) + "px";
+  }
+
+  function openMenu(open) {
+    state.menu.open = open; state.menu.confirm = null; state.menu.msg = "";
+    $("mdl-menu").hidden = !open;
+    $("mdl-btn").setAttribute("aria-expanded", String(open));
+    if (open) {
+      renderMenu();
+      if (api()) api().model_info().then(function (m) { if (m) { state.models = m; renderModel(); } });
+    }
+  }
+
+  function startDownload(key) {
+    state.dlError = "";
+    if (api()) api().download_model(key).then(function (ok) {
+      if (ok) { state.models.download = { key: key, fraction: 0, detail: "Starting" }; render(); }
+    });
+  }
+
+  $("mdl-btn").addEventListener("click", function (e) { e.stopPropagation(); openMenu(!state.menu.open); });
+  $("mdl-note").addEventListener("click", function (e) {
+    var d = e.target.closest("[data-dl]"); if (d) startDownload(d.dataset.dl);
+  });
+  $("mdl-menu").addEventListener("click", function (e) {
+    e.stopPropagation();
+    var t;
+    if ((t = e.target.closest("[data-dl]"))) { startDownload(t.dataset.dl); return; }
+    if ((t = e.target.closest("[data-dl-cancel]"))) { if (api()) api().cancel_model_download(); return; }
+    if ((t = e.target.closest("[data-rm]"))) { state.menu.confirm = t.dataset.rm; state.menu.msg = ""; renderMenu(); return; }
+    if ((t = e.target.closest("[data-rm-no]"))) { state.menu.confirm = null; renderMenu(); return; }
+    if ((t = e.target.closest("[data-rm-yes]"))) {
+      var key = t.dataset.rmYes;
+      if (api()) api().remove_model(key).then(function (msg) {
+        state.menu.confirm = null; state.menu.msg = msg || "";
+        var m = byKey(key);
+        if (!msg && m && state.settings.model === m.file) setSetting("model", "auto");
+        render();
+      });
+      return;
+    }
+    if ((t = e.target.closest("[data-pick]"))) { setSetting("model", t.dataset.pick); openMenu(false); }
+  });
+  document.addEventListener("click", function () { if (state.menu.open) openMenu(false); });
+  window.addEventListener("resize", function () { if (state.menu.open) placeMenu(); });
 
   // ---------------------------------------------------------------- banner
   function renderBanner() {
@@ -442,7 +580,6 @@
   $("formats").addEventListener("click", function (e) {
     var c = e.target.closest(".chip"); if (c) setSetting("format", c.dataset.format);
   });
-  $("model").addEventListener("change", function () { setSetting("model", this.value); });
   $("out-dir").addEventListener("click", function () {
     if (api()) api().choose_output().then(function (p) { state.settings.out_dir = p; render(); });
   });
@@ -550,6 +687,7 @@
   document.addEventListener("keydown", function (e) {
     if (e.key === "Escape" && !$("sheet").hidden) { $("sheet").hidden = true; return; }
     if (e.key === "Escape" && !$("support").hidden) { $("support").hidden = true; return; }
+    if (e.key === "Escape" && state.menu.open) { openMenu(false); return; }
     if (e.key === "Delete" && $("sheet").hidden && $("support").hidden) { var c = current(); if (c) removeItem(c.id); return; }
     if (!e.ctrlKey) return;
     var k = e.key.toLowerCase();
@@ -589,6 +727,14 @@
       } else if (kind === "added") { hideDrop(); merge(data); }
       else if (kind === "dropped") hideDrop();
       else if (kind === "batch") state.batch = data.state === "running";
+      else if (kind === "models") { state.models = data; }
+      else if (kind === "model-dl") {
+        if (data.state === "running") state.models.download = data;
+        else {
+          state.models.download = null;
+          state.dlError = data.state === "error" ? (data.message || "The download stopped.") : "";
+        }
+      }
       else if (kind === "update") {
         if (data.state === "ready" && state.update.state !== "ready") state.toastHidden = false;
         state.update = data;
@@ -618,6 +764,7 @@
     api().init().then(function (s) {
       state.settings = s.settings; state.engine = s.engine; state.items = s.items; state.version = s.version;
       state.update = s.update || state.update; state.notice = s.notice || "";
+      if (s.models) state.models = s.models;
       if (state.notice) setTimeout(function () { if (state.update.state !== "ready") { state.notice = ""; render(); } }, 8000);
       render();
     });

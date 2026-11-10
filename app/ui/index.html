@@ -34,12 +34,13 @@
       </fieldset>
 
       <div class="group">
-        <label for="model">Model</label>
-        <div class="select">
-          <select id="model"></select>
+        <span class="label" id="model-label">Model</span>
+        <button type="button" class="mdl-btn" id="mdl-btn" aria-haspopup="listbox" aria-expanded="false" aria-labelledby="model-label mdl-name">
+          <span class="auto-badge" id="mdl-auto" hidden>AUTO</span>
+          <span class="t"><b id="mdl-name">Model</b><small id="mdl-sub"></small></span>
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
-        </div>
-        <p class="hint" id="model-hint"></p>
+        </button>
+        <div class="mdl-note" id="mdl-note" hidden></div>
       </div>
 
       <fieldset class="group">
@@ -264,6 +265,8 @@
     <button type="button" class="link center" id="paypal-mail">pranayratan@gmail.com</button>
   </div>
 </div>
+
+<div class="mdl-menu" id="mdl-menu" role="listbox" aria-labelledby="model-label" hidden></div>
 
 <script src="app.js"></script>
 </body>
