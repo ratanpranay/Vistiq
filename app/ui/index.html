@@ -205,6 +205,20 @@
       </div>
     </div>
     <div class="group">
+      <label for="max-size">Largest size</label>
+      <div class="select">
+        <select id="max-size">
+          <option value="4096">4096 px (4K)</option>
+          <option value="7000">7000 px</option>
+          <option value="8192">8192 px (8K)</option>
+          <option value="12000">12 000 px</option>
+          <option value="16384">16 384 px (the most the upscaler can do)</option>
+        </select>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
+      </div>
+      <p class="hint">Max goes up to this, and 2× and 4× never go past it. Bigger images take much longer and need more memory.</p>
+    </div>
+    <div class="group">
       <span class="label">Updates</span>
       <div class="upd">
         <div class="upd-text">

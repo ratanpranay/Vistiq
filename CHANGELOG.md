@@ -12,7 +12,11 @@
 - Fix: upscaling failed with "Prompt outputs failed validation
   new_resolution"; the target size is now sent under the right name
 - Each scale shows the size it will actually produce for the selected image,
-  and says when the 7000 px limit holds it back
+  and says when the size limit holds it back
+- Settings, Largest size: 4096, 7000 (default), 8192, 12 000 or 16 384 px,
+  the most the upscaler accepts
+- Time: a running clock while an image upscales, and "Took 1 min 12 s"
+  when it's done (also on each thumbnail)
 
 ## 0.2.1
 

@@ -55,17 +55,17 @@ def preview(source):
 LIMIT = 7000
 
 
-def save(data, source_path, out_dir, fmt, tag):
+def save(data, source_path, out_dir, fmt, tag, limit=LIMIT):
     """Write the result next to nothing it could overwrite. Returns
     (path, width, height)."""
     os.makedirs(out_dir, exist_ok=True)
     im = Image.open(io.BytesIO(data))
-    if max(im.size) > LIMIT:
+    if max(im.size) > limit:
         # The engine aims for the limit but rounds to its own grid; the
-        # promise is that nothing leaves this app bigger than 7000 px.
-        f = LIMIT / float(max(im.size))
-        im = im.resize((max(1, min(LIMIT, round(im.size[0] * f))),
-                        max(1, min(LIMIT, round(im.size[1] * f)))), Image.LANCZOS)
+        # promise is that nothing leaves this app bigger than the limit.
+        f = limit / float(max(im.size))
+        im = im.resize((max(1, min(limit, round(im.size[0] * f))),
+                        max(1, min(limit, round(im.size[1] * f)))), Image.LANCZOS)
     fmt = (fmt or "PNG").upper()
     ext = {"PNG": ".png", "JPG": ".jpg", "WEBP": ".webp"}.get(fmt, ".png")
     stem = os.path.splitext(os.path.basename(source_path))[0]

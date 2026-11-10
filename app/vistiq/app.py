@@ -41,6 +41,8 @@ class Api:
         }
 
     def set_setting(self, key, value):
+        if key == "max_res":
+            value = int(value) if int(value) in wf.SIZES else wf.LIMIT
         self._app.settings.set(key, value)
         return self._app.settings.all()
 
@@ -295,9 +297,10 @@ class App:
                     self.update(item, status="error", error=self.engine.message)
                     break
             started = time.time()
-            self.update(item, status="running", stage="Starting", progress=0)
+            self.update(item, status="running", stage="Starting", progress=0,
+                        started=time.time() * 1000)
             scale = s.get("scale")
-            max_res = wf.LIMIT
+            max_res = s.max_side()
             model = s.get("model")
             if self.engine.models and model not in self.engine.models:
                 model = wf.DEFAULT_DIT if wf.DEFAULT_DIT in self.engine.models else self.engine.models[0]
@@ -308,7 +311,7 @@ class App:
                         it, stage=stage, progress=frac if frac is not None else it.get("progress", 0)),
                     cancelled=self._cancel.is_set)
                 tag = "vistiq_max" if scale == "max" else "vistiq_%sx" % scale
-                path, w, h = imaging.save(data, item["path"], s.get("out_dir"), s.get("format"), tag)
+                path, w, h = imaging.save(data, item["path"], s.get("out_dir"), s.get("format"), tag, limit=max_res)
                 self.update(item, status="done", progress=1, stage="Saved",
                             out_path=path, out_w=w, out_h=h,
                             seconds=round(time.time() - started, 1),

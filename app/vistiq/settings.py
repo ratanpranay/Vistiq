@@ -48,6 +48,13 @@ class Settings:
     def get(self, key, default=None):
         return self._data.get(key, default)
 
+    def max_side(self):
+        try:
+            v = int(self._data.get("max_res") or wf.LIMIT)
+        except (TypeError, ValueError):
+            v = wf.LIMIT
+        return v if v in wf.SIZES else wf.LIMIT
+
     def set(self, key, value):
         if key not in DEFAULTS:
             raise KeyError(key)

@@ -9,8 +9,10 @@ original graph and is left out here, which is what bypassing it means.
 DEFAULT_DIT = "seedvr2_ema_7b_sharp_fp16.safetensors"
 DEFAULT_VAE = "ema_vae_fp16.safetensors"
 DEFAULT_MAX_RES = 7000
-#: The hard ceiling. No result is ever wider or taller than this.
+#: The default largest side, and the most the upscaler nodes accept.
 LIMIT = 7000
+CEILING = 16384
+SIZES = (4096, 7000, 8192, 12000, 16384)
 
 NODE_LOAD = "16"
 NODE_ALPHA = "17"
@@ -38,7 +40,7 @@ def output_size(width, height, scale, max_res=DEFAULT_MAX_RES):
     `max_res`; this mirrors that so the app can show the size up front.
     """
     width, height = int(width), int(height)
-    max_res = min(int(max_res or LIMIT), LIMIT)
+    max_res = min(int(max_res or LIMIT), CEILING)
     if width <= 0 or height <= 0:
         return 0, 0
     long_side = max(width, height)
@@ -63,7 +65,7 @@ def build_prompt(image_name, width, height, scale="4", dit_model=DEFAULT_DIT,
     """The API-format prompt for one image already uploaded to ComfyUI."""
     if scale != "max":
         scale = float(scale)
-    max_res = min(int(max_res or LIMIT), LIMIT)
+    max_res = min(int(max_res or LIMIT), CEILING)
     resolution = target_resolution(width, height, scale, max_res)
     return {
         NODE_LOAD: {

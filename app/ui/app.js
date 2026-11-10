@@ -1,7 +1,23 @@
 (function () {
   "use strict";
 
-  var LIMIT = 7000;
+  var SIZES = [4096, 7000, 8192, 12000, 16384];
+  function limitPx() {
+    var v = parseInt(state.settings && state.settings.max_res, 10);
+    return SIZES.indexOf(v) >= 0 ? v : 7000;
+  }
+  function dur(sec) {
+    sec = Math.max(0, Math.round(sec));
+    if (sec < 60) return sec + " s";
+    var m = Math.floor(sec / 60), r = sec % 60;
+    if (m < 60) return m + " min" + (r ? " " + r + " s" : "");
+    return Math.floor(m / 60) + " h " + (m % 60) + " min";
+  }
+  function clock(sec) {
+    sec = Math.max(0, Math.floor(sec));
+    var m = Math.floor(sec / 60), r = sec % 60;
+    return m + ":" + (r < 10 ? "0" : "") + r;
+  }
   // Friendly names. The files keep their own names on disk; nobody using
   // the app needs to see them.
   function modelInfo(file) {
@@ -57,8 +73,8 @@
   function outputSize(w, h, scale) {
     if (!w || !h) return [0, 0];
     var longSide = Math.max(w, h), f;
-    if (scale === "max") f = LIMIT / longSide;
-    else { f = parseFloat(scale); if (longSide * f > LIMIT) f = LIMIT / longSide; }
+    if (scale === "max") f = limitPx() / longSide;
+    else { f = parseFloat(scale); if (longSide * f > limitPx()) f = limitPx() / longSide; }
     return [Math.round(w * f / 2) * 2, Math.round(h * f / 2) * 2];
   }
 
@@ -101,7 +117,10 @@
     // 7000 px limit is visible before anything runs.
     Array.prototype.forEach.call(document.querySelectorAll("#scales .tile"), function (t) {
       var sub = t.querySelector("span");
-      if (!cur) { sub.textContent = sub.dataset.sub; t.classList.remove("same"); return; }
+      if (!cur) {
+        sub.textContent = t.dataset.scale === "max" ? fmt(limitPx()) + " px" : sub.dataset.sub;
+        t.classList.remove("same"); return;
+      }
       var o = outputSize(cur.w, cur.h, t.dataset.scale);
       sub.textContent = fmt(Math.max(o[0], o[1])) + " px";
     });
@@ -111,10 +130,10 @@
       $("size-in").textContent = fmt(cur.w) + " × " + fmt(cur.h);
       $("size-out").textContent = fmt(o[0]) + " × " + fmt(o[1]);
       var note = "", k = parseFloat(s.scale);
-      if (s.scale !== "max" && Math.max(cur.w, cur.h) * k > LIMIT) {
-        note = s.scale + "× would be " + fmt(cur.w * k) + " × " + fmt(cur.h * k) + ", so it's held to the " + fmt(LIMIT) + " px limit.";
+      if (s.scale !== "max" && Math.max(cur.w, cur.h) * k > limitPx()) {
+        note = s.scale + "× would be " + fmt(cur.w * k) + " × " + fmt(cur.h * k) + ", so it's held to the " + fmt(limitPx()) + " px limit.";
       }
-      if (Math.max(cur.w, cur.h) >= LIMIT) note = "This image is already at the " + fmt(LIMIT) + " px limit.";
+      if (Math.max(cur.w, cur.h) >= limitPx()) note = "This image is already at the " + fmt(limitPx()) + " px limit.";
       $("size-note").hidden = !note;
       $("size-note").textContent = note;
       // Dim choices that come out the same as the one selected.
@@ -171,7 +190,8 @@
         : it.status === "error" ? '<span class="badge error">' + cross + "</span>"
         : (it.status === "running" || it.status === "queued") ? '<span class="badge running"></span>' : "";
       html += '<li><button type="button" class="thumb" data-id="' + it.id + '" aria-current="' + (it.id === state.sel) +
-        '" aria-label="' + it.name.replace(/"/g, "&quot;") + '"><img alt="" src="' + (it.out_preview || it.preview) + '">' + badge + "</button>" +
+        '" aria-label="' + it.name.replace(/"/g, "&quot;") + '" title="' + it.name.replace(/"/g, "&quot;") +
+        (it.status === "done" ? ", took " + dur(it.seconds) : "") + '"><img alt="" src="' + (it.out_preview || it.preview) + '">' + badge + "</button>" +
         (it.status === "running" ? "" : '<button type="button" class="remove" data-remove="' + it.id + '" aria-label="Remove">' + cross + "</button>") + "</li>";
     });
     html += '<li><button type="button" class="add" id="add-more" aria-label="Add images"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></button></li>';
@@ -259,16 +279,16 @@
     var o = outputSize(cur.w, cur.h, state.settings.scale);
     if (cur.status === "done") {
       meta.className = "meta ok";
-      meta.textContent = "Saved, " + fmt(cur.out_w) + " × " + fmt(cur.out_h) + ", in " + cur.seconds + " s";
+      meta.textContent = "Saved, " + fmt(cur.out_w) + " × " + fmt(cur.out_h) + ". Took " + dur(cur.seconds) + ".";
     } else if (cur.status === "error") {
       meta.className = "meta bad";
       meta.textContent = "Didn't finish";
     } else if (cur.status === "running") {
-      meta.textContent = cur.stage || "Working";
+      meta.textContent = (cur.stage || "Working") + (cur.started ? ", " + clock((Date.now() - cur.started) / 1000) : "");
     } else if (cur.status === "queued") {
       meta.textContent = "Waiting its turn";
     } else if (Math.max(o[0], o[1]) <= Math.max(cur.w, cur.h)) {
-      meta.textContent = "Already at the " + fmt(LIMIT) + " px limit";
+      meta.textContent = "Already at the " + fmt(limitPx()) + " px limit";
     } else {
       meta.textContent = fmt(cur.w) + " × " + fmt(cur.h) + " → " + fmt(o[0]) + " × " + fmt(o[1]);
     }
@@ -293,7 +313,8 @@
       ring.classList.toggle("indeterminate", !exact);
       $("ring-bar").style.strokeDashoffset = exact ? String(327 * (1 - p)) : "";
       $("ring-text").textContent = exact ? Math.round(p * 100) + "%" : "";
-      $("veil-stage").textContent = cur.status === "queued" ? "Waiting its turn" : (cur.stage || "Working");
+      $("veil-stage").textContent = cur.status === "queued" ? "Waiting its turn"
+        : (cur.stage || "Working") + (cur.started ? "  ·  " + clock((Date.now() - cur.started) / 1000) : "");
     }
     $("err").hidden = cur.status !== "error";
     $("err").textContent = cur.error || "";
@@ -430,6 +451,7 @@
     $("sheet").hidden = false;
     var e = state.engine;
     $("keep-engine").checked = state.settings.keep_engine !== false;
+    $("max-size").value = String(limitPx());
     $("stop-engine").disabled = state.engine.state !== "ready" || state.running;
     $("engine-line").textContent = (state.settings.comfy_path ? "Using the ComfyUI in " + state.settings.comfy_path + ". " : "Vistiq's own engine. ") + (e.message || "");
     $("close-settings").focus();
@@ -440,6 +462,7 @@
   $("pick-comfy").addEventListener("click", function () {
     if (api()) api().choose_comfy().then(function (p) { state.settings.comfy_path = p; openSheet(); });
   });
+  $("max-size").addEventListener("change", function () { setSetting("max_res", parseInt(this.value, 10)); });
   $("keep-engine").addEventListener("change", function () { setSetting("keep_engine", this.checked); });
   $("stop-engine").addEventListener("click", function () {
     if (api()) api().stop_engine().then(function (ok) { if (ok) $("sheet").hidden = true; });
@@ -528,6 +551,11 @@
       render();
     }
   };
+
+  setInterval(function () {
+    var c = current();
+    if (c && c.status === "running" && c.started) renderStage();
+  }, 1000);
 
   function boot() {
     api().init().then(function (s) {

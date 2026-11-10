@@ -29,8 +29,8 @@ in Settings.
 
 Drop images (or a folder) on the window, pick a scale, press **Upscale**.
 
-- **2×, 4×** multiply the size. **Max** makes the longest side 7000 px.
-- Nothing ever comes out larger than **7000 × 7000 px**.
+- **2×, 4×** multiply the size. **Max** makes the longest side as big as the
+  *Largest size* setting allows (7000 px by default, up to 16 384 px).
 - Results are saved to *Pictures\Vistiq* unless you choose another folder.
 - **Cancel** stops the current image straight away.
 

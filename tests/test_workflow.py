@@ -20,9 +20,13 @@ class Sizes(unittest.TestCase):
                 ow, oh = wf.output_size(w, h, scale)
                 self.assertLessEqual(max(ow, oh), 7000, (w, h, scale))
 
-    def test_cannot_raise_the_limit(self):
+    def test_ceiling(self):
         ow, oh = wf.output_size(1000, 1000, "max", max_res=20000)
-        self.assertEqual((ow, oh), (7000, 7000))
+        self.assertEqual((ow, oh), (16384, 16384))
+
+    def test_chosen_limit(self):
+        self.assertEqual(wf.output_size(3584, 1184, 4, max_res=16384), (14336, 4736))
+        self.assertEqual(wf.output_size(3584, 1184, "max", max_res=8192), (8192, 2706))
 
     def test_max(self):
         self.assertEqual(wf.output_size(1000, 500, "max"), (7000, 3500))
