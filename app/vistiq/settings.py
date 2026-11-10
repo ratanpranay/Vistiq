@@ -33,6 +33,7 @@ DEFAULTS = {
     "phase_speeds": {},           # seconds per phase (per MP), by model
     "auto_migrated": False,
     "swap_bias": {},              # extra blocks to swap, learned from crashes
+    "part_mp": {},                # largest part (MP) that fit, learned from memory errors
     "engine_flags": 0,            # which OWN_FLAGS the running engine has
 }
 

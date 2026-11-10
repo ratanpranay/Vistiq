@@ -216,7 +216,7 @@
     var width = go.clientWidth || 256;
     go.style.setProperty("--p", pct + "%");
     go.style.setProperty("--fillpx", Math.max(0, pct / 100 * width - 22) + "px");
-    var label = (run.fine && run.stage ? run.stage : run.stage && /memory/i.test(run.stage) ? run.stage : phaseLabel(anim.shown)) + " " + Math.floor(overall * 100) + "%";
+    var label = (run.fine && run.stage ? run.stage.replace(/, part (\d+) of (\d+)/, " $1/$2") : run.stage && /memory/i.test(run.stage) ? run.stage : phaseLabel(anim.shown)) + " " + Math.floor(overall * 100) + "%";
     if ($("go-label").textContent !== label) { $("go-label").textContent = label; $("go-label-on").textContent = label; }
     var cur = current();
     if (cur && cur.id === run.id && !$("veil").hidden) {
@@ -309,8 +309,9 @@
       note.innerHTML = '<span>' + esc(target.name) + ' is the best fit for this PC. </span><button type="button" class="lnk" data-dl="' + target.key + '">Download it (' + target.gb + ' GB)</button>';
     } else if (pick) {
       note.hidden = false;
-      note.textContent = pick.fits ? "Tuned for this PC: fits fully in graphics memory and stays loaded between images."
-        : "Tuned for this PC: swaps only the part that doesn't fit, and stays loaded between images.";
+      note.textContent = (pick.fits ? "Tuned for this PC: runs fully in graphics memory."
+        : "Tuned for this PC: the model is brought in from RAM as it works.") +
+        " Very large results are made in parts and joined seamlessly.";
     }
     if (state.menu.open) renderMenu();
   }

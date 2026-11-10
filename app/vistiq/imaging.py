@@ -5,6 +5,9 @@ import os
 
 from PIL import Image, ImageOps
 
+# Results go up to 16 384 px a side; Pillow would refuse those as too big.
+Image.MAX_IMAGE_PIXELS = None
+
 EXTS = {".png", ".jpg", ".jpeg", ".webp", ".bmp", ".tif", ".tiff"}
 PREVIEW = 1600
 

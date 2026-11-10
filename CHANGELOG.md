@@ -1,3 +1,15 @@
+## Unreleased
+
+- Very large results (for example 9600 x 5400 from a 4800 x 2700 image) no
+  longer run out of graphics memory and stall. The upscaler needs about
+  0.6 GB of graphics memory per megapixel of result, so on a 16 GB card
+  anything above roughly 22 MP is now made in overlapping parts, each at
+  full quality, and blended back together with no visible seam
+- If a card still runs out of memory, Vistiq retries in smaller parts and
+  remembers that size for next time, instead of repeating the same attempt
+- Progress shows which part is running ("Upscaling 2/3")
+- Results up to 16 384 px a side open and save without Pillow's size limit
+
 ## 0.2.5
 
 - Speed and stability: Vistiq's engine is now pinned to the ComfyUI build

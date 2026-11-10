@@ -7,9 +7,12 @@ started the engine, it stops it again when the app closes.
 """
 import glob
 import json
+import logging
 import os
+import shutil
 import subprocess
 import sys
+import tempfile
 import threading
 import time
 import uuid
@@ -21,7 +24,9 @@ try:
 except Exception:  # pragma: no cover
     websocket = None
 
-from . import engine_setup, progress as prog_mod, workflow as wf
+from . import engine_setup, progress as prog_mod, tiles, workflow as wf
+
+log = logging.getLogger("vistiq")
 
 PORTS = (8188, 8000, 8189)
 
@@ -361,16 +366,82 @@ class Engine:
     # one job
 
     def upscale(self, path, width, height, scale, model, max_res, on_progress=None,
-                cancelled=lambda: False, tuning=None, retry_tuning=None, history=None):
-        """Run one image through the workflow. Returns the result's bytes."""
+                cancelled=lambda: False, tuning=None, retry_tuning=None, history=None,
+                part_mp=None):
+        """Run one image through the workflow. Returns the result's bytes.
+
+        A result bigger than `part_mp` megapixels (what the card handles in
+        one go) is made in overlapping parts and blended back together. If
+        the card still runs out of memory, the parts get smaller.
+        """
         if self.state != "ready" or not self.url:
             raise EngineError("The engine isn't ready yet.")
-        name = self._upload(path)
-        vae = wf.DEFAULT_VAE if (not self.vaes or wf.DEFAULT_VAE in self.vaes) else self.vaes[0]
         out_w, out_h = wf.output_size(width, height, "max" if scale == "max" else float(scale), max_res)
-        self._job = {"mp": out_w * out_h / 1e6, "history": history}
         self.last_timings = None
         self.failed_tuning = None
+        self.learned_part_mp = None
+        limit = float(part_mp) if part_mp else 1e9
+        for attempt in range(3):
+            boxes = tiles.plan(width, height, out_w, out_h, limit)
+            try:
+                if len(boxes) == 1:
+                    self._job = {"mp": out_w * out_h / 1e6, "history": history}
+                    return self._one(path, width, height, scale, model, max_res, on_progress,
+                                     cancelled, tuning, retry_tuning)
+                return self._parts(path, boxes, width, height, out_w, out_h, model,
+                                   on_progress, cancelled, tuning, retry_tuning, history)
+            except EngineError as exc:
+                if not getattr(exc, "memory", False) or attempt == 2:
+                    raise
+                # Even with the whole model swapped out the card was too
+                # small for parts this big: smaller parts, and remember it.
+                biggest = max((x1 - x0) * (y1 - y0) for x0, y0, x1, y1 in boxes)
+                limit = biggest * (out_w / float(width)) * (out_h / float(height)) / 1e6 * 0.6
+                self.learned_part_mp = round(limit, 1)
+                log.info("out of memory at %d part(s); parts now up to %.1f MP", len(boxes), limit)
+                if self.own and not self.alive():
+                    self.restart_own()
+                if on_progress:
+                    on_progress("Retrying in smaller parts", None, None)
+
+    def _parts(self, path, boxes, width, height, out_w, out_h, model, on_progress,
+               cancelled, tuning, retry_tuning, history):
+        factor = out_w / float(width)
+        folder = tempfile.mkdtemp(prefix="vistiq_parts_")
+        try:
+            paths = tiles.cut(path, boxes, folder)
+            results, n, took = [], len(paths), []
+            for i, (p, (x0, y0, x1, y1)) in enumerate(zip(paths, boxes)):
+                if cancelled():
+                    raise EngineError("Cancelled")
+                pw, ph = x1 - x0, y1 - y0
+                self._job = {"mp": pw * ph * factor * factor / 1e6, "history": history}
+                begun = time.time()
+
+                def part_progress(label, value, left, i=i, begun=begun):
+                    if not on_progress:
+                        return
+                    total = None
+                    if value is not None:
+                        total = (i + value) / n
+                    if left is not None:
+                        per = (sum(took) / len(took)) if took else (time.time() - begun + left)
+                        left = left + per * (n - i - 1)
+                    on_progress("%s, part %d of %d" % (label, i + 1, n), total, left)
+
+                results.append(self._one(p, pw, ph, factor, model, wf.CEILING, part_progress,
+                                         cancelled, tuning, retry_tuning))
+                took.append(time.time() - begun)
+            if on_progress:
+                on_progress("Joining the parts", 0.995, 2)
+            return tiles.stitch(results, boxes, width, height, out_w, out_h)
+        finally:
+            shutil.rmtree(folder, ignore_errors=True)
+
+    def _one(self, path, width, height, scale, model, max_res, on_progress, cancelled,
+             tuning, retry_tuning):
+        name = self._upload(path)
+        vae = wf.DEFAULT_VAE if (not self.vaes or wf.DEFAULT_VAE in self.vaes) else self.vaes[0]
         try:
             return self._run(name, width, height, scale, model, vae, max_res,
                              on_progress, cancelled, tuning)
@@ -379,23 +450,25 @@ class Engine:
             # Windows is often the same thing): once more, with the whole
             # model swapped out. A card that stopped responding also leaves
             # the engine unusable, so Vistiq's own engine is restarted first.
-            if retry_tuning and getattr(exc, "memory", False):
-                self.failed_tuning = tuning
-                if getattr(exc, "fatal", False):
-                    if not self.own:
-                        raise
-                    if on_progress:
-                        on_progress("Restarting the engine", None, None)
-                    self.restart_own()
-                    if self.state != "ready":
-                        raise EngineError("The graphics card stopped responding and the engine "
-                                          "couldn't be restarted. Close Vistiq and open it again.")
-                    name = self._upload(path)
+            if not getattr(exc, "memory", False):
+                raise
+            if getattr(exc, "fatal", False):
+                if not self.own:
+                    raise
                 if on_progress:
-                    on_progress("Retrying with safer settings", None, None)
-                return self._run(name, width, height, scale, model, vae, max_res,
-                                 on_progress, cancelled, retry_tuning)
-            raise
+                    on_progress("Restarting the engine", None, None)
+                self.restart_own()
+                if self.state != "ready":
+                    raise EngineError("The graphics card stopped responding and the engine "
+                                      "couldn't be restarted. Close Vistiq and open it again.")
+                name = self._upload(path)
+            if not retry_tuning or retry_tuning == tuning:
+                raise
+            self.failed_tuning = tuning
+            if on_progress:
+                on_progress("Retrying with safer settings", None, None)
+            return self._run(name, width, height, scale, model, vae, max_res,
+                             on_progress, cancelled, retry_tuning)
 
     def _run(self, name, width, height, scale, model, vae, max_res, on_progress,
              cancelled, tuning):
@@ -599,7 +672,7 @@ class MemoryError_(EngineError):
 def _exec_error(data):
     msg = (data.get("exception_message") or "").strip()
     low = msg.lower()
-    if "out of memory" in low or "outofmemory" in low:
+    if "out of memory" in low or "outofmemory" in low or "allocation on device" in low:
         return MemoryError_("The graphics card ran out of memory. Try a smaller scale "
                             "or a Swift model.")
     if "cuda error" in low or "cudaerror" in low or "device-side" in low:

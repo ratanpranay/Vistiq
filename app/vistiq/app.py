@@ -15,7 +15,7 @@ import uuid
 
 import webview
 
-from . import engine_setup, imaging, models, updater, workflow as wf
+from . import engine_setup, imaging, models, tiles, updater, workflow as wf
 from .engine import Engine, EngineError
 from .settings import Settings, data_dir
 
@@ -349,11 +349,12 @@ class App:
             # with the same model, per megapixel of output.
             ow, oh = wf.output_size(item["w"], item["h"], "max" if scale == "max" else float(scale), max_res)
             mp = max(0.1, ow * oh / 1e6)
-            tuning = retry = None
+            tuning = retry = part_mp = None
             if self.engine.own:
                 model = models.resolve(s.get("model"))
                 bias = (s.get("swap_bias") or {}).get(model, 0)
-                tuning = models.tuning(model, megapixels=mp, extra_swap=bias)
+                part_mp = tiles.part_limit(models._vram(), (s.get("part_mp") or {}).get(model))
+                tuning = models.tuning(model, megapixels=min(mp, part_mp), extra_swap=bias)
                 retry = models.tuning(model, retry=True)
             else:
                 model = s.get("model")
@@ -376,10 +377,14 @@ class App:
                         it, stage=stage, progress=frac if frac is not None else it.get("progress", 0),
                         left=round(left, 1) if left is not None else None),
                     cancelled=self._cancel.is_set, tuning=tuning, retry_tuning=retry,
-                    history=phase_hist)
+                    history=phase_hist, part_mp=part_mp)
                 tag = "vistiq_max" if scale == "max" else "vistiq_%sx" % scale
                 path, w, h = imaging.save(data, item["path"], s.get("out_dir"), s.get("format"), tag, limit=max_res)
                 took = time.time() - started
+                if getattr(self.engine, "learned_part_mp", None):
+                    pm = dict(s.get("part_mp") or {})
+                    pm[model] = self.engine.learned_part_mp
+                    s.set("part_mp", pm)
                 if self.engine.failed_tuning:
                     # The lighter settings crashed the card for this size:
                     # swap more with this model from now on.
