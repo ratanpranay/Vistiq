@@ -9,6 +9,10 @@
   next time (switch this off, or stop the engine, in Settings)
 - An × next to the image removes it from the list (or press Delete)
 - Fix: the "Drop to add" overlay could stay on screen after dropping
+- Fix: upscaling failed with "Prompt outputs failed validation
+  new_resolution"; the target size is now sent under the right name
+- Each scale shows the size it will actually produce for the selected image,
+  and says when the 7000 px limit holds it back
 
 ## 0.2.1
 

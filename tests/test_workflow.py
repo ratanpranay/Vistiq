@@ -40,7 +40,8 @@ class Prompt(unittest.TestCase):
     def test_inputs(self):
         p = wf.build_prompt("x.png", 1024, 576, scale="4")
         up = p[wf.NODE_UPSCALE]["inputs"]
-        self.assertEqual(up["resolution"], 2304)
+        self.assertEqual(up["new_resolution"], 2304)
+        self.assertNotIn("resolution", up)
         self.assertEqual(up["max_resolution"], 7000)
         self.assertEqual(up["color_correction"], "lab")
         self.assertEqual(p[wf.NODE_DIT]["inputs"]["model"], wf.DEFAULT_DIT)
@@ -48,3 +49,25 @@ class Prompt(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class NodeInputs(unittest.TestCase):
+    """The prompt must use exactly the input names the pinned nodes declare."""
+    EXPECTED = {
+        "SeedVR2VideoUpscaler": {"image", "dit", "vae", "seed", "new_resolution", "max_resolution",
+                                 "batch_size", "uniform_batch_size", "temporal_overlap",
+                                 "prepend_frames", "color_correction", "input_noise_scale",
+                                 "latent_noise_scale", "offload_device", "enable_debug"},
+        "SeedVR2LoadDiTModel": {"model", "device", "blocks_to_swap", "swap_io_components",
+                                "offload_device", "cache_model", "attention_mode"},
+        "SeedVR2LoadVAEModel": {"model", "device", "encode_tiled", "encode_tile_size",
+                                "encode_tile_overlap", "decode_tiled", "decode_tile_size",
+                                "decode_tile_overlap", "tile_debug", "offload_device", "cache_model"},
+    }
+
+    def test_names(self):
+        p = wf.build_prompt("x.png", 3584, 1184, scale="2")
+        for node in p.values():
+            want = self.EXPECTED.get(node["class_type"])
+            if want:
+                self.assertEqual(set(node["inputs"]), want, node["class_type"])

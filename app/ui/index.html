@@ -21,15 +21,16 @@
       <fieldset class="group">
         <legend>Scale</legend>
         <div class="tiles" role="radiogroup" aria-label="Scale" id="scales">
-          <button type="button" class="tile" role="radio" data-scale="2"><b>2×</b><span>Fast</span></button>
-          <button type="button" class="tile" role="radio" data-scale="4"><b>4×</b><span>Detailed</span></button>
-          <button type="button" class="tile" role="radio" data-scale="max"><b>Max</b><span>7000 px</span></button>
+          <button type="button" class="tile" role="radio" data-scale="2"><b>2×</b><span data-sub="Fast">Fast</span></button>
+          <button type="button" class="tile" role="radio" data-scale="4"><b>4×</b><span data-sub="Detailed">Detailed</span></button>
+          <button type="button" class="tile" role="radio" data-scale="max"><b>Max</b><span data-sub="7000 px">7000 px</span></button>
         </div>
         <div class="size" id="size" hidden>
           <span id="size-in"></span>
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
           <strong id="size-out"></strong>
         </div>
+        <p class="hint size-note" id="size-note" hidden></p>
       </fieldset>
 
       <div class="group">

@@ -136,6 +136,7 @@ class Engine:
         self.vaes = []
         self.client_id = uuid.uuid4().hex
         self.own = False
+        self.resolution_key = "new_resolution"
         self._lock = threading.Lock()
 
     # connection
@@ -273,6 +274,15 @@ class Engine:
             say("error", "This ComfyUI is missing Vistiq's upscaling nodes. "
                          "Open the logs from Settings for what to install.")
             return False
+        # The target-size input was renamed between versions of the nodes
+        # ("resolution" became "new_resolution"); ask which one this has.
+        try:
+            info = requests.get(self.url + "/object_info/SeedVR2VideoUpscaler", timeout=10).json()
+            spec = info["SeedVR2VideoUpscaler"]["input"]
+            names = set(spec.get("required", {})) | set(spec.get("optional", {}))
+            self.resolution_key = "new_resolution" if "new_resolution" in names or not names else "resolution"
+        except Exception:
+            self.resolution_key = "new_resolution"
         try:
             info = requests.get(self.url + "/object_info/SeedVR2LoadVAEModel", timeout=10).json()
             self.vaes = _options(info["SeedVR2LoadVAEModel"]["input"]["required"]["model"])
@@ -315,7 +325,8 @@ class Engine:
         name = self._upload(path)
         vae = wf.DEFAULT_VAE if (not self.vaes or wf.DEFAULT_VAE in self.vaes) else self.vaes[0]
         prompt = wf.build_prompt(name, width, height, scale=scale, dit_model=model,
-                                 vae_model=vae, max_res=max_res)
+                                 vae_model=vae, max_res=max_res,
+                                 resolution_key=self.resolution_key)
         ws = self._open_socket()
         try:
             r = requests.post(self.url + "/prompt",

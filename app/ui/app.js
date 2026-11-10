@@ -52,7 +52,7 @@
   })();
 
   // ---------------------------------------------------------------- helpers
-  function fmt(n) { return String(n).replace(/\B(?=(\d{3})+(?!\d))/g, " "); }
+  function fmt(n) { return String(n).replace(/\B(?=(\d{3})+(?!\d))/g, "\u202f"); }
 
   function outputSize(w, h, scale) {
     if (!w || !h) return [0, 0];
@@ -97,12 +97,32 @@
     $("out-dir").title = s.out_dir || "";
 
     var cur = current();
+    // Each tile shows what it would actually produce for this image, so the
+    // 7000 px limit is visible before anything runs.
+    Array.prototype.forEach.call(document.querySelectorAll("#scales .tile"), function (t) {
+      var sub = t.querySelector("span");
+      if (!cur) { sub.textContent = sub.dataset.sub; t.classList.remove("same"); return; }
+      var o = outputSize(cur.w, cur.h, t.dataset.scale);
+      sub.textContent = fmt(Math.max(o[0], o[1])) + " px";
+    });
     if (cur) {
       var o = outputSize(cur.w, cur.h, s.scale);
       $("size").hidden = false;
       $("size-in").textContent = fmt(cur.w) + " × " + fmt(cur.h);
       $("size-out").textContent = fmt(o[0]) + " × " + fmt(o[1]);
-    } else $("size").hidden = true;
+      var note = "", k = parseFloat(s.scale);
+      if (s.scale !== "max" && Math.max(cur.w, cur.h) * k > LIMIT) {
+        note = s.scale + "× would be " + fmt(cur.w * k) + " × " + fmt(cur.h * k) + ", so it's held to the " + fmt(LIMIT) + " px limit.";
+      }
+      if (Math.max(cur.w, cur.h) >= LIMIT) note = "This image is already at the " + fmt(LIMIT) + " px limit.";
+      $("size-note").hidden = !note;
+      $("size-note").textContent = note;
+      // Dim choices that come out the same as the one selected.
+      Array.prototype.forEach.call(document.querySelectorAll("#scales .tile"), function (t) {
+        var other = outputSize(cur.w, cur.h, t.dataset.scale);
+        t.classList.toggle("same", t.dataset.scale !== s.scale && other[0] === o[0] && other[1] === o[1]);
+      });
+    } else { $("size").hidden = true; $("size-note").hidden = true; }
 
     var go = $("go"), n = pending().length;
     if (state.running) {
@@ -334,7 +354,7 @@
   function chooseFolder() { if (api()) api().choose_folder_images().then(merge); }
   function setSetting(k, v) {
     state.settings[k] = v; render();
-    if (api()) api().set_setting(k, v).then(function (s) { state.settings = s; render(); });
+    if (api()) api().set_setting(k, v).then(function (s) { if (s) state.settings = s; render(); });
   }
   function go() {
     if (!api()) return;

@@ -263,3 +263,6 @@ kbd{display:inline-flex;align-items:center;justify-content:center;min-width:24px
 .toggle input:focus-visible+.track{outline:2px solid var(--ink);outline-offset:2px}
 .toggle-text{display:flex;flex-direction:column;font-size:13px;font-weight:600;color:var(--ink)}
 .toggle-text small{font-size:12px;font-weight:400;color:var(--dim);line-height:16px}
+
+.size-note{margin:-2px 2px 0}
+.tile.same{opacity:.55}
