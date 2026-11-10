@@ -15,7 +15,7 @@ import uuid
 
 import webview
 
-from . import imaging, workflow as wf
+from . import engine_setup, imaging, workflow as wf
 from .engine import Engine, EngineError
 from .settings import Settings, data_dir
 
@@ -110,6 +110,34 @@ class Api:
     def cancel(self):
         self._app.cancel()
 
+    # engine setup
+
+    def setup_info(self):
+        name, vram = engine_setup.gpu()
+        key = engine_setup.suggested_model(vram)
+        models = []
+        for m in engine_setup.MODELS:
+            models.append({"key": m["key"], "name": m["name"], "about": m["about"],
+                           "size": engine_setup.sizes(m["key"]).get("model", 0)})
+        rest = engine_setup.sizes(key)
+        return {"gpu": name, "vram": vram, "suggested": key, "models": models,
+                "engine_size": rest.get("engine", 0) + rest.get("vae", 0),
+                "free": round(engine_setup.free_gb(engine_setup.home())),
+                "running": bool(self._app.installer)}
+
+    def install_engine(self, model_key):
+        return self._app.install(model_key)
+
+    def cancel_install(self):
+        if self._app.installer:
+            self._app.installer.cancel()
+
+    def import_models(self):
+        picked = self._app.window.create_file_dialog(webview.FOLDER_DIALOG)
+        if not picked:
+            return []
+        return engine_setup.import_models(picked[0])
+
     def retry_engine(self):
         self._app.connect_async()
 
@@ -138,6 +166,7 @@ class App:
         self.engine = Engine(self.settings, os.path.join(data_dir(), "logs"))
         self.items = []
         self.window = None
+        self.installer = None
         self._worker = None
         self._cancel = threading.Event()
         self._emit_lock = threading.Lock()
@@ -191,6 +220,28 @@ class App:
             self.emit("engine", {"state": self.engine.state, "message": self.engine.message,
                                  "models": self.engine.models})
         threading.Thread(target=run, daemon=True).start()
+
+    def install(self, model_key):
+        if self.installer:
+            return False
+
+        def progress(step, label, fraction, detail):
+            self.emit("setup", {"state": "running", "step": step, "label": label,
+                                "fraction": fraction, "detail": detail})
+
+        def done(ok, message):
+            self.installer = None
+            if ok:
+                self.settings.set("model", engine_setup.model_by_key(model_key)["file"])
+                self.emit("setup", {"state": "done"})
+                self.connect_async()
+            else:
+                self.emit("setup", {"state": "cancelled" if message == "cancelled" else "error",
+                                    "message": message})
+
+        self.installer = engine_setup.Installer(model_key, progress, done)
+        self.installer.start()
+        return True
 
     def start(self):
         if self._worker and self._worker.is_alive():
@@ -256,6 +307,8 @@ class App:
 
     def shutdown(self):
         self._cancel.set()
+        if self.installer:
+            self.installer.cancel()
         if self.settings.get("stop_engine_on_exit", True):
             self.engine.stop()
 

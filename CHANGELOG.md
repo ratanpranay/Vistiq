@@ -1,3 +1,15 @@
+## 0.2.0
+
+- Vistiq now sets up its own private engine on first run: a portable
+  ComfyUI, the upscaler and the model, downloaded into
+  %LOCALAPPDATA%\Vistiq\engine with progress, pause and resume
+- Pick the model at setup (Ultra Sharp, Ultra Sharp Lite or Swift), with a
+  suggestion based on the graphics card
+- Already have the model files? Point Vistiq at them and it skips that
+  download (linked, not copied, when they're on the same drive)
+- Your own ComfyUI can still be used instead, from Settings
+- "Add a folder" is now "Choose a folder": it adds every image in a folder
+
 ## 0.1.0
 
 First release.

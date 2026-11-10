@@ -21,7 +21,7 @@ try:
 except Exception:  # pragma: no cover
     websocket = None
 
-from . import workflow as wf
+from . import engine_setup, workflow as wf
 
 PORTS = (8188, 8000, 8189)
 OWN_PORT = 8188
@@ -135,6 +135,7 @@ class Engine:
         self.models = []
         self.vaes = []
         self.client_id = uuid.uuid4().hex
+        self.own = False
         self._lock = threading.Lock()
 
     # connection
@@ -151,9 +152,24 @@ class Engine:
         urls += ["http://127.0.0.1:%d" % p for p in PORTS]
         return urls
 
+    def _has_nodes(self, url):
+        try:
+            r = requests.get(url + "/object_info/SeedVR2LoadDiTModel", timeout=5)
+            return r.ok and "SeedVR2LoadDiTModel" in r.json()
+        except Exception:
+            return False
+
     def connect(self, on_state=None, allow_start=True):
-        """Find a running engine, or start one. Blocks until it is ready
-        or it is clear it cannot be."""
+        """Get an engine ready, in this order:
+
+        1. an address set by hand in settings
+        2. Vistiq's own engine, if it has been set up (started hidden)
+        3. a ComfyUI already running on this PC that has the upscaling nodes
+        4. a ComfyUI folder chosen in Settings (started hidden)
+
+        Failing all of those the state becomes "setup": the app offers to
+        set up its own engine.
+        """
         with self._lock:
             def say(state, message=""):
                 self.state, self.message = state, message
@@ -161,50 +177,67 @@ class Engine:
                     on_state(state, message)
 
             say("starting", "Looking for the engine")
-            for url in self._candidates():
-                if self._alive(url):
+            own_url = (self.settings.get("comfy_url") or "").strip().rstrip("/")
+            if own_url and self._alive(own_url):
+                self.url = own_url
+                return self._after_connect(say)
+
+            if self.process and self.process.poll() is None and self.url and self._alive(self.url):
+                return self._after_connect(say)
+
+            if engine_setup.installed() and allow_start:
+                cmd = command_for(engine_setup.portable_dir())
+                if cmd:
+                    self.own = True
+                    return self._start(cmd[0], cmd[1], "Vistiq's engine", say)
+
+            for port in PORTS:
+                url = "http://127.0.0.1:%d" % port
+                if self._alive(url) and self._has_nodes(url):
                     self.url = url
                     return self._after_connect(say)
 
-            if not allow_start:
-                say("missing", "The engine isn't running.")
+            chosen = self.settings.get("comfy_path")
+            if chosen and allow_start:
+                found = find_installed(chosen)
+                if found:
+                    return self._start(found[0], found[1], found[2], say)
+                say("error", "No ComfyUI was found in the chosen folder.")
                 return False
 
-            found = find_installed(self.settings.get("comfy_path"))
-            if not found:
-                say("missing", "ComfyUI wasn't found on this PC. "
-                               "Point Vistiq at its folder in Settings.")
-                return False
-            cmd, cwd, label = found
-            port = OWN_PORT
-            while not _port_free(port) and port < OWN_PORT + 20:
-                port += 1
-            cmd = cmd + ["--port", str(port), "--disable-auto-launch"]
-            os.makedirs(self.log_dir, exist_ok=True)
-            log = open(os.path.join(self.log_dir, "engine.log"), "ab")
-            say("starting", "Starting the engine")
-            try:
-                self.process = subprocess.Popen(
-                    cmd, cwd=cwd, stdout=log, stderr=subprocess.STDOUT,
-                    stdin=subprocess.DEVNULL,
-                    creationflags=CREATE_NO_WINDOW if sys.platform == "win32" else 0)
-            except Exception as exc:
-                say("error", "Couldn't start ComfyUI from %s: %s" % (label, exc))
-                return False
-            url = "http://127.0.0.1:%d" % port
-            deadline = time.time() + 240
-            while time.time() < deadline:
-                if self.process.poll() is not None:
-                    say("error", "ComfyUI stopped while starting. "
-                                 "The details are in engine.log.")
-                    self.process = None
-                    return False
-                if self._alive(url, timeout=1.0):
-                    self.url = url
-                    return self._after_connect(say)
-                time.sleep(0.7)
-            say("error", "ComfyUI took too long to start.")
+            say("setup", "The engine needs a one-time setup.")
             return False
+
+    def _start(self, cmd, cwd, label, say):
+        port = OWN_PORT
+        while not _port_free(port) and port < OWN_PORT + 20:
+            port += 1
+        cmd = cmd + ["--port", str(port), "--disable-auto-launch"]
+        os.makedirs(self.log_dir, exist_ok=True)
+        log = open(os.path.join(self.log_dir, "engine.log"), "ab")
+        say("starting", "Starting the engine")
+        try:
+            self.process = subprocess.Popen(
+                cmd, cwd=cwd, stdout=log, stderr=subprocess.STDOUT,
+                stdin=subprocess.DEVNULL,
+                creationflags=CREATE_NO_WINDOW if sys.platform == "win32" else 0)
+        except Exception as exc:
+            say("error", "Couldn't start the engine from %s: %s" % (label, exc))
+            return False
+        url = "http://127.0.0.1:%d" % port
+        deadline = time.time() + 300
+        while time.time() < deadline:
+            if self.process.poll() is not None:
+                say("error", "The engine stopped while starting. "
+                             "The details are in engine.log (Settings, Open logs).")
+                self.process = None
+                return False
+            if self._alive(url, timeout=1.0):
+                self.url = url
+                return self._after_connect(say)
+            time.sleep(0.7)
+        say("error", "The engine took too long to start.")
+        return False
 
     def _after_connect(self, say):
         try:
@@ -213,6 +246,11 @@ class Engine:
             self.models = _options(spec)
         except Exception:
             self.models = []
+        if self.own and self.models:
+            # The nodes list every model they could download. In Vistiq's
+            # own engine, offer only the ones that are actually here.
+            here = set(engine_setup.local_models())
+            self.models = [m for m in self.models if m in here] or self.models
         if not self.models:
             import logging
             logging.getLogger("vistiq").error(

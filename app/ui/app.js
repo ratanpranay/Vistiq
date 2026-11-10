@@ -18,7 +18,8 @@
   }
 
   var state = { settings: {}, engine: { state: "idle", message: "", models: [] },
-                items: [], sel: null, running: false, version: "" };
+                items: [], sel: null, running: false, version: "",
+                setup: { info: null, choice: null, run: null, error: "", loading: false } };
   var $ = function (id) { return document.getElementById(id); };
   var api = function () { return window.pywebview && window.pywebview.api; };
 
@@ -114,7 +115,7 @@
 
     var st = $("status"), e = state.engine;
     st.className = "status" + (e.state === "ready" ? " ok" : (e.state === "error" || e.state === "missing") ? " bad" : "");
-    var text = e.state === "ready" ? "Engine ready" : e.state === "starting" ? (e.message || "Starting the engine") : e.state === "idle" ? "Starting" : "Engine not running";
+    var text = state.setup.run ? "Setting up the engine" : e.state === "setup" ? "Engine not set up yet" : e.state === "ready" ? "Engine ready" : e.state === "starting" ? (e.message || "Starting the engine") : e.state === "idle" ? "Starting" : "Engine not running";
     if (state.running) {
       var all = state.items.filter(function (i) { return i.status !== "ready"; });
       var done = all.filter(function (i) { return i.status === "done" || i.status === "error"; }).length;
@@ -127,7 +128,7 @@
   // ---------------------------------------------------------------- banner
   function renderBanner() {
     var e = state.engine, b = $("banner");
-    if (e.state === "ready") { b.hidden = true; return; }
+    if (e.state === "ready" || showingSetup()) { b.hidden = true; return; }
     b.hidden = false;
     var bad = e.state === "error" || e.state === "missing";
     b.classList.toggle("bad", bad);
@@ -155,7 +156,75 @@
     strip.innerHTML = html;
   }
 
+  function showingSetup() {
+    return state.engine.state === "setup" || !!state.setup.run;
+  }
+
+  var STEPS = [["check", "Checking this PC"], ["engine", "Downloading the engine"],
+               ["unpack", "Unpacking the engine"], ["nodes", "Adding the upscaler"],
+               ["model", "Downloading the model"]];
+
+  function gb(n) { return n >= 1e9 ? (n / 1e9).toFixed(1) + " GB" : Math.max(1, Math.round(n / 1e6)) + " MB"; }
+
+  function renderSetup() {
+    var su = state.setup, info = su.info;
+    $("setup").hidden = false;
+    $("empty").hidden = true;
+    $("work").hidden = true;
+    if (!info) {
+      if (!su.loading && api()) {
+        su.loading = true;
+        api().setup_info().then(function (i) {
+          su.info = i; su.loading = false; su.choice = su.choice || i.suggested; render();
+        });
+      }
+      $("gpu-line").textContent = "Checking this PC…";
+      $("setup-models").innerHTML = "";
+      return;
+    }
+    var g = $("gpu-line");
+    g.className = "gpu" + (info.gpu ? "" : " bad");
+    g.textContent = info.gpu ? info.gpu + ", " + info.vram + " GB graphics memory"
+      : "No NVIDIA graphics card found. Vistiq needs one to upscale.";
+
+    var html = "";
+    info.models.forEach(function (m) {
+      html += '<button type="button" class="model" role="radio" data-key="' + m.key + '" aria-checked="' + (m.key === su.choice) + '">' +
+        '<span class="radio"></span><span class="txt"><b>' + m.name +
+        (m.key === info.suggested ? '<span class="pick">Best for this PC</span>' : "") +
+        "</b><small>" + m.about + '</small></span><span class="gb">' + (m.size ? gb(m.size) : "Already here") + "</span></button>";
+    });
+    var models = $("setup-models");
+    if (models.dataset.html !== html) { models.innerHTML = html; models.dataset.html = html; }
+
+    var chosen = info.models.filter(function (m) { return m.key === su.choice; })[0] || info.models[0];
+    var total = (info.engine_size || 0) + (chosen.size || 0);
+    $("setup-total").textContent = total ? "Download about " + gb(total) + " in total. " + info.free + " GB free on this drive."
+      : "Everything is already downloaded.";
+
+    var run = su.run;
+    $("setup-choose").hidden = !!run;
+    $("setup-run").hidden = !run;
+    $("setup-err").hidden = !su.error;
+    $("setup-err").textContent = su.error;
+    $("setup-go").textContent = su.error ? "Try again" : su.paused ? "Continue setup" : "Set up";
+    if (run) {
+      var at = STEPS.map(function (x) { return x[0]; }).indexOf(run.step), list = "";
+      STEPS.forEach(function (x, i) {
+        var cls = i < at ? "done" : i === at ? "now" : "";
+        list += '<li class="' + cls + '"><span class="st">' + (i < at ? check : "") + "</span>" + x[1] + "</li>";
+      });
+      $("setup-steps").innerHTML = list;
+      var bar = $("setup-bar").parentNode, f = run.fraction;
+      bar.classList.toggle("indeterminate", f === null || f === undefined);
+      $("setup-bar").style.width = (f === null || f === undefined) ? "" : Math.round(f * 100) + "%";
+      $("setup-detail").textContent = run.detail || "";
+    }
+  }
+
   function renderStage() {
+    if (showingSetup()) { renderSetup(); return; }
+    $("setup").hidden = true;
     var cur = current();
     $("empty").hidden = !!cur;
     $("work").hidden = !cur;
@@ -270,6 +339,28 @@
   $("banner-retry").addEventListener("click", function () { if (api()) api().retry_engine(); });
   $("banner-folder").addEventListener("click", function () { if (api()) api().choose_comfy(); });
 
+  // engine setup
+  $("setup-models").addEventListener("click", function (e) {
+    var m = e.target.closest(".model"); if (m) { state.setup.choice = m.dataset.key; render(); }
+  });
+  $("setup-go").addEventListener("click", function () {
+    if (!api()) return;
+    state.setup.error = "";
+    api().install_engine(state.setup.choice).then(function (ok) {
+      if (ok) { state.setup.run = { step: "check", fraction: null, detail: "" }; render(); }
+    });
+  });
+  $("setup-cancel").addEventListener("click", function () { if (api()) api().cancel_install(); });
+  $("setup-import").addEventListener("click", function () {
+    if (!api()) return;
+    api().import_models().then(function (names) {
+      state.setup.info = null;
+      state.setup.error = names && names.length ? "" : "No model files were found in that folder.";
+      render();
+    });
+  });
+  $("setup-own").addEventListener("click", function () { if (api()) api().choose_comfy(); });
+
   // settings sheet
   function openSheet() {
     $("sheet").hidden = false;
@@ -315,6 +406,17 @@
         if (data.status === "running") state.sel = data.id;
       } else if (kind === "added") merge(data);
       else if (kind === "batch") state.batch = data.state === "running";
+      else if (kind === "setup") {
+        var su = state.setup;
+        if (data.state === "running") { su.run = data; su.error = ""; }
+        else {
+          su.run = null;
+          su.error = data.state === "error" ? data.message : "";
+          su.paused = data.state === "cancelled";
+          su.info = null;
+          if (data.state === "done") state.engine = { state: "starting", message: "Starting the engine", models: [] };
+        }
+      }
       render();
     }
   };

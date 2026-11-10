@@ -16,10 +16,14 @@ repo for a newer version of the app and updates itself.
 ### What it needs
 
 - Windows 10 or 11 with an NVIDIA graphics card
-- ComfyUI installed, with Vistiq's upscaling nodes and models (if they're
-  missing, the log says exactly what to install). Vistiq finds the portable build, a git install or ComfyUI Desktop on its own,
-  starts it hidden, and stops it when you close the app. If it can't find it,
-  choose the ComfyUI folder in Settings.
+- About 25 GB of free space for the engine and the model
+
+On first run Vistiq offers to set up its engine: a private copy of ComfyUI
+with the upscaler and the model, kept in `%LOCALAPPDATA%\Vistiq\engine`.
+Nothing else on the PC is touched. Setup can be paused and picks up where
+it stopped. It's started hidden whenever Vistiq opens and stopped when it
+closes. If you'd rather use a ComfyUI you already have, choose its folder
+in Settings.
 
 ## Using it
 

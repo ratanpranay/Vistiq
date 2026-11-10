@@ -84,6 +84,37 @@
       </span>
     </div>
 
+    <section class="setup" id="setup" hidden>
+      <div class="setup-card">
+        <h1>Set up the engine</h1>
+        <p class="lead">A one-time download. Vistiq keeps its own private copy, so nothing else on this PC changes.</p>
+        <p class="gpu" id="gpu-line"></p>
+
+        <div id="setup-choose">
+          <span class="label">Model</span>
+          <div class="models" id="setup-models" role="radiogroup" aria-label="Model"></div>
+          <p class="hint" id="setup-total"></p>
+          <div class="row setup-actions">
+            <button type="button" class="primary" id="setup-go">Set up</button>
+            <button type="button" class="ghost" id="setup-import">I already have the model files</button>
+          </div>
+          <button type="button" class="link" id="setup-own">Use my own ComfyUI instead</button>
+        </div>
+
+        <div id="setup-run" hidden>
+          <ol class="steps" id="setup-steps"></ol>
+          <div class="bar"><span id="setup-bar"></span></div>
+          <div class="row between">
+            <span class="hint" id="setup-detail"></span>
+            <button type="button" class="ghost sm" id="setup-cancel">Pause</button>
+          </div>
+          <p class="hint">You can close Vistiq at any time. Setup carries on from where it stopped next time.</p>
+        </div>
+
+        <p class="setup-err" id="setup-err" hidden></p>
+      </div>
+    </section>
+
     <section class="empty" id="empty">
       <div class="dash" aria-hidden="true"></div>
       <div class="art" aria-hidden="true">
@@ -96,7 +127,7 @@
         <button type="button" class="primary" id="choose">
           Choose images <span class="keys light" aria-hidden="true"><kbd>Ctrl</kbd><kbd>O</kbd></span>
         </button>
-        <button type="button" class="ghost" id="choose-folder">Add a folder</button>
+        <button type="button" class="ghost" id="choose-folder">Choose a folder</button>
       </div>
       <p class="paste">or paste a copied image with <kbd>Ctrl</kbd> <kbd>V</kbd></p>
     </section>
