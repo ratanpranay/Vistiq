@@ -200,7 +200,7 @@
     var chosen = info.models.filter(function (m) { return m.key === su.choice; })[0] || info.models[0];
     var total = (info.engine_size || 0) + (chosen.size || 0);
     $("setup-total").textContent = total ? "Download about " + gb(total) + " in total. " + info.free + " GB free on this drive."
-      : "Everything is already downloaded.";
+      : "Nothing left to download. Setup only needs to finish.";
 
     var run = su.run;
     $("setup-choose").hidden = !!run;
@@ -378,9 +378,18 @@
   $("reconnect").addEventListener("click", function () { if (api()) api().retry_engine(); $("sheet").hidden = true; });
   $("logs").addEventListener("click", function () { if (api()) api().open_logs(); });
 
+  // support
+  var PAYPAL = "https://www.paypal.com/donate/?business=pranayratan%40gmail.com&no_recurring=0&item_name=Vistiq&currency_code=EUR";
+  $("open-support").addEventListener("click", function () { $("support").hidden = false; $("close-support").focus(); });
+  $("close-support").addEventListener("click", function () { $("support").hidden = true; });
+  $("support").addEventListener("click", function (e) { if (e.target === this) this.hidden = true; });
+  $("open-paypal").addEventListener("click", function () { if (api()) api().open_url(PAYPAL); });
+  $("paypal-mail").addEventListener("click", function () { if (api()) api().open_url(PAYPAL); });
+
   // keys
   document.addEventListener("keydown", function (e) {
     if (e.key === "Escape" && !$("sheet").hidden) { $("sheet").hidden = true; return; }
+    if (e.key === "Escape" && !$("support").hidden) { $("support").hidden = true; return; }
     if (!e.ctrlKey) return;
     var k = e.key.toLowerCase();
     if (k === "o") { e.preventDefault(); choose(); }

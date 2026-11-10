@@ -67,9 +67,14 @@
       </button>
       <div class="foot-row">
         <span class="status" id="status" role="status" aria-live="polite"></span>
+        <span class="foot-icons">
+        <button type="button" class="icon heart" id="open-support" aria-label="Support Vistiq">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10z"/></svg>
+        </button>
         <button type="button" class="icon" id="open-settings" aria-label="Settings">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h10M18 7h2M4 17h2M10 17h10"/><circle cx="16" cy="7" r="2"/><circle cx="8" cy="17" r="2"/></svg>
         </button>
+        </span>
       </div>
     </div>
   </aside>
@@ -90,7 +95,7 @@
         <p class="lead">A one-time download. Vistiq keeps its own private copy, so nothing else on this PC changes.</p>
         <p class="gpu" id="gpu-line"></p>
 
-        <div id="setup-choose">
+        <div id="setup-choose" class="setup-choose">
           <span class="label">Model</span>
           <div class="models" id="setup-models" role="radiogroup" aria-label="Model"></div>
           <p class="hint" id="setup-total"></p>
@@ -103,11 +108,11 @@
 
         <div id="setup-run" hidden>
           <ol class="steps" id="setup-steps"></ol>
-          <div class="bar"><span id="setup-bar"></span></div>
-          <div class="row between">
-            <span class="hint" id="setup-detail"></span>
+          <div class="bar-row">
+            <div class="bar"><span id="setup-bar"></span></div>
             <button type="button" class="ghost sm" id="setup-cancel">Pause</button>
           </div>
+          <p class="hint detail" id="setup-detail"></p>
           <p class="hint">You can close Vistiq at any time. Setup carries on from where it stopped next time.</p>
         </div>
 
@@ -187,6 +192,25 @@
       <div class="row"><button type="button" class="ghost sm" id="logs">Open logs</button></div>
     </div>
     <p class="hint version" id="version"></p>
+  </div>
+</div>
+
+<div class="sheet-back" id="support" hidden>
+  <div class="sheet support" role="dialog" aria-modal="true" aria-labelledby="support-title">
+    <header>
+      <h2 id="support-title">Support Vistiq</h2>
+      <button type="button" class="icon" id="close-support" aria-label="Close">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
+      </button>
+    </header>
+    <p class="hint lead">Vistiq is free. If it saves you time, you can say thanks with PayPal.</p>
+    <div class="qr"><img src="assets/support-qr.svg" alt="QR code for the PayPal support page"></div>
+    <p class="hint center">Scan with your phone, or</p>
+    <button type="button" class="primary pay" id="open-paypal">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10z"/></svg>
+      Open PayPal
+    </button>
+    <button type="button" class="link center" id="paypal-mail">pranayratan@gmail.com</button>
   </div>
 </div>
 
