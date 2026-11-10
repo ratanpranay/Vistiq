@@ -1,4 +1,4 @@
-## Unreleased
+## 0.2.2
 
 - Update notice: when a new version is out, Vistiq downloads it in the
   background and offers "Restart now"
