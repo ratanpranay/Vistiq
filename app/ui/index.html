@@ -62,9 +62,17 @@
     </div>
 
     <div class="rail-foot">
-      <button type="button" class="go" id="go" disabled>
-        <span id="go-label">Upscale</span>
-      </button>
+      <div class="go-wrap" id="go-wrap">
+        <button type="button" class="go" id="go" disabled>
+          <span class="go-fill" id="go-fill" aria-hidden="true"></span>
+          <span class="go-label" id="go-label">Upscale</span>
+          <span class="go-label on" id="go-label-on" aria-hidden="true"></span>
+        </button>
+        <button type="button" class="go-x" id="go-x" aria-label="Cancel" title="Cancel" hidden>
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
+        </button>
+      </div>
+      <div class="go-meta" id="go-meta" hidden><span id="go-count"></span><span id="go-clock"></span></div>
       <div class="foot-row">
         <span class="status" id="status" role="status" aria-live="polite"></span>
         <span class="foot-icons">
@@ -176,6 +184,8 @@
       <button type="button" class="ghost sm" id="toast-later">Later</button>
       <button type="button" class="primary sm" id="toast-go">Restart now</button>
     </div>
+
+    <span class="copyright">© Pranay '26</span>
 
     <div class="drop-hint" id="drop-hint" hidden><span>Drop to add</span></div>
   </main>

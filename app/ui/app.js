@@ -143,26 +143,54 @@
       });
     } else { $("size").hidden = true; $("size-note").hidden = true; }
 
-    var go = $("go"), n = pending().length;
-    if (state.running) {
-      go.disabled = false; go.classList.add("cancel");
-      $("go-label").textContent = "Cancel";
-    } else {
-      go.classList.remove("cancel");
-      go.disabled = !n || (state.engine.state !== "ready" && state.engine.state !== "stopped");
-      $("go-label").textContent = n > 1 ? "Upscale " + n + " images" : "Upscale";
-    }
+    renderGo();
 
     var st = $("status"), e = state.engine;
     st.className = "status" + (e.state === "ready" ? " ok" : (e.state === "error" || e.state === "missing") ? " bad" : "");
     var text = state.setup.run ? "Setting up the engine" : e.state === "stopped" ? "Engine stopped" : e.state === "setup" ? "Engine not set up yet" : e.state === "ready" ? "Engine ready" : e.state === "starting" ? (e.message || "Starting the engine") : e.state === "idle" ? "Starting" : "Engine not running";
-    if (state.running) {
-      var all = state.items.filter(function (i) { return i.status !== "ready"; });
-      var done = all.filter(function (i) { return i.status === "done" || i.status === "error"; }).length;
-      text = "Working on " + Math.min(done + 1, all.length) + " of " + all.length;
-    }
     st.innerHTML = '<span class="dot"></span><span></span>';
     st.lastChild.textContent = text;
+  }
+
+  // The Upscale button turns into the progress bar while work runs: the
+  // logo's gradient fills it from the left, the label flips to white where
+  // the fill has reached, and the × beside it cancels.
+  function renderGo() {
+    var go = $("go"), n = pending().length;
+    var working = state.items.filter(function (i) { return i.status === "running" || i.status === "queued"; });
+    if (state.running) {
+      var run = state.items.filter(function (i) { return i.status === "running"; })[0];
+      var finished = state.items.filter(function (i) { return i.status === "done" && i.inBatch; }).length;
+      var total = finished + working.length;
+      var p = run && run.progress ? run.progress : 0;
+      var overall = total ? (finished + p) / total : 0;
+      var exact = p > 0 || finished > 0;
+      go.disabled = false;
+      go.classList.add("running");
+      go.classList.toggle("indeterminate", !exact);
+      go.setAttribute("aria-disabled", "true");
+      var pct = Math.round(overall * 100);
+      var label = exact ? (run && run.stage && run.stage !== "Upscaling" && !p ? run.stage : "Upscaling " + pct + "%")
+                        : (run && run.stage ? run.stage : "Starting");
+      $("go-label").textContent = label;
+      $("go-label-on").textContent = label;
+      var width = go.clientWidth || 256;
+      go.style.setProperty("--p", (exact ? Math.max(6, pct) : 0) + "%");
+      go.style.setProperty("--bw", width + "px");
+      go.style.setProperty("--fillpx", Math.max(0, (exact ? Math.max(6, pct) : 0) / 100 * width - 22) + "px");
+      $("go-x").hidden = false;
+      $("go-meta").hidden = false;
+      $("go-count").textContent = "Image " + Math.min(finished + 1, total) + " of " + total;
+      $("go-clock").textContent = run && run.started ? clock((Date.now() - run.started) / 1000) : "";
+    } else {
+      go.classList.remove("running", "indeterminate");
+      go.removeAttribute("aria-disabled");
+      go.style.removeProperty("--p");
+      go.disabled = !n || (state.engine.state !== "ready" && state.engine.state !== "stopped");
+      $("go-label").textContent = n > 1 ? "Upscale " + n + " images" : "Upscale";
+      $("go-x").hidden = true;
+      $("go-meta").hidden = true;
+    }
   }
 
   // ---------------------------------------------------------------- banner
@@ -379,8 +407,9 @@
   }
   function go() {
     if (!api()) return;
-    if (state.running) { api().cancel(); return; }
+    if (state.running) return;
     if ($("go").disabled) return;
+    state.items.forEach(function (i) { i.inBatch = i.status === "ready" || i.status === "error"; });
     api().start().then(function (ok) { if (ok) { state.batch = true; render(); } });
   }
 
@@ -395,6 +424,7 @@
     if (api()) api().choose_output().then(function (p) { state.settings.out_dir = p; render(); });
   });
   $("go").addEventListener("click", go);
+  $("go-x").addEventListener("click", function () { if (api()) api().cancel(); });
   $("cancel").addEventListener("click", function () { if (api()) api().cancel(); });
   $("choose").addEventListener("click", choose);
   $("choose-folder").addEventListener("click", chooseFolder);
@@ -527,7 +557,10 @@
       if (kind === "engine") state.engine = data;
       else if (kind === "item") {
         var found = false;
-        state.items = state.items.map(function (i) { if (i.id === data.id) { found = true; return data; } return i; });
+        state.items = state.items.map(function (i) {
+          if (i.id === data.id) { found = true; data.inBatch = i.inBatch || data.status === "queued" || data.status === "running"; return data; }
+          return i;
+        });
         if (!found) state.items.push(data);
         if (data.status === "running") state.sel = data.id;
       } else if (kind === "added") { hideDrop(); merge(data); }
@@ -555,6 +588,7 @@
   setInterval(function () {
     var c = current();
     if (c && c.status === "running" && c.started) renderStage();
+    if (state.running) renderGo();
   }, 1000);
 
   function boot() {

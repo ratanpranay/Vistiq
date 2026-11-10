@@ -15,6 +15,10 @@
   and says when the size limit holds it back
 - Settings, Largest size: 4096, 7000 (default), 8192, 12 000 or 16 384 px,
   the most the upscaler accepts
+- The Upscale button wears the logo's colours and becomes the progress bar
+  while working: it fills from the left, with a × to cancel, the image
+  count and a clock underneath
+- © Pranay '26 in the bottom right corner
 - Time: a running clock while an image upscales, and "Took 1 min 12 s"
   when it's done (also on each thumbnail)
 
