@@ -1,4 +1,4 @@
-## Unreleased
+## 0.2.4
 
 - Fix: "CUDA error: unknown error" with Ultra Sharp Lite on large images.
   Vistiq kept the whole model on the card and left too little room for a
