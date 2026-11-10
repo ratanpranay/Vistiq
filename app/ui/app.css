@@ -283,8 +283,8 @@ kbd{display:inline-flex;align-items:center;justify-content:center;min-width:24px
 .tile.same{opacity:.55}
 .inline-link{display:inline;font:inherit;font-weight:700;color:var(--ink);text-decoration:underline;text-underline-offset:2px}
 .inline-link:hover{color:#8B2EF2}
-.go.running .go-fill{transition:width 1s linear}
-.ring .bar{transition:stroke-dashoffset 1s linear}
+.go.running .go-fill{transition:none}
+.ring .bar{transition:none}
 
 /* model picker */
 .mdl-btn{height:54px;padding:0 14px;border-radius:12px;background:var(--field);border:1px solid var(--line);display:flex;align-items:center;gap:10px;text-align:left;width:100%}

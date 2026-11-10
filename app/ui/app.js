@@ -158,14 +158,68 @@
   // the fill has reached, and the × beside it cancels.
   // Real progress when the engine reports it; otherwise an estimate from
   // how long this model took before, held below 97% until it's done.
-  function progressOf(item) {
-    if (!item) return 0;
-    if (item.progress > 0) return item.progress;
-    if (item.status === "running" && item.estimate > 0 && item.started) {
-      var t = (Date.now() - item.started) / 1000;
-      return Math.min(0.97, t / item.estimate);
+  // Progress the bar can show without ever stopping or jumping back.
+  //
+  // The upscaler only reports at phase boundaries (about 20%, 45% and 95%
+  // for one image), and nothing in between. So between reports the bar
+  // keeps creeping toward the next boundary on its own, slowing as it gets
+  // close, and a learned time estimate takes over once there is one. What
+  // is drawn then eases toward that target every frame, so it moves in one
+  // continuous motion.
+  var PHASES = [0.2, 0.45, 0.95, 0.99];
+  function targetOf(item) {
+    if (!item || item.status !== "running" || !item.started) return 0;
+    var now = Date.now(), real = item.progress || 0;
+    var o = outputSize(item.w, item.h, state.settings.scale);
+    var mpx = Math.max(1, o[0] * o[1] / 1e6);
+    if (item.estimate > 0) {
+      return Math.max(real, Math.min(0.97, (now - item.started) / 1000 / item.estimate));
     }
-    return 0;
+    var cap = 0.99;
+    for (var i = 0; i < PHASES.length; i++) if (PHASES[i] > real + 0.001) { cap = PHASES[i]; break; }
+    var since = (now - (item.realAt || item.started)) / 1000;
+    var T = Math.max(4, mpx * 0.5);
+    return real + (cap - real) * 0.92 * (1 - Math.exp(-since / T));
+  }
+  function phaseLabel(p) {
+    return p < 0.2 ? "Preparing" : p < 0.45 ? "Upscaling" : p < 0.95 ? "Finishing details" : "Saving";
+  }
+  var anim = { item: null, shown: 0 };
+  function progressOf(item) {
+    return item && anim.item === item.id ? anim.shown : 0;
+  }
+
+  function tick() {
+    var run = state.items.filter(function (i) { return i.status === "running"; })[0];
+    if (run) {
+      if (anim.item !== run.id) { anim.item = run.id; anim.shown = 0; }
+      var t = Math.max(anim.shown, targetOf(run));
+      anim.shown += (t - anim.shown) * 0.04;
+      paintProgress(run);
+    } else if (anim.item) {
+      anim.item = null; anim.shown = 0;
+    }
+    requestAnimationFrame(tick);
+  }
+
+  function paintProgress(run) {
+    var go = $("go");
+    if (!go.classList.contains("running")) return;
+    var finished = state.items.filter(function (i) { return i.status === "done" && i.inBatch; }).length;
+    var working = state.items.filter(function (i) { return i.status === "running" || i.status === "queued"; }).length;
+    var total = finished + working;
+    var overall = total ? (finished + anim.shown) / total : anim.shown;
+    var pct = Math.max(2, overall * 100);
+    var width = go.clientWidth || 256;
+    go.style.setProperty("--p", pct + "%");
+    go.style.setProperty("--fillpx", Math.max(0, pct / 100 * width - 22) + "px");
+    var label = (run.stage && /memory/i.test(run.stage) ? run.stage : phaseLabel(anim.shown)) + " " + Math.floor(overall * 100) + "%";
+    if ($("go-label").textContent !== label) { $("go-label").textContent = label; $("go-label-on").textContent = label; }
+    var cur = current();
+    if (cur && cur.id === run.id && !$("veil").hidden) {
+      $("ring-bar").style.strokeDashoffset = String(327 * (1 - anim.shown));
+      $("ring-text").textContent = Math.floor(anim.shown * 100) + "%";
+    }
   }
 
   function renderGo() {
@@ -175,30 +229,20 @@
       var run = state.items.filter(function (i) { return i.status === "running"; })[0];
       var finished = state.items.filter(function (i) { return i.status === "done" && i.inBatch; }).length;
       var total = finished + working.length;
-      var p = progressOf(run);
-      var overall = total ? (finished + p) / total : 0;
-      var exact = p > 0 || finished > 0;
       go.disabled = false;
       go.classList.add("running");
-      go.classList.toggle("indeterminate", !exact);
       go.setAttribute("aria-disabled", "true");
-      var pct = Math.round(overall * 100);
-      var label = exact ? (run && run.stage && run.stage !== "Upscaling" && !p ? run.stage : "Upscaling " + pct + "%")
-                        : (run && run.stage ? run.stage : "Starting");
-      $("go-label").textContent = label;
-      $("go-label-on").textContent = label;
-      var width = go.clientWidth || 256;
-      go.style.setProperty("--p", (exact ? Math.max(6, pct) : 0) + "%");
-      go.style.setProperty("--bw", width + "px");
-      go.style.setProperty("--fillpx", Math.max(0, (exact ? Math.max(6, pct) : 0) / 100 * width - 22) + "px");
+      go.style.setProperty("--bw", (go.clientWidth || 256) + "px");
+      if (run) paintProgress(run);
+      else { $("go-label").textContent = "Starting"; $("go-label-on").textContent = "Starting"; }
       $("go-x").hidden = false;
       $("go-meta").hidden = false;
       $("go-count").textContent = "Image " + Math.min(finished + 1, total) + " of " + total;
       var el = run && run.started ? (Date.now() - run.started) / 1000 : 0;
       $("go-clock").textContent = run && run.started
-        ? clock(el) + (run.estimate > 0 && !run.progress ? " of about " + clock(Math.max(run.estimate, el)) : "") : "";
+        ? clock(el) + (run.estimate > 0 ? " of about " + clock(Math.max(run.estimate, el)) : "") : "";
     } else {
-      go.classList.remove("running", "indeterminate");
+      go.classList.remove("running");
       go.removeAttribute("aria-disabled");
       go.style.removeProperty("--p");
       go.disabled = !n || (state.engine.state !== "ready" && state.engine.state !== "stopped");
@@ -498,12 +542,12 @@
     $("veil").hidden = !busy;
     if (busy) {
       var ring = $("ring-bar").parentNode.parentNode, p = progressOf(cur);
-      var exact = cur.status === "running" && p > 0;
-      ring.classList.toggle("indeterminate", !exact);
-      $("ring-bar").style.strokeDashoffset = exact ? String(327 * (1 - p)) : "";
-      $("ring-text").textContent = exact ? Math.round(p * 100) + "%" : "";
-      $("veil-stage").textContent = cur.status === "queued" ? "Waiting its turn"
-        : (cur.stage || "Working") + (cur.started ? "  ·  " + clock((Date.now() - cur.started) / 1000) : "");
+      var queued = cur.status === "queued";
+      ring.classList.toggle("indeterminate", queued);
+      $("ring-bar").style.strokeDashoffset = queued ? "" : String(327 * (1 - p));
+      $("ring-text").textContent = queued ? "" : Math.floor(p * 100) + "%";
+      $("veil-stage").textContent = queued ? "Waiting its turn"
+        : (cur.stage && /memory/i.test(cur.stage) ? cur.stage : phaseLabel(p)) + (cur.started ? "  ·  " + clock((Date.now() - cur.started) / 1000) : "");
     }
     $("err").hidden = cur.status !== "error";
     $("err").textContent = cur.error || "";
@@ -719,7 +763,12 @@
       else if (kind === "item") {
         var found = false;
         state.items = state.items.map(function (i) {
-          if (i.id === data.id) { found = true; data.inBatch = i.inBatch || data.status === "queued" || data.status === "running"; return data; }
+          if (i.id === data.id) {
+            found = true;
+            data.inBatch = i.inBatch || data.status === "queued" || data.status === "running";
+            data.realAt = (data.progress || 0) !== (i.progress || 0) ? Date.now() : i.realAt;
+            return data;
+          }
           return i;
         });
         if (!found) state.items.push(data);
@@ -753,6 +802,8 @@
       render();
     }
   };
+
+  requestAnimationFrame(tick);
 
   setInterval(function () {
     var c = current();

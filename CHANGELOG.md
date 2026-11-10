@@ -1,3 +1,10 @@
+## Unreleased
+
+- Progress moves continuously from the first second: the bar creeps toward
+  the upscaler's next checkpoint, eases forward every frame, and never jumps
+  back or sits still; the steps are named (Preparing, Upscaling, Finishing
+  details, Saving)
+
 ## 0.2.3
 
 - Model: Auto. Vistiq picks the best model that fits this PC's graphics
