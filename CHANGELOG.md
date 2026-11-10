@@ -7,6 +7,14 @@
   full quality, and blended back together with no visible seam
 - If a card still runs out of memory, Vistiq retries in smaller parts and
   remembers that size for next time, instead of repeating the same attempt
+- Fix: small images could take minutes with Ultra Sharp Lite on a 16 GB
+  card. Vistiq kept the whole model on the card with too thin a margin, and
+  Windows quietly spilled graphics memory into system RAM, which is many
+  times slower. The model now stays on the card only with a wide margin;
+  otherwise it is brought in from RAM as it works, as in the original
+  workflow
+- The model note says why big results are made in parts (they don't fit
+  the card in one go) and from what size
 - Progress shows which part is running ("Upscaling 2/3")
 - Results up to 16 384 px a side open and save without Pillow's size limit
 

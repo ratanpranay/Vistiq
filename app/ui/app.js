@@ -309,9 +309,9 @@
       note.innerHTML = '<span>' + esc(target.name) + ' is the best fit for this PC. </span><button type="button" class="lnk" data-dl="' + target.key + '">Download it (' + target.gb + ' GB)</button>';
     } else if (pick) {
       note.hidden = false;
-      note.textContent = (pick.fits ? "Tuned for this PC: runs fully in graphics memory."
-        : "Tuned for this PC: the model is brought in from RAM as it works.") +
-        " Very large results are made in parts and joined seamlessly.";
+      note.textContent = (pick.on_card ? "Tuned for this PC: runs fully in graphics memory."
+        : "Tuned for this PC: the model is brought in from RAM as it works, which keeps the card from overflowing.") +
+        (c.part_mp ? " Results over " + c.part_mp + " MP don't fit the card in one go, so they're upscaled in parts and joined seamlessly." : "");
     }
     if (state.menu.open) renderMenu();
   }

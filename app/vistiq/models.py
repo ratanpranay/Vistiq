@@ -81,7 +81,11 @@ def catalog():
                      "on_disk_gb": round(os.path.getsize(path) / 1e9, 1) if m["file"] in have else 0})
     now, _, ready = auto_pick()
     current = es.model_by_file(now) if now else None
-    return {"vram": vram, "models": rows, "auto_target": target, "auto_ready": ready,
+    from . import tiles
+    for r in rows:
+        t = tuning(r["file"])
+        r["on_card"] = t["blocks_to_swap"] == 0
+    return {"vram": vram, "part_mp": round(tiles.part_limit(vram)), "models": rows, "auto_target": target, "auto_ready": ready,
             "auto_now": current["key"] if current else None}
 
 
@@ -95,6 +99,11 @@ PER_MEGAPIXEL = 0.4
 #: What Windows and the display keep for themselves on the card (more so on
 #: a laptop, where the same card drives the screen).
 SYSTEM_RESERVE = 2.0
+#: Windows doesn't fail when graphics memory runs short: it quietly spills
+#: into system RAM, and the upscale becomes many times slower (a 4 MP result
+#: taking minutes). So the model is kept on the card only with a wide
+#: margin; swapping it in from RAM costs little by comparison.
+ON_CARD_SHARE = 0.75
 
 
 def tuning(model_file, retry=False, megapixels=8.0, extra_swap=0):
@@ -113,7 +122,7 @@ def tuning(model_file, retry=False, megapixels=8.0, extra_swap=0):
     # for this result; otherwise every block is swapped, as in the original
     # workflow. Swapping part of a model saved little and was where cards
     # hung or crashed.
-    if retry or extra_swap or not vram or size + headroom > vram:
+    if retry or extra_swap or not vram or size + headroom > vram * ON_CARD_SHARE:
         swap = blocks
     else:
         swap = 0
