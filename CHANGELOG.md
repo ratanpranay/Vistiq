@@ -1,3 +1,10 @@
+## Unreleased
+
+- Speed: Vistiq's engine now runs without ComfyUI's new "dynamic VRAM"
+  memory manager, which pages memory around behind the upscaler's own
+  memory handling. An engine left running by an older Vistiq is restarted
+  with the new setting automatically
+
 ## 0.2.4
 
 - Fix: "CUDA error: unknown error" with Ultra Sharp Lite on large images.

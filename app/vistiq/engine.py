@@ -24,6 +24,16 @@ except Exception:  # pragma: no cover
 from . import engine_setup, progress as prog_mod, workflow as wf
 
 PORTS = (8188, 8000, 8189)
+
+#: Extra switches for Vistiq's own engine. ComfyUI's "dynamic VRAM" hooks
+#: every CUDA allocation and pages memory around behind the upscaler's back;
+#: the upscaler manages its own memory (block swap, tiling), and with both at
+#: work it ran several times slower than in a plain ComfyUI and could crash
+#: the card. Plain, estimate-based loading is what the upscaler expects.
+OWN_FLAGS = ["--disable-dynamic-vram"]
+#: Bumped whenever OWN_FLAGS change, so an engine left running by an older
+#: version is restarted with the new switches.
+OWN_FLAGS_VERSION = 1
 OWN_PORT = 8188
 CREATE_NO_WINDOW = 0x08000000
 
@@ -191,14 +201,21 @@ class Engine:
             if port and engine_setup.installed():
                 url = "http://127.0.0.1:%d" % port
                 if self._alive(url) and self._has_nodes(url):
-                    self.url, self.own = url, True
-                    return self._after_connect(say)
+                    if int(self.settings.get("engine_flags") or 0) == OWN_FLAGS_VERSION:
+                        self.url, self.own = url, True
+                        return self._after_connect(say)
+                    # Started by an older Vistiq with other switches: replace it.
+                    say("starting", "Restarting the engine with new settings")
+                    pid = _pid_on_port(port)
+                    if pid:
+                        _kill_tree(pid)
+                        time.sleep(1.5)
 
             if engine_setup.installed() and allow_start:
                 cmd = command_for(engine_setup.portable_dir())
                 if cmd:
                     self.own = True
-                    return self._start(cmd[0], cmd[1], "Vistiq's engine", say)
+                    return self._start(cmd[0] + OWN_FLAGS, cmd[1], "Vistiq's engine", say)
 
             for port in PORTS:
                 url = "http://127.0.0.1:%d" % port
@@ -249,6 +266,7 @@ class Engine:
                 self.url = url
                 if self.own:
                     self.settings.set("engine_port", port)
+                    self.settings.set("engine_flags", OWN_FLAGS_VERSION)
                 return self._after_connect(say)
             time.sleep(0.7)
         say("error", "The engine took too long to start.")

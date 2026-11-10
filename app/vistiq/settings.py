@@ -32,7 +32,8 @@ DEFAULTS = {
     "speeds": {},
     "phase_speeds": {},           # seconds per phase (per MP), by model
     "auto_migrated": False,
-    "swap_bias": {},              # extra blocks to swap, learned from crashes                 # seconds per output megapixel, by model
+    "swap_bias": {},
+    "engine_flags": 0,            # which OWN_FLAGS the running engine has              # extra blocks to swap, learned from crashes                 # seconds per output megapixel, by model
 }
 
 
