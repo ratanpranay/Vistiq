@@ -15,6 +15,10 @@
   workflow
 - The model note says why big results are made in parts (they don't fit
   the card in one go) and from what size
+- Cancel frees the graphics card right away: if the upscaler doesn't stop
+  within a few seconds (it only checks between its phases), Vistiq restarts
+  its engine, which takes about 15 seconds, and the next image starts on a
+  free card instead of waiting behind the cancelled one
 - Progress shows which part is running ("Upscaling 2/3")
 - Results up to 16 384 px a side open and save without Pillow's size limit
 

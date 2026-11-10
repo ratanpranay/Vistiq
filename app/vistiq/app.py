@@ -217,6 +217,8 @@ class App:
             self.settings.set("auto_migrated", True)
         self._worker = None
         self._cancel = threading.Event()
+        self._restarting = threading.Event()
+        self._restarting.set()
         self._emit_lock = threading.Lock()
 
     # talking to the page
@@ -326,10 +328,36 @@ class App:
 
     def cancel(self):
         self._cancel.set()
+        self.engine.drop_queue()
         self.engine.interrupt()
+        if self.engine.own:
+            threading.Thread(target=self._release_after_cancel, daemon=True).start()
+
+    def _release_after_cancel(self):
+        """The upscaler only notices a stop between its phases, which can be
+        minutes away; meanwhile the card stays full and the next image waits.
+        So if it hasn't stopped within a few seconds, Vistiq's own engine is
+        restarted: about 15 seconds, then it's free and ready again."""
+        self._restarting.clear()
+        try:
+            deadline = time.time() + 4
+            while time.time() < deadline:
+                time.sleep(0.5)
+                if not self.engine.busy():
+                    return
+            log.info("upscaler still busy after cancel; restarting the engine")
+            say = lambda st, m: self.emit("engine", {"state": st, "message": m,
+                                                     "models": self.engine.models})
+            say("starting", "Freeing the graphics card")
+            self.engine.stop_own()
+            self.engine.connect(on_state=say)
+            say(self.engine.state, self.engine.message)
+        finally:
+            self._restarting.set()
 
     def _run_queue(self):
         s = self.settings
+        self._restarting.wait(90)     # a cancel may still be freeing the card
         self.emit("batch", {"state": "running"})
         while not self._cancel.is_set():
             item = next((i for i in self.items if i["status"] == "queued"), None)

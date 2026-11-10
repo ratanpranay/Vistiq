@@ -501,6 +501,20 @@ class Engine:
                     pass
         return self._fetch_output(prompt_id)
 
+    def busy(self):
+        """Whether the engine is still working on something."""
+        try:
+            q = requests.get(self.url + "/queue", timeout=3).json()
+            return bool(q.get("queue_running") or q.get("queue_pending"))
+        except Exception:
+            return False
+
+    def drop_queue(self):
+        try:
+            requests.post(self.url + "/queue", json={"clear": True}, timeout=5)
+        except Exception:
+            pass
+
     def interrupt(self):
         if self.url:
             try:
