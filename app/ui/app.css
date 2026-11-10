@@ -216,7 +216,13 @@ kbd{display:inline-flex;align-items:center;justify-content:center;min-width:24px
 
 /* support */
 .foot-icons{display:flex;gap:2px}
-.heart:hover{color:#E0245E;background:#FDECF1}
+.heart{position:relative;color:#E0245E}
+.heart svg{fill:#E0245E;stroke:#E0245E;width:17px;height:17px;animation:beat 1.6s ease-in-out infinite;transform-origin:center}
+.heart::before{content:"";position:absolute;inset:4px;border-radius:50%;border:1.5px solid #E0245E;opacity:0;animation:ring 1.6s ease-out infinite;pointer-events:none}
+.heart:hover{background:#FDECF1}
+@keyframes beat{0%,100%{transform:scale(1)}14%{transform:scale(1.18)}28%{transform:scale(1)}42%{transform:scale(1.12)}70%{transform:scale(1)}}
+@keyframes ring{0%{transform:scale(.6);opacity:.55}80%,100%{transform:scale(1.25);opacity:0}}
+@media (prefers-reduced-motion: reduce){.heart svg,.heart::before{animation:none}}
 .support{width:380px;align-items:stretch;text-align:left}
 .support .lead{margin:-8px 0 0;font-size:13px;line-height:19px}
 .qr{align-self:center;width:208px;height:208px;padding:16px;border-radius:var(--r);border:1px solid var(--line);background:#fff}
@@ -228,3 +234,18 @@ kbd{display:inline-flex;align-items:center;justify-content:center;min-width:24px
 #setup-run{display:flex;flex-direction:column;gap:10px}
 #setup-run .detail{margin:0}
 #setup-run .hint:last-child{margin-top:6px;color:var(--faint)}
+
+/* updates */
+.primary.sm{height:34px;padding:0 16px;border-radius:17px;font-size:13px;gap:8px;box-shadow:none}
+.upd{display:flex;align-items:center;gap:10px;padding:12px 14px;border-radius:12px;background:var(--field)}
+.upd-text{flex:1;display:flex;flex-direction:column;min-width:0}
+.upd-text strong{font-size:14px;font-weight:700}
+.upd-text .hint.ok{color:var(--ok)}
+.upd-text .hint.bad{color:var(--bad)}
+.gear{position:relative}
+.gear.has-update::after{content:"";position:absolute;top:6px;right:6px;width:8px;height:8px;border-radius:50%;background:#E0245E;border:2px solid var(--rail)}
+.toast{position:absolute;right:28px;bottom:28px;max-width:440px;display:flex;align-items:center;gap:12px;padding:12px 12px 12px 14px;border-radius:16px;background:var(--card);box-shadow:0 2px 6px rgba(15,18,32,.06),0 18px 40px rgba(15,18,32,.16);border:1px solid var(--line);z-index:5}
+.toast-icon{width:34px;height:34px;border-radius:10px;background:var(--field);display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.toast-text{flex:1;display:flex;flex-direction:column;min-width:0}
+.toast-text strong{font-size:14px;font-weight:700}
+.toast-text span{font-size:12px;color:var(--dim)}

@@ -19,7 +19,8 @@
 
   var state = { settings: {}, engine: { state: "idle", message: "", models: [] },
                 items: [], sel: null, running: false, version: "",
-                setup: { info: null, choice: null, run: null, error: "", loading: false } };
+                setup: { info: null, choice: null, run: null, error: "", loading: false },
+                update: { state: "idle" }, toastHidden: false, notice: "" };
   var $ = function (id) { return document.getElementById(id); };
   var api = function () { return window.pywebview && window.pywebview.api; };
 
@@ -282,9 +283,43 @@
     $("divider").style.left = v + "%";
   }
 
+  function renderUpdate() {
+    var u = state.update, ready = u.state === "ready";
+    $("open-settings").classList.toggle("has-update", ready);
+    $("upd-version").textContent = "Vistiq " + (u.current || state.version);
+    var st = $("upd-status"), text = "", cls = "hint";
+    if (u.state === "checking") text = "Checking…";
+    else if (u.state === "current") { text = "Up to date"; cls += " ok"; }
+    else if (u.state === "downloading") text = "Downloading " + u.latest + "…";
+    else if (ready) { text = u.latest + " is ready to install"; cls += " ok"; }
+    else if (u.state === "error") { text = u.message || "Couldn't check for updates"; cls += " bad"; }
+    else text = "Checks for updates automatically";
+    st.className = cls; st.textContent = text;
+    $("upd-check").hidden = ready;
+    $("upd-check").disabled = u.state === "checking" || u.state === "downloading";
+    $("upd-restart").hidden = !ready;
+    $("upd-restart").textContent = ready ? "Restart to " + u.latest : "Restart";
+    $("upd-notes").hidden = !u.latest || u.state === "current";
+
+    var t = $("toast");
+    if (ready && !state.toastHidden) {
+      t.hidden = false;
+      $("toast-title").textContent = "Vistiq " + u.latest + " is ready";
+      $("toast-body").textContent = state.running ? "Restart once the current images are done." : "Restart to start using it.";
+      $("toast-go").hidden = false; $("toast-later").textContent = "Later";
+    } else if (state.notice && !state.toastHidden) {
+      t.hidden = false;
+      $("toast-title").textContent = state.notice;
+      $("toast-body").textContent = "You're on the newest version.";
+      $("toast-go").hidden = true; $("toast-later").textContent = "OK";
+    } else t.hidden = true;
+    $("toast-go").disabled = state.running;
+    $("upd-restart").disabled = state.running;
+  }
+
   function render() {
     state.running = state.batch || state.items.some(function (i) { return i.status === "running" || i.status === "queued"; });
-    renderRail(); renderBanner(); renderStrip(); renderStage(); }
+    renderRail(); renderUpdate(); renderBanner(); renderStrip(); renderStage(); }
 
   // ---------------------------------------------------------------- actions
   function merge(added) {
@@ -365,8 +400,7 @@
   function openSheet() {
     $("sheet").hidden = false;
     var e = state.engine;
-    $("engine-line").textContent = (state.settings.comfy_path ? state.settings.comfy_path + ". " : "Found automatically. ") + (e.message || "");
-    $("version").textContent = "Vistiq " + state.version;
+    $("engine-line").textContent = (state.settings.comfy_path ? "Using the ComfyUI in " + state.settings.comfy_path + ". " : "Vistiq's own engine. ") + (e.message || "");
     $("close-settings").focus();
   }
   $("open-settings").addEventListener("click", openSheet);
@@ -385,6 +419,21 @@
   $("support").addEventListener("click", function (e) { if (e.target === this) this.hidden = true; });
   $("open-paypal").addEventListener("click", function () { if (api()) api().open_url(PAYPAL); });
   $("paypal-mail").addEventListener("click", function () { if (api()) api().open_url(PAYPAL); });
+
+  // updates
+  function restart() {
+    if (!api()) return;
+    api().restart().then(function (r) {
+      if (r === "busy") { state.update.message = "Finish or cancel the current work first."; render(); }
+    });
+  }
+  $("upd-check").addEventListener("click", function () {
+    if (api()) { state.update.state = "checking"; render(); api().check_updates(); }
+  });
+  $("upd-restart").addEventListener("click", restart);
+  $("toast-go").addEventListener("click", restart);
+  $("toast-later").addEventListener("click", function () { state.toastHidden = true; state.notice = ""; render(); });
+  $("upd-notes").addEventListener("click", function () { if (api() && state.update.url) api().open_url(state.update.url); });
 
   // keys
   document.addEventListener("keydown", function (e) {
@@ -415,6 +464,10 @@
         if (data.status === "running") state.sel = data.id;
       } else if (kind === "added") merge(data);
       else if (kind === "batch") state.batch = data.state === "running";
+      else if (kind === "update") {
+        if (data.state === "ready" && state.update.state !== "ready") state.toastHidden = false;
+        state.update = data;
+      }
       else if (kind === "setup") {
         var su = state.setup;
         if (data.state === "running") { su.run = data; su.error = ""; }
@@ -433,6 +486,8 @@
   function boot() {
     api().init().then(function (s) {
       state.settings = s.settings; state.engine = s.engine; state.items = s.items; state.version = s.version;
+      state.update = s.update || state.update; state.notice = s.notice || "";
+      if (state.notice) setTimeout(function () { if (state.update.state !== "ready") { state.notice = ""; render(); } }, 8000);
       render();
     });
   }

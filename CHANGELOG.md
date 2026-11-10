@@ -1,3 +1,11 @@
+## Unreleased
+
+- Update notice: when a new version is out, Vistiq downloads it in the
+  background and offers "Restart now"
+- Settings, Updates: shows your version, checks on demand, and restarts
+  into the new version; "What's new" opens the release notes
+- The support heart now gently beats
+
 ## 0.2.1
 
 - Fix: the engine stopped while starting because of how Windows wrote its

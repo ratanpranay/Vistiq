@@ -15,7 +15,7 @@ import uuid
 
 import webview
 
-from . import engine_setup, imaging, workflow as wf
+from . import engine_setup, imaging, updater, workflow as wf
 from .engine import Engine, EngineError
 from .settings import Settings, data_dir
 
@@ -37,6 +37,7 @@ class Api:
                        "models": a.engine.models},
             "items": [a.public(i) for i in a.items],
             "notice": a.notice,
+            "update": a.updater.info(),
         }
 
     def set_setting(self, key, value):
@@ -138,6 +139,18 @@ class Api:
             return []
         return engine_setup.import_models(picked[0])
 
+    # updates
+
+    def update_info(self):
+        return self._app.updater.info()
+
+    def check_updates(self):
+        self._app.updater.check_async()
+        return True
+
+    def restart(self):
+        return self._app.restart()
+
     def retry_engine(self):
         self._app.connect_async()
 
@@ -167,6 +180,7 @@ class App:
         self.items = []
         self.window = None
         self.installer = None
+        self.updater = updater.Updater(version, lambda info: self.emit("update", info))
         self._worker = None
         self._cancel = threading.Event()
         self._emit_lock = threading.Lock()
@@ -305,6 +319,21 @@ class App:
                 self.update(i, status="ready", stage="")
         self.emit("batch", {"state": "idle"})
 
+    def restart(self):
+        if self._worker and self._worker.is_alive():
+            return "busy"
+        if self.installer:
+            return "busy"
+        log.info("restarting for an update")
+        self.shutdown()
+        try:
+            updater.relaunch()
+        except Exception as exc:
+            log.exception("relaunch failed")
+            return "Couldn't restart: %s" % exc
+        threading.Timer(0.3, lambda: self.window.destroy()).start()
+        return "ok"
+
     def shutdown(self):
         self._cancel.set()
         if self.installer:
@@ -354,5 +383,6 @@ def run(app_dir, version, notice=""):
     app.window.events.loaded += on_loaded
     app.window.events.closed += app.shutdown
     app.connect_async()
+    app.updater.watch()
     webview.start(private_mode=False, storage_path=os.path.join(data_dir(), "webview"))
     app.shutdown()

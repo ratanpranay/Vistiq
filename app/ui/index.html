@@ -71,7 +71,7 @@
         <button type="button" class="icon heart" id="open-support" aria-label="Support Vistiq">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10z"/></svg>
         </button>
-        <button type="button" class="icon" id="open-settings" aria-label="Settings">
+        <button type="button" class="icon gear" id="open-settings" aria-label="Settings">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h10M18 7h2M4 17h2M10 17h10"/><circle cx="16" cy="7" r="2"/><circle cx="8" cy="17" r="2"/></svg>
         </button>
         </span>
@@ -167,6 +167,13 @@
       <ul class="strip" id="strip" aria-label="Images"></ul>
     </section>
 
+    <div class="toast" id="toast" role="status" aria-live="polite" hidden>
+      <span class="toast-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12M7 10l5 5 5-5"/><path d="M5 21h14"/></svg></span>
+      <div class="toast-text"><strong id="toast-title"></strong><span id="toast-body"></span></div>
+      <button type="button" class="ghost sm" id="toast-later">Later</button>
+      <button type="button" class="primary sm" id="toast-go">Restart now</button>
+    </div>
+
     <div class="drop-hint" id="drop-hint" hidden><span>Drop to add</span></div>
   </main>
 </div>
@@ -188,10 +195,21 @@
       </div>
     </div>
     <div class="group">
+      <span class="label">Updates</span>
+      <div class="upd">
+        <div class="upd-text">
+          <strong id="upd-version"></strong>
+          <span class="hint" id="upd-status"></span>
+        </div>
+        <button type="button" class="ghost sm" id="upd-check">Check for updates</button>
+        <button type="button" class="primary sm" id="upd-restart" hidden>Restart to update</button>
+      </div>
+      <button type="button" class="link" id="upd-notes" hidden>What's new</button>
+    </div>
+    <div class="group">
       <span class="label">Help</span>
       <div class="row"><button type="button" class="ghost sm" id="logs">Open logs</button></div>
     </div>
-    <p class="hint version" id="version"></p>
   </div>
 </div>
 
