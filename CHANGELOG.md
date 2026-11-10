@@ -1,4 +1,4 @@
-## Unreleased
+## 0.2.1
 
 - Fix: the engine stopped while starting because of how Windows wrote its
   log; it now starts normally
