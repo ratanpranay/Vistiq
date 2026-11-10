@@ -336,20 +336,17 @@ class App:
     def _release_after_cancel(self):
         """The upscaler only notices a stop between its phases, which can be
         minutes away; meanwhile the card stays full and the next image waits.
-        So if it hasn't stopped within a few seconds, Vistiq's own engine is
-        restarted: about 15 seconds, then it's free and ready again."""
+        So Vistiq's own engine is stopped at once, which frees the card
+        instantly, and started again in the background (about 15 seconds)."""
         self._restarting.clear()
         try:
-            deadline = time.time() + 4
-            while time.time() < deadline:
-                time.sleep(0.5)
-                if not self.engine.busy():
-                    return
-            log.info("upscaler still busy after cancel; restarting the engine")
+            if not self.engine.busy():
+                return
+            log.info("cancelled while the upscaler was working; restarting the engine")
             say = lambda st, m: self.emit("engine", {"state": st, "message": m,
                                                      "models": self.engine.models})
-            say("starting", "Freeing the graphics card")
             self.engine.stop_own()
+            say("starting", "Getting the engine ready again")
             self.engine.connect(on_state=say)
             say(self.engine.state, self.engine.message)
         finally:
