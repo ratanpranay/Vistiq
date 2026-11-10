@@ -1,6 +1,6 @@
 """The SeedVR2 image-upscale workflow, in ComfyUI's API format.
 
-Built from the user's own graph (workflow_seedvr2_image.json). Node ids are
+Built from the user's own graph (workflow_image.json). Node ids are
 kept the same as in that file so a ComfyUI error that names a node id can be
 matched back to it. The torch.compile settings node is bypassed in the
 original graph and is left out here, which is what bypassing it means.

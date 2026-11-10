@@ -31,7 +31,7 @@ class Sizes(unittest.TestCase):
 
 class Prompt(unittest.TestCase):
     def test_matches_original_graph(self):
-        with open(os.path.join(ROOT, "app", "workflow_seedvr2_image.json"), encoding="utf-8") as fh:
+        with open(os.path.join(ROOT, "app", "workflow_image.json"), encoding="utf-8") as fh:
             graph = json.load(fh)
         types = {str(n["id"]): n["type"] for n in graph["nodes"] if n.get("mode", 0) != 4 and n["type"] != "Note"}
         prompt = wf.build_prompt("x.png", 1024, 576, scale="4")

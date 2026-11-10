@@ -2,8 +2,8 @@
 
 # Vistiq
 
-Sharper images, one drop away. Vistiq is a small Windows app that runs a
-SeedVR2 upscale through ComfyUI without ever showing ComfyUI.
+Sharper images, one drop away. Vistiq is a small Windows app that upscales
+images with an AI model running in ComfyUI, without ever showing ComfyUI.
 
 ## Install
 
@@ -16,9 +16,8 @@ repo for a newer version of the app and updates itself.
 ### What it needs
 
 - Windows 10 or 11 with an NVIDIA graphics card
-- ComfyUI installed, with the
-  [SeedVR2 nodes](https://github.com/numz/ComfyUI-SeedVR2_VideoUpscaler) and models.
-  Vistiq finds the portable build, a git install or ComfyUI Desktop on its own,
+- ComfyUI installed, with Vistiq's upscaling nodes and models (if they're
+  missing, the log says exactly what to install). Vistiq finds the portable build, a git install or ComfyUI Desktop on its own,
   starts it hidden, and stops it when you close the app. If it can't find it,
   choose the ComfyUI folder in Settings.
 
@@ -53,7 +52,7 @@ library that the launcher doesn't already carry.
 | --- | --- |
 | `app/vistiq/` | The app: window, engine control, the workflow |
 | `app/ui/` | The interface (HTML, CSS, JS) |
-| `app/workflow_seedvr2_image.json` | The original ComfyUI workflow it's built from |
+| `app/workflow_image.json` | The ComfyUI workflow it's built from |
 | `launcher/` | The exe that updates and starts the app |
 | `run_dev.py` | Run straight from source: `pip install -r requirements.txt`, then `python run_dev.py` |
 

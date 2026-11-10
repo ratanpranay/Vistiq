@@ -214,8 +214,12 @@ class Engine:
         except Exception:
             self.models = []
         if not self.models:
-            say("error", "This ComfyUI doesn't have the SeedVR2 nodes installed. "
-                         "Install \"ComfyUI-SeedVR2_VideoUpscaler\" in it, then retry.")
+            import logging
+            logging.getLogger("vistiq").error(
+                "ComfyUI at %s has no SeedVR2LoadDiTModel node "
+                "(custom node: ComfyUI-SeedVR2_VideoUpscaler)", self.url)
+            say("error", "This ComfyUI is missing Vistiq's upscaling nodes. "
+                         "Open the logs from Settings for what to install.")
             return False
         try:
             info = requests.get(self.url + "/object_info/SeedVR2LoadVAEModel", timeout=10).json()
@@ -392,7 +396,7 @@ def _exec_error(data):
     low = msg.lower()
     if "out of memory" in low or "outofmemory" in low:
         return ("The graphics card ran out of memory. Try a smaller scale "
-                "or the 3B model.")
+                "or a Swift model.")
     return msg.splitlines()[0] if msg else "The engine reported an error."
 
 

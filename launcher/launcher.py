@@ -29,7 +29,7 @@ import webview  # noqa: F401
 import webview.dom  # noqa: F401
 from PIL import Image, ImageGrab, ImageOps  # noqa: F401
 
-REPO = "ratanpranay/vistiq"
+REPO = "ratanpranay/Vistiq"
 ASSET = "vistiq-app.zip"
 HERE = getattr(sys, "_MEIPASS", os.path.dirname(os.path.abspath(__file__)))
 HOME = os.path.join(os.environ.get("LOCALAPPDATA") or os.path.expanduser("~"), "Vistiq")

@@ -2,12 +2,20 @@
   "use strict";
 
   var LIMIT = 7000;
-  var MODEL_HINTS = [
-    [/7b.*sharp/i, "Largest model, sharpest detail. Slowest."],
-    [/7b/i, "Largest model, natural detail."],
-    [/3b.*sharp/i, "Smaller and faster, with crisp edges."],
-    [/3b/i, "Smaller and faster. Good for big batches."]
-  ];
+  // Friendly names. The files keep their own names on disk; nobody using
+  // the app needs to see them.
+  function modelInfo(file) {
+    var f = (file || "").toLowerCase();
+    var big = /7b/.test(f), small = /3b/.test(f), sharp = /sharp/.test(f);
+    var lite = /fp8|gguf|q[2-8]_|nf4|int8/.test(f);
+    var name, hint;
+    if (big) { name = "Ultra"; hint = sharp ? "Most detail, crispest edges. Slowest." : "Most detail, natural look."; }
+    else if (small) { name = "Swift"; hint = sharp ? "Faster, with crisp edges." : "Faster. Good for big batches."; }
+    else { name = "Custom"; hint = "A model added to the engine by hand."; }
+    if (sharp && (big || small)) name += " Sharp";
+    if (lite) { name += " Lite"; hint += " Uses less graphics memory."; }
+    return { name: "Vistiq " + name, hint: hint };
+  }
 
   var state = { settings: {}, engine: { state: "idle", message: "", models: [] },
                 items: [], sel: null, running: false, version: "" };
@@ -72,15 +80,16 @@
     });
 
     var sel = $("model"), models = state.engine.models.length ? state.engine.models : (s.model ? [s.model] : []);
+    var seen = {};
     var html = models.map(function (m) {
-      var label = m.replace(/\.safetensors$|\.gguf$/i, "").replace(/^seedvr2_ema_/, "SeedVR2 ").replace(/_/g, " ");
+      var label = modelInfo(m).name;
+      seen[label] = (seen[label] || 0) + 1;
+      if (seen[label] > 1) label += " " + seen[label];
       return '<option value="' + m.replace(/"/g, "&quot;") + '">' + label + "</option>";
     }).join("");
     if (sel.dataset.html !== html) { sel.innerHTML = html; sel.dataset.html = html; }
     sel.value = models.indexOf(s.model) >= 0 ? s.model : models[0];
-    var hint = "";
-    for (var i = 0; i < MODEL_HINTS.length; i++) if (MODEL_HINTS[i][0].test(sel.value || "")) { hint = MODEL_HINTS[i][1]; break; }
-    $("model-hint").textContent = hint;
+    $("model-hint").textContent = sel.value ? modelInfo(sel.value).hint : "";
 
     $("out-dir-text").textContent = s.out_dir || "";
     $("out-dir").title = s.out_dir || "";

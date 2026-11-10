@@ -42,7 +42,7 @@ jobs:
         shell: pwsh
         run: |
           Get-ChildItem -Path app -Recurse -Directory -Filter __pycache__ | Remove-Item -Recurse -Force
-          Compress-Archive -Path app/VERSION, app/vistiq, app/ui, app/workflow_seedvr2_image.json -DestinationPath vistiq-app.zip
+          Compress-Archive -Path app/VERSION, app/vistiq, app/ui, app/workflow_image.json -DestinationPath vistiq-app.zip
 
       - name: Build Vistiq.exe
         run: >
