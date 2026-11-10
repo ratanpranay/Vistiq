@@ -1,4 +1,4 @@
-## Unreleased
+## 0.2.6
 
 - Very large results (for example 9600 x 5400 from a 4800 x 2700 image) no
   longer run out of graphics memory and stall. The upscaler needs about
