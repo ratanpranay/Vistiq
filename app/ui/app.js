@@ -136,6 +136,15 @@
       if (Math.max(cur.w, cur.h) >= limitPx()) note = "This image is already at the " + fmt(limitPx()) + " px limit.";
       $("size-note").hidden = !note;
       $("size-note").textContent = note;
+      if (note && limitPx() < 16384) {
+        // Point at the setting, and make "Settings" open it.
+        $("size-note").appendChild(document.createTextNode(" You can raise the limit in "));
+        var link = document.createElement("button");
+        link.type = "button"; link.className = "inline-link"; link.textContent = "Settings";
+        link.addEventListener("click", function () { openSheet(); setTimeout(function () { $("max-size").focus(); }, 0); });
+        $("size-note").appendChild(link);
+        $("size-note").appendChild(document.createTextNode(" (up to 16\u202f384 px)."));
+      }
       // Dim choices that come out the same as the one selected.
       Array.prototype.forEach.call(document.querySelectorAll("#scales .tile"), function (t) {
         var other = outputSize(cur.w, cur.h, t.dataset.scale);

@@ -279,3 +279,5 @@ kbd{display:inline-flex;align-items:center;justify-content:center;min-width:24px
 
 .size-note{margin:-2px 2px 0}
 .tile.same{opacity:.55}
+.inline-link{display:inline;font:inherit;font-weight:700;color:var(--ink);text-decoration:underline;text-underline-offset:2px}
+.inline-link:hover{color:#8B2EF2}

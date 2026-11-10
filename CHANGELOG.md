@@ -1,3 +1,8 @@
+## Unreleased
+
+- When the size limit holds a scale back, the note now says the limit can be
+  raised in Settings (up to 16 384 px), and "Settings" opens it
+
 ## 0.2.2
 
 - Update notice: when a new version is out, Vistiq downloads it in the
