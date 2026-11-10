@@ -5,6 +5,10 @@
 - Settings, Updates: shows your version, checks on demand, and restarts
   into the new version; "What's new" opens the release notes
 - The support heart now gently beats
+- The engine stays running after you close Vistiq, so it opens ready to go
+  next time (switch this off, or stop the engine, in Settings)
+- An × next to the image removes it from the list (or press Delete)
+- Fix: the "Drop to add" overlay could stay on screen after dropping
 
 ## 0.2.1
 

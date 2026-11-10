@@ -151,6 +151,13 @@ class Api:
     def restart(self):
         return self._app.restart()
 
+    def stop_engine(self):
+        if self._app._worker and self._app._worker.is_alive():
+            return False
+        self._app.engine.stop_own()
+        self._app.emit("engine", {"state": "stopped", "message": "Engine stopped. It starts again the next time you upscale.", "models": self._app.engine.models})
+        return True
+
     def retry_engine(self):
         self._app.connect_async()
 
@@ -338,8 +345,11 @@ class App:
         self._cancel.set()
         if self.installer:
             self.installer.cancel()
-        if self.settings.get("stop_engine_on_exit", True):
+        if not self.settings.get("keep_engine", True) or not self.engine.own:
             self.engine.stop()
+        elif self.engine.process:
+            # Leave it running for next time: let go of it without stopping it.
+            self.engine.process = None
 
 
 def _open(path):
@@ -355,6 +365,7 @@ def _on_drop(app):
     def handler(event):
         files = ((event or {}).get("dataTransfer") or {}).get("files") or []
         paths = [f.get("pywebviewFullPath") for f in files if f.get("pywebviewFullPath")]
+        app.emit("dropped", {})
         if paths:
             added = app.add(paths)
             app.emit("added", added)
@@ -376,7 +387,7 @@ def run(app_dir, version, notice=""):
     def on_loaded():
         try:
             from webview.dom import DOMEventHandler
-            app.window.dom.document.events.drop += DOMEventHandler(_on_drop(app), True, True)
+            app.window.dom.document.events.drop += DOMEventHandler(_on_drop(app), prevent_default=True, stop_propagation=False)
         except Exception:
             log.exception("drag and drop unavailable")
 

@@ -110,13 +110,13 @@
       $("go-label").textContent = "Cancel";
     } else {
       go.classList.remove("cancel");
-      go.disabled = !n || state.engine.state !== "ready";
+      go.disabled = !n || (state.engine.state !== "ready" && state.engine.state !== "stopped");
       $("go-label").textContent = n > 1 ? "Upscale " + n + " images" : "Upscale";
     }
 
     var st = $("status"), e = state.engine;
     st.className = "status" + (e.state === "ready" ? " ok" : (e.state === "error" || e.state === "missing") ? " bad" : "");
-    var text = state.setup.run ? "Setting up the engine" : e.state === "setup" ? "Engine not set up yet" : e.state === "ready" ? "Engine ready" : e.state === "starting" ? (e.message || "Starting the engine") : e.state === "idle" ? "Starting" : "Engine not running";
+    var text = state.setup.run ? "Setting up the engine" : e.state === "stopped" ? "Engine stopped" : e.state === "setup" ? "Engine not set up yet" : e.state === "ready" ? "Engine ready" : e.state === "starting" ? (e.message || "Starting the engine") : e.state === "idle" ? "Starting" : "Engine not running";
     if (state.running) {
       var all = state.items.filter(function (i) { return i.status !== "ready"; });
       var done = all.filter(function (i) { return i.status === "done" || i.status === "error"; }).length;
@@ -131,11 +131,12 @@
     var e = state.engine, b = $("banner");
     if (e.state === "ready" || showingSetup()) { b.hidden = true; return; }
     b.hidden = false;
-    var bad = e.state === "error" || e.state === "missing";
+    var bad = e.state === "error" || e.state === "missing", stopped = e.state === "stopped";
     b.classList.toggle("bad", bad);
-    $("banner-spin").hidden = bad;
+    $("banner-spin").hidden = bad || stopped;
     $("banner-text").textContent = e.message || (bad ? "The engine isn't running." : "Starting the engine");
-    $("banner-retry").hidden = !bad;
+    $("banner-retry").hidden = !bad && !stopped;
+    $("banner-retry").textContent = stopped ? "Start engine" : "Try again";
     $("banner-folder").hidden = e.state !== "missing" && !/folder|found/i.test(e.message || "");
   }
 
@@ -252,6 +253,7 @@
       meta.textContent = fmt(cur.w) + " × " + fmt(cur.h) + " → " + fmt(o[0]) + " × " + fmt(o[1]);
     }
     $("show-file").hidden = cur.status !== "done";
+    $("remove-cur").disabled = cur.status === "running";
 
     var done = cur.status === "done" && cur.out_preview;
     $("img-after").src = done ? cur.out_preview : cur.preview;
@@ -358,15 +360,22 @@
   $("open-folder").addEventListener("click", function () { if (api()) api().open_output(); });
   $("show-file").addEventListener("click", function () { var c = current(); if (c && api()) api().reveal(c.out_path); });
   $("compare").addEventListener("input", placeCompare);
+  function removeItem(id) {
+    var idx = -1;
+    state.items.forEach(function (i, n) { if (i.id === id) idx = n; });
+    if (idx < 0 || state.items[idx].status === "running") return;
+    state.items.splice(idx, 1);
+    if (state.sel === id) {
+      var next = state.items[Math.min(idx, state.items.length - 1)];
+      state.sel = next ? next.id : null;
+    }
+    if (api()) api().remove(id);
+    render();
+  }
+  $("remove-cur").addEventListener("click", function () { var c = current(); if (c) removeItem(c.id); });
   $("strip").addEventListener("click", function (e) {
     var rm = e.target.closest("[data-remove]");
-    if (rm) {
-      var id = rm.dataset.remove;
-      state.items = state.items.filter(function (i) { return i.id !== id; });
-      if (state.sel === id) state.sel = state.items.length ? state.items[0].id : null;
-      if (api()) api().remove(id);
-      render(); return;
-    }
+    if (rm) { removeItem(rm.dataset.remove); return; }
     if (e.target.closest("#add-more")) { choose(); return; }
     var th = e.target.closest(".thumb");
     if (th) { state.sel = th.dataset.id; $("compare").value = 50; render(); }
@@ -400,6 +409,8 @@
   function openSheet() {
     $("sheet").hidden = false;
     var e = state.engine;
+    $("keep-engine").checked = state.settings.keep_engine !== false;
+    $("stop-engine").disabled = state.engine.state !== "ready" || state.running;
     $("engine-line").textContent = (state.settings.comfy_path ? "Using the ComfyUI in " + state.settings.comfy_path + ". " : "Vistiq's own engine. ") + (e.message || "");
     $("close-settings").focus();
   }
@@ -408,6 +419,10 @@
   $("sheet").addEventListener("click", function (e) { if (e.target === this) this.hidden = true; });
   $("pick-comfy").addEventListener("click", function () {
     if (api()) api().choose_comfy().then(function (p) { state.settings.comfy_path = p; openSheet(); });
+  });
+  $("keep-engine").addEventListener("change", function () { setSetting("keep_engine", this.checked); });
+  $("stop-engine").addEventListener("click", function () {
+    if (api()) api().stop_engine().then(function (ok) { if (ok) $("sheet").hidden = true; });
   });
   $("reconnect").addEventListener("click", function () { if (api()) api().retry_engine(); $("sheet").hidden = true; });
   $("logs").addEventListener("click", function () { if (api()) api().open_logs(); });
@@ -439,6 +454,7 @@
   document.addEventListener("keydown", function (e) {
     if (e.key === "Escape" && !$("sheet").hidden) { $("sheet").hidden = true; return; }
     if (e.key === "Escape" && !$("support").hidden) { $("support").hidden = true; return; }
+    if (e.key === "Delete" && $("sheet").hidden && $("support").hidden) { var c = current(); if (c) removeItem(c.id); return; }
     if (!e.ctrlKey) return;
     var k = e.key.toLowerCase();
     if (k === "o") { e.preventDefault(); choose(); }
@@ -447,11 +463,20 @@
   });
 
   // drag and drop: the files themselves arrive through Python
-  var depth = 0;
-  window.addEventListener("dragenter", function (e) { e.preventDefault(); depth++; $("drop-hint").hidden = false; });
-  window.addEventListener("dragleave", function (e) { e.preventDefault(); depth = Math.max(0, depth - 1); if (!depth) $("drop-hint").hidden = true; });
-  window.addEventListener("dragover", function (e) { e.preventDefault(); });
-  window.addEventListener("drop", function (e) { e.preventDefault(); depth = 0; $("drop-hint").hidden = true; });
+  // The hint hides on drop, on leaving the window, and also by itself if
+  // the drag goes quiet, so it can never be left on screen.
+  var dragTimer = null;
+  function hideDrop() { clearTimeout(dragTimer); $("drop-hint").hidden = true; }
+  function showDrop() {
+    $("drop-hint").hidden = false;
+    clearTimeout(dragTimer);
+    dragTimer = setTimeout(hideDrop, 400);
+  }
+  window.addEventListener("dragenter", function (e) { e.preventDefault(); showDrop(); });
+  window.addEventListener("dragover", function (e) { e.preventDefault(); showDrop(); });
+  window.addEventListener("dragleave", function (e) { if (!e.relatedTarget) hideDrop(); });
+  window.addEventListener("drop", function (e) { e.preventDefault(); hideDrop(); });
+  window.addEventListener("dragend", hideDrop);
 
   // ---------------------------------------------------------------- from Python
   window.vistiq = {
@@ -462,7 +487,8 @@
         state.items = state.items.map(function (i) { if (i.id === data.id) { found = true; return data; } return i; });
         if (!found) state.items.push(data);
         if (data.status === "running") state.sel = data.id;
-      } else if (kind === "added") merge(data);
+      } else if (kind === "added") { hideDrop(); merge(data); }
+      else if (kind === "dropped") hideDrop();
       else if (kind === "batch") state.batch = data.state === "running";
       else if (kind === "update") {
         if (data.state === "ready" && state.update.state !== "ready") state.toastHidden = false;

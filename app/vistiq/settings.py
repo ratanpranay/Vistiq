@@ -27,7 +27,8 @@ DEFAULTS = {
     "max_res": wf.DEFAULT_MAX_RES,
     "comfy_path": "",
     "comfy_url": "",
-    "stop_engine_on_exit": True,
+    "keep_engine": True,          # leave the engine running when the app closes
+    "engine_port": 0,             # where Vistiq's own engine last listened
 }
 
 

@@ -185,6 +185,14 @@ class Engine:
             if self.process and self.process.poll() is None and self.url and self._alive(self.url):
                 return self._after_connect(say)
 
+            # Vistiq's own engine, still running from last time: just use it.
+            port = int(self.settings.get("engine_port") or 0)
+            if port and engine_setup.installed():
+                url = "http://127.0.0.1:%d" % port
+                if self._alive(url) and self._has_nodes(url):
+                    self.url, self.own = url, True
+                    return self._after_connect(say)
+
             if engine_setup.installed() and allow_start:
                 cmd = command_for(engine_setup.portable_dir())
                 if cmd:
@@ -238,6 +246,8 @@ class Engine:
                 return False
             if self._alive(url, timeout=1.0):
                 self.url = url
+                if self.own:
+                    self.settings.set("engine_port", port)
                 return self._after_connect(say)
             time.sleep(0.7)
         say("error", "The engine took too long to start.")
@@ -270,6 +280,16 @@ class Engine:
             self.vaes = []
         say("ready", "Engine ready")
         return True
+
+    def stop_own(self):
+        """Stop Vistiq's own engine, whichever run of the app started it."""
+        self.stop()
+        port = int(self.settings.get("engine_port") or 0)
+        pid = _pid_on_port(port) if port else None
+        if pid:
+            _kill_tree(pid)
+        self.settings.set("engine_port", 0)
+        self.url, self.state, self.message = None, "idle", "Engine stopped"
 
     def stop(self):
         """Stop the engine, but only one this app started."""
@@ -418,6 +438,37 @@ def _options(spec):
     if spec and isinstance(spec[0], str) and len(spec) > 1 and isinstance(spec[1], dict):
         return list(spec[1].get("options") or [])
     return []
+
+
+def _kill_tree(pid):
+    try:
+        if sys.platform == "win32":
+            subprocess.run(["taskkill", "/PID", str(pid), "/T", "/F"],
+                           creationflags=CREATE_NO_WINDOW,
+                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        else:
+            os.kill(pid, 15)
+    except Exception:
+        pass
+
+
+def _pid_on_port(port):
+    """The process listening on a local port (Windows), or None."""
+    if sys.platform != "win32":
+        return None
+    try:
+        out = subprocess.run(["netstat", "-ano", "-p", "TCP"], capture_output=True, text=True,
+                             timeout=10, creationflags=CREATE_NO_WINDOW).stdout
+    except Exception:
+        return None
+    for line in out.splitlines():
+        parts = line.split()
+        if len(parts) >= 5 and parts[1].endswith(":%d" % port) and parts[3].upper() == "LISTENING":
+            try:
+                return int(parts[4])
+            except ValueError:
+                pass
+    return None
 
 
 def _port_free(port):

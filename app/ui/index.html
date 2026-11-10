@@ -146,6 +146,9 @@
         <div class="row">
           <button type="button" class="ghost" id="open-folder">Open folder</button>
           <button type="button" class="primary" id="show-file" hidden>Show file</button>
+          <button type="button" class="icon remove-cur" id="remove-cur" aria-label="Remove this image" title="Remove this image">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
+          </button>
         </div>
       </header>
 
@@ -189,9 +192,15 @@
     <div class="group">
       <span class="label">Engine (ComfyUI)</span>
       <p class="hint" id="engine-line"></p>
+      <label class="toggle">
+        <input type="checkbox" id="keep-engine">
+        <span class="track" aria-hidden="true"></span>
+        <span class="toggle-text">Keep it running after closing Vistiq<small>Vistiq then opens ready to go. Uses a little memory in the background.</small></span>
+      </label>
       <div class="row">
-        <button type="button" class="ghost sm" id="pick-comfy">Choose ComfyUI folder</button>
+        <button type="button" class="ghost sm" id="stop-engine">Stop engine</button>
         <button type="button" class="ghost sm" id="reconnect">Reconnect</button>
+        <button type="button" class="ghost sm" id="pick-comfy">Use another ComfyUI</button>
       </div>
     </div>
     <div class="group">
