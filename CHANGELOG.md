@@ -1,4 +1,4 @@
-## Unreleased
+## 0.2.5
 
 - Speed and stability: Vistiq's engine is now pinned to the ComfyUI build
   the upscale workflow was made with (0.3.68), instead of the newest one.
