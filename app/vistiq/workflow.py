@@ -61,7 +61,8 @@ def target_resolution(width, height, scale, max_res=DEFAULT_MAX_RES):
 
 def build_prompt(image_name, width, height, scale="4", dit_model=DEFAULT_DIT,
                  vae_model=DEFAULT_VAE, max_res=DEFAULT_MAX_RES, seed=42,
-                 prefix="Vistiq/out", resolution_key="new_resolution", tuning=None):
+                 prefix="Vistiq/out", resolution_key="new_resolution", tuning=None,
+                 debug=False):
     """The API-format prompt for one image already uploaded to ComfyUI."""
     if scale != "max":
         scale = float(scale)
@@ -123,7 +124,7 @@ def build_prompt(image_name, width, height, scale="4", dit_model=DEFAULT_DIT,
                 "input_noise_scale": 0.0,
                 "latent_noise_scale": 0.0,
                 "offload_device": "cpu",
-                "enable_debug": False,
+                "enable_debug": bool(debug),
             },
         },
         NODE_SAVE: {

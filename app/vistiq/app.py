@@ -355,16 +355,19 @@ class App:
                 break
             self._model_in_use = model
             rate = (s.get("speeds") or {}).get(model)
+            phase_hist = (s.get("phase_speeds") or {}).get(model)
             self.update(item, status="running", stage="Starting", progress=0,
-                        started=time.time() * 1000,
+                        started=time.time() * 1000, fine=bool(self.engine.own),
                         estimate=round(rate * mp, 1) if rate else 0)
             log.info("upscale %s with %s, tuning %s", item["name"], model, tuning)
             try:
                 data = self.engine.upscale(
                     item["path"], item["w"], item["h"], scale, model, max_res,
-                    on_progress=lambda stage, frac, it=item: self.update(
-                        it, stage=stage, progress=frac if frac is not None else it.get("progress", 0)),
-                    cancelled=self._cancel.is_set, tuning=tuning, retry_tuning=retry)
+                    on_progress=lambda stage, frac, left, it=item: self.update(
+                        it, stage=stage, progress=frac if frac is not None else it.get("progress", 0),
+                        left=round(left, 1) if left is not None else None),
+                    cancelled=self._cancel.is_set, tuning=tuning, retry_tuning=retry,
+                    history=phase_hist)
                 tag = "vistiq_max" if scale == "max" else "vistiq_%sx" % scale
                 path, w, h = imaging.save(data, item["path"], s.get("out_dir"), s.get("format"), tag, limit=max_res)
                 took = time.time() - started
@@ -373,6 +376,11 @@ class App:
                 new = took / max(0.1, w * h / 1e6)
                 speeds[model] = round(new if not old else old * 0.6 + new * 0.4, 3)
                 s.set("speeds", speeds)
+                if self.engine.last_timings:
+                    from . import progress as prog_mod
+                    ph = dict(s.get("phase_speeds") or {})
+                    ph[model] = prog_mod.merge(ph.get(model), self.engine.last_timings)
+                    s.set("phase_speeds", ph)
                 self.update(item, status="done", progress=1, stage="Saved",
                             out_path=path, out_w=w, out_h=h,
                             seconds=round(took, 1),

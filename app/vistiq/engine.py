@@ -21,7 +21,7 @@ try:
 except Exception:  # pragma: no cover
     websocket = None
 
-from . import engine_setup, workflow as wf
+from . import engine_setup, progress as prog_mod, workflow as wf
 
 PORTS = (8188, 8000, 8189)
 OWN_PORT = 8188
@@ -322,12 +322,15 @@ class Engine:
     # one job
 
     def upscale(self, path, width, height, scale, model, max_res, on_progress=None,
-                cancelled=lambda: False, tuning=None, retry_tuning=None):
+                cancelled=lambda: False, tuning=None, retry_tuning=None, history=None):
         """Run one image through the workflow. Returns the result's bytes."""
         if self.state != "ready" or not self.url:
             raise EngineError("The engine isn't ready yet.")
         name = self._upload(path)
         vae = wf.DEFAULT_VAE if (not self.vaes or wf.DEFAULT_VAE in self.vaes) else self.vaes[0]
+        out_w, out_h = wf.output_size(width, height, "max" if scale == "max" else float(scale), max_res)
+        self._job = {"mp": out_w * out_h / 1e6, "history": history}
+        self.last_timings = None
         try:
             return self._run(name, width, height, scale, model, vae, max_res,
                              on_progress, cancelled, tuning)
@@ -336,16 +339,24 @@ class Engine:
             # with everything swapped out and smaller tiles.
             if retry_tuning and "ran out of memory" in str(exc):
                 if on_progress:
-                    on_progress("Retrying with less memory", None)
+                    on_progress("Retrying with less memory", None, None)
                 return self._run(name, width, height, scale, model, vae, max_res,
                                  on_progress, cancelled, retry_tuning)
             raise
 
     def _run(self, name, width, height, scale, model, vae, max_res, on_progress,
              cancelled, tuning):
+        # Vistiq's own engine writes its log where Vistiq can read it; there
+        # the upscaler's debug log gives real, tile-by-tile progress.
+        log_path = os.path.join(self.log_dir, "engine.log")
+        use_log = self.own and os.path.isfile(log_path)
         prompt = wf.build_prompt(name, width, height, scale=scale, dit_model=model,
                                  vae_model=vae, max_res=max_res,
-                                 resolution_key=self.resolution_key, tuning=tuning)
+                                 resolution_key=self.resolution_key, tuning=tuning,
+                                 debug=use_log)
+        job = getattr(self, "_job", None) or {"mp": 1, "history": None}
+        tracker = prog_mod.Progress(job["mp"], job["history"]) if use_log else None
+        tail = prog_mod.LogTail(log_path) if use_log else None
         ws = self._open_socket()
         try:
             r = requests.post(self.url + "/prompt",
@@ -353,7 +364,9 @@ class Engine:
             if not r.ok:
                 raise EngineError(_prompt_error(r))
             prompt_id = r.json()["prompt_id"]
-            self._wait(prompt_id, ws, on_progress, cancelled)
+            self._wait(prompt_id, ws, on_progress, cancelled, tracker, tail)
+            if tracker and tracker.seen_log:
+                self.last_timings = tracker.learned()
         finally:
             if ws:
                 try:
@@ -392,13 +405,25 @@ class Engine:
         except Exception:
             return None
 
-    def _wait(self, prompt_id, ws, on_progress, cancelled):
+    def _wait(self, prompt_id, ws, on_progress, cancelled, tracker=None, tail=None):
         stage = "Waiting"
         last_poll = 0
+        last_emit = 0
+        if ws is not None:
+            try:
+                ws.settimeout(0.35)
+            except Exception:
+                pass
         while True:
             if cancelled():
                 self.interrupt()
                 raise EngineError("Cancelled")
+            if tracker is not None:
+                for line in tail.lines():
+                    tracker.feed(line)
+                if on_progress and time.time() - last_emit > 0.3:
+                    last_emit = time.time()
+                    on_progress(tracker.label(), tracker.value(), tracker.remaining())
             message = None
             if ws is not None:
                 try:
@@ -418,11 +443,11 @@ class Engine:
                     if node is None:
                         return
                     stage = wf.STAGES.get(str(node), stage)
-                    if on_progress:
-                        on_progress(stage, None)
-                elif kind == "progress" and on_progress:
+                    if on_progress and tracker is None:
+                        on_progress(stage, None, None)
+                elif kind == "progress" and on_progress and tracker is None:
                     total = data.get("max") or 0
-                    on_progress(stage, (data.get("value", 0) / float(total)) if total else None)
+                    on_progress(stage, (data.get("value", 0) / float(total)) if total else None, None)
                 elif kind == "execution_error":
                     raise EngineError(_exec_error(data))
                 elif kind == "execution_interrupted":

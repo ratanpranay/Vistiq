@@ -1,5 +1,11 @@
 ## Unreleased
 
+- Realistic progress: Vistiq reads the upscaler's own log and follows it
+  phase by phase (Loading model, Preparing, Upscaling, Finishing details,
+  Saving) and tile by tile while it prepares and finishes the image
+- Each phase's share of the bar, and the time left, come from how long that
+  phase really took on this PC before, per model and megapixel
+
 - Progress moves continuously from the first second: the bar creeps toward
   the upscaler's next checkpoint, eases forward every frame, and never jumps
   back or sits still; the steps are named (Preparing, Upscaling, Finishing

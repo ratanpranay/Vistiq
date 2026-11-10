@@ -169,6 +169,9 @@
   var PHASES = [0.2, 0.45, 0.95, 0.99];
   function targetOf(item) {
     if (!item || item.status !== "running" || !item.started) return 0;
+    // Vistiq's own engine: the app reads the upscaler's own log and sends
+    // real, phase-and-tile progress several times a second. Just follow it.
+    if (item.fine) return item.progress || 0;
     var now = Date.now(), real = item.progress || 0;
     var o = outputSize(item.w, item.h, state.settings.scale);
     var mpx = Math.max(1, o[0] * o[1] / 1e6);
@@ -213,7 +216,7 @@
     var width = go.clientWidth || 256;
     go.style.setProperty("--p", pct + "%");
     go.style.setProperty("--fillpx", Math.max(0, pct / 100 * width - 22) + "px");
-    var label = (run.stage && /memory/i.test(run.stage) ? run.stage : phaseLabel(anim.shown)) + " " + Math.floor(overall * 100) + "%";
+    var label = (run.fine && run.stage ? run.stage : run.stage && /memory/i.test(run.stage) ? run.stage : phaseLabel(anim.shown)) + " " + Math.floor(overall * 100) + "%";
     if ($("go-label").textContent !== label) { $("go-label").textContent = label; $("go-label-on").textContent = label; }
     var cur = current();
     if (cur && cur.id === run.id && !$("veil").hidden) {
@@ -240,7 +243,8 @@
       $("go-count").textContent = "Image " + Math.min(finished + 1, total) + " of " + total;
       var el = run && run.started ? (Date.now() - run.started) / 1000 : 0;
       $("go-clock").textContent = run && run.started
-        ? clock(el) + (run.estimate > 0 ? " of about " + clock(Math.max(run.estimate, el)) : "") : "";
+        ? clock(el) + (run.left != null ? ", about " + clock(run.left) + " left"
+          : run.estimate > 0 ? " of about " + clock(Math.max(run.estimate, el)) : "") : "";
     } else {
       go.classList.remove("running");
       go.removeAttribute("aria-disabled");
@@ -547,7 +551,7 @@
       $("ring-bar").style.strokeDashoffset = queued ? "" : String(327 * (1 - p));
       $("ring-text").textContent = queued ? "" : Math.floor(p * 100) + "%";
       $("veil-stage").textContent = queued ? "Waiting its turn"
-        : (cur.stage && /memory/i.test(cur.stage) ? cur.stage : phaseLabel(p)) + (cur.started ? "  ·  " + clock((Date.now() - cur.started) / 1000) : "");
+        : (cur.fine && cur.stage ? cur.stage : cur.stage && /memory/i.test(cur.stage) ? cur.stage : phaseLabel(p)) + (cur.started ? "  ·  " + clock((Date.now() - cur.started) / 1000) : "");
     }
     $("err").hidden = cur.status !== "error";
     $("err").textContent = cur.error || "";
