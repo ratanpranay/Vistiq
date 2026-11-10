@@ -1,3 +1,10 @@
+## Unreleased
+
+- Fix: the engine stopped while starting because of how Windows wrote its
+  log; it now starts normally
+- Support button (♥) with a PayPal QR code and link
+- Pause sits next to the progress bar; more breathing room on the setup screen
+
 ## 0.2.0
 
 - Vistiq now sets up its own private engine on first run: a portable

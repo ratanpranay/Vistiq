@@ -216,9 +216,13 @@ class Engine:
         os.makedirs(self.log_dir, exist_ok=True)
         log = open(os.path.join(self.log_dir, "engine.log"), "ab")
         say("starting", "Starting the engine")
+        # The engine's output goes to a file, which Windows would otherwise
+        # write in its old code page; the upscaler nodes print emoji on
+        # load, and that alone stops ComfyUI from starting. UTF-8 avoids it.
+        env = dict(os.environ, PYTHONIOENCODING="utf-8", PYTHONUTF8="1")
         try:
             self.process = subprocess.Popen(
-                cmd, cwd=cwd, stdout=log, stderr=subprocess.STDOUT,
+                cmd, cwd=cwd, env=env, stdout=log, stderr=subprocess.STDOUT,
                 stdin=subprocess.DEVNULL,
                 creationflags=CREATE_NO_WINDOW if sys.platform == "win32" else 0)
         except Exception as exc:
