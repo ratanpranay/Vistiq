@@ -1,4 +1,4 @@
-## Unreleased
+## 0.2.7
 
 - Fix: progress could jump to "Saving 98%" at the start of an image and sit
   there. The engine's log reached the file late, so the end of the previous
