@@ -288,6 +288,14 @@ class Engine:
         say("ready", "Engine ready")
         return True
 
+    def alive(self):
+        return bool(self.url) and self._alive(self.url)
+
+    def restart_own(self):
+        """Stop Vistiq's own engine and start it again."""
+        self.stop_own()
+        self.connect()
+
     def refresh_models(self):
         """The nodes list every model they could download. In Vistiq's own
         engine, offer only the ones that are actually here."""
@@ -331,15 +339,29 @@ class Engine:
         out_w, out_h = wf.output_size(width, height, "max" if scale == "max" else float(scale), max_res)
         self._job = {"mp": out_w * out_h / 1e6, "history": history}
         self.last_timings = None
+        self.failed_tuning = None
         try:
             return self._run(name, width, height, scale, model, vae, max_res,
                              on_progress, cancelled, tuning)
         except EngineError as exc:
-            # Out of graphics memory with the lighter settings: once more,
-            # with everything swapped out and smaller tiles.
-            if retry_tuning and "ran out of memory" in str(exc):
+            # The card ran out of memory, or stopped responding (which on
+            # Windows is often the same thing): once more, with the whole
+            # model swapped out. A card that stopped responding also leaves
+            # the engine unusable, so Vistiq's own engine is restarted first.
+            if retry_tuning and getattr(exc, "memory", False):
+                self.failed_tuning = tuning
+                if getattr(exc, "fatal", False):
+                    if not self.own:
+                        raise
+                    if on_progress:
+                        on_progress("Restarting the engine", None, None)
+                    self.restart_own()
+                    if self.state != "ready":
+                        raise EngineError("The graphics card stopped responding and the engine "
+                                          "couldn't be restarted. Close Vistiq and open it again.")
+                    name = self._upload(path)
                 if on_progress:
-                    on_progress("Retrying with less memory", None, None)
+                    on_progress("Retrying with safer settings", None, None)
                 return self._run(name, width, height, scale, model, vae, max_res,
                                  on_progress, cancelled, retry_tuning)
             raise
@@ -449,7 +471,7 @@ class Engine:
                     total = data.get("max") or 0
                     on_progress(stage, (data.get("value", 0) / float(total)) if total else None, None)
                 elif kind == "execution_error":
-                    raise EngineError(_exec_error(data))
+                    raise _exec_error(data)
                 elif kind == "execution_interrupted":
                     raise EngineError("Cancelled")
             if time.time() - last_poll > 2.0:
@@ -460,7 +482,7 @@ class Engine:
                     if status.get("status_str") == "error":
                         for kind, data in status.get("messages", []):
                             if kind == "execution_error":
-                                raise EngineError(_exec_error(data))
+                                raise _exec_error(data)
                         raise EngineError("The engine reported an error.")
                     if done.get("outputs"):
                         return
@@ -539,13 +561,24 @@ def _safe_name(path):
     return "vistiq_%s_%s%s" % (uuid.uuid4().hex[:6], keep, ext.lower() or ".png")
 
 
+class MemoryError_(EngineError):
+    memory = True
+
+
 def _exec_error(data):
     msg = (data.get("exception_message") or "").strip()
     low = msg.lower()
     if "out of memory" in low or "outofmemory" in low:
-        return ("The graphics card ran out of memory. Try a smaller scale "
-                "or a Swift model.")
-    return msg.splitlines()[0] if msg else "The engine reported an error."
+        return MemoryError_("The graphics card ran out of memory. Try a smaller scale "
+                            "or a Swift model.")
+    if "cuda error" in low or "cudaerror" in low or "device-side" in low:
+        # Typically the card hit its memory limit in a way Windows reports
+        # as a crash. The engine can't continue after this.
+        e = MemoryError_("The graphics card stopped responding, most likely from running "
+                         "out of memory. Try a smaller scale.")
+        e.fatal = True
+        return e
+    return EngineError(msg.splitlines()[0] if msg else "The engine reported an error.")
 
 
 def _prompt_error(response):

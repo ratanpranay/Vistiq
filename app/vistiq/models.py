@@ -87,13 +87,19 @@ def catalog():
 
 # -- memory tuning ----------------------------------------------------------
 
-#: Graphics memory (GB) kept free for the image itself, the VAE and the
-#: card's own use while a model runs.
-HEADROOM = 5.0
+#: Graphics memory (GB) kept free while a model runs: a base for the card
+#: itself and the VAE, plus room that grows with the size of the result,
+#: because the upscaling step works on the whole image at once.
+BASE_HEADROOM = 3.0
+PER_MEGAPIXEL = 0.4
 
 
-def tuning(model_file, retry=False):
-    """Loader settings for this model on this card."""
+def tuning(model_file, retry=False, megapixels=8.0, extra_swap=0):
+    """Loader settings for this model, on this card, for a result this big.
+
+    `extra_swap` is what earlier failures taught for this model (see
+    App: a run that crashes the card raises it for next time).
+    """
     vram = _vram()
     m = es.model_by_file(model_file) or {}
     blocks = m.get("blocks", 36)
@@ -102,11 +108,13 @@ def tuning(model_file, retry=False):
     if retry or not vram:
         swap = blocks
     else:
-        over = size + HEADROOM - vram
-        swap = 0 if over <= 0 else min(blocks, int(math.ceil(over / size * blocks)) + 2)
-    tile = 512 if retry else 1024
-    return {"blocks_to_swap": swap, "cache_model": True, "tile": tile,
-            "overlap": 64 if retry else 128}
+        headroom = BASE_HEADROOM + PER_MEGAPIXEL * max(0.0, megapixels)
+        over = size + headroom - vram
+        swap = 0 if over <= 0 else int(math.ceil(over / size * blocks)) + 2
+        swap = min(blocks, swap + int(extra_swap or 0))
+    # Tiles of 1024 px worked on this card in the original workflow even at
+    # 17 MP, so a retry keeps them and only swaps more.
+    return {"blocks_to_swap": swap, "cache_model": True, "tile": 1024, "overlap": 128}
 
 
 # -- downloading and removing -----------------------------------------------

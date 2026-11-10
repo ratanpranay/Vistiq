@@ -327,7 +327,7 @@ class App:
             item = next((i for i in self.items if i["status"] == "queued"), None)
             if not item:
                 break
-            if self.engine.state != "ready":
+            if self.engine.state != "ready" or not self.engine.alive():
                 self.engine.connect(on_state=lambda st, m: self.emit(
                     "engine", {"state": st, "message": m, "models": self.engine.models}))
                 if self.engine.state != "ready":
@@ -344,7 +344,8 @@ class App:
             tuning = retry = None
             if self.engine.own:
                 model = models.resolve(s.get("model"))
-                tuning = models.tuning(model)
+                bias = (s.get("swap_bias") or {}).get(model, 0)
+                tuning = models.tuning(model, megapixels=mp, extra_swap=bias)
                 retry = models.tuning(model, retry=True)
             else:
                 model = s.get("model")
@@ -371,6 +372,13 @@ class App:
                 tag = "vistiq_max" if scale == "max" else "vistiq_%sx" % scale
                 path, w, h = imaging.save(data, item["path"], s.get("out_dir"), s.get("format"), tag, limit=max_res)
                 took = time.time() - started
+                if self.engine.failed_tuning:
+                    # The lighter settings crashed the card for this size:
+                    # swap more with this model from now on.
+                    sb = dict(s.get("swap_bias") or {})
+                    sb[model] = min(36, int(sb.get(model, 0)) + 10)
+                    s.set("swap_bias", sb)
+                    log.info("raised swap for %s to +%d", model, sb[model])
                 speeds = dict(s.get("speeds") or {})
                 old = speeds.get(model)
                 new = took / max(0.1, w * h / 1e6)

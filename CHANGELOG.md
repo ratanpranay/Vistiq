@@ -1,5 +1,14 @@
 ## Unreleased
 
+- Fix: "CUDA error: unknown error" with Ultra Sharp Lite on large images.
+  Vistiq kept the whole model on the card and left too little room for a
+  17 MP result. The memory margin now grows with the size of the result
+- If the card still crashes, Vistiq restarts the engine, retries the image
+  with the whole model swapped out, and swaps more with that model from
+  then on
+- Vistiq checks the engine is really alive before each image, instead of
+  trusting "Engine ready"
+
 - Realistic progress: Vistiq reads the upscaler's own log and follows it
   phase by phase (Loading model, Preparing, Upscaling, Finishing details,
   Saving) and tile by tile while it prepares and finishes the image

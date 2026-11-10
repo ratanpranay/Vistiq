@@ -31,7 +31,8 @@ DEFAULTS = {
     "engine_port": 0,             # where Vistiq's own engine last listened
     "speeds": {},
     "phase_speeds": {},           # seconds per phase (per MP), by model
-    "auto_migrated": False,                 # seconds per output megapixel, by model
+    "auto_migrated": False,
+    "swap_bias": {},              # extra blocks to swap, learned from crashes                 # seconds per output megapixel, by model
 }
 
 
