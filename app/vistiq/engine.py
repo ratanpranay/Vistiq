@@ -38,7 +38,7 @@ PORTS = (8188, 8000, 8189)
 OWN_FLAGS = []
 #: Bumped whenever OWN_FLAGS change, so an engine left running by an older
 #: version is restarted with the new switches.
-OWN_FLAGS_VERSION = 2
+OWN_FLAGS_VERSION = 3
 OWN_PORT = 8188
 CREATE_NO_WINDOW = 0x08000000
 #: The engine runs a little below normal priority, so Windows, the mouse and
@@ -262,7 +262,8 @@ class Engine:
         # The engine's output goes to a file, which Windows would otherwise
         # write in its old code page; the upscaler nodes print emoji on
         # load, and that alone stops ComfyUI from starting. UTF-8 avoids it.
-        env = dict(os.environ, PYTHONIOENCODING="utf-8", PYTHONUTF8="1")
+        env = dict(os.environ, PYTHONIOENCODING="utf-8", PYTHONUTF8="1",
+                   PYTHONUNBUFFERED="1")   # lines reach the log as they happen
         try:
             self.process = subprocess.Popen(
                 cmd, cwd=cwd, env=env, stdout=log, stderr=subprocess.STDOUT,

@@ -25,12 +25,29 @@ LABELS = {"load": "Loading model", "encode": "Preparing", "upscale": "Upscaling"
 DEFAULT_SHARE = {"load": 0.10, "encode": 0.18, "upscale": 0.22, "decode": 0.45, "post": 0.05}
 
 _TILE = re.compile(r"(Encoding|Decoding) tiles? (\d+)(?:-(\d+))? / (\d+)")
+# Phase headers ("━━━ Phase 2: DiT upscaling ━━━") and "complete" lines; not
+# the end-of-run summary ("Phase 2: DiT upscaling: 10.08GB"), which names
+# every phase at once.
 _BEGIN = [
-    (re.compile(r"Using VAE tiled encoding|Encoding tile|Phase 1"), "encode"),
-    (re.compile(r"Phase 1: VAE encoding complete|Phase 2"), "upscale"),
-    (re.compile(r"Phase 2: DiT upscaling complete|Using VAE tiled decoding|Decoding tile|Phase 3"), "decode"),
-    (re.compile(r"Phase 3: VAE decoding complete|Phase 4"), "post"),
+    (re.compile(r"Using VAE tiled encoding|Encoding tile|━ Phase 1\b"), "encode"),
+    (re.compile(r"Phase 1: VAE encoding complete|━ Phase 2\b"), "upscale"),
+    (re.compile(r"Phase 2: DiT upscaling complete|Using VAE tiled decoding|Decoding tile|━ Phase 3\b"), "decode"),
+    (re.compile(r"Phase 3: VAE decoding complete|━ Phase 4\b"), "post"),
 ]
+_STAMP = re.compile(r"^\[(\d\d):(\d\d):(\d\d)(?:\.\d+)?\]")
+
+
+def _stale(line, started):
+    """A line the previous image wrote (it can reach the log after the next
+    image has begun): its time stamp is from before this one started."""
+    m = _STAMP.match(line)
+    if not m:
+        return False
+    t = int(m.group(1)) * 3600 + int(m.group(2)) * 60 + int(m.group(3))
+    lt = time.localtime(started)
+    now = lt.tm_hour * 3600 + lt.tm_min * 60 + lt.tm_sec
+    behind = (now - t) % 86400
+    return 2 < behind < 43200
 
 
 class LogTail:
@@ -89,6 +106,8 @@ class Progress:
     # feeding it
 
     def feed(self, line):
+        if _stale(line, self.started):
+            return
         m = _TILE.search(line)
         if m:
             self.seen_log = True

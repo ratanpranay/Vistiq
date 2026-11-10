@@ -1,3 +1,13 @@
+## Unreleased
+
+- Fix: progress could jump to "Saving 98%" at the start of an image and sit
+  there. The engine's log reached the file late, so the end of the previous
+  image's report was read as this image's progress. The engine now writes
+  its log as it goes, and Vistiq ignores lines from before the image began
+- The model note now says what each model means on this PC: the best fit
+  (why Auto picked it), a bigger model (slower here, and why), or a lighter
+  one; and from what size results are made in parts
+
 ## 0.2.6
 
 - Very large results (for example 9600 x 5400 from a 4800 x 2700 image) no

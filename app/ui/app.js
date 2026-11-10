@@ -309,9 +309,12 @@
       note.innerHTML = '<span>' + esc(target.name) + ' is the best fit for this PC. </span><button type="button" class="lnk" data-dl="' + target.key + '">Download it (' + target.gb + ' GB)</button>';
     } else if (pick) {
       note.hidden = false;
-      note.textContent = (pick.on_card ? "Tuned for this PC: runs fully in graphics memory."
-        : "Tuned for this PC: the model is brought in from RAM as it works, which keeps the card from overflowing.") +
-        (c.part_mp ? " Results over " + c.part_mp + " MP don't fit the card in one go, so they're upscaled in parts and joined seamlessly." : "");
+      var why;
+      if (pick.on_card) why = "Runs fully on this " + vram + " card, the fastest way.";
+      else if (pick.key === c.auto_target) why = "Best fit for this PC: the most detail your " + vram + " card handles at a good speed. The model is brought in from RAM as it works, so the card never overflows.";
+      else if (!pick.fits) why = "Bigger than your " + vram + " card: it's brought in from RAM piece by piece, so it takes longer than " + (target ? target.name : "the best fit") + " for a small gain in detail.";
+      else why = "Lighter and faster than " + (target ? target.name : "the best fit") + " on this PC, with a little less detail.";
+      note.textContent = why + (c.part_mp ? " Results over " + c.part_mp + " MP are made in parts, as they don't fit the card in one go." : "");
     }
     if (state.menu.open) renderMenu();
   }

@@ -77,3 +77,23 @@ class Tracking(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class StaleLines(unittest.TestCase):
+    def test_previous_runs_summary_is_ignored(self):
+        p = pg.Progress(19)
+        stamp = time.strftime("%H:%M:%S", time.localtime(p.started - 60))
+        for line in ("[%s.994] Phase 1: VAE encoding: 4.09GB" % stamp,
+                     "[%s.994] Phase 4: Post-processing: 1.61GB" % stamp,
+                     "[%s.994] Phase 3: VAE decoding complete: 23s" % stamp):
+            p.feed(line)
+        self.assertEqual(p.phase, "load")
+        now = time.strftime("%H:%M:%S", time.localtime(p.started))
+        p.feed("[%s.100]  ━━━━━━━━ Phase 1: VAE encoding ━━━━━━━━" % now)
+        self.assertEqual(p.phase, "encode")
+        p.feed("[%s.100] 📊   Phase 3: VAE decoding: 4.89GB" % now)
+        self.assertEqual(p.phase, "encode")
+
+
+if __name__ == "__main__":
+    unittest.main()
