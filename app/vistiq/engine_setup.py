@@ -12,6 +12,7 @@ Steps:
   4. The model, and the VAE it pairs with
 """
 import hashlib
+import json
 import os
 import re
 import shutil
@@ -28,8 +29,14 @@ from . import workflow as wf
 CREATE_NO_WINDOW = 0x08000000
 
 SEVEN_ZIP = "https://www.7-zip.org/a/7zr.exe"
-PORTABLE = ("https://github.com/Comfy-Org/ComfyUI/releases/latest/download/"
-            "ComfyUI_windows_portable_nvidia.7z")
+#: The ComfyUI build Vistiq installs, pinned rather than "latest": this is
+#: the version the upscale workflow was made and proven with (its file says
+#: comfy-core 0.3.68), next to the matching upscaler nodes below. Newer
+#: ComfyUI builds add their own memory management ("dynamic VRAM", pinned
+#: memory), which fights the upscaler's and made it slow and unstable.
+PORTABLE_VERSION = "v0.3.68"
+PORTABLE = ("https://github.com/comfyanonymous/ComfyUI/releases/download/%s/"
+            "ComfyUI_windows_portable_nvidia.7z" % PORTABLE_VERSION)
 NODES_COMMIT = "690cc39379c1481159ddd451368dbf2295930fc6"
 NODES_ZIP = ("https://github.com/numz/ComfyUI-SeedVR2_VideoUpscaler/archive/%s.zip"
              % NODES_COMMIT)
@@ -87,7 +94,39 @@ def portable_dir():
 
 
 def models_dir():
+    """Models live outside the ComfyUI folder, so the engine can be replaced
+    without downloading them again."""
+    return os.path.join(home(), "models", "SEEDVR2")
+
+
+def _old_models_dir():
     return os.path.join(portable_dir(), "ComfyUI", "models", "SEEDVR2")
+
+
+def migrate_models():
+    """Move models from where Vistiq 0.2 kept them (inside ComfyUI)."""
+    old = _old_models_dir()
+    if not os.path.isdir(old):
+        return
+    os.makedirs(models_dir(), exist_ok=True)
+    for f in os.listdir(old):
+        if f.endswith((".safetensors", ".gguf")):
+            dst = os.path.join(models_dir(), f)
+            if not os.path.exists(dst):
+                try:
+                    os.replace(os.path.join(old, f), dst)
+                except OSError:
+                    pass
+
+
+def write_model_paths():
+    """Tell ComfyUI where the models are."""
+    comfy = os.path.join(portable_dir(), "ComfyUI")
+    if not os.path.isdir(comfy):
+        return
+    base = os.path.dirname(models_dir()).replace("\\", "/")
+    with open(os.path.join(comfy, "extra_model_paths.yaml"), "w", encoding="utf-8") as fh:
+        fh.write("vistiq:\n    base_path: %s\n    seedvr2: SEEDVR2\n" % json.dumps(base))
 
 
 def nodes_dir():
@@ -98,14 +137,24 @@ def _marker(name):
     return os.path.join(home(), name + ".done")
 
 
+def _stamp(name):
+    """What a step's marker says: the engine build it was done for. A step
+    done for another build (or an older Vistiq) counts as not done."""
+    return PORTABLE_VERSION + ("" if name == "portable" else " " + NODES_COMMIT)
+
+
 def _done(name):
-    return os.path.isfile(_marker(name))
+    try:
+        with open(_marker(name), encoding="utf-8") as fh:
+            return fh.read().split("\n")[0].strip() == _stamp(name)
+    except OSError:
+        return False
 
 
 def _mark(name):
     os.makedirs(home(), exist_ok=True)
-    with open(_marker(name), "w") as fh:
-        fh.write(time.strftime("%Y-%m-%d %H:%M:%S"))
+    with open(_marker(name), "w", encoding="utf-8") as fh:
+        fh.write(_stamp(name) + "\n" + time.strftime("%Y-%m-%d %H:%M:%S"))
 
 
 def local_models():
@@ -117,8 +166,19 @@ def local_models():
                   if f.endswith((".safetensors", ".gguf")) and not f.endswith(".part"))
 
 
+def needs_update():
+    """An engine from an older Vistiq is here, with models, but isn't the
+    build this Vistiq runs: it gets replaced on its own, keeping the models."""
+    if not os.path.isdir(portable_dir()) or (_done("portable") and _done("nodes")):
+        return False
+    migrate_models()
+    return os.path.isfile(os.path.join(models_dir(), VAE[1])) and \
+        any(m != VAE[1] for m in local_models())
+
+
 def installed():
     """The engine runs: ComfyUI, the nodes and at least one model."""
+    migrate_models()
     return (_done("portable") and _done("nodes")
             and os.path.isfile(os.path.join(models_dir(), VAE[1]))
             and any(m != VAE[1] for m in local_models()))
@@ -264,9 +324,10 @@ class Installer:
         seven = os.path.join(home(), "7zr.exe")
         if not os.path.isfile(seven):
             self._download(SEVEN_ZIP, seven, "engine")
-        archive = os.path.join(home(), "comfyui_portable.7z")
+        archive = os.path.join(home(), "comfyui_portable_%s.7z" % PORTABLE_VERSION)
         self._download(PORTABLE, archive, "engine")
         self._say("unpack", 0)
+        migrate_models()            # keep the models before replacing ComfyUI
         shutil.rmtree(portable_dir(), ignore_errors=True)
         cmd = [seven, "x", archive, "-o" + home(), "-y", "-bsp1", "-bso0"]
         self._proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
@@ -289,6 +350,7 @@ class Installer:
             os.remove(archive)
         except Exception:
             pass
+        write_model_paths()
         _mark("portable")
 
     def _nodes(self):
@@ -326,6 +388,7 @@ class Installer:
 
     def _models(self):
         os.makedirs(models_dir(), exist_ok=True)
+        write_model_paths()
         for repo, name, digest in (VAE, (self.model["repo"], self.model["file"], self.model["sha256"])):
             path = os.path.join(models_dir(), name)
             if os.path.isfile(path):

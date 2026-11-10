@@ -448,6 +448,11 @@
   function renderSetup() {
     var su = state.setup, info = su.info;
     $("setup").hidden = false;
+    var up = !!(su.run && su.run.upgrade);
+    $("setup-h").textContent = up ? "Updating the engine" : "Set up the engine";
+    $("setup-lead").textContent = up
+      ? "A faster, steadier engine build, downloaded once. Your models stay where they are."
+      : "A one-time download. Vistiq keeps its own private copy, so nothing else on this PC changes.";
     $("empty").hidden = true;
     $("work").hidden = true;
     if (!info) {

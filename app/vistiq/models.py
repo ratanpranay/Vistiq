@@ -92,6 +92,9 @@ def catalog():
 #: because the upscaling step works on the whole image at once.
 BASE_HEADROOM = 3.0
 PER_MEGAPIXEL = 0.4
+#: What Windows and the display keep for themselves on the card (more so on
+#: a laptop, where the same card drives the screen).
+SYSTEM_RESERVE = 2.0
 
 
 def tuning(model_file, retry=False, megapixels=8.0, extra_swap=0):
@@ -105,16 +108,45 @@ def tuning(model_file, retry=False, megapixels=8.0, extra_swap=0):
     blocks = m.get("blocks", 36)
     path = os.path.join(es.models_dir(), model_file or "")
     size = os.path.getsize(path) / 1e9 if os.path.isfile(path) else m.get("gb", 16.5)
-    if retry or not vram:
+    headroom = BASE_HEADROOM + PER_MEGAPIXEL * max(0.0, megapixels) + SYSTEM_RESERVE
+    # The whole model stays on the card only when it fits with room to spare
+    # for this result; otherwise every block is swapped, as in the original
+    # workflow. Swapping part of a model saved little and was where cards
+    # hung or crashed.
+    if retry or extra_swap or not vram or size + headroom > vram:
         swap = blocks
     else:
-        headroom = BASE_HEADROOM + PER_MEGAPIXEL * max(0.0, megapixels)
-        over = size + headroom - vram
-        swap = 0 if over <= 0 else int(math.ceil(over / size * blocks)) + 2
-        swap = min(blocks, swap + int(extra_swap or 0))
+        swap = 0
+    # Keeping the model in memory between images only pays when the PC has
+    # the RAM for it; on a 16 or 32 GB laptop it pushes Windows into paging.
+    ram = _ram()
+    cache = bool(ram) and ram >= size * 2 + 16
     # Tiles of 1024 px worked on this card in the original workflow even at
     # 17 MP, so a retry keeps them and only swaps more.
-    return {"blocks_to_swap": swap, "cache_model": True, "tile": 1024, "overlap": 128}
+    return {"blocks_to_swap": swap, "cache_model": cache, "tile": 1024, "overlap": 128}
+
+
+def _ram():
+    """Installed memory in GB, or 0 when unknown."""
+    try:
+        import ctypes
+
+        class MS(ctypes.Structure):
+            _fields_ = [("dwLength", ctypes.c_ulong), ("dwMemoryLoad", ctypes.c_ulong),
+                        ("ullTotalPhys", ctypes.c_ulonglong), ("ullAvailPhys", ctypes.c_ulonglong),
+                        ("ullTotalPageFile", ctypes.c_ulonglong), ("ullAvailPageFile", ctypes.c_ulonglong),
+                        ("ullTotalVirtual", ctypes.c_ulonglong), ("ullAvailVirtual", ctypes.c_ulonglong),
+                        ("ullAvailExtendedVirtual", ctypes.c_ulonglong)]
+        st = MS()
+        st.dwLength = ctypes.sizeof(MS)
+        if ctypes.windll.kernel32.GlobalMemoryStatusEx(ctypes.byref(st)):
+            return st.ullTotalPhys / 1e9
+    except Exception:
+        pass
+    try:
+        return os.sysconf("SC_PAGE_SIZE") * os.sysconf("SC_PHYS_PAGES") / 1e9
+    except Exception:
+        return 0
 
 
 # -- downloading and removing -----------------------------------------------

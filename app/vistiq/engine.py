@@ -30,12 +30,15 @@ PORTS = (8188, 8000, 8189)
 #: the upscaler manages its own memory (block swap, tiling), and with both at
 #: work it ran several times slower than in a plain ComfyUI and could crash
 #: the card. Plain, estimate-based loading is what the upscaler expects.
-OWN_FLAGS = ["--disable-dynamic-vram"]
+OWN_FLAGS = []
 #: Bumped whenever OWN_FLAGS change, so an engine left running by an older
 #: version is restarted with the new switches.
-OWN_FLAGS_VERSION = 1
+OWN_FLAGS_VERSION = 2
 OWN_PORT = 8188
 CREATE_NO_WINDOW = 0x08000000
+#: The engine runs a little below normal priority, so Windows, the mouse and
+#: other apps stay responsive while it works the card and memory hard.
+BELOW_NORMAL_PRIORITY_CLASS = 0x00004000
 
 
 class EngineError(Exception):
@@ -198,6 +201,15 @@ class Engine:
 
             # Vistiq's own engine, still running from last time: just use it.
             port = int(self.settings.get("engine_port") or 0)
+            if port and engine_setup.needs_update():
+                # An older engine build: stop it so it can be replaced.
+                pid = _pid_on_port(port)
+                if pid:
+                    say("starting", "Stopping the old engine")
+                    _kill_tree(pid)
+                    time.sleep(1.5)
+                self.settings.set("engine_port", 0)
+                port = 0
             if port and engine_setup.installed():
                 url = "http://127.0.0.1:%d" % port
                 if self._alive(url) and self._has_nodes(url):
@@ -250,7 +262,8 @@ class Engine:
             self.process = subprocess.Popen(
                 cmd, cwd=cwd, env=env, stdout=log, stderr=subprocess.STDOUT,
                 stdin=subprocess.DEVNULL,
-                creationflags=CREATE_NO_WINDOW if sys.platform == "win32" else 0)
+                creationflags=(CREATE_NO_WINDOW | (BELOW_NORMAL_PRIORITY_CLASS if self.own else 0))
+                if sys.platform == "win32" else 0)
         except Exception as exc:
             say("error", "Couldn't start the engine from %s: %s" % (label, exc))
             return False

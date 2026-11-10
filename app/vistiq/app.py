@@ -268,6 +268,13 @@ class App:
             self.emit("engine", {"state": self.engine.state, "message": self.engine.message,
                                  "models": self.engine.models})
             self.emit("models", self.model_info())
+            if self.engine.state == "setup" and engine_setup.needs_update():
+                # Replace an older engine build on its own; the models stay.
+                m = engine_setup.model_by_file(self.settings.get("model")) or \
+                    next((engine_setup.model_by_file(f) for f in engine_setup.local_models()
+                          if engine_setup.model_by_file(f)), None)
+                if m:
+                    self.install(m["key"])
         threading.Thread(target=run, daemon=True).start()
 
     def _on_model_download(self, info):
@@ -284,10 +291,11 @@ class App:
     def install(self, model_key):
         if self.installer:
             return False
+        upgrade = engine_setup.needs_update()
 
         def progress(step, label, fraction, detail):
             self.emit("setup", {"state": "running", "step": step, "label": label,
-                                "fraction": fraction, "detail": detail})
+                                "fraction": fraction, "detail": detail, "upgrade": upgrade})
 
         def done(ok, message):
             self.installer = None

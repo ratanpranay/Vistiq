@@ -1,9 +1,19 @@
 ## Unreleased
 
-- Speed: Vistiq's engine now runs without ComfyUI's new "dynamic VRAM"
-  memory manager, which pages memory around behind the upscaler's own
-  memory handling. An engine left running by an older Vistiq is restarted
-  with the new setting automatically
+- Speed and stability: Vistiq's engine is now pinned to the ComfyUI build
+  the upscale workflow was made with (0.3.68), instead of the newest one.
+  Newer builds manage memory their own way (dynamic VRAM, pinned memory),
+  which fought the upscaler: that made upscales slow and could freeze the PC
+- An engine set up by an older Vistiq is replaced automatically, once
+  (about 2 GB). The models are kept and are not downloaded again
+- Models now live in their own folder (%LOCALAPPDATA%\Vistiq\engine\models),
+  so future engine updates never touch them
+- Memory: the model stays fully on the card only when it fits with room for
+  the result and for Windows; otherwise it is swapped out completely, as in
+  the original workflow. It is kept in memory between images only on PCs
+  with enough RAM
+- The engine runs at slightly lower priority, so the PC stays responsive
+  while it works
 
 ## 0.2.4
 
