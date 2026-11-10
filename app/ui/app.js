@@ -16,7 +16,7 @@
 
   // ---------------------------------------------------------------- brand
   (function brand() {
-    var b = $("brand"), word = $("word");
+    var b = $("brand"), word = $("logo");
     b.addEventListener("mousemove", function (e) {
       var r = word.getBoundingClientRect();
       word.style.setProperty("--x", (e.clientX - r.left) + "px");
@@ -25,8 +25,8 @@
     b.addEventListener("click", function () { b.classList.add("revealed"); });
     b.addEventListener("mouseleave", function () {
       b.classList.remove("revealed");
-      word.style.setProperty("--x", "-100px");
-      word.style.setProperty("--y", "-100px");
+      word.style.setProperty("--x", "-200px");
+      word.style.setProperty("--y", "-200px");
     });
   })();
 

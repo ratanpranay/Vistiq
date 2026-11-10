@@ -28,16 +28,18 @@ kbd{display:inline-flex;align-items:center;justify-content:center;min-width:24px
 /* rail */
 .rail{width:300px;flex-shrink:0;background:var(--rail);border-right:1px solid var(--line);display:flex;flex-direction:column}
 .brand{height:78px;padding:0 22px;display:flex;align-items:center;gap:12px;text-align:left}
-.brand-mark{width:40px;height:auto;display:block}
-.word{position:relative;width:104px;height:18px;display:block;--x:-100px;--y:-100px}
-.word-blur,.word-clear{position:absolute;inset:0}
-.word-blur{filter:blur(4.5px);opacity:.75;transition:filter .35s,opacity .35s}
-.word-clear{opacity:0;-webkit-mask-image:radial-gradient(circle 26px at var(--x) var(--y),#000 45%,transparent 100%);mask-image:radial-gradient(circle 26px at var(--x) var(--y),#000 45%,transparent 100%);transition:opacity .2s}
-.word-ink{position:absolute;inset:0;background:var(--ink);-webkit-mask:url(assets/wordmark.png) left center/contain no-repeat;mask:url(assets/wordmark.png) left center/contain no-repeat}
-.brand:hover .word-clear{opacity:1}
-.brand.revealed .word-blur{filter:blur(0);opacity:1}
-.brand.revealed .word-clear{opacity:0}
-@media (prefers-reduced-motion: reduce){.word-blur,.word-clear{transition:none}}
+.logo{position:relative;display:block;--x:-200px;--y:-200px}
+.logo-blur,.logo-clear{display:block}
+.logo-clear{position:absolute;inset:0}
+.logo-art{display:flex;align-items:center;gap:12px}
+.logo-art img{width:40px;height:auto;display:block}
+.logo-blur{filter:blur(5px);opacity:.7;transition:filter .35s,opacity .35s}
+.logo-clear{opacity:0;-webkit-mask-image:radial-gradient(circle 30px at var(--x) var(--y),#000 45%,transparent 100%);mask-image:radial-gradient(circle 30px at var(--x) var(--y),#000 45%,transparent 100%);transition:opacity .2s}
+.word-ink{display:block;width:104px;height:18px;background:var(--ink);-webkit-mask:url(assets/wordmark.png) left center/contain no-repeat;mask:url(assets/wordmark.png) left center/contain no-repeat}
+.brand:hover .logo-clear{opacity:1}
+.brand.revealed .logo-blur{filter:blur(0);opacity:1}
+.brand.revealed .logo-clear{opacity:0}
+@media (prefers-reduced-motion: reduce){.logo-blur,.logo-clear{transition:none}}
 
 .rail-body{flex:1;overflow-y:auto;padding:4px 22px 0;display:flex;flex-direction:column;gap:24px}
 .group{margin:0;padding:0;border:0;display:flex;flex-direction:column;gap:9px}
