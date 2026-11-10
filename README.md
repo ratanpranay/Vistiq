@@ -40,8 +40,9 @@ Vistiq.exe  (launcher, rarely changes)
 ```
 
 To ship a change: edit the code, bump `app/VERSION`, add a line to
-`CHANGELOG.md`, push, then push a tag with the same version (`v0.1.1`).
-GitHub Actions tests it, builds both files and publishes the release.
+`CHANGELOG.md`, and push to `main`. GitHub Actions tests it, builds both
+files and publishes the release. Pushes that don't change the version are
+built and tested but not released.
 
 The exe itself only needs replacing if the app starts using a new Python
 library that the launcher doesn't already carry.
