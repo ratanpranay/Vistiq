@@ -1,4 +1,4 @@
-## Unreleased
+## 0.2.3
 
 - Model: Auto. Vistiq picks the best model that fits this PC's graphics
   memory (Ultra Sharp Lite on a 16 GB card) and says why
