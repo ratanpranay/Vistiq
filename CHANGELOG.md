@@ -1,5 +1,10 @@
 ## Unreleased
 
+- Progress moves smoothly: for a single image the upscaler barely reports
+  progress, so Vistiq learns how long each model takes per megapixel and
+  fills the bar from that ("0:39 of about 1:30")
+- The waiting animation before the first estimate flows without jumping
+
 - When the size limit holds a scale back, the note now says the limit can be
   raised in Settings (up to 16 384 px), and "Settings" opens it
 

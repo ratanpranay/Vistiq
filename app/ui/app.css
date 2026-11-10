@@ -84,8 +84,10 @@ kbd{display:inline-flex;align-items:center;justify-content:center;min-width:24px
 .go.running{background:var(--field);color:var(--ink);box-shadow:inset 0 0 0 1.5px var(--line-2);cursor:default;justify-content:flex-start;padding-left:22px}
 .go.running .go-fill{width:var(--p)}
 .go.running .go-label.on{display:block;position:absolute;left:22px;color:#fff;clip-path:inset(0 calc(100% - var(--fillpx, 0px)) 0 0)}
-.go.running.indeterminate .go-fill{width:100%;opacity:.28;background-size:200% 100%;animation:flow 1.6s linear infinite}
-@keyframes flow{from{background-position:0 0}to{background-position:-200% 0}}
+.go.running.indeterminate .go-fill{width:100%;opacity:.35;border-radius:27px;
+  background:linear-gradient(90deg,#22B0F5,#3B54E9,#8B2EF2,#E0509F,#FF9A52,#E0509F,#8B2EF2,#3B54E9,#22B0F5) 0 0/600px 100% repeat-x;
+  animation:flow 2.4s linear infinite;transition:none}
+@keyframes flow{from{background-position:0 0}to{background-position:-600px 0}}
 .go-x{position:absolute;right:7px;top:7px;width:40px;height:40px;border-radius:20px;background:#fff;border:1px solid var(--line-2);color:var(--ink);display:flex;align-items:center;justify-content:center;box-shadow:0 1px 3px rgba(15,18,32,.08)}
 .go-x:hover{border-color:var(--bad);color:var(--bad)}
 .go-x svg{width:16px;height:16px;stroke-width:2.4}
@@ -281,3 +283,5 @@ kbd{display:inline-flex;align-items:center;justify-content:center;min-width:24px
 .tile.same{opacity:.55}
 .inline-link{display:inline;font:inherit;font-weight:700;color:var(--ink);text-decoration:underline;text-underline-offset:2px}
 .inline-link:hover{color:#8B2EF2}
+.go.running .go-fill{transition:width 1s linear}
+.ring .bar{transition:stroke-dashoffset 1s linear}

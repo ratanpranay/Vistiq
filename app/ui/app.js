@@ -164,6 +164,18 @@
   // The Upscale button turns into the progress bar while work runs: the
   // logo's gradient fills it from the left, the label flips to white where
   // the fill has reached, and the × beside it cancels.
+  // Real progress when the engine reports it; otherwise an estimate from
+  // how long this model took before, held below 97% until it's done.
+  function progressOf(item) {
+    if (!item) return 0;
+    if (item.progress > 0) return item.progress;
+    if (item.status === "running" && item.estimate > 0 && item.started) {
+      var t = (Date.now() - item.started) / 1000;
+      return Math.min(0.97, t / item.estimate);
+    }
+    return 0;
+  }
+
   function renderGo() {
     var go = $("go"), n = pending().length;
     var working = state.items.filter(function (i) { return i.status === "running" || i.status === "queued"; });
@@ -171,7 +183,7 @@
       var run = state.items.filter(function (i) { return i.status === "running"; })[0];
       var finished = state.items.filter(function (i) { return i.status === "done" && i.inBatch; }).length;
       var total = finished + working.length;
-      var p = run && run.progress ? run.progress : 0;
+      var p = progressOf(run);
       var overall = total ? (finished + p) / total : 0;
       var exact = p > 0 || finished > 0;
       go.disabled = false;
@@ -190,7 +202,9 @@
       $("go-x").hidden = false;
       $("go-meta").hidden = false;
       $("go-count").textContent = "Image " + Math.min(finished + 1, total) + " of " + total;
-      $("go-clock").textContent = run && run.started ? clock((Date.now() - run.started) / 1000) : "";
+      var el = run && run.started ? (Date.now() - run.started) / 1000 : 0;
+      $("go-clock").textContent = run && run.started
+        ? clock(el) + (run.estimate > 0 && !run.progress ? " of about " + clock(Math.max(run.estimate, el)) : "") : "";
     } else {
       go.classList.remove("running", "indeterminate");
       go.removeAttribute("aria-disabled");
@@ -345,7 +359,7 @@
     var busy = cur.status === "running" || cur.status === "queued";
     $("veil").hidden = !busy;
     if (busy) {
-      var ring = $("ring-bar").parentNode.parentNode, p = cur.progress || 0;
+      var ring = $("ring-bar").parentNode.parentNode, p = progressOf(cur);
       var exact = cur.status === "running" && p > 0;
       ring.classList.toggle("indeterminate", !exact);
       $("ring-bar").style.strokeDashoffset = exact ? String(327 * (1 - p)) : "";

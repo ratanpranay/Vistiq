@@ -29,6 +29,7 @@ DEFAULTS = {
     "comfy_url": "",
     "keep_engine": True,          # leave the engine running when the app closes
     "engine_port": 0,             # where Vistiq's own engine last listened
+    "speeds": {},                 # seconds per output megapixel, by model
 }
 
 

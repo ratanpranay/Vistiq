@@ -297,10 +297,17 @@ class App:
                     self.update(item, status="error", error=self.engine.message)
                     break
             started = time.time()
-            self.update(item, status="running", stage="Starting", progress=0,
-                        started=time.time() * 1000)
             scale = s.get("scale")
             max_res = s.max_side()
+            # The upscaler reports little progress for a single image, so the
+            # bar is driven by an estimate from how long earlier jobs took
+            # with the same model, per megapixel of output.
+            ow, oh = wf.output_size(item["w"], item["h"], "max" if scale == "max" else float(scale), max_res)
+            mp = max(0.1, ow * oh / 1e6)
+            rate = (s.get("speeds") or {}).get(s.get("model") or "")
+            self.update(item, status="running", stage="Starting", progress=0,
+                        started=time.time() * 1000,
+                        estimate=round(rate * mp, 1) if rate else 0)
             model = s.get("model")
             if self.engine.models and model not in self.engine.models:
                 model = wf.DEFAULT_DIT if wf.DEFAULT_DIT in self.engine.models else self.engine.models[0]
@@ -312,9 +319,15 @@ class App:
                     cancelled=self._cancel.is_set)
                 tag = "vistiq_max" if scale == "max" else "vistiq_%sx" % scale
                 path, w, h = imaging.save(data, item["path"], s.get("out_dir"), s.get("format"), tag, limit=max_res)
+                took = time.time() - started
+                speeds = dict(s.get("speeds") or {})
+                old = speeds.get(model)
+                new = took / max(0.1, w * h / 1e6)
+                speeds[model] = round(new if not old else old * 0.6 + new * 0.4, 3)
+                s.set("speeds", speeds)
                 self.update(item, status="done", progress=1, stage="Saved",
                             out_path=path, out_w=w, out_h=h,
-                            seconds=round(time.time() - started, 1),
+                            seconds=round(took, 1),
                             out_preview=imaging.preview(data))
             except EngineError as exc:
                 text = str(exc)
