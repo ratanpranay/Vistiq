@@ -1,4 +1,4 @@
-## Unreleased
+## 0.2.10
 
 - Faster: on cards with room for it (16 GB and up), the steps that read the
   image in and write the result out ("Preparing" and "Finishing details")
