@@ -1,4 +1,4 @@
-## Unreleased
+## 0.2.17
 
 - Fix: on a PC with ComfyUI Desktop (and no upscaler nodes), Vistiq could
   keep trying to start that ComfyUI, fail, and never offer its own setup.
