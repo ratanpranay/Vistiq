@@ -186,6 +186,14 @@ class Api:
         self._app.emit("engine", {"state": "stopped", "message": "Engine stopped. It starts again the next time you upscale.", "models": self._app.engine.models})
         return True
 
+    def engine_state(self):
+        """Where the engine stands right now, for a window that may have
+        missed the news (see boot() in app.js)."""
+        a = self._app
+        return {"engine": {"state": a.engine.state, "message": a.engine.message,
+                           "models": a.engine.models},
+                "models": a.model_info()}
+
     def retry_engine(self):
         self._app.connect_async()
 

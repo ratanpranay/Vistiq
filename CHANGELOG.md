@@ -1,3 +1,10 @@
+## Unreleased
+
+- Fix: Vistiq could sit on "Looking for the engine" after opening until
+  Reconnect was clicked. The engine was found before the window had
+  finished loading, and the window missed the news. It now checks for
+  itself until the engine has settled
+
 ## 0.2.11
 
 - Two passes now also applies from 2.5x (it was 3x), so a 4x that the size

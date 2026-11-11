@@ -793,7 +793,7 @@
   // ---------------------------------------------------------------- from Python
   window.vistiq = {
     event: function (kind, data) {
-      if (kind === "engine") state.engine = data;
+      if (kind === "engine") { state.engine = data; engineNews++; }
       else if (kind === "item") {
         var found = false;
         state.items = state.items.map(function (i) {
@@ -845,9 +845,26 @@
     if (state.running) renderGo();
   }, 1000);
 
+  // The engine can be found before this window has finished loading. Its
+  // "ready" message then either arrives before anything listens, or is
+  // overwritten by the older answer to init(); either way the window sat on
+  // "Looking for the engine" until Reconnect. So: news that arrived first
+  // wins over init(), and while the engine looks unsettled the window asks.
+  var engineNews = 0;
+  setInterval(function () {
+    var st = state.engine.state;
+    if (!api() || !api().engine_state || (st !== "starting" && st !== "idle")) return;
+    api().engine_state().then(function (r) {
+      if (!r || r.engine.state === state.engine.state && r.engine.message === state.engine.message) return;
+      state.engine = r.engine; if (r.models) state.models = r.models; render();
+    });
+  }, 1500);
+
   function boot() {
+    var before = engineNews;
     api().init().then(function (s) {
-      state.settings = s.settings; state.engine = s.engine; state.items = s.items; state.version = s.version;
+      state.settings = s.settings; if (engineNews === before) state.engine = s.engine;
+      state.items = s.items; state.version = s.version;
       state.update = s.update || state.update; state.notice = s.notice || "";
       if (s.models) state.models = s.models;
       if (state.notice) setTimeout(function () { if (state.update.state !== "ready") { state.notice = ""; render(); } }, 8000);
