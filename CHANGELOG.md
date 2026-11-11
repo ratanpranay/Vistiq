@@ -1,3 +1,8 @@
+## Unreleased
+
+- The magnifier is twice as big (520 px across), so it shows more of the
+  picture at once; in a small window it shrinks to fit
+
 ## 0.2.13
 
 - Magnifier on finished images: move the mouse over the comparison and a

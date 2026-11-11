@@ -598,7 +598,7 @@
   // line passes under the glass, both. The picture inside comes from the
   // real files (the window itself only holds small previews). Press and hold
   // to flip the glass to the other version; scroll to zoom.
-  var LENS = 260, GRAB = 20;
+  var LENS = 520, LENS_MAX = 520, GRAB = 20;
   var lens = { on: false, x: 0, y: 0, zoom: 1, flip: false, drag: false, busy: false, want: null, shown: "" };
 
   function lensGeo() {
@@ -620,6 +620,10 @@
     view.classList.toggle("lensing", !!inside && !near);
     el.hidden = !inside;
     if (!inside) return;
+    // As big as asked, but never most of a small window.
+    LENS = Math.round(Math.min(LENS_MAX, Math.min(g.vw, g.vh) * 0.8));
+    el.style.width = el.style.height = LENS + "px";
+    el.style.margin = (-LENS / 2) + "px 0 0 " + (-LENS / 2) + "px";
     el.style.transform = "translate(" + lens.x + "px," + lens.y + "px)";
     var m = lens.zoom / g.s;                          // how much the glass enlarges what's on screen
     var cut = Math.max(0, Math.min(LENS, LENS / 2 + (g.split - lens.x) * m));
@@ -632,7 +636,7 @@
     });
     $("lens-lo-before").style.clipPath = clipBefore;
     $("lens-hi-before").style.clipPath = clipBefore;
-    var key = [g.cur.id, u.toFixed(4), v.toFixed(4), lens.zoom].join("|");
+    var key = [g.cur.id, u.toFixed(4), v.toFixed(4), lens.zoom, LENS].join("|");
     var fresh = lens.shown === key;
     $("lens-hi-after").hidden = !fresh; $("lens-hi-before").hidden = !fresh;
     $("lens-line").hidden = cut <= 1 || cut >= LENS - 1;

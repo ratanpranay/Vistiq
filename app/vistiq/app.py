@@ -52,7 +52,7 @@ class Api:
         try:
             with a._lens_lock:
                 return a._lens.cut(item["path"], item["out_path"], float(u), float(v),
-                                   float(lens_px), float(zoom), max(64, min(900, int(out_px))))
+                                   float(lens_px), float(zoom), max(64, min(1100, int(out_px))))
         except Exception:
             log.exception("magnifier failed")
             return None
