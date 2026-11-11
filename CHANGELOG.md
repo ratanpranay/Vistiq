@@ -1,4 +1,4 @@
-## Unreleased
+## 0.2.15
 
 - Fix: while Vistiq's engine was running, your own ComfyUI couldn't start
   ("Port 8188 is already in use"). Vistiq's engine now uses a port of its
