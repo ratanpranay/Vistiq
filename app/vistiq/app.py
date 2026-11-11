@@ -404,9 +404,9 @@ class App:
                 report = lambda stage, frac, left, it=item: self.update(
                     it, stage=stage, progress=frac if frac is not None else it.get("progress", 0),
                     left=round(left, 1) if left is not None else None)
-                detail = s.get("detail") or "balanced"
-                if detail not in wf.DETAIL:
-                    detail = "balanced"
+                # Noise-based "detail" levels were tried (0.2.8) and only
+                # added a mottled texture, so the original settings stay.
+                detail = "faithful"
                 passes = wf.passes(item["w"], ow, s.get("two_pass") is not False)
                 log.info("detail %s, %d pass(es)", detail, len(passes))
                 data = self._passes(item, passes, ow, max_res, model, report, tuning, retry,

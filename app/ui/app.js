@@ -90,12 +90,6 @@
   }
 
   // ---------------------------------------------------------------- rail
-  var DETAIL_HINTS = {
-    faithful: "Sharpens what's there. Nothing new is added. Best for designs that must stay exact.",
-    balanced: "Adds fine texture where the image is soft. Shapes and text should stay put.",
-    creative: "Gives the model the most freedom to build texture. Small details may change; check text and logos."
-  };
-
   function renderRail() {
     var s = state.settings;
     Array.prototype.forEach.call(document.querySelectorAll("#scales .tile"), function (t) {
@@ -104,11 +98,6 @@
     Array.prototype.forEach.call(document.querySelectorAll("#formats .chip"), function (c) {
       c.setAttribute("aria-checked", String(c.dataset.format === s.format));
     });
-    var detail = s.detail || "balanced";
-    Array.prototype.forEach.call(document.querySelectorAll("#details .chip"), function (c) {
-      c.setAttribute("aria-checked", String(c.dataset.detail === detail));
-    });
-    $("detail-hint").textContent = DETAIL_HINTS[detail] || "";
     $("two-pass").checked = s.two_pass !== false;
 
     renderModel();
@@ -646,9 +635,6 @@
 
   $("scales").addEventListener("click", function (e) {
     var t = e.target.closest(".tile"); if (t) setSetting("scale", t.dataset.scale);
-  });
-  $("details").addEventListener("click", function (e) {
-    var c = e.target.closest(".chip"); if (c) setSetting("detail", c.dataset.detail);
   });
   $("two-pass").addEventListener("change", function () { setSetting("two_pass", this.checked); });
   $("formats").addEventListener("click", function (e) {

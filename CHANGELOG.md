@@ -1,3 +1,9 @@
+## Unreleased
+
+- Detail control removed. Balanced and Creative added a mottled texture
+  rather than real detail, so every upscale is Faithful again (the original
+  workflow). 4x in two passes stays, on by default
+
 ## 0.2.9
 
 - Fix: opening Vistiq could sit on "Looking for the engine" for a long
