@@ -1,3 +1,9 @@
+## Unreleased
+
+- The x on a thumbnail is no longer cut off at the top, and thumbnails keep
+  their full shadow
+- More room around "© Pranay '26" in the bottom right corner
+
 ## 0.2.12
 
 - Results are named Vistiq_<original name>_2x (or _4x, _max), so they sort
