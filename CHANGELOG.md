@@ -1,4 +1,4 @@
-## Unreleased
+## 0.2.16
 
 - New upscaling animation: a line of light in the logo's colours sweeps
   across the picture, soft ahead of it and sharp behind; where the line
