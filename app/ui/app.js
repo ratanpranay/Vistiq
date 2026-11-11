@@ -122,7 +122,7 @@
       $("size").hidden = false;
       $("size-in").textContent = fmt(cur.w) + " × " + fmt(cur.h);
       $("size-out").textContent = fmt(o[0]) + " × " + fmt(o[1]);
-      $("two-pass-row").hidden = o[0] / cur.w < 3;
+      $("two-pass-row").hidden = o[0] / cur.w < 2.5;
       var note = "", k = parseFloat(s.scale);
       if (s.scale !== "max" && Math.max(cur.w, cur.h) * k > limitPx()) {
         note = s.scale + "× would be " + fmt(cur.w * k) + " × " + fmt(cur.h * k) + ", so it's held to the " + fmt(limitPx()) + " px limit.";

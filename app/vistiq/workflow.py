@@ -62,11 +62,15 @@ def output_size(width, height, scale, max_res=DEFAULT_MAX_RES):
     return int(round(width * factor / 2.0)) * 2, int(round(height * factor / 2.0)) * 2
 
 
+TWO_PASS_FROM = 2.5
+
+
 def passes(width, out_width, two_pass=True):
     """The scale of each step: one step, or two equal ones when the result
-    is 3x the original or more."""
+    is TWO_PASS_FROM times the original or more. Below that the steps would
+    be too small to add anything, for half as much time again."""
     total = out_width / float(max(1, width))
-    if not two_pass or total < 3:
+    if not two_pass or total < TWO_PASS_FROM:
         return [total]
     step = total ** 0.5
     return [step, step]

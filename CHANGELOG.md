@@ -1,4 +1,8 @@
-## Unreleased
+## 0.2.11
+
+- Two passes now also applies from 2.5x (it was 3x), so a 4x that the size
+  limit holds to about 2.6x still gets it. The switch says what it costs:
+  more detail, about 25% longer. 2x stays one pass
 
 - Fix: pictures with no transparency came back with a transparency
   channel, with faint see-through specks in it (about 2% of the pixels in a

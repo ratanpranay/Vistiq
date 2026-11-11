@@ -93,6 +93,8 @@ class Detail(unittest.TestCase):
         self.assertEqual(wf.passes(1000, 2000), [2.0])
         self.assertEqual(wf.passes(1000, 4000), [2.0, 2.0])
         self.assertEqual(wf.passes(1000, 4000, two_pass=False), [4.0])
+        self.assertEqual(len(wf.passes(3168, 8192)), 2)      # 2.6x, held by the size limit
+        self.assertEqual(len(wf.passes(1000, 2400)), 1)
 
 
 if __name__ == "__main__":
