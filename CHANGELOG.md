@@ -1,3 +1,10 @@
+## Unreleased
+
+- New upscaling animation: a line of light in the logo's colours sweeps
+  across the picture, soft ahead of it and sharp behind; where the line
+  stands is the progress. The step, the percentage, the clock and Cancel sit
+  in a small bar at the bottom. It replaces the ring
+
 ## 0.2.15
 
 - Fix: while Vistiq's engine was running, your own ComfyUI couldn't start

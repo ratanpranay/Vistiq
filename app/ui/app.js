@@ -221,10 +221,26 @@
     var label = (run.fine && run.stage ? run.stage.split(/,| ·/)[0] : run.stage && /memory/i.test(run.stage) ? run.stage : phaseLabel(anim.shown)) + " " + Math.floor(overall * 100) + "%";
     if ($("go-label").textContent !== label) { $("go-label").textContent = label; $("go-label-on").textContent = label; }
     var cur = current();
-    if (cur && cur.id === run.id && !$("veil").hidden) {
-      $("ring-bar").style.strokeDashoffset = String(327 * (1 - anim.shown));
-      $("ring-text").textContent = Math.floor(anim.shown * 100) + "%";
-    }
+    if (cur && cur.id === run.id && !$("veil").hidden) paintScan(cur, anim.shown);
+  }
+
+  // The scan over the image being upscaled: fitted to the picture itself
+  // (not the grey around it), with the line at `p` (0..1) across it.
+  function paintScan(cur, p) {
+    var view = $("view"), vw = view.clientWidth, vh = view.clientHeight;
+    if (!cur || !cur.w || !vw) return;
+    var k = Math.min(vw / cur.w, vh / cur.h), dw = cur.w * k, dh = cur.h * k;
+    var box = $("scan").style;
+    box.left = (vw - dw) / 2 + "px"; box.top = (vh - dh) / 2 + "px"; box.width = dw + "px"; box.height = dh + "px";
+    var x = Math.max(0, Math.min(1, p)) * dw;
+    $("scan-soft").style.clipPath = "inset(0 0 0 " + x + "px)";
+    $("scan-line").style.left = x + "px";
+    $("scan-glow").style.left = x + "px";
+    var text = $("veil-stage");
+    var stage = cur.status === "queued" ? "Waiting its turn"
+      : (cur.fine && cur.stage ? cur.stage : cur.stage && /memory/i.test(cur.stage) ? cur.stage : phaseLabel(p)) +
+        "  ·  " + Math.floor(p * 100) + "%" + (cur.started ? "  ·  " + clock((Date.now() - cur.started) / 1000) : "");
+    if (text.textContent !== stage) text.textContent = stage;
   }
 
   var estTimer = null;
@@ -574,13 +590,9 @@
     var busy = cur.status === "running" || cur.status === "queued";
     $("veil").hidden = !busy;
     if (busy) {
-      var ring = $("ring-bar").parentNode.parentNode, p = progressOf(cur);
-      var queued = cur.status === "queued";
-      ring.classList.toggle("indeterminate", queued);
-      $("ring-bar").style.strokeDashoffset = queued ? "" : String(327 * (1 - p));
-      $("ring-text").textContent = queued ? "" : Math.floor(p * 100) + "%";
-      $("veil-stage").textContent = queued ? "Waiting its turn"
-        : (cur.fine && cur.stage ? cur.stage : cur.stage && /memory/i.test(cur.stage) ? cur.stage : phaseLabel(p)) + (cur.started ? "  ·  " + clock((Date.now() - cur.started) / 1000) : "");
+      if ($("scan-img").src !== cur.preview) $("scan-img").src = cur.preview;
+      $("veil").classList.toggle("waiting", cur.status === "queued");
+      paintScan(cur, cur.status === "queued" ? 0 : progressOf(cur));
     }
     $("err").hidden = cur.status !== "error";
     $("err").textContent = cur.error || "";

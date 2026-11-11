@@ -181,9 +181,15 @@
           <span class="lens-tag" id="lens-tag"></span>
         </div>
         <div class="veil" id="veil" hidden>
-          <div class="ring"><svg viewBox="0 0 120 120" aria-hidden="true"><circle cx="60" cy="60" r="52" class="track"/><circle cx="60" cy="60" r="52" class="bar" id="ring-bar"/></svg><span id="ring-text"></span></div>
-          <span class="veil-stage" id="veil-stage"></span>
-          <button type="button" class="ghost sm" id="cancel">Cancel</button>
+          <div class="scan" id="scan">
+            <div class="scan-soft" id="scan-soft"><img id="scan-img" alt=""></div>
+            <span class="scan-glow" id="scan-glow"></span>
+            <span class="scan-line" id="scan-line"></span>
+          </div>
+          <div class="scan-row">
+            <span class="scan-pill" id="veil-stage"></span>
+            <button type="button" class="scan-cancel" id="cancel">Cancel</button>
+          </div>
         </div>
         <div class="err" id="err" hidden></div>
       </div>
