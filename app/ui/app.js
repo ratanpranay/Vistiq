@@ -34,7 +34,7 @@
   }
 
   var state = { settings: {}, engine: { state: "idle", message: "", models: [] },
-                items: [], sel: null, running: false, version: "",
+                items: [], sel: null, running: false, version: "", estimates: {},
                 setup: { info: null, choice: null, run: null, error: "", loading: false },
                 update: { state: "idle" }, toastHidden: false, notice: "",
                 models: { catalog: null, engine_models: [], download: null },
@@ -227,6 +227,15 @@
     }
   }
 
+  var estTimer = null;
+  function refreshEstimates() {
+    clearTimeout(estTimer);
+    estTimer = setTimeout(function () {
+      if (!api() || !api().estimates) return;
+      api().estimates().then(function (e) { state.estimates = e || {}; renderGo(); });
+    }, 150);
+  }
+
   function renderGo() {
     var go = $("go"), n = pending().length;
     var working = state.items.filter(function (i) { return i.status === "running" || i.status === "queued"; });
@@ -254,7 +263,15 @@
       go.disabled = !n || (state.engine.state !== "ready" && state.engine.state !== "stopped");
       $("go-label").textContent = n > 1 ? "Upscale " + n + " images" : "Upscale";
       $("go-x").hidden = true;
-      $("go-meta").hidden = true;
+      // What it will cost, before it starts: from this PC's earlier runs.
+      var secs = 0, known = true;
+      pending().forEach(function (i) { var e = state.estimates[i.id]; if (e) secs += e; else known = false; });
+      var show = n && secs > 0 && !go.disabled;
+      $("go-meta").hidden = !show;
+      if (show) {
+        $("go-count").textContent = n > 1 ? n + " images" : "";
+        $("go-clock").textContent = (known ? "About " : "At least ") + clock(secs);
+      }
     }
   }
 
@@ -610,7 +627,8 @@
 
   function render() {
     state.running = state.batch || state.items.some(function (i) { return i.status === "running" || i.status === "queued"; });
-    renderRail(); renderUpdate(); renderBanner(); renderStrip(); renderStage(); }
+    renderRail(); renderUpdate(); renderBanner(); renderStrip(); renderStage();
+    if (!state.running) refreshEstimates(); }
 
   // ---------------------------------------------------------------- actions
   function merge(added) {

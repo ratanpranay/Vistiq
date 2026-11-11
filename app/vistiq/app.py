@@ -43,6 +43,11 @@ class Api:
             "models": a.model_info(),
         }
 
+    def estimates(self):
+        """Seconds each image waiting to be upscaled should take with the
+        current settings, from how long this PC took before (0 = unknown)."""
+        return self._app.estimates()
+
     def set_setting(self, key, value):
         if key == "max_res":
             value = int(value) if int(value) in wf.SIZES else wf.LIMIT
@@ -424,7 +429,8 @@ class App:
                     log.info("raised swap for %s to +%d", model, sb[model])
                 speeds = dict(s.get("speeds") or {})
                 old = speeds.get(model)
-                new = took / max(0.1, w * h / 1e6)
+                new = took / max(0.1, sum(_pass_mps(item["w"], item["h"], ow, oh,
+                                                    s.get("two_pass") is not False)))
                 speeds[model] = round(new if not old else old * 0.6 + new * 0.4, 3)
                 s.set("speeds", speeds)
                 if self.engine.last_timings:
@@ -492,6 +498,36 @@ class App:
         finally:
             shutil.rmtree(folder, ignore_errors=True)
 
+    def _model_for_estimate(self):
+        s = self.settings
+        if self.engine.own or engine_setup.installed():
+            return models.resolve(s.get("model"))
+        m = s.get("model")
+        if m == models.AUTO or (self.engine.models and m not in self.engine.models):
+            return wf.DEFAULT_DIT if wf.DEFAULT_DIT in self.engine.models else (self.engine.models or [None])[0]
+        return m
+
+    def estimate(self, item, model=None):
+        s = self.settings
+        model = model or self._model_for_estimate()
+        if not model:
+            return 0
+        scale = s.get("scale")
+        max_res = s.max_side()
+        ow, oh = wf.output_size(item["w"], item["h"], "max" if scale == "max" else float(scale), max_res)
+        mps = _pass_mps(item["w"], item["h"], ow, oh, s.get("two_pass") is not False)
+        hist = (s.get("phase_speeds") or {}).get(model) or {}
+        per_mp = [hist.get(p) for p in ("encode", "upscale", "decode", "post")]
+        if all(v is not None for v in per_mp):
+            return round(sum(hist.get("load", 0) + mp * sum(per_mp) for mp in mps))
+        rate = (s.get("speeds") or {}).get(model)
+        return round(rate * sum(mps)) if rate else 0
+
+    def estimates(self):
+        model = self._model_for_estimate()
+        return {i["id"]: self.estimate(i, model) for i in self.items
+                if i["status"] in ("ready", "error", "queued")}
+
     def _learn_from_engine(self, model):
         s = self.settings
         if getattr(self.engine, "learned_part_mp", None):
@@ -543,6 +579,16 @@ def _on_drop(app):
             added = app.add(paths)
             app.emit("added", added)
     return handler
+
+
+def _pass_mps(w, h, out_w, out_h, two_pass):
+    """Megapixels each pass produces."""
+    steps = wf.passes(w, out_w, two_pass)
+    mps, f = [], 1.0
+    for n, k in enumerate(steps):
+        f *= k
+        mps.append(out_w * out_h / 1e6 if n == len(steps) - 1 else w * h * f * f / 1e6)
+    return mps
 
 
 def _free_port():

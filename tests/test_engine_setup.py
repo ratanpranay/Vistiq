@@ -77,5 +77,19 @@ class Tuning(unittest.TestCase):
         self.assertEqual(t["blocks_to_swap"], es.model_by_key("swift")["blocks"])
 
 
+
+class VaeTiles(unittest.TestCase):
+    def test_bigger_tiles_only_with_room(self):
+        self.assertEqual(models.vae_tile(8), 1024)
+        self.assertEqual(models.vae_tile(16), 1536)
+        self.assertEqual(models.vae_tile(16, 8.6), 1024)   # model kept on the card
+        self.assertEqual(models.vae_tile(0), 1024)
+
+    def test_retry_goes_back_to_1024(self):
+        with mock.patch.object(models, "_vram", return_value=16), \
+             mock.patch.object(models, "_ram", return_value=64):
+            self.assertEqual(models.tuning(es.model_by_key("swift")["file"], retry=True)["tile"], 1024)
+
+
 if __name__ == "__main__":
     unittest.main()

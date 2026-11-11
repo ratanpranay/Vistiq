@@ -130,9 +130,29 @@ def tuning(model_file, retry=False, megapixels=8.0, extra_swap=0):
     # the RAM for it; on a 16 or 32 GB laptop it pushes Windows into paging.
     ram = _ram()
     cache = bool(ram) and ram >= size * 2 + 16
-    # Tiles of 1024 px worked on this card in the original workflow even at
-    # 17 MP, so a retry keeps them and only swaps more.
-    return {"blocks_to_swap": swap, "cache_model": cache, "tile": 1024, "overlap": 128}
+    return {"blocks_to_swap": swap, "cache_model": cache,
+            "tile": 1024 if retry else vae_tile(vram, size if swap == 0 else 0),
+            "overlap": 128}
+
+
+#: Graphics memory the VAE (the steps that read the image in and write the
+#: result out) needs for one tile: measured 4.9 GB peak with 1024 px tiles,
+#: and it grows with the tile's area.
+VAE_GB_PER_TILE_MP = 4.4
+
+
+def vae_tile(vram, model_on_card_gb=0.0):
+    """The biggest VAE tile this card handles with room to spare. Fewer,
+    bigger tiles mean less overlap to compute twice, so those two steps run
+    faster with the same result. A retry after a memory error goes back to
+    1024 px, which the original workflow used."""
+    if not vram:
+        return 1024
+    free = vram * ON_CARD_SHARE - model_on_card_gb - 1.0
+    for tile in (2048, 1536):
+        if VAE_GB_PER_TILE_MP * (tile / 1024.0) ** 2 + 0.5 <= free:
+            return tile
+    return 1024
 
 
 def _ram():

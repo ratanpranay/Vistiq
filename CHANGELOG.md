@@ -1,5 +1,14 @@
 ## Unreleased
 
+- Faster: on cards with room for it (16 GB and up), the steps that read the
+  image in and write the result out ("Preparing" and "Finishing details")
+  work in bigger tiles (1536 px instead of 1024, 2048 on 32 GB cards), so
+  there is less overlap to compute twice. Same result. A memory error goes
+  back to 1024 px
+- Time estimate before you start: under the Upscale button, "About 1:10"
+  for the selected images with the chosen scale, model and passes, from how
+  long this PC took before. It updates as you change the settings
+
 - Detail control removed. Balanced and Creative added a mottled texture
   rather than real detail, so every upscale is Faithful again (the original
   workflow). 4x in two passes stays, on by default
