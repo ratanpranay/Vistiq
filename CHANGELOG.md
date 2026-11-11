@@ -1,3 +1,8 @@
+## Unreleased
+
+- Smaller files: results without any transparency are saved without a
+  transparency channel (the engine always added one)
+
 ## 0.2.10
 
 - Faster: on cards with room for it (16 GB and up), the steps that read the

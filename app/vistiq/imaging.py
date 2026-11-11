@@ -69,6 +69,10 @@ def save(data, source_path, out_dir, fmt, tag, limit=LIMIT):
         f = limit / float(max(im.size))
         im = im.resize((max(1, min(limit, round(im.size[0] * f))),
                         max(1, min(limit, round(im.size[1] * f)))), Image.LANCZOS)
+    # The engine always hands back a transparency channel. When nothing in
+    # it is transparent, drop it: the file gets smaller and opens anywhere.
+    if im.mode == "RGBA" and im.getchannel("A").getextrema() == (255, 255):
+        im = im.convert("RGB")
     fmt = (fmt or "PNG").upper()
     ext = {"PNG": ".png", "JPG": ".jpg", "WEBP": ".webp"}.get(fmt, ".png")
     stem = os.path.splitext(os.path.basename(source_path))[0]
