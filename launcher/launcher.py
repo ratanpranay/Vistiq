@@ -117,7 +117,10 @@ def _update():
     newest = have[0][0] if have else (0, 0, 0)
     try:
         version, url = _latest_release()
-    except Exception:
+    except Exception as exc:
+        # Usually a network that blocks GitHub. Worth a line in the log:
+        # otherwise an old copy keeps running and nothing says why.
+        _log("couldn't check for updates: %s" % exc)
         return ""
     if not version or _ver(version) <= newest:
         return ""
