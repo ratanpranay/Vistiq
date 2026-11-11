@@ -1,7 +1,10 @@
 ## Unreleased
 
-- Smaller files: results without any transparency are saved without a
-  transparency channel (the engine always added one)
+- Fix: pictures with no transparency came back with a transparency
+  channel, with faint see-through specks in it (about 2% of the pixels in a
+  test image). Such pictures now skip that step entirely: no specks, a
+  smaller file, and a little less work for the upscaler. Pictures that do
+  have transparency keep it
 
 ## 0.2.10
 

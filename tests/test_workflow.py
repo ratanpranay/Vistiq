@@ -82,6 +82,13 @@ class Detail(unittest.TestCase):
         p = wf.build_prompt("x.png", 1000, 500)
         self.assertEqual(p[wf.NODE_UPSCALE]["inputs"]["input_noise_scale"], 0.0)
 
+    def test_opaque_pictures_skip_the_alpha_step(self):
+        p = wf.build_prompt("x.png", 1000, 500, alpha=False)
+        self.assertNotIn(wf.NODE_ALPHA, p)
+        self.assertEqual(p[wf.NODE_UPSCALE]["inputs"]["image"], [wf.NODE_LOAD, 0])
+        p = wf.build_prompt("x.png", 1000, 500)
+        self.assertEqual(p[wf.NODE_UPSCALE]["inputs"]["image"], [wf.NODE_ALPHA, 0])
+
     def test_passes(self):
         self.assertEqual(wf.passes(1000, 2000), [2.0])
         self.assertEqual(wf.passes(1000, 4000), [2.0, 2.0])

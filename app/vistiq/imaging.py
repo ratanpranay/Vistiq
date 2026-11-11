@@ -38,6 +38,19 @@ def size_of(path):
         return im.size
 
 
+def has_alpha(path):
+    """Whether any of the picture is actually transparent."""
+    try:
+        with Image.open(path) as im:
+            if im.mode == "P" and "transparency" in im.info:
+                im = im.convert("RGBA")
+            if "A" not in im.getbands():
+                return False
+            return im.getchannel("A").getextrema()[0] < 255
+    except Exception:
+        return False
+
+
 def preview(source):
     """A JPEG data URL small enough for the window, from a path or bytes."""
     im = Image.open(io.BytesIO(source) if isinstance(source, (bytes, bytearray)) else source)
@@ -69,9 +82,10 @@ def save(data, source_path, out_dir, fmt, tag, limit=LIMIT):
         f = limit / float(max(im.size))
         im = im.resize((max(1, min(limit, round(im.size[0] * f))),
                         max(1, min(limit, round(im.size[1] * f)))), Image.LANCZOS)
-    # The engine always hands back a transparency channel. When nothing in
-    # it is transparent, drop it: the file gets smaller and opens anywhere.
-    if im.mode == "RGBA" and im.getchannel("A").getextrema() == (255, 255):
+    # A picture with nothing transparent in it is saved without a
+    # transparency channel: smaller, and it opens anywhere.
+    if im.mode == "RGBA" and (not has_alpha(source_path)
+                              or im.getchannel("A").getextrema() == (255, 255)):
         im = im.convert("RGB")
     fmt = (fmt or "PNG").upper()
     ext = {"PNG": ".png", "JPG": ".jpg", "WEBP": ".webp"}.get(fmt, ".png")

@@ -24,7 +24,7 @@ try:
 except Exception:  # pragma: no cover
     websocket = None
 
-from . import engine_setup, progress as prog_mod, tiles, workflow as wf
+from . import engine_setup, imaging, progress as prog_mod, tiles, workflow as wf
 
 log = logging.getLogger("vistiq")
 
@@ -391,6 +391,7 @@ class Engine:
         self.failed_tuning = None
         self.learned_part_mp = None
         self._detail = detail
+        self._alpha = imaging.has_alpha(path)
         limit = float(part_mp) if part_mp else 1e9
         for attempt in range(3):
             boxes = tiles.plan(width, height, out_w, out_h, limit)
@@ -490,7 +491,8 @@ class Engine:
         prompt = wf.build_prompt(name, width, height, scale=scale, dit_model=model,
                                  vae_model=vae, max_res=max_res,
                                  resolution_key=self.resolution_key, tuning=tuning,
-                                 debug=use_log, detail=getattr(self, "_detail", "faithful"))
+                                 debug=use_log, detail=getattr(self, "_detail", "faithful"),
+                                 alpha=getattr(self, "_alpha", True))
         job = getattr(self, "_job", None) or {"mp": 1, "history": None}
         tracker = prog_mod.Progress(job["mp"], job["history"]) if use_log else None
         tail = prog_mod.LogTail(log_path) if use_log else None

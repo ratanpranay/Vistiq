@@ -81,7 +81,7 @@ def target_resolution(width, height, scale, max_res=DEFAULT_MAX_RES):
 def build_prompt(image_name, width, height, scale="4", dit_model=DEFAULT_DIT,
                  vae_model=DEFAULT_VAE, max_res=DEFAULT_MAX_RES, seed=42,
                  prefix="Vistiq/out", resolution_key="new_resolution", tuning=None,
-                 debug=False, detail="faithful"):
+                 debug=False, detail="faithful", alpha=True):
     """The API-format prompt for one image already uploaded to ComfyUI."""
     input_noise, latent_noise = DETAIL.get(detail, DETAIL["faithful"])
     if scale != "max":
@@ -90,7 +90,7 @@ def build_prompt(image_name, width, height, scale="4", dit_model=DEFAULT_DIT,
     resolution = target_resolution(width, height, scale, max_res)
     t = {"blocks_to_swap": 36, "cache_model": False, "tile": 1024, "overlap": 128}
     t.update(tuning or {})
-    return {
+    prompt = {
         NODE_LOAD: {
             "class_type": "LoadImage",
             "inputs": {"image": image_name},
@@ -130,7 +130,7 @@ def build_prompt(image_name, width, height, scale="4", dit_model=DEFAULT_DIT,
         NODE_UPSCALE: {
             "class_type": "SeedVR2VideoUpscaler",
             "inputs": {
-                "image": [NODE_ALPHA, 0],
+                "image": [NODE_ALPHA, 0] if alpha else [NODE_LOAD, 0],
                 "dit": [NODE_DIT, 0],
                 "vae": [NODE_VAE, 0],
                 "seed": int(seed),
@@ -152,3 +152,9 @@ def build_prompt(image_name, width, height, scale="4", dit_model=DEFAULT_DIT,
             "inputs": {"images": [NODE_UPSCALE, 0], "filename_prefix": prefix},
         },
     }
+    if not alpha:
+        # Nothing transparent in the picture: leave the alpha step out. The
+        # upscaler otherwise upscales a transparency channel too, which
+        # takes time and can leave faint see-through specks.
+        del prompt[NODE_ALPHA]
+    return prompt
