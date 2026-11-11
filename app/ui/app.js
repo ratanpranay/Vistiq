@@ -569,6 +569,7 @@
     $("tag-before").hidden = !done;
     $("tag-after").hidden = !done;
     if (done) placeCompare();
+    drawLens();
 
     var busy = cur.status === "running" || cur.status === "queued";
     $("veil").hidden = !busy;
@@ -590,6 +591,103 @@
     $("before-clip").style.clipPath = "inset(0 " + (100 - v) + "% 0 0)";
     $("divider").style.left = v + "%";
   }
+
+  // ---------------------------------------------------------------- magnifier
+  // A magnifying glass over the comparison exactly as it stands: left of the
+  // slider line it shows the original, right of it the result, and where the
+  // line passes under the glass, both. The picture inside comes from the
+  // real files (the window itself only holds small previews). Press and hold
+  // to flip the glass to the other version; scroll to zoom.
+  var LENS = 260, GRAB = 20;
+  var lens = { on: false, x: 0, y: 0, zoom: 1, flip: false, drag: false, busy: false, want: null, shown: "" };
+
+  function lensGeo() {
+    var cur = current(), view = $("view");
+    if (!cur || cur.status !== "done" || !cur.out_w || !$("veil").hidden) return null;
+    var vw = view.clientWidth, vh = view.clientHeight;
+    var s = Math.min(vw / cur.out_w, vh / cur.out_h);
+    var dw = cur.out_w * s, dh = cur.out_h * s;
+    return { cur: cur, vw: vw, vh: vh, s: s, dw: dw, dh: dh, ox: (vw - dw) / 2, oy: (vh - dh) / 2,
+             split: vw * $("compare").value / 100 };
+  }
+
+  function drawLens() {
+    var el = $("lens"), view = $("view"), g = lensGeo();
+    var u = g ? (lens.x - g.ox) / g.dw : -1, v = g ? (lens.y - g.oy) / g.dh : -1;
+    var inside = g && lens.on && !lens.drag && u >= 0 && u <= 1 && v >= 0 && v <= 1;
+    var near = g && lens.on && Math.abs(lens.x - g.split) <= GRAB;
+    view.classList.toggle("grab", !!(near || lens.drag));
+    view.classList.toggle("lensing", !!inside && !near);
+    el.hidden = !inside;
+    if (!inside) return;
+    el.style.transform = "translate(" + lens.x + "px," + lens.y + "px)";
+    var m = lens.zoom / g.s;                          // how much the glass enlarges what's on screen
+    var cut = Math.max(0, Math.min(LENS, LENS / 2 + (g.split - lens.x) * m));
+    var clipBefore = lens.flip ? "inset(0 0 0 " + cut + "px)" : "inset(0 " + (LENS - cut) + "px 0 0)";
+    var size = (g.dw * m) + "px " + (g.dh * m) + "px";
+    var pos = (LENS / 2 - u * g.dw * m) + "px " + (LENS / 2 - v * g.dh * m) + "px";
+    [["lens-lo-after", g.cur.out_preview], ["lens-lo-before", g.cur.preview]].forEach(function (p) {
+      var st = $(p[0]).style;
+      st.backgroundImage = 'url("' + p[1] + '")'; st.backgroundSize = size; st.backgroundPosition = pos;
+    });
+    $("lens-lo-before").style.clipPath = clipBefore;
+    $("lens-hi-before").style.clipPath = clipBefore;
+    var key = [g.cur.id, u.toFixed(4), v.toFixed(4), lens.zoom].join("|");
+    var fresh = lens.shown === key;
+    $("lens-hi-after").hidden = !fresh; $("lens-hi-before").hidden = !fresh;
+    $("lens-line").hidden = cut <= 1 || cut >= LENS - 1;
+    $("lens-line").style.left = cut + "px";
+    var beforeAtCentre = (cut > LENS / 2) !== lens.flip;
+    $("lens-tag").textContent = (beforeAtCentre ? "Before" : "After") + " · " + Math.round(lens.zoom * 100) + "%";
+    if (!fresh) askLens(g.cur.id, u, v, key);
+  }
+
+  function askLens(id, u, v, key) {
+    lens.want = { id: id, u: u, v: v, zoom: lens.zoom, key: key };
+    if (lens.busy || !api() || !api().lens) return;
+    var w = lens.want; lens.want = null; lens.busy = true;
+    var px = Math.round(LENS * Math.min(2, window.devicePixelRatio || 1));
+    api().lens(w.id, w.u, w.v, LENS, w.zoom, px).then(function (r) {
+      lens.busy = false;
+      if (r && !lens.want) {
+        $("lens-hi-after").src = r.after; $("lens-hi-before").src = r.before; lens.shown = w.key;
+        drawLens();
+      } else if (lens.want) { var n = lens.want; askLens(n.id, n.u, n.v, n.key); }
+    }, function () { lens.busy = false; });
+  }
+
+  (function () {
+    var view = $("view");
+    function at(e) { var r = view.getBoundingClientRect(); lens.x = e.clientX - r.left; lens.y = e.clientY - r.top; }
+    function slideTo() {
+      var g = lensGeo(); if (!g) return;
+      $("compare").value = Math.max(0, Math.min(100, lens.x / g.vw * 100)); placeCompare();
+    }
+    view.addEventListener("pointermove", function (e) {
+      at(e); lens.on = true;
+      if (lens.drag) slideTo();
+      drawLens();
+    });
+    view.addEventListener("pointerleave", function () { if (!lens.drag) { lens.on = false; lens.flip = false; drawLens(); } });
+    view.addEventListener("pointerdown", function (e) {
+      if (e.button !== 0 || e.target.closest("button")) return;
+      var g = lensGeo(); if (!g) return;
+      at(e); lens.on = true;
+      if (Math.abs(lens.x - g.split) <= GRAB) { lens.drag = true; view.setPointerCapture(e.pointerId); }
+      else lens.flip = true;
+      drawLens();
+    });
+    function up() { if (lens.drag || lens.flip) { lens.drag = false; lens.flip = false; drawLens(); } }
+    view.addEventListener("pointerup", up);
+    view.addEventListener("pointercancel", up);
+    view.addEventListener("wheel", function (e) {
+      if (!lensGeo() || $("lens").hidden) return;
+      e.preventDefault();
+      var steps = [0.5, 0.75, 1, 1.5, 2, 3], i = steps.indexOf(lens.zoom);
+      i = Math.max(0, Math.min(steps.length - 1, (i < 0 ? 2 : i) + (e.deltaY < 0 ? 1 : -1)));
+      lens.zoom = steps[i]; drawLens();
+    }, { passive: false });
+  })();
 
   function renderUpdate() {
     var u = state.update, ready = u.state === "ready";

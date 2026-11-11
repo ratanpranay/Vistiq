@@ -43,6 +43,20 @@ class Api:
             "models": a.model_info(),
         }
 
+    def lens(self, item_id, u, v, lens_px, zoom, out_px):
+        """What the magnifier shows at a point of a finished image."""
+        a = self._app
+        item = next((i for i in a.items if i["id"] == item_id), None)
+        if not item or not item.get("out_path") or not os.path.isfile(item["out_path"]):
+            return None
+        try:
+            with a._lens_lock:
+                return a._lens.cut(item["path"], item["out_path"], float(u), float(v),
+                                   float(lens_px), float(zoom), max(64, min(900, int(out_px))))
+        except Exception:
+            log.exception("magnifier failed")
+            return None
+
     def estimates(self):
         """Seconds each image waiting to be upscaled should take with the
         current settings, from how long this PC took before (0 = unknown)."""
@@ -232,6 +246,8 @@ class App:
             self.settings.set("auto_migrated", True)
         self._worker = None
         self._cancel = threading.Event()
+        self._lens = imaging.Lens()
+        self._lens_lock = threading.Lock()
         self._restarting = threading.Event()
         self._restarting.set()
         self._emit_lock = threading.Lock()

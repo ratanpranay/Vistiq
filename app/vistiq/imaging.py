@@ -108,3 +108,45 @@ def save(data, source_path, out_dir, fmt, tag, limit=LIMIT):
     else:
         im.save(path, "PNG", optimize=False)
     return path, im.size[0], im.size[1]
+
+
+class Lens:
+    """Cuts matching pieces of an original and its result for the magnifier.
+    Both pictures stay open while one image is being looked at."""
+
+    def __init__(self):
+        self._key = None
+        self._before = self._after = None
+
+    def _open(self, before_path, after_path):
+        key = (before_path, after_path, os.path.getmtime(after_path))
+        if key != self._key:
+            b = ImageOps.exif_transpose(Image.open(before_path))
+            self._before = b.convert("RGBA" if has_alpha(before_path) else "RGB")
+            a = Image.open(after_path)
+            self._after = a.convert("RGBA" if a.mode in ("RGBA", "LA", "P") else "RGB")
+            self._key = key
+
+    def cut(self, before_path, after_path, u, v, lens_px, zoom, out_px):
+        """The square around the point (u, v) (0..1 across the picture) that
+        a lens of `lens_px` shows at `zoom` (screen pixels per result pixel),
+        from both pictures, as JPEG data URLs `out_px` wide."""
+        self._open(before_path, after_path)
+        aw, ah = self._after.size
+        side = lens_px / max(0.05, zoom)              # in result pixels
+        out = []
+        for im, how in ((self._before, Image.BICUBIC), (self._after, Image.LANCZOS)):
+            w, h = im.size
+            k = w / float(aw)                         # this picture's pixels per result pixel
+            half = side * k / 2.0
+            box = (u * w - half, v * h - half, u * w + half, v * h + half)
+            piece = im.crop(tuple(int(round(c)) for c in box))
+            if piece.mode == "RGBA":
+                bg = Image.new("RGB", piece.size, (236, 238, 242))
+                bg.paste(piece, mask=piece.getchannel("A"))
+                piece = bg
+            piece = piece.resize((out_px, out_px), how)
+            buf = io.BytesIO()
+            piece.save(buf, "JPEG", quality=90)
+            out.append("data:image/jpeg;base64," + base64.b64encode(buf.getvalue()).decode("ascii"))
+        return {"before": out[0], "after": out[1]}

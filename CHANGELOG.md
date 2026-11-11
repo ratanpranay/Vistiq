@@ -1,5 +1,13 @@
 ## Unreleased
 
+- Magnifier on finished images: move the mouse over the comparison and a
+  round glass shows that spot at the result's real pixels. Left of the
+  slider line it shows the original, right of it the result, and where the
+  line passes under the glass, both. Hold the mouse button to flip the glass
+  to the other version; scroll to zoom (50% to 300%)
+- The slider is now dragged by its line or handle (it used to jump to
+  wherever you clicked)
+
 - The x on a thumbnail is no longer cut off at the top, and thumbnails keep
   their full shadow
 - More room around "© Pranay '26" in the bottom right corner

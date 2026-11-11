@@ -172,6 +172,14 @@
         <span class="tag left" id="tag-before" hidden>Before</span>
         <span class="tag right" id="tag-after" hidden>After</span>
         <input type="range" class="compare" id="compare" min="0" max="100" value="50" aria-label="Compare before and after" hidden>
+        <div class="lens" id="lens" hidden aria-hidden="true">
+          <div class="lens-layer" id="lens-lo-after"></div>
+          <div class="lens-layer" id="lens-lo-before"></div>
+          <img class="lens-layer" id="lens-hi-after" alt="">
+          <img class="lens-layer" id="lens-hi-before" alt="">
+          <span class="lens-line" id="lens-line"></span>
+          <span class="lens-tag" id="lens-tag"></span>
+        </div>
         <div class="veil" id="veil" hidden>
           <div class="ring"><svg viewBox="0 0 120 120" aria-hidden="true"><circle cx="60" cy="60" r="52" class="track"/><circle cx="60" cy="60" r="52" class="bar" id="ring-bar"/></svg><span id="ring-text"></span></div>
           <span class="veil-stage" id="veil-stage"></span>

@@ -148,7 +148,14 @@ kbd{display:inline-flex;align-items:center;justify-content:center;min-width:24px
 .tag{position:absolute;top:14px;padding:4px 11px;border-radius:13px;font-size:12px;font-weight:700;pointer-events:none}
 .tag.left{left:14px;background:rgba(255,255,255,.9);color:var(--ink-2)}
 .tag.right{right:14px;background:var(--ink);color:#fff}
-.compare{position:absolute;inset:0;width:100%;height:100%;margin:0;opacity:0;cursor:ew-resize}
+.compare{position:absolute;inset:0;width:100%;height:100%;margin:0;opacity:0;pointer-events:none}
+.view.lensing{cursor:none}
+.view.grab{cursor:ew-resize}
+.lens{position:absolute;left:0;top:0;width:260px;height:260px;margin:-130px 0 0 -130px;border-radius:50%;overflow:hidden;pointer-events:none;background:#ECEEF2;box-shadow:0 0 0 3px #fff,0 0 0 4.5px rgba(15,18,32,.35),0 16px 44px rgba(15,18,32,.4);will-change:transform}
+.lens-layer{position:absolute;inset:0;width:100%;height:100%;background-repeat:no-repeat}
+.lens-layer[hidden],.lens-line[hidden]{display:none}
+.lens-line{position:absolute;top:0;bottom:0;width:2px;margin-left:-1px;background:#fff;box-shadow:0 0 8px rgba(15,18,32,.35)}
+.lens-tag{position:absolute;left:50%;bottom:14px;transform:translateX(-50%);padding:3px 10px;border-radius:11px;background:rgba(15,18,32,.78);color:#fff;font-size:11px;line-height:16px;font-weight:800;white-space:nowrap}
 .view:focus-within{outline:2px solid var(--ink);outline-offset:3px}
 .veil{position:absolute;inset:0;background:rgba(255,255,255,.72);backdrop-filter:blur(6px);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px}
 .ring{position:relative;width:120px;height:120px;display:flex;align-items:center;justify-content:center;font-size:22px;font-weight:800;font-variant-numeric:tabular-nums}
