@@ -1,4 +1,4 @@
-## Unreleased
+## 0.2.14
 
 - The magnifier is twice as big (520 px across), so it shows more of the
   picture at once; in a small window it shrinks to fit
