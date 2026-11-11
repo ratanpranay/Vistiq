@@ -1,4 +1,4 @@
-## Unreleased
+## 0.2.13
 
 - Magnifier on finished images: move the mouse over the comparison and a
   round glass shows that spot at the result's real pixels. Left of the
