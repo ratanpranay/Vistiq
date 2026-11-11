@@ -1,4 +1,4 @@
-## Unreleased
+## 0.2.12
 
 - Results are named Vistiq_<original name>_2x (or _4x, _max), so they sort
   together and are easy to find
