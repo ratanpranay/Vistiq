@@ -31,6 +31,10 @@
           <strong id="size-out"></strong>
         </div>
         <p class="hint size-note" id="size-note" hidden></p>
+        <label class="toggle two-pass" id="two-pass-row" hidden>
+          <input type="checkbox" id="two-pass"><span class="track"></span>
+          <span class="toggle-text">4× in two passes<small>Two 2× steps instead of one jump. More detail, about the same time.</small></span>
+        </label>
       </fieldset>
 
       <div class="group">
@@ -42,6 +46,16 @@
         </button>
         <div class="mdl-note" id="mdl-note" hidden></div>
       </div>
+
+      <fieldset class="group">
+        <legend>Detail</legend>
+        <div class="chips" role="radiogroup" aria-label="Detail" id="details">
+          <button type="button" class="chip" role="radio" data-detail="faithful">Faithful</button>
+          <button type="button" class="chip" role="radio" data-detail="balanced">Balanced</button>
+          <button type="button" class="chip" role="radio" data-detail="creative">Creative</button>
+        </div>
+        <p class="hint detail-hint" id="detail-hint"></p>
+      </fieldset>
 
       <fieldset class="group">
         <legend>Format</legend>

@@ -368,7 +368,7 @@ class Engine:
 
     def upscale(self, path, width, height, scale, model, max_res, on_progress=None,
                 cancelled=lambda: False, tuning=None, retry_tuning=None, history=None,
-                part_mp=None):
+                part_mp=None, detail="faithful"):
         """Run one image through the workflow. Returns the result's bytes.
 
         A result bigger than `part_mp` megapixels (what the card handles in
@@ -381,6 +381,7 @@ class Engine:
         self.last_timings = None
         self.failed_tuning = None
         self.learned_part_mp = None
+        self._detail = detail
         limit = float(part_mp) if part_mp else 1e9
         for attempt in range(3):
             boxes = tiles.plan(width, height, out_w, out_h, limit)
@@ -480,7 +481,7 @@ class Engine:
         prompt = wf.build_prompt(name, width, height, scale=scale, dit_model=model,
                                  vae_model=vae, max_res=max_res,
                                  resolution_key=self.resolution_key, tuning=tuning,
-                                 debug=use_log)
+                                 debug=use_log, detail=getattr(self, "_detail", "faithful"))
         job = getattr(self, "_job", None) or {"mp": 1, "history": None}
         tracker = prog_mod.Progress(job["mp"], job["history"]) if use_log else None
         tail = prog_mod.LogTail(log_path) if use_log else None

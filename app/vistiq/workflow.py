@@ -21,6 +21,15 @@ NODE_VAE = "13"
 NODE_UPSCALE = "10"
 NODE_SAVE = "15"
 
+#: How much freedom the upscaler gets to build texture: noise added to the
+#: picture before it's read (input) and while it's upscaled (latent).
+#: Faithful is the original workflow.
+DETAIL = {
+    "faithful": (0.0, 0.0),
+    "balanced": (0.1, 0.0),
+    "creative": (0.25, 0.03),
+}
+
 #: What each node is doing, in words for the progress line.
 STAGES = {
     NODE_LOAD: "Reading image",
@@ -53,6 +62,16 @@ def output_size(width, height, scale, max_res=DEFAULT_MAX_RES):
     return int(round(width * factor / 2.0)) * 2, int(round(height * factor / 2.0)) * 2
 
 
+def passes(width, out_width, two_pass=True):
+    """The scale of each step: one step, or two equal ones when the result
+    is 3x the original or more."""
+    total = out_width / float(max(1, width))
+    if not two_pass or total < 3:
+        return [total]
+    step = total ** 0.5
+    return [step, step]
+
+
 def target_resolution(width, height, scale, max_res=DEFAULT_MAX_RES):
     """SeedVR2's `resolution` input: the short side of the result."""
     out_w, out_h = output_size(width, height, scale, max_res)
@@ -62,8 +81,9 @@ def target_resolution(width, height, scale, max_res=DEFAULT_MAX_RES):
 def build_prompt(image_name, width, height, scale="4", dit_model=DEFAULT_DIT,
                  vae_model=DEFAULT_VAE, max_res=DEFAULT_MAX_RES, seed=42,
                  prefix="Vistiq/out", resolution_key="new_resolution", tuning=None,
-                 debug=False):
+                 debug=False, detail="faithful"):
     """The API-format prompt for one image already uploaded to ComfyUI."""
+    input_noise, latent_noise = DETAIL.get(detail, DETAIL["faithful"])
     if scale != "max":
         scale = float(scale)
     max_res = min(int(max_res or LIMIT), CEILING)
@@ -121,8 +141,8 @@ def build_prompt(image_name, width, height, scale="4", dit_model=DEFAULT_DIT,
                 "color_correction": "lab",
                 "temporal_overlap": 0,
                 "prepend_frames": 0,
-                "input_noise_scale": 0.0,
-                "latent_noise_scale": 0.0,
+                "input_noise_scale": float(input_noise),
+                "latent_noise_scale": float(latent_noise),
                 "offload_device": "cpu",
                 "enable_debug": bool(debug),
             },

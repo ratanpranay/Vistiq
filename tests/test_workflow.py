@@ -51,8 +51,6 @@ class Prompt(unittest.TestCase):
         self.assertEqual(p[wf.NODE_DIT]["inputs"]["model"], wf.DEFAULT_DIT)
 
 
-if __name__ == "__main__":
-    unittest.main()
 
 
 class NodeInputs(unittest.TestCase):
@@ -75,3 +73,20 @@ class NodeInputs(unittest.TestCase):
             want = self.EXPECTED.get(node["class_type"])
             if want:
                 self.assertEqual(set(node["inputs"]), want, node["class_type"])
+
+
+class Detail(unittest.TestCase):
+    def test_levels_reach_the_prompt(self):
+        p = wf.build_prompt("x.png", 1000, 500, detail="creative")
+        self.assertEqual(p[wf.NODE_UPSCALE]["inputs"]["input_noise_scale"], wf.DETAIL["creative"][0])
+        p = wf.build_prompt("x.png", 1000, 500)
+        self.assertEqual(p[wf.NODE_UPSCALE]["inputs"]["input_noise_scale"], 0.0)
+
+    def test_passes(self):
+        self.assertEqual(wf.passes(1000, 2000), [2.0])
+        self.assertEqual(wf.passes(1000, 4000), [2.0, 2.0])
+        self.assertEqual(wf.passes(1000, 4000, two_pass=False), [4.0])
+
+
+if __name__ == "__main__":
+    unittest.main()

@@ -90,6 +90,12 @@
   }
 
   // ---------------------------------------------------------------- rail
+  var DETAIL_HINTS = {
+    faithful: "Sharpens what's there. Nothing new is added. Best for designs that must stay exact.",
+    balanced: "Adds fine texture where the image is soft. Shapes and text should stay put.",
+    creative: "Gives the model the most freedom to build texture. Small details may change; check text and logos."
+  };
+
   function renderRail() {
     var s = state.settings;
     Array.prototype.forEach.call(document.querySelectorAll("#scales .tile"), function (t) {
@@ -98,6 +104,12 @@
     Array.prototype.forEach.call(document.querySelectorAll("#formats .chip"), function (c) {
       c.setAttribute("aria-checked", String(c.dataset.format === s.format));
     });
+    var detail = s.detail || "balanced";
+    Array.prototype.forEach.call(document.querySelectorAll("#details .chip"), function (c) {
+      c.setAttribute("aria-checked", String(c.dataset.detail === detail));
+    });
+    $("detail-hint").textContent = DETAIL_HINTS[detail] || "";
+    $("two-pass").checked = s.two_pass !== false;
 
     renderModel();
 
@@ -121,6 +133,7 @@
       $("size").hidden = false;
       $("size-in").textContent = fmt(cur.w) + " × " + fmt(cur.h);
       $("size-out").textContent = fmt(o[0]) + " × " + fmt(o[1]);
+      $("two-pass-row").hidden = o[0] / cur.w < 3;
       var note = "", k = parseFloat(s.scale);
       if (s.scale !== "max" && Math.max(cur.w, cur.h) * k > limitPx()) {
         note = s.scale + "× would be " + fmt(cur.w * k) + " × " + fmt(cur.h * k) + ", so it's held to the " + fmt(limitPx()) + " px limit.";
@@ -142,7 +155,7 @@
         var other = outputSize(cur.w, cur.h, t.dataset.scale);
         t.classList.toggle("same", t.dataset.scale !== s.scale && other[0] === o[0] && other[1] === o[1]);
       });
-    } else { $("size").hidden = true; $("size-note").hidden = true; }
+    } else { $("size").hidden = true; $("size-note").hidden = true; $("two-pass-row").hidden = s.scale !== "4"; }
 
     renderGo();
 
@@ -216,7 +229,7 @@
     var width = go.clientWidth || 256;
     go.style.setProperty("--p", pct + "%");
     go.style.setProperty("--fillpx", Math.max(0, pct / 100 * width - 22) + "px");
-    var label = (run.fine && run.stage ? run.stage.replace(/, part (\d+) of (\d+)/, " $1/$2") : run.stage && /memory/i.test(run.stage) ? run.stage : phaseLabel(anim.shown)) + " " + Math.floor(overall * 100) + "%";
+    var label = (run.fine && run.stage ? run.stage.split(/,| ·/)[0] : run.stage && /memory/i.test(run.stage) ? run.stage : phaseLabel(anim.shown)) + " " + Math.floor(overall * 100) + "%";
     if ($("go-label").textContent !== label) { $("go-label").textContent = label; $("go-label-on").textContent = label; }
     var cur = current();
     if (cur && cur.id === run.id && !$("veil").hidden) {
@@ -634,6 +647,10 @@
   $("scales").addEventListener("click", function (e) {
     var t = e.target.closest(".tile"); if (t) setSetting("scale", t.dataset.scale);
   });
+  $("details").addEventListener("click", function (e) {
+    var c = e.target.closest(".chip"); if (c) setSetting("detail", c.dataset.detail);
+  });
+  $("two-pass").addEventListener("change", function () { setSetting("two_pass", this.checked); });
   $("formats").addEventListener("click", function (e) {
     var c = e.target.closest(".chip"); if (c) setSetting("format", c.dataset.format);
   });

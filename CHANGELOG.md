@@ -1,3 +1,14 @@
+## 0.2.8
+
+- Detail: Faithful, Balanced or Creative, in the left bar. Faithful
+  sharpens only, as before. Balanced (the new default) and Creative give
+  the upscaler more freedom to build fine texture where the image is soft;
+  Creative may change small details, so check text and logos
+- 4x in two passes: results 3x the original or more are made in two equal
+  steps (for example 2x, then 2x) instead of one jump, which usually brings
+  out more detail in about the same time. On by default; the switch shows
+  under the size when it applies
+
 ## 0.2.7
 
 - Fix: progress could jump to "Saving 98%" at the start of an image and sit

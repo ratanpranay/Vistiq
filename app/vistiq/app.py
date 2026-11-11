@@ -7,8 +7,10 @@ Windows). JavaScript calls the methods of `Api`; the app answers by calling
 import json
 import logging
 import os
+import shutil
 import subprocess
 import sys
+import tempfile
 import threading
 import time
 import uuid
@@ -373,6 +375,7 @@ class App:
             # bar is driven by an estimate from how long earlier jobs took
             # with the same model, per megapixel of output.
             ow, oh = wf.output_size(item["w"], item["h"], "max" if scale == "max" else float(scale), max_res)
+            item["scale_used"] = scale
             mp = max(0.1, ow * oh / 1e6)
             tuning = retry = part_mp = None
             if self.engine.own:
@@ -396,20 +399,20 @@ class App:
                         estimate=round(rate * mp, 1) if rate else 0)
             log.info("upscale %s with %s, tuning %s", item["name"], model, tuning)
             try:
-                data = self.engine.upscale(
-                    item["path"], item["w"], item["h"], scale, model, max_res,
-                    on_progress=lambda stage, frac, left, it=item: self.update(
-                        it, stage=stage, progress=frac if frac is not None else it.get("progress", 0),
-                        left=round(left, 1) if left is not None else None),
-                    cancelled=self._cancel.is_set, tuning=tuning, retry_tuning=retry,
-                    history=phase_hist, part_mp=part_mp)
+                report = lambda stage, frac, left, it=item: self.update(
+                    it, stage=stage, progress=frac if frac is not None else it.get("progress", 0),
+                    left=round(left, 1) if left is not None else None)
+                detail = s.get("detail") or "balanced"
+                if detail not in wf.DETAIL:
+                    detail = "balanced"
+                passes = wf.passes(item["w"], ow, s.get("two_pass") is not False)
+                log.info("detail %s, %d pass(es)", detail, len(passes))
+                data = self._passes(item, passes, ow, max_res, model, report, tuning, retry,
+                                    phase_hist, part_mp, detail)
                 tag = "vistiq_max" if scale == "max" else "vistiq_%sx" % scale
                 path, w, h = imaging.save(data, item["path"], s.get("out_dir"), s.get("format"), tag, limit=max_res)
                 took = time.time() - started
-                if getattr(self.engine, "learned_part_mp", None):
-                    pm = dict(s.get("part_mp") or {})
-                    pm[model] = self.engine.learned_part_mp
-                    s.set("part_mp", pm)
+                self._learn_from_engine(model)
                 if self.engine.failed_tuning:
                     # The lighter settings crashed the card for this size:
                     # swap more with this model from now on.
@@ -444,6 +447,55 @@ class App:
             if i["status"] == "queued":
                 self.update(i, status="ready", stage="")
         self.emit("batch", {"state": "idle"})
+
+    def _passes(self, item, passes, out_w, max_res, model, report, tuning, retry,
+                history, part_mp, detail):
+        """Upscale in one step, or in two (3x and more): a first step to the
+        middle size, then from there to the final size. The upscaler adds
+        more detail over two smaller steps than one big jump."""
+        if len(passes) == 1:
+            return self.engine.upscale(
+                item["path"], item["w"], item["h"], item["scale_used"], model, max_res,
+                on_progress=report, cancelled=self._cancel.is_set, tuning=tuning,
+                retry_tuning=retry, history=history, part_mp=part_mp, detail=detail)
+        folder = tempfile.mkdtemp(prefix="vistiq_pass_")
+        try:
+            path, w, h = item["path"], item["w"], item["h"]
+            weights = [f * f for f in passes]
+            weights = [x / sum(weights) for x in weights]
+            done = 0.0
+            data = None
+            for n, f in enumerate(passes):
+                last = n == len(passes) - 1
+                share, base = weights[n], done
+
+                def step(stage, frac, left, n=n, share=share, base=base):
+                    report("%s · pass %d of %d" % (stage, n + 1, len(passes)),
+                           None if frac is None else base + share * frac,
+                           None if left is None or not last else left)
+
+                target = out_w / float(w) if last else f
+                data = self.engine.upscale(
+                    path, w, h, target, model, max_res if last else wf.CEILING,
+                    on_progress=step, cancelled=self._cancel.is_set, tuning=tuning,
+                    retry_tuning=retry, history=history, part_mp=part_mp, detail=detail)
+                self._learn_from_engine(model)
+                done += share
+                if not last:
+                    path = os.path.join(folder, "pass%d.png" % (n + 1))
+                    with open(path, "wb") as fh:
+                        fh.write(data)
+                    w, h = imaging.size_of(path)
+            return data
+        finally:
+            shutil.rmtree(folder, ignore_errors=True)
+
+    def _learn_from_engine(self, model):
+        s = self.settings
+        if getattr(self.engine, "learned_part_mp", None):
+            pm = dict(s.get("part_mp") or {})
+            pm[model] = self.engine.learned_part_mp
+            s.set("part_mp", pm)
 
     def restart(self):
         if self._worker and self._worker.is_alive():

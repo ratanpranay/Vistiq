@@ -23,6 +23,8 @@ DEFAULTS = {
     "scale": "2",                 # "2" | "4" | "max"
     "model": "auto",
     "format": "PNG",              # PNG | JPG | WEBP
+    "detail": "balanced",         # faithful | balanced | creative
+    "two_pass": True,             # 3x and more as two steps
     "out_dir": None,
     "max_res": wf.DEFAULT_MAX_RES,
     "comfy_path": "",
