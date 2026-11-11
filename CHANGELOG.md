@@ -1,3 +1,12 @@
+## Unreleased
+
+- Fix: on a PC with ComfyUI Desktop (and no upscaler nodes), Vistiq could
+  keep trying to start that ComfyUI, fail, and never offer its own setup.
+  Now, when a ComfyUI you pointed Vistiq at can't be used (not found, won't
+  start, or has no upscaler nodes), Vistiq says why on the setup screen and
+  offers to set up its own engine. It no longer goes looking for other
+  ComfyUI installs on its own, and never tries to start ComfyUI Desktop
+
 ## 0.2.16
 
 - New upscaling animation: a line of light in the logo's colours sweeps

@@ -487,6 +487,9 @@
   function renderSetup() {
     var su = state.setup, info = su.info;
     $("setup").hidden = false;
+    var why = state.engine.state === "setup" && /can't be used/.test(state.engine.message || "") ? state.engine.message : "";
+    $("setup-why").hidden = !why || !!su.run;
+    $("setup-why").textContent = why;
     var up = !!(su.run && su.run.upgrade);
     $("setup-h").textContent = up ? "Updating the engine" : "Set up the engine";
     $("setup-lead").textContent = up

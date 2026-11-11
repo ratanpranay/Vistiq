@@ -252,10 +252,33 @@ class Engine:
 
             chosen = self.settings.get("comfy_path")
             if chosen and allow_start:
-                found = find_installed(chosen)
-                if found:
-                    return self._start(found[0], found[1], found[2], say)
-                say("error", "No ComfyUI was found in the chosen folder.")
+                # A ComfyUI the person pointed Vistiq at. If it can't be used
+                # (not there, won't start on its own, or has no upscaler
+                # nodes), say why and offer Vistiq's own engine, rather than
+                # failing the same way every time Vistiq opens.
+                why = []
+
+                def trying(state, message=""):
+                    if state == "error":
+                        why.append(message)
+                    else:
+                        say(state, message)
+
+                found = command_for(chosen)
+                if found and self._start(found[0], found[1], chosen, trying):
+                    return True
+                self.stop()
+                self.url = None
+                self.settings.set("comfy_path", "")
+                if not found:
+                    reason = "no ComfyUI was found there"
+                elif why and "missing" in why[-1]:
+                    reason = "it doesn't have the upscaler (SeedVR2) nodes"
+                else:
+                    reason = "it didn't start when Vistiq ran it (ComfyUI Desktop can't be started this way)"
+                log.warning("chosen ComfyUI %s not usable: %s (%s)", chosen, reason, "; ".join(why))
+                say("setup", "The ComfyUI in %s can't be used: %s. Vistiq can set up its own "
+                             "engine instead; it won't change your ComfyUI." % (chosen, reason))
                 return False
 
             say("setup", "The engine needs a one-time setup.")
