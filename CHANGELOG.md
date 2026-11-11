@@ -1,4 +1,4 @@
-## Unreleased
+## 0.2.9
 
 - Fix: opening Vistiq could sit on "Looking for the engine" for a long
   time on PCs with a system proxy (common on work PCs), while Reconnect was
