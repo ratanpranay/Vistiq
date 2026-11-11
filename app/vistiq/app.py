@@ -267,10 +267,12 @@ class App:
 
     def connect_async(self):
         def run():
+            t0 = time.time()
             self.engine.connect(on_state=lambda s, m: self.emit(
                 "engine", {"state": s, "message": m, "models": self.engine.models}))
             self.emit("engine", {"state": self.engine.state, "message": self.engine.message,
                                  "models": self.engine.models})
+            log.info("engine %s after %.1f s", self.engine.state, time.time() - t0)
             self.emit("models", self.model_info())
             if self.engine.state == "setup" and engine_setup.needs_update():
                 # Replace an older engine build on its own; the models stay.
@@ -543,6 +545,13 @@ def _on_drop(app):
     return handler
 
 
+def _free_port():
+    import socket
+    with socket.socket() as sock:
+        sock.bind(("127.0.0.1", 0))
+        return sock.getsockname()[1]
+
+
 def run(app_dir, version, notice=""):
     logs = os.path.join(data_dir(), "logs")
     os.makedirs(logs, exist_ok=True)
@@ -566,5 +575,8 @@ def run(app_dir, version, notice=""):
     app.window.events.closed += app.shutdown
     app.connect_async()
     app.updater.watch()
-    webview.start(private_mode=False, storage_path=os.path.join(data_dir(), "webview"))
+    # A port of its own each run: with a fixed one, the window could be
+    # handed the previous version's page after an update.
+    webview.start(private_mode=False, storage_path=os.path.join(data_dir(), "webview"),
+                  http_port=_free_port())
     app.shutdown()

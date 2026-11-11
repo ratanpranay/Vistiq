@@ -28,6 +28,14 @@ from . import engine_setup, progress as prog_mod, tiles, workflow as wf
 
 log = logging.getLogger("vistiq")
 
+#: Talks to the engine on this PC. It never goes through a proxy: on PCs
+#: with a system proxy (common at work), every request would otherwise first
+#: look up proxy rules and the PC's own name, which can take seconds each
+#: until Windows has cached the answers; that made "Looking for the engine"
+#: slow when Vistiq opened, while Reconnect a minute later was instant.
+_local = requests.Session()
+_local.trust_env = False
+
 PORTS = (8188, 8000, 8189)
 
 #: Extra switches for Vistiq's own engine. ComfyUI's "dynamic VRAM" hooks
@@ -161,7 +169,7 @@ class Engine:
 
     def _alive(self, url, timeout=1.5):
         try:
-            return requests.get(url + "/system_stats", timeout=timeout).ok
+            return _local.get(url + "/system_stats", timeout=timeout).ok
         except Exception:
             return False
 
@@ -173,7 +181,7 @@ class Engine:
 
     def _has_nodes(self, url):
         try:
-            r = requests.get(url + "/object_info/SeedVR2LoadDiTModel", timeout=5)
+            r = _local.get(url + "/object_info/SeedVR2LoadDiTModel", timeout=5)
             return r.ok and "SeedVR2LoadDiTModel" in r.json()
         except Exception:
             return False
@@ -292,8 +300,9 @@ class Engine:
         return False
 
     def _after_connect(self, say):
+        log.info("engine found at %s", self.url)
         try:
-            info = requests.get(self.url + "/object_info/SeedVR2LoadDiTModel", timeout=10).json()
+            info = _local.get(self.url + "/object_info/SeedVR2LoadDiTModel", timeout=10).json()
             spec = info["SeedVR2LoadDiTModel"]["input"]["required"]["model"]
             self.models = _options(spec)
         except Exception:
@@ -311,14 +320,14 @@ class Engine:
         # The target-size input was renamed between versions of the nodes
         # ("resolution" became "new_resolution"); ask which one this has.
         try:
-            info = requests.get(self.url + "/object_info/SeedVR2VideoUpscaler", timeout=10).json()
+            info = _local.get(self.url + "/object_info/SeedVR2VideoUpscaler", timeout=10).json()
             spec = info["SeedVR2VideoUpscaler"]["input"]
             names = set(spec.get("required", {})) | set(spec.get("optional", {}))
             self.resolution_key = "new_resolution" if "new_resolution" in names or not names else "resolution"
         except Exception:
             self.resolution_key = "new_resolution"
         try:
-            info = requests.get(self.url + "/object_info/SeedVR2LoadVAEModel", timeout=10).json()
+            info = _local.get(self.url + "/object_info/SeedVR2LoadVAEModel", timeout=10).json()
             self.vaes = _options(info["SeedVR2LoadVAEModel"]["input"]["required"]["model"])
         except Exception:
             self.vaes = []
@@ -487,7 +496,7 @@ class Engine:
         tail = prog_mod.LogTail(log_path) if use_log else None
         ws = self._open_socket()
         try:
-            r = requests.post(self.url + "/prompt",
+            r = _local.post(self.url + "/prompt",
                               json={"prompt": prompt, "client_id": self.client_id}, timeout=30)
             if not r.ok:
                 raise EngineError(_prompt_error(r))
@@ -506,28 +515,28 @@ class Engine:
     def busy(self):
         """Whether the engine is still working on something."""
         try:
-            q = requests.get(self.url + "/queue", timeout=3).json()
+            q = _local.get(self.url + "/queue", timeout=3).json()
             return bool(q.get("queue_running") or q.get("queue_pending"))
         except Exception:
             return False
 
     def drop_queue(self):
         try:
-            requests.post(self.url + "/queue", json={"clear": True}, timeout=5)
+            _local.post(self.url + "/queue", json={"clear": True}, timeout=5)
         except Exception:
             pass
 
     def interrupt(self):
         if self.url:
             try:
-                requests.post(self.url + "/interrupt", timeout=5)
+                _local.post(self.url + "/interrupt", timeout=5)
             except Exception:
                 pass
 
     def _upload(self, path):
         with open(path, "rb") as fh:
             files = {"image": (_safe_name(path), fh, "application/octet-stream")}
-            r = requests.post(self.url + "/upload/image", files=files,
+            r = _local.post(self.url + "/upload/image", files=files,
                               data={"overwrite": "true", "type": "input"}, timeout=120)
         if not r.ok:
             raise EngineError("Couldn't hand the image to the engine (%s)." % r.status_code)
@@ -609,7 +618,7 @@ class Engine:
 
     def _history(self, prompt_id):
         try:
-            r = requests.get(self.url + "/history/" + prompt_id, timeout=5)
+            r = _local.get(self.url + "/history/" + prompt_id, timeout=5)
             return r.json().get(prompt_id) if r.ok else None
         except Exception:
             return None
@@ -620,7 +629,7 @@ class Engine:
             images = ((item or {}).get("outputs", {}).get(wf.NODE_SAVE) or {}).get("images")
             if images:
                 image = images[0]
-                r = requests.get(self.url + "/view", params={
+                r = _local.get(self.url + "/view", params={
                     "filename": image["filename"], "subfolder": image.get("subfolder", ""),
                     "type": image.get("type", "output")}, timeout=300)
                 if r.ok:

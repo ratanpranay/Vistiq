@@ -1,3 +1,12 @@
+## Unreleased
+
+- Fix: opening Vistiq could sit on "Looking for the engine" for a long
+  time on PCs with a system proxy (common on work PCs), while Reconnect was
+  instant. Vistiq now talks to its engine directly, never through the proxy
+- Fix: after an update the window could still show the previous version's
+  screen (for example without the new Detail control). Each run now serves
+  its screen fresh
+
 ## 0.2.8
 
 - Detail: Faithful, Balanced or Creative, in the left bar. Faithful
