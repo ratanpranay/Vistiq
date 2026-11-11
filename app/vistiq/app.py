@@ -424,7 +424,7 @@ class App:
                 log.info("detail %s, %d pass(es)", detail, len(passes))
                 data = self._passes(item, passes, ow, max_res, model, report, tuning, retry,
                                     phase_hist, part_mp, detail)
-                tag = "vistiq_max" if scale == "max" else "vistiq_%sx" % scale
+                tag = "max" if scale == "max" else "%sx" % scale
                 path, w, h = imaging.save(data, item["path"], s.get("out_dir"), s.get("format"), tag, limit=max_res)
                 took = time.time() - started
                 self._learn_from_engine(model)

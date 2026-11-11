@@ -90,10 +90,11 @@ def save(data, source_path, out_dir, fmt, tag, limit=LIMIT):
     fmt = (fmt or "PNG").upper()
     ext = {"PNG": ".png", "JPG": ".jpg", "WEBP": ".webp"}.get(fmt, ".png")
     stem = os.path.splitext(os.path.basename(source_path))[0]
-    path = os.path.join(out_dir, "%s_%s%s" % (stem, tag, ext))
+    # "Vistiq_" first, so results sort together and are easy to find.
+    path = os.path.join(out_dir, "Vistiq_%s_%s%s" % (stem, tag, ext))
     n = 2
     while os.path.exists(path):
-        path = os.path.join(out_dir, "%s_%s_%d%s" % (stem, tag, n, ext))
+        path = os.path.join(out_dir, "Vistiq_%s_%s_%d%s" % (stem, tag, n, ext))
         n += 1
     if fmt == "JPG":
         if im.mode in ("RGBA", "LA", "P"):

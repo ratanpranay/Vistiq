@@ -1,5 +1,8 @@
 ## Unreleased
 
+- Results are named Vistiq_<original name>_2x (or _4x, _max), so they sort
+  together and are easy to find
+
 - Fix: Vistiq could sit on "Looking for the engine" after opening until
   Reconnect was clicked. The engine was found before the window had
   finished loading, and the window missed the news. It now checks for
