@@ -1,3 +1,13 @@
+## Unreleased
+
+- Fix: while Vistiq's engine was running, your own ComfyUI couldn't start
+  ("Port 8188 is already in use"). Vistiq's engine now uses a port of its
+  own (8391). An engine still running on the old port is moved over
+  automatically the next time Vistiq opens
+- Vistiq only ever stops a process that is its own engine (it checks that
+  the program lives in Vistiq's engine folder), never another ComfyUI that
+  happens to use the same port
+
 ## 0.2.14
 
 - The magnifier is twice as big (520 px across), so it shows more of the

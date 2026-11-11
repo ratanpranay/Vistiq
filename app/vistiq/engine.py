@@ -46,8 +46,10 @@ PORTS = (8188, 8000, 8189)
 OWN_FLAGS = []
 #: Bumped whenever OWN_FLAGS change, so an engine left running by an older
 #: version is restarted with the new switches.
-OWN_FLAGS_VERSION = 3
-OWN_PORT = 8188
+OWN_FLAGS_VERSION = 4
+#: Vistiq's own engine listens here, away from 8188, which is ComfyUI's
+#: default: on 8188 it blocked the person's own ComfyUI from starting.
+OWN_PORT = 8391
 CREATE_NO_WINDOW = 0x08000000
 #: The engine runs a little below normal priority, so Windows, the mouse and
 #: other apps stay responsive while it works the card and memory hard.
@@ -216,7 +218,7 @@ class Engine:
             port = int(self.settings.get("engine_port") or 0)
             if port and engine_setup.needs_update():
                 # An older engine build: stop it so it can be replaced.
-                pid = _pid_on_port(port)
+                pid = _own_pid_on_port(port)
                 if pid:
                     say("starting", "Stopping the old engine")
                     _kill_tree(pid)
@@ -231,7 +233,7 @@ class Engine:
                         return self._after_connect(say)
                     # Started by an older Vistiq with other switches: replace it.
                     say("starting", "Restarting the engine with new settings")
-                    pid = _pid_on_port(port)
+                    pid = _own_pid_on_port(port)
                     if pid:
                         _kill_tree(pid)
                         time.sleep(1.5)
@@ -353,7 +355,7 @@ class Engine:
         """Stop Vistiq's own engine, whichever run of the app started it."""
         self.stop()
         port = int(self.settings.get("engine_port") or 0)
-        pid = _pid_on_port(port) if port else None
+        pid = _own_pid_on_port(port) if port else None
         if pid:
             _kill_tree(pid)
         self.settings.set("engine_port", 0)
@@ -658,6 +660,25 @@ def _kill_tree(pid):
             os.kill(pid, 15)
     except Exception:
         pass
+
+
+def _own_pid_on_port(port):
+    """The process on a port, but only if it is Vistiq's own engine: its
+    program lives in Vistiq's engine folder. Whatever else is listening
+    there (the person's own ComfyUI, for one) is never Vistiq's to stop."""
+    pid = _pid_on_port(port)
+    if not pid:
+        return None
+    try:
+        out = subprocess.run(
+            ["powershell", "-NoProfile", "-NonInteractive", "-Command",
+             "(Get-Process -Id %d).Path" % pid],
+            capture_output=True, text=True, timeout=15, creationflags=CREATE_NO_WINDOW).stdout
+    except Exception:
+        return None
+    path = os.path.normcase(os.path.normpath(out.strip()))
+    home = os.path.normcase(os.path.normpath(engine_setup.home()))
+    return pid if path and path.startswith(home + os.sep) else None
 
 
 def _pid_on_port(port):
