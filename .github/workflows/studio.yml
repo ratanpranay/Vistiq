@@ -117,7 +117,7 @@ jobs:
           gh release upload studio-assets realesrgan-x4plus.onnx --repo "$GITHUB_REPOSITORY" --clobber
 
   mac:
-    runs-on: macos-14
+    runs-on: macos-latest
     needs: build
     steps:
       - uses: actions/checkout@v4
