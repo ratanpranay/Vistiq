@@ -1,5 +1,9 @@
 # Vistiq Studio (test build)
 
+## 0.2.5
+- Mac: image generation starts (model passed correctly), prompt helper downloads.
+- One logo in the side bar on both Mac and Windows.
+
 ## 0.2.4
 - One logo: the Vistiq mark in the side bar (clear on hover); the upscaler page no longer shows its own.
 
