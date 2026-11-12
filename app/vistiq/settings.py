@@ -8,12 +8,17 @@ from . import workflow as wf
 
 def data_dir():
     base = os.environ.get("APPDATA") or os.path.join(os.path.expanduser("~"), ".config")
-    path = os.path.join(base, "Vistiq")
+    from . import flavor
+    path = os.path.join(base, flavor.FOLDER)
     os.makedirs(path, exist_ok=True)
     return path
 
 
 def default_output():
+    from . import flavor
+    if flavor.STUDIO:
+        from . import studio
+        return studio.outputs_dir()
     pictures = os.path.join(os.path.expanduser("~"), "Pictures")
     return os.path.join(pictures if os.path.isdir(pictures) else os.path.expanduser("~"),
                         "Vistiq")
@@ -36,6 +41,13 @@ DEFAULTS = {
     "swap_bias": {},              # extra blocks to swap, learned from crashes
     "part_mp": {},                # largest part (MP) that fit, learned from memory errors
     "engine_flags": 0,            # which OWN_FLAGS the running engine has
+    # Studio only
+    "studio_home": "",            # the Vistiq Studio folder (Outputs, Models)
+    "studio_port": 0,             # where the image engine last listened
+    "comfy_models": "",           # a ComfyUI models folder to take files from
+    "keep_design": 0.8,
+    "variations": 2,
+    "juice": 0.0,
 }
 
 

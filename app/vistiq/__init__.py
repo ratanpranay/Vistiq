@@ -5,8 +5,10 @@ _here = os.path.dirname(os.path.abspath(__file__))
 
 
 def version():
+    from . import flavor
+    name = "STUDIO_VERSION" if flavor.STUDIO else "VERSION"
     try:
-        with open(os.path.join(os.path.dirname(_here), "VERSION"), encoding="utf-8") as fh:
+        with open(os.path.join(os.path.dirname(_here), name), encoding="utf-8") as fh:
             return fh.read().strip()
     except Exception:
         return "0.0.0"

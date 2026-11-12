@@ -1,0 +1,179 @@
+import base64
+import io
+import json
+import os
+import struct
+import sys
+import tempfile
+import unittest
+from unittest import mock
+
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, os.path.join(ROOT, "app"))
+
+from PIL import Image, ImageChops, ImageDraw  # noqa: E402
+
+from vistiq import studio, studio_jobs as sj  # noqa: E402
+
+
+def fake_lora(path, keys):
+    head = {k: {"dtype": "F16", "shape": shape, "data_offsets": [0, 0]} for k, shape in keys.items()}
+    raw = json.dumps(head).encode()
+    with open(path, "wb") as fh:
+        fh.write(struct.pack("<Q", len(raw)) + raw)
+
+
+class Settings(dict):
+    def get(self, k, d=None):
+        return dict.get(self, k, d)
+
+    def set(self, k, v):
+        self[k] = v
+
+
+class Families(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def fam(self, keys):
+        p = os.path.join(self.tmp.name, "l.safetensors")
+        fake_lora(p, keys)
+        return studio.lora_family(p)
+
+    def test_klein_9b(self):
+        keys = {"diffusion_model.double_blocks.%d.img_attn.qkv.lora_A.weight" % i: [16, 4096] for i in range(8)}
+        self.assertEqual(self.fam(keys), "klein9b")
+
+    def test_flux1(self):
+        keys = {"lora_unet_double_blocks_%d_img_attn_qkv.lora_down.weight" % i: [16, 3072] for i in range(19)}
+        self.assertEqual(self.fam(keys), "flux1")
+
+    def test_flux1_diffusers(self):
+        keys = {"transformer.transformer_blocks.%d.attn.to_q.lora_A.weight" % i: [16, 3072] for i in range(19)}
+        self.assertEqual(self.fam(keys), "flux1")
+
+    def test_sdxl(self):
+        keys = {"lora_unet_input_blocks_4_1_transformer_blocks_0_attn2_to_k.lora_down.weight": [8, 2048]}
+        self.assertEqual(self.fam(keys), "sdxl")
+
+    def test_broken_file(self):
+        p = os.path.join(self.tmp.name, "bad.safetensors")
+        open(p, "wb").write(b"nonsense")
+        self.assertEqual(studio.lora_family(p), "unknown")
+
+
+class Folders(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.s = Settings(studio_home=os.path.join(self.tmp.name, "Studio"))
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def comfy(self):
+        m = os.path.join(self.tmp.name, "ComfyUI", "models")
+        for sub, name in (("diffusion_models", "flux-2-klein-9b-fp8mixed.safetensors"),
+                          ("text_encoders", "qwen_3_8b_fp8mixed.safetensors"),
+                          ("vae", "flux2-vae.safetensors"), ("loras", "Klein-consistency.safetensors"),
+                          ("loras", "AutoInterior.safetensors"), ("checkpoints", "other.safetensors")):
+            os.makedirs(os.path.join(m, sub), exist_ok=True)
+            open(os.path.join(m, sub, name), "wb").write(b"x" * 10)
+        return m
+
+    def test_import_links_known_files_and_loras(self):
+        m = self.comfy()
+        self.assertFalse(studio.status(self.s)["create_ready"])
+        taken = studio.import_from(os.path.dirname(m), self.s)
+        self.assertIn("AutoInterior.safetensors", taken)
+        self.assertNotIn("other.safetensors", taken)
+        st = studio.status(self.s)
+        self.assertTrue(st["create_ready"])
+        self.assertFalse(st["juice_ready"])
+        self.assertEqual(self.s["comfy_models"], m)
+        # Again: nothing new.
+        self.assertEqual(studio.import_from(m, self.s), [])
+
+    def test_prompts(self):
+        studio.import_from(self.comfy(), self.s)
+        p = studio.create_prompt(self.s, "a.png", "text", keep=0.7, seed=5)
+        self.assertEqual(p["4"]["inputs"]["strength_model"], 0.7)
+        self.assertEqual(p["40"]["inputs"]["model"], ["4", 0])
+        self.assertEqual(p["40"]["inputs"]["steps"], 4)
+        p0 = studio.create_prompt(self.s, "a.png", "text", keep=0)
+        self.assertNotIn("4", p0)
+        self.assertEqual(p0["40"]["inputs"]["model"], ["1", 0])
+        r = studio.reference_prompt(self.s, "a.png", "b.png", "t", mode="camera")
+        self.assertEqual(r["22"]["inputs"]["conditioning"], ["24", 0])
+        self.assertEqual(r["24"]["inputs"]["conditioning"], ["21", 0])
+        self.assertEqual(r["30"]["inputs"]["image"], ["14", 0])
+        r2 = studio.reference_prompt(self.s, "a.png", "b.png", "t", mode="cmf")
+        self.assertEqual(r2["30"]["inputs"]["image"], ["11", 0])
+        sj._add_lora(p, "look.safetensors", 0.6)
+        self.assertEqual(p["40"]["inputs"]["model"], ["5", 0])
+        self.assertEqual(p["5"]["inputs"]["model"], ["4", 0])
+        # Every link points at a node that exists.
+        for prompt in (p, p0, r, r2):
+            for node in prompt.values():
+                for v in node["inputs"].values():
+                    if isinstance(v, list):
+                        self.assertIn(v[0], prompt)
+
+    def test_model_paths_file(self):
+        with mock.patch.object(studio, "portable_dir", return_value=os.path.join(self.tmp.name, "p")):
+            os.makedirs(os.path.join(self.tmp.name, "p", "ComfyUI"))
+            studio.write_model_paths(self.s)
+            text = open(os.path.join(self.tmp.name, "p", "ComfyUI", "extra_model_paths.yaml")).read()
+        self.assertIn("loras: loras", text)
+        self.assertNotIn("\\", text)
+
+    def test_text(self):
+        self.assertTrue(studio.build_text("cmf", "red seats").endswith("red seats"))
+        self.assertEqual(studio.build_text("", "just this"), "just this")
+        self.assertTrue(studio.build_text("", ""))
+
+
+class Masks(unittest.TestCase):
+    def test_outside_the_paint_stays_identical(self):
+        orig = Image.effect_noise((900, 600), 60).convert("RGB")
+        mask = Image.new("L", orig.size, 0)
+        ImageDraw.Draw(mask).ellipse((400, 250, 520, 330), fill=255)
+        box = sj.crop_box(mask, orig.size)
+        self.assertLessEqual(box[2] - box[0], 900)
+        self.assertGreaterEqual(box[2] - box[0], sj.MIN_CROP)
+        self.assertTrue(box[0] <= 400 and box[2] >= 520 and box[1] <= 250 and box[3] >= 330)
+        result = Image.new("RGB", (1024, 1024), (255, 0, 0))     # the model's output, any size
+        out = sj.composite(orig, result, mask, box, 12)
+        self.assertEqual(out.size, orig.size)
+        far = Image.new("L", orig.size, 255)
+        ImageDraw.Draw(far).rectangle((360, 210, 560, 370), fill=0)
+        diff = ImageChops.difference(out, orig)
+        self.assertEqual(ImageChops.multiply(diff.convert("L"), far).getextrema(), (0, 0))
+        self.assertEqual(out.getpixel((460, 290)), (255, 0, 0))
+
+    def test_mask_from_the_window(self):
+        m = Image.new("RGBA", (200, 100), (0, 0, 0, 0))
+        ImageDraw.Draw(m).rectangle((10, 10, 50, 50), fill=(138, 43, 242, 255))
+        buf = io.BytesIO()
+        m.save(buf, "PNG")
+        url = "data:image/png;base64," + base64.b64encode(buf.getvalue()).decode()
+        got = sj.decode_mask(url, (400, 200))
+        self.assertEqual(got.size, (400, 200))
+        self.assertEqual(got.getpixel((60, 60)), 255)
+        self.assertEqual(got.getpixel((300, 150)), 0)
+
+    def test_empty_mask(self):
+        self.assertIsNone(sj.crop_box(Image.new("L", (100, 100), 0), (100, 100)))
+
+    def test_library_kinds_and_names(self):
+        self.assertEqual(sj.kind_of("Vistiq_a_create_v1.png"), "create")
+        self.assertEqual(sj.kind_of("Vistiq_a_camera_v2.png"), "reference")
+        self.assertEqual(sj.kind_of("Vistiq_a_4x.png"), "upscale")
+        self.assertEqual(sj._strip_tags("seat_create_v2"), "seat")
+        self.assertEqual(sj._strip_tags("seat_refine_v1_3"), "seat")
+
+
+if __name__ == "__main__":
+    unittest.main()

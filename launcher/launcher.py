@@ -29,10 +29,17 @@ import webview  # noqa: F401
 import webview.dom  # noqa: F401
 from PIL import Image, ImageGrab, ImageOps  # noqa: F401
 
+# Vistiq Studio (the test build with image generation) is the same launcher
+# started by studio.py, which sets VISTIQ_FLAVOR first: own folder, own zip,
+# own release channel ("studio-v..." pre-releases).
+STUDIO = os.environ.get("VISTIQ_FLAVOR", "").lower() == "studio"
 REPO = "ratanpranay/Vistiq"
-ASSET = "vistiq-app.zip"
+ASSET = "vistiq-studio-app.zip" if STUDIO else "vistiq-app.zip"
+TAG_PREFIX = "studio-v" if STUDIO else "v"
+NAME = "Vistiq Studio" if STUDIO else "Vistiq"
 HERE = getattr(sys, "_MEIPASS", os.path.dirname(os.path.abspath(__file__)))
-HOME = os.path.join(os.environ.get("LOCALAPPDATA") or os.path.expanduser("~"), "Vistiq")
+HOME = os.path.join(os.environ.get("LOCALAPPDATA") or os.path.expanduser("~"),
+                    "VistiqStudio" if STUDIO else "Vistiq")
 APPS = os.path.join(HOME, "app")
 
 
@@ -70,11 +77,21 @@ def _installed():
 
 
 def _latest_release(timeout=6):
-    url = "https://api.github.com/repos/%s/releases/latest" % REPO
+    if STUDIO:
+        url = "https://api.github.com/repos/%s/releases?per_page=30" % REPO
+    else:
+        url = "https://api.github.com/repos/%s/releases/latest" % REPO
     req = urllib.request.Request(url, headers={"Accept": "application/vnd.github+json",
                                                "User-Agent": "Vistiq-launcher"})
     with urllib.request.urlopen(req, timeout=timeout) as r:
         data = json.load(r)
+    if STUDIO:
+        mine = [d for d in data if (d.get("tag_name") or "").startswith(TAG_PREFIX)]
+        if not mine:
+            return None, None
+        mine.sort(key=lambda d: _ver(d["tag_name"][len(TAG_PREFIX):]), reverse=True)
+        data = mine[0]
+        data["tag_name"] = data["tag_name"][len(TAG_PREFIX):]
     tag = data.get("tag_name", "")
     for asset in data.get("assets", []):
         if asset.get("name") == ASSET:
@@ -147,8 +164,8 @@ def _fatal(text):
     try:
         import ctypes
         ctypes.windll.user32.MessageBoxW(
-            0, "Vistiq couldn't start.\n\n" + text.strip().splitlines()[-1] +
-            "\n\nDetails: " + os.path.join(HOME, "launcher.log"), "Vistiq", 0x10)
+            0, NAME + " couldn't start.\n\n" + text.strip().splitlines()[-1] +
+            "\n\nDetails: " + os.path.join(HOME, "launcher.log"), NAME, 0x10)
     except Exception:
         print(text)
 
@@ -160,6 +177,9 @@ def selftest():
     import vistiq.engine  # noqa
     from vistiq import workflow
     assert workflow.output_size(1000, 500, "max") == (7000, 3500)
+    if STUDIO:
+        from vistiq import flavor, studio, studio_jobs  # noqa
+        assert flavor.STUDIO and studio.FILES and studio_jobs.Studio
     return 0
 
 

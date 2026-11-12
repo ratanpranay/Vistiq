@@ -879,7 +879,11 @@
   $("upd-notes").addEventListener("click", function () { if (api() && state.update.url) api().open_url(state.update.url); });
 
   // keys
+  // In Vistiq Studio, the upscaler is one page of several: its keys and
+  // drops only count while it is the page on screen.
+  function offPage() { var p = document.body.getAttribute("data-page"); return p && p !== "upscale"; }
   document.addEventListener("keydown", function (e) {
+    if (offPage()) return;
     if (e.key === "Escape" && !$("sheet").hidden) { $("sheet").hidden = true; return; }
     if (e.key === "Escape" && !$("support").hidden) { $("support").hidden = true; return; }
     if (e.key === "Escape" && state.menu.open) { openMenu(false); return; }
@@ -897,6 +901,7 @@
   var dragTimer = null;
   function hideDrop() { clearTimeout(dragTimer); $("drop-hint").hidden = true; }
   function showDrop() {
+    if (offPage()) return;
     $("drop-hint").hidden = false;
     clearTimeout(dragTimer);
     dragTimer = setTimeout(hideDrop, 400);

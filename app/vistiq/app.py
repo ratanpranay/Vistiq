@@ -17,8 +17,8 @@ import uuid
 
 import webview
 
-from . import engine_setup, imaging, models, tiles, updater, workflow as wf
-from .engine import Engine, EngineError
+from . import engine_setup, flavor, imaging, models, tiles, updater, workflow as wf
+from .engine import Engine, EngineError, _local
 from .settings import Settings, data_dir
 
 log = logging.getLogger("vistiq")
@@ -41,6 +41,7 @@ class Api:
             "notice": a.notice,
             "update": a.updater.info(),
             "models": a.model_info(),
+            "flavor": "studio" if flavor.STUDIO else "vistiq",
         }
 
     def lens(self, item_id, u, v, lens_px, zoom, out_px):
@@ -221,6 +222,93 @@ class Api:
     def open_logs(self):
         _open(os.path.join(data_dir(), "logs"))
 
+    # Vistiq Studio
+
+    def studio_status(self):
+        return self._app.studio.status() if self._app.studio else None
+
+    def studio_setup(self, juice=False):
+        return self._app.studio.setup(bool(juice))
+
+    def studio_cancel(self):
+        self._app.studio.cancel()
+
+    def studio_take_from(self, folder=""):
+        if not folder:
+            picked = self._app.window.create_file_dialog(webview.FOLDER_DIALOG)
+            if not picked:
+                return False
+            folder = picked[0]
+        if not os.path.isdir(folder):
+            return False
+        return self._app.studio.take_from(folder)
+
+    def studio_choose_home(self):
+        from . import studio
+        picked = self._app.window.create_file_dialog(webview.FOLDER_DIALOG,
+                                                     directory=studio.home(self._app.settings))
+        if picked:
+            self._app.settings.set("studio_home", picked[0])
+            if self._app.settings.get("out_dir") == studio.outputs_dir():
+                self._app.settings.set("out_dir", studio.outputs_dir(self._app.settings))
+            studio.write_model_paths(self._app.settings)
+        return self._app.studio.status()
+
+    def studio_pick(self):
+        picked = self._app.window.create_file_dialog(
+            webview.OPEN_DIALOG, allow_multiple=False,
+            file_types=("Images (*.png;*.jpg;*.jpeg;*.webp;*.bmp;*.tif;*.tiff)", "All files (*.*)"))
+        return _image_info(picked[0]) if picked else None
+
+    def studio_image(self, path):
+        return _image_info(path)
+
+    def studio_paste(self):
+        try:
+            from PIL import ImageGrab
+            grabbed = ImageGrab.grabclipboard()
+        except Exception:
+            grabbed = None
+        if grabbed is None:
+            return None
+        if isinstance(grabbed, list):
+            paths = [p for p in grabbed if imaging.is_image(p)]
+            return _image_info(paths[0]) if paths else None
+        folder = os.path.join(data_dir(), "pasted")
+        os.makedirs(folder, exist_ok=True)
+        path = os.path.join(folder, "pasted_%s.png" % time.strftime("%Y%m%d_%H%M%S"))
+        grabbed.save(path, "PNG")
+        return _image_info(path)
+
+    def studio_drop_target(self, target):
+        self._app.drop_target = target or ""
+
+    def studio_run(self, job):
+        return self._app.studio.run(job)
+
+    def studio_library(self):
+        return self._app.studio.library()
+
+    def studio_to_upscale(self, path):
+        added = self._app.add([path])
+        if not added:
+            added = [self._app.public(i) for i in self._app.items if i["path"] == path]
+        self._app.emit("added", added)
+        return added
+
+    def studio_open_outputs(self):
+        from . import studio
+        folder = studio.outputs_dir(self._app.settings)
+        os.makedirs(folder, exist_ok=True)
+        _open(folder)
+
+    def studio_open_models(self):
+        from . import studio
+        folder = studio.models_dir(self._app.settings)
+        for sub in studio.SUBFOLDERS:
+            os.makedirs(os.path.join(folder, sub), exist_ok=True)
+        _open(folder)
+
     def open_url(self, url):
         if url.startswith("https://"):
             import webbrowser
@@ -251,6 +339,11 @@ class App:
         self._restarting = threading.Event()
         self._restarting.set()
         self._emit_lock = threading.Lock()
+        self.drop_target = ""
+        self.studio = None
+        if flavor.STUDIO:
+            from .studio_jobs import Studio
+            self.studio = Studio(self)
 
     # talking to the page
 
@@ -385,9 +478,30 @@ class App:
         finally:
             self._restarting.set()
 
+    def free_upscaler(self):
+        """Let the upscaler's engine give back the graphics card (Studio:
+        before the image engine runs)."""
+        if self._worker and self._worker.is_alive():
+            raise RuntimeError("The upscaler is busy. Wait for it to finish, or cancel it.")
+        if self.engine.url and self.engine.state == "ready":
+            try:
+                _local.post(self.engine.url + "/free", json={"unload_models": True, "free_memory": True},
+                            timeout=10)
+            except Exception:
+                pass
+
     def _run_queue(self):
         s = self.settings
         self._restarting.wait(90)     # a cancel may still be freeing the card
+        if self.studio:
+            if self.studio._job and self.studio._job.is_alive():
+                self.emit("batch", {"state": "idle"})
+                for i in self.items:
+                    if i["status"] == "queued":
+                        self.update(i, status="ready", stage="",
+                                    error="Image generation is running. Upscale when it is done.")
+                return
+            self.studio.engine.free()
         self.emit("batch", {"state": "running"})
         while not self._cancel.is_set():
             item = next((i for i in self.items if i["status"] == "queued"), None)
@@ -576,6 +690,8 @@ class App:
 
     def shutdown(self):
         self._cancel.set()
+        if self.studio:
+            self.studio.shutdown()
         if self.installer:
             self.installer.cancel()
         if not self.settings.get("keep_engine", True) or not self.engine.own:
@@ -599,10 +715,25 @@ def _on_drop(app):
         files = ((event or {}).get("dataTransfer") or {}).get("files") or []
         paths = [f.get("pywebviewFullPath") for f in files if f.get("pywebviewFullPath")]
         app.emit("dropped", {})
+        if app.studio and app.drop_target and app.drop_target != "upscale":
+            imgs = [p for p in imaging.expand(paths)]
+            if imgs:
+                app.emit("studio-dropped", {"target": app.drop_target, "images": [_image_info(p) for p in imgs[:2]]})
+            return
         if paths:
             added = app.add(paths)
             app.emit("added", added)
     return handler
+
+
+def _image_info(path):
+    try:
+        w, h = imaging.size_of(path)
+        return {"path": path, "name": os.path.basename(path), "w": w, "h": h,
+                "preview": imaging.preview(path)}
+    except Exception as exc:
+        log.warning("can't read %s: %s", path, exc)
+        return None
 
 
 def _pass_mps(w, h, out_w, out_h, two_pass):
@@ -627,11 +758,11 @@ def run(app_dir, version, notice=""):
     os.makedirs(logs, exist_ok=True)
     logging.basicConfig(filename=os.path.join(logs, "vistiq.log"), level=logging.INFO,
                         format="%(asctime)s %(levelname)s %(message)s")
-    log.info("Vistiq %s starting from %s", version, app_dir)
+    log.info("%s %s starting from %s", flavor.NAME, version, app_dir)
     app = App(app_dir, version, notice)
     index = os.path.join(app_dir, "ui", "index.html")
     app.window = webview.create_window(
-        "Vistiq", url=index, js_api=Api(app), width=1200, height=780,
+        flavor.NAME, url=index, js_api=Api(app), width=1280 if flavor.STUDIO else 1200, height=800 if flavor.STUDIO else 780,
         min_size=(980, 640), background_color="#FFFFFF", text_select=False)
 
     def on_loaded():

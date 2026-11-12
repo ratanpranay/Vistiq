@@ -15,15 +15,17 @@ import threading
 import urllib.request
 import zipfile
 
+from . import flavor
+
 REPO = "ratanpranay/Vistiq"
-ASSET = "vistiq-app.zip"
+ASSET = flavor.ASSET
 RELEASES = "https://github.com/%s/releases" % REPO
 CHECK_EVERY = 2 * 60 * 60
 
 
 def _home():
     base = os.environ.get("LOCALAPPDATA") or os.path.expanduser("~")
-    return os.path.join(base, "Vistiq", "app")
+    return os.path.join(base, flavor.FOLDER, "app")
 
 
 def ver(text):
@@ -45,6 +47,29 @@ def _installed_versions():
             except Exception:
                 pass
     return found
+
+
+def latest_release():
+    """The newest release of this app. Studio builds are published as
+    pre-releases tagged "studio-v...", so they never show up as Vistiq's
+    latest, and Studio looks only at its own."""
+    if not flavor.STUDIO:
+        url = "https://api.github.com/repos/%s/releases/latest" % REPO
+    else:
+        url = "https://api.github.com/repos/%s/releases?per_page=30" % REPO
+    req = urllib.request.Request(url, headers={"Accept": "application/vnd.github+json",
+                                               "User-Agent": "Vistiq"})
+    with urllib.request.urlopen(req, timeout=10) as r:
+        data = json.load(r)
+    if not flavor.STUDIO:
+        return data
+    mine = [d for d in data if (d.get("tag_name") or "").startswith(flavor.TAG_PREFIX)]
+    mine.sort(key=lambda d: ver(d["tag_name"][len(flavor.TAG_PREFIX):]), reverse=True)
+    if not mine:
+        raise RuntimeError("no Studio release yet")
+    d = dict(mine[0])
+    d["tag_name"] = d["tag_name"][len(flavor.TAG_PREFIX):]
+    return d
 
 
 class Updater:
@@ -94,11 +119,7 @@ class Updater:
                 return
             self._set("checking")
             try:
-                req = urllib.request.Request(
-                    "https://api.github.com/repos/%s/releases/latest" % REPO,
-                    headers={"Accept": "application/vnd.github+json", "User-Agent": "Vistiq"})
-                with urllib.request.urlopen(req, timeout=10) as r:
-                    data = json.load(r)
+                data = latest_release()
             except Exception:
                 self._set("error", "Couldn't reach GitHub. Check the connection and try again.")
                 return

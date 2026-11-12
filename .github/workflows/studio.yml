@@ -1,0 +1,93 @@
+name: Studio
+
+# Vistiq Studio, the test build with image generation, from the studio
+# branch. Every push is tested and built (the exe is kept as a build
+# artifact). It is published as a pre-release "studio-v<STUDIO_VERSION>"
+# only when the commit message starts with "studio-v", so plain Vistiq's
+# releases and updates are never touched.
+on:
+  push:
+    branches: [studio]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Read version
+        shell: pwsh
+        run: |
+          $v = (Get-Content app/STUDIO_VERSION -Raw).Trim()
+          "VERSION=$v" >> $env:GITHUB_ENV
+          # The app the exe carries must report the Studio version.
+          Copy-Item app/STUDIO_VERSION app/VERSION -Force
+          gh release view "studio-v$v" *> $null
+          $exists = $LASTEXITCODE -eq 0
+          $msg = "$env:MSG"
+          if (-not $exists -and $msg.StartsWith("studio-v")) { "PUBLISH=yes" >> $env:GITHUB_ENV } else { "PUBLISH=no" >> $env:GITHUB_ENV }
+          exit 0
+        env:
+          GH_TOKEN: ${{ github.token }}
+          MSG: ${{ github.event.head_commit.message }}
+
+      - name: Install
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt pyinstaller
+
+      - name: Test
+        run: python -m unittest discover -s tests -v
+
+      - name: Package the app
+        shell: pwsh
+        run: |
+          Get-ChildItem -Path app -Recurse -Directory -Filter __pycache__ | Remove-Item -Recurse -Force
+          Compress-Archive -Path app/VERSION, app/STUDIO_VERSION, app/vistiq, app/ui, app/workflow_image.json -DestinationPath vistiq-studio-app.zip
+
+      - name: Build Vistiq Studio.exe
+        run: >
+          pyinstaller --noconfirm --onefile --windowed --name "Vistiq Studio"
+          --icon launcher/icon.ico
+          --add-data "app;app"
+          --paths launcher
+          --hidden-import launcher
+          --collect-all webview
+          --collect-submodules websocket
+          --hidden-import clr
+          launcher/studio.py
+
+      - name: Check the exe can load the app
+        shell: pwsh
+        run: |
+          $env:VISTIQ_NO_UPDATE = "1"
+          $p = Start-Process -FilePath "dist/Vistiq Studio.exe" -ArgumentList "--selftest" -Wait -PassThru
+          if ($p.ExitCode -ne 0) {
+            Get-Content "$env:LOCALAPPDATA/VistiqStudio/launcher.log" -ErrorAction SilentlyContinue
+            throw "Self-test failed with exit code $($p.ExitCode)"
+          }
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: vistiq-studio-${{ env.VERSION }}
+          path: |
+            dist/Vistiq Studio.exe
+            vistiq-studio-app.zip
+
+      - name: Publish pre-release
+        if: env.PUBLISH == 'yes'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: pwsh
+        run: |
+          gh release create "studio-v${{ env.VERSION }}" "dist/Vistiq Studio.exe" vistiq-studio-app.zip `
+            --target "${{ github.sha }}" --title "Vistiq Studio ${{ env.VERSION }}" `
+            --notes-file STUDIO_NOTES.md --prerelease
