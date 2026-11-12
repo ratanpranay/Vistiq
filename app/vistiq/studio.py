@@ -171,15 +171,20 @@ def lora_family(path):
     keys = list(head)
     joined = " ".join(keys[:4000])
     flux_like = any(t in joined for t in ("double_blocks", "single_blocks", "single_transformer_blocks",
-                                              "transformer_blocks"))
+                                              "transformer.transformer_blocks"))
     if not flux_like and ("input_blocks" in joined or "down_blocks" in joined or "lora_te" in joined):
         dims = {v["shape"][-1] for k, v in head.items() if "attn2" in k and ("down" in k or "lora_A" in k)}
         return "sdxl" if 2048 in dims else "sd15"
     hidden = 0
     for k in keys:
-        if ("lora_down" in k or "lora_A" in k) and ("attn" in k or "qkv" in k):
+        if ("lora_down" in k or "lora_A" in k) and ("attn" in k or "qkv" in k) and "lora_te" not in k:
             hidden = head[k]["shape"][-1]
             break
+    if not hidden and flux_like:
+        for k in keys:
+            if ("lora_down" in k or "lora_A" in k) and "lora_te" not in k and re.search(r"(single|double)_", k):
+                hidden = head[k]["shape"][-1]
+                break
     double = {int(m.group(1)) for k in keys for m in [re.search(r"(?:double_blocks|transformer\.transformer_blocks)[._](\d+)[._]", k)] if m}
     if hidden == 4096:
         return "klein9b"
