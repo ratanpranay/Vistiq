@@ -187,3 +187,9 @@ body.studio .s-page.on{display:flex;flex:1;min-width:0;height:100%}
 .m-card .s-link{flex-shrink:0}
 #c-ps{display:flex;flex-direction:column;gap:10px}
 #c-ps:empty{display:none}
+.s-col{display:flex;flex-direction:column;gap:14px}
+.s-up{background:#fff;border-radius:16px;padding:18px 20px;box-shadow:0 2px 8px rgba(15,18,32,.06);display:flex;flex-direction:column;gap:6px}
+.s-up .group{margin:0 0 12px}
+.s-nav .s-heart{width:44px;height:44px;border-radius:50%;margin-bottom:6px;display:flex;align-items:center;justify-content:center;color:#E0507A;background:#FDEEF3;animation:s-beat 1.6s ease-in-out infinite}
+.s-nav .s-heart svg{width:22px;height:22px;fill:currentColor;stroke:none}
+@keyframes s-beat{0%,100%{transform:scale(1)}12%{transform:scale(1.14)}24%{transform:scale(1)}36%{transform:scale(1.1)}48%{transform:scale(1)}}

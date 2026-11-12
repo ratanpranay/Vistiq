@@ -1,5 +1,9 @@
 # Vistiq Studio (test build)
 
+## 0.2.2
+- One Settings page for everything: the upscaler's settings (engine, largest size, logs) are in it too.
+- The support heart sits in the side bar above Settings.
+
 ## 0.2.1
 - **Live from app**: Create's "Start from" has Live from app / Image. Live works with Photoshop and now **Affinity** (Settings → Model Context Protocol → Enable Affinity MCP). Only apps on this computer are offered. Switching to Image keeps the app live, with Bring back.
 - Mac: update checks work; setup no longer mentions Windows.

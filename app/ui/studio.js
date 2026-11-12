@@ -140,8 +140,26 @@
 
     var set = document.createElement("div");
     set.className = "s-page"; set.id = "p-settings";
-    set.innerHTML = '<div class="s-scroll" id="s-body"></div>';
+    set.innerHTML = '<div class="s-scroll"><div class="s-col" id="s-body"></div>' +
+      '<div class="s-sec">Upscaler</div><div class="s-up" id="s-up"></div></div>';
     document.body.appendChild(set);
+    // One settings page for everything: the upscaler's own settings (engine,
+    // largest size, logs) move in here; its updates are the card at the top.
+    var sheet = $("sheet");
+    if (sheet) {
+      sheet.querySelectorAll(".sheet > .group").forEach(function (g) {
+        if (g.querySelector("#upd-check")) return;
+        $("s-up").appendChild(g);
+      });
+    }
+    // The support heart lives in the side bar, above Settings.
+    var heart = $("open-support");
+    if (heart) {
+      heart.classList.add("s-heart");
+      nav.insertBefore(heart, nav.querySelector('button[data-page="settings"]'));
+    }
+    var gear = $("open-settings"); if (gear) gear.hidden = true;
+    var sup = $("support"); if (sup) document.body.appendChild(sup);
 
     wire();
     painter.init();
@@ -160,6 +178,8 @@
     if (api()) api().studio_drop_target(p);
     if (p === "library") loadLibrary();
     if (p === "settings" || p === "create" || p === "reference") refresh();
+    var eg = $("s-up") && $("s-up").firstElementChild;
+    if (eg && S.status && S.status.mac && eg.querySelector("#keep-engine")) eg.hidden = true;
     render();
   }
 
