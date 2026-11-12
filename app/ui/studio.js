@@ -1010,7 +1010,7 @@
         var keepSel = S.create.sel;
         if (S.create.source !== "live") { S.create.liveSrc = data; render(); return; }   // stays ready in the background
         setImage(S.create, "src", data);
-        if (S.page === "create" && S.create.results.length && keepSel >= 0) S.create.sel = -1;   // show the live canvas
+        S.create.sel = keepSel;   // keep looking at the result you picked; the live tile updates quietly
         render();
         return;
       }
