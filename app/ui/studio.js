@@ -538,7 +538,8 @@
         '<button type="button" data-t="erase" class="' + (!this.selecting && this.erase ? "on" : "") + '">' + svg("erase") + "Erase</button>" +
         '<span class="sep"></span><label>Size <input type="range" id="c-size" min="6" max="400" value="' + this.size + '"></label><span class="sep"></span>' +
         '<button type="button" data-t="undo">' + svg("undo") + "Undo</button>" +
-        '<button type="button" data-t="clear">Clear</button><button type="button" data-t="invert">Invert</button></div>' +
+        '<button type="button" data-t="clear">Clear</button><button type="button" data-t="invert">Invert</button>' +
+        '<span class="sep"></span><button type="button" data-t="done" class="done">Done</button></div>' +
         '<div class="s-maskhint">' + this.hintText() + "</div>";
     }
   };
@@ -673,8 +674,10 @@
 
   function renderCreate() {
     var p = S.create, st = S.status;
-    renderPS();
-    setSlot($("c-slot"), p.src, "click to change", "Drop a sketch or render here, or click");
+    $("c-imp").hidden = !(st && st.helper_ready);
+    // One part failing to draw must not leave the rest of the panel stale.
+    try { renderPS(); } catch (e) { if (window.console) console.error(e); }
+    try { setSlot($("c-slot"), p.src, "click to change", "Drop a sketch or render here, or click"); } catch (e) { if (window.console) console.error(e); }
     on($("c-area"), "data-v", p.area);
     on($("c-presets"), "data-v", p.preset);
     var pr = PRESETS.filter(function (x) { return x[0] === p.preset; })[0];
@@ -758,6 +761,7 @@
           var t = b.getAttribute("data-t");
           if (t === "brush" || t === "erase") { painter.erase = t === "erase"; painter.selecting = false; render(); }
           else if (t === "select") { painter.selecting = true; render(); }
+          else if (t === "done") { S.create.area = "whole"; render(); }
           else if (t === "undo") painter.back(); else if (t === "clear") painter.clear(); else if (t === "invert") painter.invert();
         });
         $("c-size").addEventListener("input", function () { painter.size = +this.value; keep("brush", painter.size); });
@@ -767,7 +771,9 @@
           (mode === "result" ? '<span class="s-tag">Result · hold to see the original</span>' : '<span class="s-tag">' + (info.live ? "Live from " + ((APPS[info.app] || APPS.photoshop)[1]) : "Original") + "</span>");
       }
     }
-    if (id === "c" && p.src && !c) {
+    var oldpb = view.querySelector(".s-paintbtn");
+    if (oldpb && (p.area === "paint" || c || !p.src)) oldpb.remove();
+    if (id === "c" && p.src && !c && p.area !== "paint") {
       var pb = view.querySelector(".s-paintbtn");
       if (!pb) { pb = document.createElement("button"); pb.type = "button"; pb.className = "s-paintbtn";
         pb.onclick = function () { S.create.area = S.create.area === "paint" ? "whole" : "paint"; S.create.sel = -1; render(); }; view.appendChild(pb); }
