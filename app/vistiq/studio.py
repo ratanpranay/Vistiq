@@ -170,7 +170,9 @@ def lora_family(path):
     head.pop("__metadata__", None)
     keys = list(head)
     joined = " ".join(keys[:4000])
-    if "input_blocks" in joined or "down_blocks" in joined or "lora_te" in joined:
+    flux_like = any(t in joined for t in ("double_blocks", "single_blocks", "single_transformer_blocks",
+                                              "transformer_blocks"))
+    if not flux_like and ("input_blocks" in joined or "down_blocks" in joined or "lora_te" in joined):
         dims = {v["shape"][-1] for k, v in head.items() if "attn2" in k and ("down" in k or "lora_A" in k)}
         return "sdxl" if 2048 in dims else "sd15"
     hidden = 0

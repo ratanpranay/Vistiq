@@ -55,6 +55,11 @@ class Families(unittest.TestCase):
         keys = {"transformer.transformer_blocks.%d.attn.to_q.lora_A.weight" % i: [16, 3072] for i in range(19)}
         self.assertEqual(self.fam(keys), "flux1")
 
+    def test_flux1_with_text_encoder_keys(self):
+        keys = {"lora_te1_text_model_encoder_layers_0_mlp_fc1.lora_down.weight": [16, 768]}
+        keys.update({"lora_unet_single_blocks_%d_linear1.lora_down.weight" % i: [16, 3072] for i in range(38)})
+        self.assertEqual(self.fam(keys), "flux1")
+
     def test_sdxl(self):
         keys = {"lora_unet_input_blocks_4_1_transformer_blocks_0_attn2_to_k.lora_down.weight": [8, 2048]}
         self.assertEqual(self.fam(keys), "sdxl")
