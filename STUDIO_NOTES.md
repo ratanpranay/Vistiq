@@ -1,5 +1,11 @@
 # Vistiq Studio (test build)
 
+## 0.3.0
+- Mac: Create works again (the fast mode that keeps the model loaded was built for a newer library version; now it uses the installed one).
+- Mac: creates at a size that fits the Mac (1080 px on 16 GB); upscale afterwards for more. No more slow full-size export from Affinity.
+- Create keeps its own copy of the live picture, so it can't disappear mid-run.
+- Settings is compact and centered.
+
 ## 0.2.9
 - Mac: Create works again (fixes "name 'json' is not defined"); the faster model-stays-loaded mode now actually runs.
 - In a small window the Create panel scrolls instead of hiding ✨ Improve.
