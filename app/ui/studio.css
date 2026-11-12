@@ -167,3 +167,23 @@ body.studio .s-page.on{display:flex;flex:1;min-width:0;height:100%}
 .s-imp>button:disabled{opacity:.5}
 .s-imp span{font-size:12px;color:var(--dim)}
 .m-hw{display:flex;gap:8px;flex-wrap:wrap}.m-hw span{padding:4px 10px;border-radius:10px;background:var(--field);border:1px solid var(--line);font-size:12px;font-weight:700;color:var(--ink-2)}
+.m-src{display:grid;grid-template-columns:1fr 1fr;gap:4px;padding:4px;border-radius:12px;background:var(--field);border:1px solid var(--line)}
+.m-src button{height:36px;border-radius:9px;font-size:12.5px;font-weight:700;color:var(--dim);display:flex;align-items:center;justify-content:center;gap:7px}
+.m-src button.on{background:#fff;color:var(--ink);box-shadow:0 1px 3px rgba(15,18,32,.12)}
+.m-dot{flex:0 0 8px;width:8px;height:8px;border-radius:50%;background:#E5484D;box-shadow:0 0 0 3px rgba(229,72,77,.18)}
+.m-dot.g{background:#9AA0AD;box-shadow:none}
+.m-card{display:flex;gap:10px;align-items:center;padding:8px;border-radius:12px;border:1.5px solid var(--line);background:#fff}
+.m-card img{width:86px;height:54px;object-fit:cover;border-radius:8px;border:1px solid var(--line)}
+.m-card span{display:flex;flex-direction:column;font-size:13px;font-weight:700;flex:1;min-width:0}
+.m-card small{font-size:11.5px;font-weight:400;color:var(--dim);line-height:15px}
+.m-apps{display:flex;gap:6px;flex-wrap:wrap}
+.m-apps button{display:flex;align-items:center;gap:6px;padding:6px 11px;border-radius:14px;background:var(--field);border:1px solid var(--line);font-size:12px;font-weight:700;color:var(--ink-2)}
+.m-apps button.on{background:var(--ink);color:#fff;border-color:var(--ink)}
+.m-ico{width:16px;height:16px;border-radius:4px;display:inline-flex;align-items:center;justify-content:center;font-size:9px;font-weight:900;color:#fff}
+.ps{background:#001E36;color:#31A8FF!important}.af{background:#1B1B2F;color:#7F8CFF!important}.wn{background:#6B7180}
+.m-back{display:flex;align-items:center;gap:10px;padding:9px 12px;border-radius:12px;background:#FFF4F4;border:1px solid #F6D2D3;font-size:12.5px}
+.m-back span:not(.m-dot){flex:1;line-height:16px}.m-back b{font-weight:800}
+.m-back button{padding:6px 12px;border-radius:12px;background:var(--ink);color:#fff;font-weight:700;font-size:12px;white-space:nowrap}
+.m-card .s-link{flex-shrink:0}
+#c-ps{display:flex;flex-direction:column;gap:10px}
+#c-ps:empty{display:none}

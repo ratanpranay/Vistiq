@@ -26,6 +26,14 @@ import base64, glob, logging, socket, subprocess, time, uuid, webbrowser  # noqa
 import requests  # noqa: F401
 import websocket  # noqa: F401
 import webview  # noqa: F401
+# A Mac app built with PyInstaller doesn't see the system's certificates:
+# point Python's own downloads (update checks) at certifi's.
+try:
+    import certifi  # noqa: E402
+    os.environ.setdefault("SSL_CERT_FILE", certifi.where())
+    os.environ.setdefault("REQUESTS_CA_BUNDLE", certifi.where())
+except Exception:
+    pass
 import webview.dom  # noqa: F401
 from PIL import Image, ImageGrab, ImageOps  # noqa: F401
 

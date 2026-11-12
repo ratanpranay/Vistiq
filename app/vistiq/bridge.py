@@ -159,7 +159,7 @@ class Bridge:
                     pass
         name = str(data.get("name") or "Photoshop")
         self.doc = name
-        self.on_frame({"path": path, "name": name, "w": im.size[0], "h": im.size[1], "n": n})
+        self.on_frame({"path": path, "name": name, "w": im.size[0], "h": im.size[1], "n": n, "app": "photoshop"})
 
 
 # -- installing the panel into Photoshop ---------------------------------------

@@ -44,10 +44,10 @@
     page: "create", status: null, engine: { state: "idle", message: "" },
     setup: { run: null, error: "", done: "" },
     lib: { items: [], filter: "all", loading: false },
-    create: page({ area: "whole", preset: load("c.preset", "sketch"), text: "", keep: load("c.keep", 0.8), vars: load("c.vars", 2),
+    create: page({ source: load("c.source", "image"), area: "whole", preset: load("c.preset", "sketch"), text: "", keep: load("c.keep", 0.8), vars: load("c.vars", 2),
                    blend: load("c.blend2", 0.15), lora: load("c.lora", ""), juice: load("c.juice", 0), juiceLora: load("c.juiceLora", "") }),
     ref: page({ refimg: null, preset: load("r.preset", "camera"), text: "", keep: load("r.keep", 0.8), vars: load("r.vars", 1) }),
-    dropSlot: "",
+    dropSlot: "", liveApp: load("liveApp", ""),
     live: { on: false, doc: "", frames: 0, msg: "" },
     update: { state: "idle" }, version: ""
   };
@@ -99,7 +99,8 @@
     var create = document.createElement("div");
     create.className = "s-page"; create.id = "p-create";
     create.innerHTML = rail("c", "Create",
-      '<div class="s-label">Start from</div><button type="button" class="s-slot empty" id="c-slot" data-slot="src"></button>' +
+      '<div class="s-label">Start from</div><div class="m-src" id="c-source"><button type="button" data-v="live"><span class="m-dot"></span>Live from app</button><button type="button" data-v="image">Image</button></div>' +
+      '<button type="button" class="s-slot empty" id="c-slot" data-slot="src"></button>' +
       '<div class="s-ps" id="c-ps"></div>' +
       '<div class="s-label">Where to change</div><div class="s-seg" id="c-area"><button type="button" data-v="whole">Whole image</button><button type="button" data-v="paint">Painted area only</button></div>' +
       '<p class="s-hint" id="c-area-hint" hidden>Paint over what should change. Everything outside the paint stays exactly the same, pixel for pixel.</p>' +
@@ -184,6 +185,7 @@
     if (!info) return;
     p[slot] = info;
     if (p === S.create && slot === "src") {
+      if (info.live) p.liveSrc = info; else { p.imageSrc = info; p.source = "image"; }
       var same = info.live && p.liveSize === info.w + "x" + info.h;
       if (!info.live) { p.results = []; p.sel = -1; }
       if (!same) painter.reset(info);
@@ -202,7 +204,7 @@
     if (!p.src || p.job || !st || !st.create_ready) return;
     if (id === "r" && !p.refimg) return;
     var j = {
-      mode: id === "c" ? "create" : "reference", image: p.src.path, name: p.src.name,
+      mode: id === "c" ? "create" : "reference", image: p.src.path, name: p.src.name, live_app: p.src.live ? S.live.app : "",
       preset: p.preset, text: p.text, keep: hasConsistency() ? p.keep : 0, variations: p.vars
     };
     if (id === "r") j.reference = p.refimg.path;
@@ -248,6 +250,7 @@
     });
     // Create
     $("c-slot").addEventListener("click", function () { pick("c", "src"); });
+    $("c-source").addEventListener("click", function (e) { var b = e.target.closest("button"); if (b) useSource(b.getAttribute("data-v")); });
     $("c-area").addEventListener("click", function (e) {
       var b = e.target.closest("button"); if (!b) return;
       S.create.area = b.getAttribute("data-v"); if (S.create.area === "paint") S.create.sel = -1; render();
@@ -310,8 +313,11 @@
     $("c-ps").addEventListener("click", function (e) {
       var b = e.target.closest("[data-ps]"); if (!b) return;
       var a = b.getAttribute("data-ps");
-      if (a === "on") api().studio_live(true).then(function (r) { S.live.on = !!(r && r.on); S.live.frames = 0; S.live.msg = r && r.error || ""; render(); });
-      else if (a === "off") api().studio_live(false).then(function () { S.live.on = false; S.live.msg = ""; render(); });
+      if (a === "app") { S.liveApp = b.getAttribute("data-app"); keep("liveApp", S.liveApp); if (S.live.on && S.live.app !== S.liveApp) {
+          api().studio_live(true, S.liveApp).then(function (r) { S.live.on = !!(r && r.on); S.live.app = S.liveApp; S.live.frames = 0; S.live.state = ""; S.live.msg = r && r.error || ""; render(); }); } else render(); }
+      else if (a === "on") { var app = b.getAttribute("data-app"); api().studio_live(true, app).then(function (r) { S.live.on = !!(r && r.on); S.live.app = app; S.liveApp = app; S.live.frames = 0; S.live.state = ""; S.live.msg = r && r.error || ""; render(); }); }
+      else if (a === "off") api().studio_live(false, S.live.app).then(function () { S.live.on = false; S.live.msg = ""; S.create.liveSrc = null; if (S.create.source === "live") S.create.src = null; render(); });
+      else if (a === "back") useSource("live");
       else if (a === "install") {
         S.live.msg = "Installing the panel…"; render();
         api().studio_install_panel().then(function (r) { S.live.msg = r ? r.message : ""; render(); });
@@ -556,18 +562,51 @@
     $(id + "-keep-none").hidden = cons || !st;
   }
 
+  var APPS = { photoshop: ["Ps", "Photoshop", "ps"], affinity: ["Af", "Affinity", "af"] };
+
+  // "Live from app": your drawing app's canvas, live. "Image": a file.
+  // Switching to Image keeps the app connected, ready to be brought back.
   function renderPS() {
-    var L = S.live, h;
-    if (L.on) {
-      h = '<div class="s-ps-on"><span class="s-live-dot"></span><span><b>Live from Photoshop</b><small>' +
-        (L.frames ? esc(L.doc) + " · updates after every stroke" : "Waiting for Photoshop… open the Vistiq Studio panel there (Window → Plugins).") +
-        '</small></span><button type="button" class="s-link" data-ps="off">Stop</button></div>';
-    } else {
-      h = '<button type="button" class="s-btn" data-ps="on" style="width:100%">Connect with Photoshop</button>';
+    var L = S.live, p = S.create, st = S.status || {}, apps = st.apps || {}, h = "";
+    var src = p.source || "image";
+    on($("c-source"), "data-v", src);
+    $("c-source").querySelector(".m-dot").className = "m-dot" + (L.on ? "" : " g");
+    $("c-slot").hidden = src === "live";
+    if (src === "live") {
+      var have = Object.keys(APPS).filter(function (k) { return apps[k]; });
+      if (!have.length) have = Object.keys(APPS);
+      var cur = L.app || (have.indexOf(S.liveApp) >= 0 ? S.liveApp : have[0]);
+      h += '<div class="m-apps">' + have.map(function (k) {
+        return '<button type="button" data-ps="app" data-app="' + k + '" class="' + (k === cur ? "on" : "") + '"><span class="m-ico ' + APPS[k][2] + '">' + APPS[k][0] + "</span>" + APPS[k][1] + "</button>";
+      }).join("") + "</div>";
+      if (L.on && L.frames && p.liveSrc) {
+        h += '<div class="m-card"><img src="' + p.liveSrc.preview + '"><span>' + esc(L.doc) + "<small>" + APPS[L.app][1] +
+          ' · updates as you draw</small></span><button type="button" class="s-link" data-ps="off">Stop</button></div>';
+      } else if (L.on) {
+        h += '<div class="s-ps-on"><span class="s-live-dot"></span><span><b>Connecting to ' + APPS[L.app][1] + "</b><small>" +
+          esc(L.state || (L.app === "photoshop" ? "Waiting for Photoshop… keep it open with the Vistiq Studio plugin installed."
+                                                 : "Waiting for Affinity… turn on Settings → Model Context Protocol → Enable Affinity MCP.")) +
+          '</small></span><button type="button" class="s-link" data-ps="off">Stop</button></div>';
+      } else {
+        h += '<button type="button" class="s-btn p" data-ps="on" data-app="' + cur + '" style="width:100%">Connect ' + APPS[cur][1] + "</button>";
+      }
+      if (cur === "photoshop") h += '<p class="s-hint" style="margin-top:6px">' + (L.msg ? esc(L.msg) : 'First time? <button type="button" class="s-link" data-ps="install">Install the Photoshop plugin</button>') + "</p>";
+      else if (L.msg) h += '<p class="s-hint" style="margin-top:6px">' + esc(L.msg) + "</p>";
+    } else if (L.on && L.frames) {
+      h += '<div class="m-back"><span class="m-dot"></span><span><b>' + APPS[L.app][1] + " is still live</b><br>" + esc(L.doc) +
+        ' keeps updating</span><button type="button" data-ps="back">Bring back</button></div>';
     }
-    h += '<p class="s-hint" style="margin-top:6px">' + (L.msg ? esc(L.msg) : 'First time? <button type="button" class="s-link" data-ps="install">Install the Photoshop panel</button>') + "</p>";
     var el = $("c-ps");
     if (el.getAttribute("data-h") !== h) { el.innerHTML = h; el.setAttribute("data-h", h); }
+  }
+
+  function useSource(src) {
+    var p = S.create;
+    p.source = src; keep("c.source", src);
+    var info = src === "live" ? p.liveSrc : p.imageSrc;
+    p.src = info || null;
+    if (info) { p.liveSize = ""; painter.reset(info); }
+    render();
   }
 
   function renderCreate() {
@@ -663,7 +702,7 @@
       } else {
         var info = mode === "result" ? c : p.src;
         view.innerHTML = '<div class="s-fit" data-w="' + info.w + '" data-h="' + info.h + '"><img class="' + (mode === "result" ? "s-res" : "") + '" src="' + info.preview + '" alt=""></div>' +
-          (mode === "result" ? '<span class="s-tag">Result · hold to see the original</span>' : '<span class="s-tag">' + (info.live ? "Live from Photoshop" : "Original") + "</span>");
+          (mode === "result" ? '<span class="s-tag">Result · hold to see the original</span>' : '<span class="s-tag">' + (info.live ? "Live from " + ((APPS[info.app] || APPS.photoshop)[1]) : "Original") + "</span>");
       }
     }
     var busy = view.querySelector(".s-busy");
@@ -752,7 +791,7 @@
         '<div class="s-list">' + fileRows(st.files) + "</div>" +
         (st.mac.can_generate ? "" : '<div class="s-err">Image generation needs a Mac with 16 GB of memory or more. Upscaling and the rest still work.</div>') +
         '<button type="button" class="s-go" style="height:50px" data-su="download"><span>Set up</span></button>' + err +
-        '<p style="font-size:12px">Best quality and the Design lock need a Windows PC with an NVIDIA card.</p></div>';
+        "</div>";
       return h;
     }
     if (running) {
@@ -888,14 +927,16 @@
       if (kind.indexOf("studio-") !== 0) { var r = base(kind, data); if (kind === "update") render(); return r; }
       if (kind === "studio-live") {
         if (!S.live.on) return;
-        S.live.doc = data.name; S.live.frames++;
+        S.live.doc = data.name; S.live.frames++; S.live.state = "";
         data.live = true;
         var keepSel = S.create.sel;
+        if (S.create.source !== "live") { S.create.liveSrc = data; render(); return; }   // stays ready in the background
         setImage(S.create, "src", data);
         if (S.page === "create" && S.create.results.length && keepSel >= 0) S.create.sel = -1;   // show the live canvas
         render();
         return;
       }
+      if (kind === "studio-live-state") { if (S.live.on && data.app === S.live.app) S.live.state = data.message; render(); return; }
       if (kind === "studio-engine") S.engine = data;
       else if (kind === "studio-job") {
         var p = byJob(data.id);

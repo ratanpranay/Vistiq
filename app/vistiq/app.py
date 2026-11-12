@@ -296,18 +296,24 @@ class Api:
             log.exception("select failed")
             return {"error": str(exc)}
 
-    def studio_live(self, on):
-        b = self._app.studio.bridge
-        if on:
-            ok = b.start()
-            if ok:
-                return {"on": True, "error": ""}
-            if b.busy_reason == "studio":
-                return {"on": False, "error": "Another Vistiq Studio window is already connected. Close it, then try again."}
-            return {"on": False, "error": "Another program is using the Photoshop link's port (38393). "
-                                          "Restart the PC if this keeps happening."}
-        b.stop()
-        return {"on": False}
+    def studio_live(self, on, app="photoshop"):
+        st = self._app.studio
+        b, a = st.bridge, st.affinity
+        if not on:
+            b.stop()
+            a.stop()
+            return {"on": False}
+        if app == "affinity":
+            b.stop()
+            return {"on": a.start(), "error": ""}
+        a.stop()
+        ok = b.start()
+        if ok:
+            return {"on": True, "error": ""}
+        if b.busy_reason == "studio":
+            return {"on": False, "error": "Another Vistiq Studio window is already connected. Close it, then try again."}
+        return {"on": False, "error": "Another program is using the Photoshop link's port (38393). "
+                                      "Restart the computer if this keeps happening."}
 
     def studio_install_panel(self):
         from . import bridge

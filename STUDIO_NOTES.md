@@ -1,5 +1,9 @@
 # Vistiq Studio (test build)
 
+## 0.2.1
+- **Live from app**: Create's "Start from" has Live from app / Image. Live works with Photoshop and now **Affinity** (Settings → Model Context Protocol → Enable Affinity MCP). Only apps on this computer are offered. Switching to Image keeps the app live, with Bring back.
+- Mac: update checks work; setup no longer mentions Windows.
+
 ## 0.2.0
 - **Mac version (test)**: Vistiq-Studio-mac.zip. Image generation with FLUX.2 Klein 4B on Apple's MLX, a fast classic upscaler (largest size set by the Mac's memory), Select, Library, Photoshop link.
 - **Starter text**: each "What to change" button shows how to begin your prompt.

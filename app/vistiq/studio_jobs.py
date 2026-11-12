@@ -117,6 +117,10 @@ class Studio:
         self._thumbs = {}
         from .bridge import Bridge
         self.bridge = Bridge(os.path.join(data_dir(), "photoshop"), self._on_frame)
+        from .affinity import AffinityLink
+        self.affinity = AffinityLink(os.path.join(data_dir(), "affinity"), self._on_frame,
+                                     lambda st, m: self.emit("studio-live-state", {"app": "affinity", "state": st,
+                                                                                   "message": m}))
         self._last_frame = 0
 
     def _on_frame(self, f):
@@ -138,6 +142,7 @@ class Studio:
     def status(self):
         st = studio.status(self.settings)
         st["engine"] = {"state": self.engine.state, "message": self.engine.message}
+        st["apps"] = installed_apps()
         st["busy"] = bool(self._job and self._job.is_alive())
         st["setup_running"] = bool(self._setup and self._setup.is_alive())
         st["free_gb"] = _free_gb(studio.home(self.settings))
@@ -300,6 +305,9 @@ class Studio:
             if not self.engine.alive() and not self.engine.start(self.say):
                 raise RuntimeError(self.engine.message)
             src_path = job["image"]
+            if job.get("live_app") == "affinity":
+                say("Getting the full-size canvas from Affinity", None)
+                src_path = self.affinity.export_full() or src_path
             original = load_rgb(src_path)
             mask = box = None
             if job.get("mask"):
@@ -451,6 +459,7 @@ class Studio:
     def shutdown(self):
         self._cancel.set()
         self.bridge.stop()
+        self.affinity.stop()
         if hasattr(self, "_helper"):
             self._helper.stop()
         if not self.settings.get("keep_engine", True):
@@ -495,6 +504,20 @@ def _read_meta(path):
             return json.load(fh)
     except Exception:
         return {}
+
+
+def installed_apps():
+    """Which drawing apps this computer has (for Live from app)."""
+    import glob
+    if sys.platform == "darwin":
+        ps = glob.glob("/Applications/Adobe Photoshop*")
+        af = glob.glob("/Applications/Affinity*.app")
+    else:
+        pf = [os.environ.get("ProgramFiles", r"C:\Program Files"), os.environ.get("ProgramFiles(x86)", "")]
+        ps = [g for p in pf if p for g in glob.glob(os.path.join(p, "Adobe", "Adobe Photoshop*"))]
+        af = [g for p in pf if p for g in glob.glob(os.path.join(p, "Affinity*"))]
+        af += glob.glob(os.path.join(os.environ.get("LOCALAPPDATA", ""), "Microsoft", "WindowsApps", "*Affinity*"))
+    return {"photoshop": bool(ps), "affinity": bool(af)}
 
 
 def _downloads():
