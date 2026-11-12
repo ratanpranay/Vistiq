@@ -431,7 +431,10 @@ class Studio:
                     times["load"] = round(max(0.0, took - (per or took * 0.5)), 1) if per else round(took * 0.5, 1)
                     took = took - times["load"]
                 times["per"] = round(took if not times.get("per") else times["per"] * 0.6 + took * 0.4, 1)
-                s.set("studio_times", times)
+                try:
+                    s.set("studio_times", times)
+                except Exception:
+                    log.exception("couldn't save creation times")
                 self._warm = True
                 self.emit("studio-result", {"id": job_id, "result": item, "index": v, "of": n})
             self.emit("studio-job", {"id": job_id, "state": "done", "count": len(results)})
