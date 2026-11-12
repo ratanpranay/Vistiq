@@ -1,5 +1,11 @@
 # Vistiq Studio (test build)
 
+## 0.2.7
+- The buttons work for any subject (interiors, exteriors, boats, furniture, lamps…); your prompt says what it is.
+- Follow my sketch slider (Creative ↔ Exact) on the Mac too.
+- An improved prompt is sent exactly as written.
+- Viewing an earlier result no longer jumps back to the live picture.
+
 ## 0.2.6
 - Mac: the image model stays loaded between variations and runs: only the first Create of a session waits for loading.
 - Mac: the presets no longer assume a car interior, so a car sketch stays a car.
