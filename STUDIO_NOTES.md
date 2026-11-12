@@ -1,5 +1,10 @@
 # Vistiq Studio (test build)
 
+## 0.2.8
+- Show in folder, Upscale this and × sit under the picture, next to the results.
+- Painting ends with Done inside the paint toolbar (nothing overlaps it any more).
+- ✨ Improve stays visible while connected to Affinity or Photoshop.
+
 ## 0.2.7
 - The buttons work for any subject (interiors, exteriors, boats, furniture, lamps…); your prompt says what it is.
 - Follow my sketch slider (Creative ↔ Exact) on the Mac too.

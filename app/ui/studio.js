@@ -85,11 +85,13 @@
   function stage(id, extra) {
     return '<section class="s-stage" id="' + id + '-stage">' +
       '<div class="s-ttl" id="' + id + '-ttl"></div>' +
-      '<div class="s-acts"><button type="button" id="' + id + '-reveal" disabled>Show in folder</button><button type="button" class="p" id="' + id + '-up" disabled>Upscale this</button>' +
-      '<button type="button" class="s-x" id="' + id + '-clear" title="Clear" aria-label="Clear" hidden>×</button></div>' +
       (extra || "") +
       '<div class="s-view" id="' + id + '-view"></div>' +
-      '<div class="s-vars" id="' + id + '-strip"></div>' +
+      // Under the picture: the results, then what to do with the chosen one.
+      '<div class="s-under"><div class="s-vars" id="' + id + '-strip"></div>' +
+      '<div class="s-acts2"><button type="button" class="s-btn" id="' + id + '-reveal" disabled>Show in folder</button>' +
+      '<button type="button" class="s-btn p" id="' + id + '-up" disabled>Upscale this</button>' +
+      '<button type="button" class="s-btn s-x" id="' + id + '-clear" title="Clear" aria-label="Clear" hidden>×</button></div></div>' +
       '<div class="s-refine"><input type="text" id="' + id + '-refine" placeholder="Refine: e.g. make the seats lighter, keep everything else"><button type="button" id="' + id + '-refine-go">Refine</button></div>' +
       "</section>" +
       '<div class="s-center" id="' + id + '-gate" hidden></div>';

@@ -255,3 +255,8 @@ body.studio .s-page.on{display:flex;flex:1;min-width:0;height:100%}
 .s-ends2{display:flex;justify-content:space-between;font-size:11px;color:var(--faint);margin-top:2px}
 .s-tools button.done{background:var(--ink);color:#fff}
 .s-tools button.done:hover{background:#2a2f3f}
+.s-under{display:flex;align-items:center;gap:12px;min-height:66px}
+.s-under .s-vars{flex:1;min-width:0}
+.s-acts2{display:flex;gap:8px;flex-shrink:0}
+.s-acts2 .s-btn:disabled{opacity:.4}
+.s-stage .s-ttl{padding-right:0}
