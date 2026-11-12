@@ -1,5 +1,8 @@
 # Vistiq Studio (test build)
 
+## 0.1.3
+- Connect with Photoshop no longer clashes with the image engine.
+
 ## 0.1.2
 - **Connect with Photoshop**: Create shows the active Photoshop document live, updated after every stroke. Install the Photoshop panel once (link under Connect with Photoshop), then open Window → Plugins → Vistiq Studio in Photoshop.
 - **Update and restart** at the top of Settings.

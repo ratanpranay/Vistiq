@@ -20,7 +20,7 @@ from PIL import Image
 
 log = logging.getLogger("vistiq")
 
-PORT = 8393
+PORT = 38393
 MAX_BODY = 80 << 20
 KEEP = 4                       # live frames kept on disk
 
@@ -32,6 +32,7 @@ class Bridge:
         self.server = None
         self.n = 0
         self.doc = ""
+        self.busy_reason = ""
         self._lock = threading.Lock()
 
     @property
@@ -87,6 +88,13 @@ class Bridge:
         except OSError as exc:
             log.warning("Photoshop link can't listen on %d: %s", PORT, exc)
             self.server = None
+            self.busy_reason = "other"
+            try:
+                import urllib.request
+                if b"Vistiq Studio" in urllib.request.urlopen("http://127.0.0.1:%d/ping" % PORT, timeout=2).read():
+                    self.busy_reason = "studio"
+            except Exception:
+                pass
             return False
         self.server.daemon_threads = True
         threading.Thread(target=self.server.serve_forever, daemon=True).start()

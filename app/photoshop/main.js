@@ -2,7 +2,7 @@
 // visible canvas is sent to Vistiq Studio on this PC (nothing leaves the PC).
 const { action, core, imaging, app } = require("photoshop");
 
-const STUDIO = "http://127.0.0.1:8393";
+const STUDIO = "http://127.0.0.1:38393";
 const MAX_SIDE = 2048;
 
 let connected = false;

@@ -300,7 +300,12 @@ class Api:
         b = self._app.studio.bridge
         if on:
             ok = b.start()
-            return {"on": ok, "error": "" if ok else "Something else is using the Photoshop link's port (8393)."}
+            if ok:
+                return {"on": True, "error": ""}
+            if b.busy_reason == "studio":
+                return {"on": False, "error": "Another Vistiq Studio window is already connected. Close it, then try again."}
+            return {"on": False, "error": "Another program is using the Photoshop link's port (38393). "
+                                          "Restart the PC if this keeps happening."}
         b.stop()
         return {"on": False}
 

@@ -242,16 +242,16 @@ class PhotoshopLink(unittest.TestCase):
         got = []
         with tempfile.TemporaryDirectory() as tmp:
             b = bridge.Bridge(tmp, got.append)
-            with mock.patch.object(bridge, "PORT", 18393):
+            with mock.patch.object(bridge, "PORT", 18394):
                 self.assertTrue(b.start())
             try:
-                ping = urllib.request.urlopen("http://127.0.0.1:18393/ping", timeout=5).read()
+                ping = urllib.request.urlopen("http://127.0.0.1:18394/ping", timeout=5).read()
                 self.assertIn(b"Vistiq Studio", ping)
                 buf = io.BytesIO()
                 Image.new("RGB", (64, 32), "red").save(buf, "JPEG")
                 body = json.dumps({"name": "sketch.psd", "jpeg": base64.b64encode(buf.getvalue()).decode()}).encode()
                 for _ in range(6):
-                    req = urllib.request.Request("http://127.0.0.1:18393/frame", data=body,
+                    req = urllib.request.Request("http://127.0.0.1:18394/frame", data=body,
                                                  headers={"Content-Type": "application/json"})
                     self.assertEqual(urllib.request.urlopen(req, timeout=5).status, 200)
                 self.assertEqual(len(got), 6)

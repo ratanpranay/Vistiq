@@ -17,6 +17,6 @@
     }
   ],
   "requiredPermissions": {
-    "network": { "domains": ["http://127.0.0.1:8393", "http://localhost:8393"] }
+    "network": { "domains": ["http://127.0.0.1:38393", "http://localhost:38393"] }
   }
 }
