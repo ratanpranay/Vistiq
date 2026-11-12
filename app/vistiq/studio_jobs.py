@@ -334,6 +334,9 @@ class Studio:
                 text = studio.build_text(job.get("preset") or "", job.get("text"))
             seed = int(job.get("seed") or int(time.time()) % 100000 * 7919)
             keep = float(job.get("keep") if job.get("keep") is not None else 0.8)
+            if not _has_lock(s):
+                # Without the design lock, the slider works through the wording.
+                text = text + "\n\n" + follow_words(keep)
             stem = os.path.splitext(os.path.basename(job.get("name") or src_path))[0]
             if stem.lower().startswith("vistiq_"):
                 stem = stem[7:]
@@ -485,6 +488,21 @@ class Studio:
             self._helper.stop()
         if not self.settings.get("keep_engine", True):
             self.engine.stop()
+
+
+def _has_lock(settings):
+    return sys.platform != "darwin" and studio.tier(settings) != "good" and bool(studio.find("consistency", settings))
+
+
+def follow_words(keep):
+    """How closely to follow the picture, in words the model understands."""
+    if keep >= 0.9:
+        return "Follow the input image exactly: every line, shape, proportion and the camera view stay identical."
+    if keep >= 0.6:
+        return "Stay close to the input image: keep its shapes, proportions and camera view."
+    if keep >= 0.3:
+        return "Use the input image as the base, but feel free to refine shapes and details."
+    return "Use the input image only as loose inspiration; reinterpret it creatively."
 
 
 def _add_lora(prompt, lora, strength):

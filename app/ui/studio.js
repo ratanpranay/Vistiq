@@ -65,9 +65,9 @@
   }
 
   function keepSlider(id) {
-    return '<div class="s-k" id="' + id + '-keep-w"><div class="s-label" id="' + id + '-keep-l">Keep my design <em id="' + id + '-keep-v"></em></div>' +
+    return '<div class="s-k" id="' + id + '-keep-w"><div class="s-label" id="' + id + '-keep-l">Follow my sketch <em id="' + id + '-keep-v"></em></div>' +
       '<input class="s-range" type="range" min="0" max="1" step="0.05" id="' + id + '-keep">' +
-      '<span id="' + id + '-keep-e" hidden></span><span id="' + id + '-keep-none" hidden></span></div>';
+      '<div class="s-ends2" id="' + id + '-keep-e"><span>Creative</span><span>Exact</span></div><span id="' + id + '-keep-none" hidden></span></div>';
   }
 
   function varsChips(id) {
@@ -233,7 +233,7 @@
     var j = {
       mode: id === "c" ? "create" : "reference", image: p.src.path, name: p.src.name, live_app: p.src.live ? S.live.app : "",
       // An improved prompt already is the whole instruction: send it as it is.
-      preset: p.improved && p.text === p.improved ? "" : p.preset, text: p.text, keep: hasConsistency() ? p.keep : 0, variations: p.vars
+      preset: p.improved && p.text === p.improved ? "" : p.preset, text: p.text, keep: p.keep, variations: p.vars
     };
     if (id === "r") j.reference = p.refimg.path;
     if (id === "c") {
@@ -564,7 +564,7 @@
     ["c", "r"].forEach(function (id) {
       var p = P(id);
       $(id + "-keep").value = p.keep;
-      $(id + "-keep-v").textContent = p.keep >= 0.95 ? "Exact" : p.keep <= 0.05 ? "Off" : Math.round(p.keep * 100) + "%";
+      $(id + "-keep-v").textContent = p.keep >= 0.95 ? "Exact" : p.keep <= 0.25 ? "Creative" : Math.round(p.keep * 100) + "%";
     });
     $("c-blend").value = S.create.blend; $("c-blend-v").textContent = Math.round(S.create.blend * 100) + "%";
     $("c-juice").value = S.create.juice; $("c-juice-v").textContent = S.create.juice > 0 ? Math.round(S.create.juice * 100) + "%" : "Off";
@@ -607,7 +607,7 @@
     $(id + "-err").hidden = !p.error; $(id + "-err").textContent = p.error;
     $(id + "-vars-n").textContent = p.vars;
     var cons = hasConsistency();
-    $(id + "-keep-w").hidden = !cons;
+    $(id + "-keep-w").hidden = false;
   }
 
   var APPS = { photoshop: ["Ps", "Photoshop", "ps"], affinity: ["Af", "Affinity", "af"] };
