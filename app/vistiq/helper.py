@@ -19,7 +19,7 @@ log = logging.getLogger("vistiq")
 
 MODEL_URL = "https://huggingface.co/unsloth/Qwen3-1.7B-GGUF/resolve/main/Qwen3-1.7B-Q4_K_M.gguf"
 MODEL_GB = 1.1
-RELEASES = "https://api.github.com/repos/ggml-org/llama.cpp/releases/latest"
+RELEASES = "https://api.github.com/repos/ggml-org/llama.cpp/releases?per_page=30"
 PORT = 38394
 
 TASKS = {
@@ -64,13 +64,16 @@ def install(models_dir, download, on_progress, cancelled=lambda: False):
     f = folder(models_dir)
     os.makedirs(f, exist_ok=True)
     if not _server(models_dir):
-        rel = requests.get(RELEASES, timeout=30, headers={"Accept": "application/vnd.github+json"}).json()
+        rels = requests.get(RELEASES, timeout=30, headers={"Accept": "application/vnd.github+json"}).json()
+        if isinstance(rels, dict):
+            raise RuntimeError("couldn't ask GitHub for the prompt helper's engine (%s)" % rels.get("message"))
         pat = (r"bin-macos-arm64\.(tar\.gz|zip)$" if sys.platform == "darwin"
                else r"bin-win-cpu-x64\.zip$")
-        asset = next((a for a in rel.get("assets", []) if re.search(pat, a["name"])), None)
+        # The newest release that has a build for this computer (not every
+        # release carries the ready-made programs).
+        asset = next((a for rel in rels for a in rel.get("assets", []) if re.search(pat, a["name"])), None)
         if not asset:
-            raise RuntimeError("couldn't find the prompt helper's engine for this computer (%s)"
-                               % (rel.get("message") or rel.get("tag_name") or "no release"))
+            raise RuntimeError("couldn't find the prompt helper's engine for this computer")
         z = os.path.join(f, asset["name"])
         download(asset["browser_download_url"], z, on_progress, "Prompt helper engine", cancelled)
         dest = os.path.join(f, "llama")
