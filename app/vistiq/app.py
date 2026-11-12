@@ -286,6 +286,18 @@ class Api:
     def studio_run(self, job):
         return self._app.studio.run(job)
 
+    def studio_select(self, path, points, out_w, out_h):
+        try:
+            return {"mask": self._app.studio.select(path, points, out_w, out_h)}
+        except Exception as exc:
+            log.exception("select failed")
+            return {"error": str(exc)}
+
+    def studio_set_tier(self, tier):
+        if tier in ("best", "good"):
+            self._app.settings.set("studio_tier", tier)
+        return self._app.studio.status()
+
     def studio_library(self):
         return self._app.studio.library()
 

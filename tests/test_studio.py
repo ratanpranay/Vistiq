@@ -184,3 +184,52 @@ class Masks(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class Picker(unittest.TestCase):
+    """The click-to-select plumbing, with stand-ins for the two ONNX models."""
+
+    def test_select_makes_a_mask_of_the_canvas_size(self):
+        import numpy as np
+        from vistiq import picker
+
+        class Arg:
+            def __init__(self, name, shape=None, type_="tensor(float)"):
+                self.name, self.shape, self.type = name, shape, type_
+
+        class Enc:
+            def get_inputs(self):
+                return [Arg("image", [1, 3, 1024, 1024])]
+
+            def get_outputs(self):
+                return [Arg("high_res_feats_0"), Arg("high_res_feats_1"), Arg("image_embed")]
+
+            def run(self, _names, feeds):
+                assert feeds["image"].shape == (1, 3, 1024, 1024)
+                return [np.zeros(1), np.zeros(1), np.zeros(1)]
+
+        class Dec:
+            seen = None
+
+            def get_inputs(self):
+                return [Arg(n) for n in ("image_embed", "high_res_feats_0", "high_res_feats_1", "point_coords",
+                                         "point_labels", "mask_input", "has_mask_input")]
+
+            def run(self, _names, feeds):
+                Dec.seen = feeds
+                m = np.full((1, 3, 256, 256), -1, np.float32)
+                m[0, 1, 64:192, 32:128] = 1          # the best-scored mask
+                return [m, np.array([[0.1, 0.9, 0.2]], np.float32)]
+
+        with tempfile.TemporaryDirectory() as tmp:
+            path = os.path.join(tmp, "a.png")
+            Image.new("RGB", (1600, 900), "gray").save(path)
+            s = picker.Selector()
+            s._enc, s._dec = Enc(), Dec()
+            mask = s.select(tmp, path, [(0.25, 0.5, True), (0.75, 0.5, False)], (800, 450))
+        self.assertEqual(mask.size, (800, 450))
+        x0, y0, x1, y1 = mask.getbbox()
+        self.assertTrue(90 <= x0 <= 110 and 390 <= x1 <= 410 and 105 <= y0 <= 120 and 330 <= y1 <= 345)
+        self.assertEqual(Dec.seen["point_coords"].tolist(), [[[256.0, 512.0], [768.0, 512.0]]])
+        self.assertEqual(Dec.seen["point_labels"].tolist(), [[1.0, 0.0]])
+        self.assertTrue(picker.to_png(mask).startswith(b"\x89PNG"))

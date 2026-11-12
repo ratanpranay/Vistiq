@@ -96,12 +96,12 @@ HF = "https://huggingface.co/%s/resolve/main/%s"
 #: download that needs no login (None: take it from a ComfyUI folder, or the
 #: page says how to get it).
 FILES = [
-    {"key": "klein", "part": "create", "folder": "diffusion_models", "label": "Image model",
+    {"key": "klein", "part": "create", "tier": "best", "folder": "diffusion_models", "label": "Image model",
      "names": ["flux-2-klein-9b-fp8mixed.safetensors", "flux-2-klein-9b-fp8.safetensors",
                "flux-2-klein-9b.safetensors"],
      "gb": 9.4, "url": None, "page": "https://huggingface.co/black-forest-labs/FLUX.2-klein-9b-fp8",
      "about": "Makes the images. Its maker asks for a free sign-in to download it."},
-    {"key": "qwen", "part": "create", "folder": "text_encoders", "label": "Prompt reader",
+    {"key": "qwen", "part": "create", "tier": "best", "folder": "text_encoders", "label": "Prompt reader",
      "names": ["qwen_3_8b_fp8mixed.safetensors", "qwen_3_8b.safetensors"], "gb": 8.7,
      "url": HF % ("Comfy-Org/flux2-klein-9B", "split_files/text_encoders/qwen_3_8b_fp8mixed.safetensors"),
      "page": "https://huggingface.co/Comfy-Org/flux2-klein-9B", "about": "Understands what you type."},
@@ -109,9 +109,17 @@ FILES = [
      "names": ["flux2-vae.safetensors"], "gb": 0.34,
      "url": HF % ("Comfy-Org/flux2-dev", "split_files/vae/flux2-vae.safetensors"),
      "page": "https://huggingface.co/Comfy-Org/flux2-dev", "about": "Turns the model's work into a picture."},
-    {"key": "consistency", "part": "create", "folder": "loras", "label": "Design lock",
+    {"key": "consistency", "part": "create", "tier": "best", "folder": "loras", "label": "Design lock",
      "names": ["Klein-consistency.safetensors"], "gb": 0.33, "url": None, "page": "",
      "optional": True, "about": "Holds your design in place (Keep my design)."},
+    {"key": "klein4b", "part": "create", "tier": "good", "folder": "diffusion_models", "label": "Image model",
+     "names": ["flux-2-klein-4b-fp8.safetensors", "flux-2-klein-4b.safetensors"], "gb": 4.0,
+     "url": HF % ("black-forest-labs/FLUX.2-klein-4b-fp8", "flux-2-klein-4b-fp8.safetensors"),
+     "page": "https://huggingface.co/black-forest-labs/FLUX.2-klein-4b-fp8", "about": "Makes the images."},
+    {"key": "qwen4b", "part": "create", "tier": "good", "folder": "text_encoders", "label": "Prompt reader",
+     "names": ["qwen_3_4b.safetensors", "qwen_3_4b_fp8_mixed.safetensors"], "gb": 8.0,
+     "url": HF % ("Comfy-Org/flux2-klein-4B", "split_files/text_encoders/qwen_3_4b.safetensors"),
+     "page": "https://huggingface.co/Comfy-Org/flux2-klein-4B", "about": "Understands what you type."},
     {"key": "flux1", "part": "juice", "folder": "diffusion_models", "label": "Juice model",
      "names": ["flux1-dev-fp8.safetensors", "flux1-dev.safetensors"], "gb": 23.8, "url": None,
      "page": "https://huggingface.co/black-forest-labs/FLUX.1-dev",
@@ -214,19 +222,65 @@ FAMILY_LABEL = {"klein9b": "FLUX.2 Klein 9B", "klein4b": "FLUX.2 Klein 4B", "flu
                 "sdxl": "SDXL", "sd15": "SD 1.5", "unknown": "unknown model"}
 
 
+TIERS = {"best": "Best quality", "good": "Good quality"}
+
+
+def _have(key, settings):
+    return bool(find(key, settings))
+
+
+def tier(settings=None):
+    """Which image model is used: 'best' (Klein 9B, needs a sign-in to get),
+    'good' (Klein 4B, free download), or '' (not chosen yet). A choice whose
+    files aren't all here falls back to the other one when that is."""
+    def ready(t):
+        return all(_have(f["key"], settings) for f in FILES
+                   if f["part"] == "create" and f.get("tier") in (t, None) and not f.get("optional"))
+    chosen = (settings.get("studio_tier") if settings else "") or ""
+    if chosen in TIERS and ready(chosen):
+        return chosen
+    for t in ("best", "good"):
+        if ready(t):
+            return t
+    return chosen if chosen in TIERS else ""
+
+
 def status(settings=None):
+    t = tier(settings)
+    chosen = (settings.get("studio_tier") if settings else "") or ""
     rows = []
     for f in FILES:
         p = find(f["key"], settings)
-        rows.append({"key": f["key"], "part": f["part"], "label": f["label"], "about": f["about"],
-                     "gb": round(os.path.getsize(p) / 1e9, 1) if p else f["gb"],
+        rows.append({"key": f["key"], "part": f["part"], "tier": f.get("tier"), "label": f["label"],
+                     "about": f["about"], "gb": round(os.path.getsize(p) / 1e9, 1) if p else f["gb"],
                      "ready": bool(p), "file": os.path.basename(p) if p else f["names"][0],
                      "can_download": bool(f["url"]), "page": f["page"], "optional": f.get("optional", False)})
-    create_ok = all(r["ready"] for r in rows if r["part"] == "create" and not r["optional"])
+
+    def ready(tt):
+        return bool(tt) and all(r["ready"] for r in rows if r["part"] == "create" and r["tier"] in (tt, None)
+                                and not r["optional"])
     juice_ok = all(r["ready"] for r in rows if r["part"] == "juice")
-    return {"files": rows, "create_ready": create_ok, "juice_ready": juice_ok,
+    return {"files": rows, "create_ready": ready(t), "juice_ready": juice_ok, "tier": t, "chosen": chosen,
+            "tiers": {k: {"label": v, "ready": ready(k)} for k, v in TIERS.items()},
             "engine_installed": engine_installed(), "loras": loras(settings),
+            "select_ready": select_installed(settings),
             "home": home(settings), "comfy_models": guess_comfy_models(settings)}
+
+
+def select_installed(settings=None):
+    from . import picker
+    return picker.installed(models_dir(settings))
+
+
+def install_select(settings, on_progress, cancelled=lambda: False):
+    from . import picker
+    picker.install(models_dir(settings), download, on_progress, cancelled)
+
+
+def needed(settings, t):
+    """The files a tier needs that can be downloaded and aren't here."""
+    return [f for f in FILES if f["part"] == "create" and f.get("tier") in (t, None)
+            and f["url"] and not _have(f["key"], settings)]
 
 
 # -- taking files from an existing ComfyUI ------------------------------------
@@ -606,15 +660,16 @@ REF_PRESETS = {
 
 def _klein_base(settings, keep):
     s = settings
+    best = tier(s) != "good"
     p = {
-        "1": {"class_type": "UNETLoader", "inputs": {"unet_name": os.path.basename(find("klein", s)),
+        "1": {"class_type": "UNETLoader", "inputs": {"unet_name": os.path.basename(find("klein" if best else "klein4b", s)),
                                                        "weight_dtype": "default"}},
-        "2": {"class_type": "CLIPLoader", "inputs": {"clip_name": os.path.basename(find("qwen", s)),
+        "2": {"class_type": "CLIPLoader", "inputs": {"clip_name": os.path.basename(find("qwen" if best else "qwen4b", s)),
                                                        "type": "flux2"}},
         "3": {"class_type": "VAELoader", "inputs": {"vae_name": os.path.basename(find("vae2", s))}},
     }
     model = ["1", 0]
-    lora = find("consistency", s)
+    lora = find("consistency", s) if best else None      # the design lock is made for 9B only
     if lora and keep > 0:
         p["4"] = {"class_type": "LoraLoaderModelOnly",
                   "inputs": {"model": ["1", 0], "lora_name": os.path.basename(lora),

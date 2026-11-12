@@ -45,6 +45,7 @@ DEFAULTS = {
     "studio_home": "",            # the Vistiq Studio folder (Outputs, Models)
     "studio_port": 0,             # where the image engine last listened
     "comfy_models": "",           # a ComfyUI models folder to take files from
+    "studio_tier": "",            # "best" (Klein 9B) or "good" (Klein 4B)
     "keep_design": 0.8,
     "variations": 2,
     "juice": 0.0,

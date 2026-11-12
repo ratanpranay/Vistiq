@@ -160,12 +160,20 @@ class Studio:
                 # 2. The image engine, then what can be downloaded.
                 if not studio.engine_installed():
                     studio.install_engine(self.settings, prog, self._cancel.is_set)
+                t = studio.tier(self.settings) or self.settings.get("studio_tier") or "good"
                 for f in studio.FILES:
                     if f["part"] == "juice" and not juice:
+                        continue
+                    if f["part"] == "create" and f.get("tier") not in (t, None):
                         continue
                     if f["url"] and not studio.find(f["key"], self.settings):
                         dst = os.path.join(studio.models_dir(self.settings), f["folder"], f["names"][0])
                         studio.download(f["url"], dst, prog, f["label"], self._cancel.is_set)
+                if not studio.select_installed(self.settings):
+                    try:
+                        studio.install_select(self.settings, prog, self._cancel.is_set)
+                    except Exception:
+                        log.exception("couldn't get the selection tool; the brush still works")
                 studio.write_model_paths(self.settings)
                 self.emit("studio-setup", {"state": "done", "status": studio.status(self.settings)})
             except Exception as exc:
@@ -299,6 +307,23 @@ class Studio:
                 log.exception("studio job failed")
             self.emit("studio-job", {"id": job_id, "state": "cancelled" if msg == "Cancelled" else "error",
                                      "message": "" if msg == "Cancelled" else msg})
+
+    # -- select object ----------------------------------------------------------
+
+    def select(self, path, points, out_w, out_h):
+        """Outline of the object under the clicked points, as a PNG data URL
+        of out_w x out_h (the painting canvas)."""
+        from . import picker
+        if not studio.select_installed(self.settings):
+            self.emit("studio-select", {"state": "installing"})
+            studio.install_select(self.settings, lambda label, f: self.emit(
+                "studio-select", {"state": "installing", "label": label, "fraction": f}))
+        if not hasattr(self, "_picker"):
+            self._picker = picker.Selector()
+        mask = self._picker.select(studio.models_dir(self.settings), path,
+                                   [(float(u), float(v), bool(pos)) for u, v, pos in points],
+                                   (int(out_w), int(out_h)))
+        return "data:image/png;base64," + base64.b64encode(picker.to_png(mask)).decode("ascii")
 
     # -- the library ----------------------------------------------------------------
 

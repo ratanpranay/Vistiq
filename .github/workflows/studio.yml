@@ -2,9 +2,7 @@ name: Studio
 
 # Vistiq Studio, the test build with image generation, from the studio
 # branch. Every push is tested and built (the exe is kept as a build
-# artifact). It is published as a pre-release "studio-v<STUDIO_VERSION>"
-# only when the commit message starts with "studio-v", so plain Vistiq's
-# releases and updates are never touched.
+# artifact) and never published: test builds go to the tester directly.
 on:
   push:
     branches: [studio]
@@ -62,6 +60,8 @@ jobs:
           --hidden-import launcher
           --collect-all webview
           --collect-submodules websocket
+          --collect-all onnxruntime
+          --hidden-import numpy
           --hidden-import clr
           launcher/studio.py
 
@@ -81,13 +81,3 @@ jobs:
           path: |
             dist/Vistiq Studio.exe
             vistiq-studio-app.zip
-
-      - name: Publish pre-release
-        if: env.PUBLISH == 'yes'
-        env:
-          GH_TOKEN: ${{ github.token }}
-        shell: pwsh
-        run: |
-          gh release create "studio-v${{ env.VERSION }}" "dist/Vistiq Studio.exe" vistiq-studio-app.zip `
-            --target "${{ github.sha }}" --title "Vistiq Studio ${{ env.VERSION }}" `
-            --notes-file STUDIO_NOTES.md --prerelease

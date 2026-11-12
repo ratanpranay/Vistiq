@@ -18,7 +18,8 @@
     settings: '<circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1L7 17M17 7l2.1-2.1"/>',
     brush: '<path d="M4 20c2 0 4-1 4-3s2-3 3-3l7-7-3-3-7 7c0 1-1 3-3 3s-3 2-3 4z"/>',
     erase: '<path d="M7 20h10M5 15l9-9 5 5-9 9H6z"/>',
-    undo: '<path d="M9 14L4 9l5-5"/><path d="M4 9h11a5 5 0 010 10h-3"/>'
+    undo: '<path d="M9 14L4 9l5-5"/><path d="M4 9h11a5 5 0 010 10h-3"/>',
+    select: '<path d="M4 4l6 16 2.5-6.5L19 11z"/>'
   };
   function svg(name) { return '<svg viewBox="0 0 24 24" aria-hidden="true">' + ICON[name] + "</svg>"; }
 
@@ -44,7 +45,7 @@
     setup: { run: null, error: "", done: "" },
     lib: { items: [], filter: "all", loading: false },
     create: page({ area: "whole", preset: load("c.preset", "sketch"), text: "", keep: load("c.keep", 0.8), vars: load("c.vars", 2),
-                   blend: load("c.blend", 0.35), lora: load("c.lora", ""), juice: load("c.juice", 0), juiceLora: load("c.juiceLora", "") }),
+                   blend: load("c.blend2", 0.15), lora: load("c.lora", ""), juice: load("c.juice", 0), juiceLora: load("c.juiceLora", "") }),
     ref: page({ refimg: null, preset: load("r.preset", "camera"), text: "", keep: load("r.keep", 0.8), vars: load("r.vars", 1) }),
     dropSlot: ""
   };
@@ -246,7 +247,7 @@
       var v = b.getAttribute("data-v"); S.create.preset = S.create.preset === v ? "" : v; keep("c.preset", S.create.preset); render();
     });
     $("c-text").addEventListener("input", function () { S.create.text = this.value; });
-    $("c-blend").addEventListener("input", function () { S.create.blend = +this.value; keep("c.blend", S.create.blend); renderValues(); });
+    $("c-blend").addEventListener("input", function () { S.create.blend = +this.value; keep("c.blend2", S.create.blend); renderValues(); });
     $("c-lora").addEventListener("change", function () { S.create.lora = this.value; keep("c.lora", this.value); });
     $("c-juice").addEventListener("input", function () { S.create.juice = +this.value; keep("c.juice", S.create.juice); renderValues(); });
     $("c-juice-lora").addEventListener("change", function () { S.create.juiceLora = this.value; keep("c.juiceLora", this.value); });
@@ -302,7 +303,15 @@
       var a = b.getAttribute("data-su");
       if (a === "take") api().studio_take_from(b.getAttribute("data-path") || "");
       else if (a === "take-other") api().studio_take_from("");
-      else if (a === "download") { S.setup.error = ""; api().studio_setup(false); S.setup.run = { label: "Starting", fraction: null }; render(); }
+      else if (a === "download") {
+        var go = function () { S.setup.error = ""; api().studio_setup(false); S.setup.run = { label: "Starting", fraction: null }; render(); };
+        if (S.pickTier) api().studio_set_tier(S.pickTier).then(function (st) { if (st) S.status = st; go(); }); else go();
+      }
+      else if (a === "tier") {
+        S.pickTier = b.getAttribute("data-t"); S.setup.done = "";
+        api().studio_set_tier(S.pickTier).then(function (st) { if (st) S.status = st; render(); });
+        render();
+      }
       else if (a === "download-juice") { S.setup.error = ""; api().studio_setup(true); S.setup.run = { label: "Starting", fraction: null }; render(); }
       else if (a === "cancel") api().studio_cancel();
       else if (a === "page") api().open_url(b.getAttribute("data-url"));
@@ -341,18 +350,22 @@
   // ------------------------------------------------------------------ the brush
 
   var painter = {
-    w: 0, h: 0, size: load("brush", 60), erase: false, undo: [], canvas: null, ctx: null, ring: null, drawing: false, last: null, any: false,
+    w: 0, h: 0, size: load("brush", 60), erase: false, selecting: false, busy: false, undo: [], canvas: null, ctx: null, ring: null, drawing: false, last: null, any: false,
     init: function () {
       this.canvas = document.createElement("canvas");
       this.ctx = this.canvas.getContext("2d");
       this.ring = document.createElement("div"); this.ring.className = "s-ring"; this.ring.hidden = true;
       var self = this, c = this.canvas;
       c.style.opacity = ".5";
-      c.addEventListener("pointerdown", function (e) { c.setPointerCapture(e.pointerId); self.push(); self.drawing = true; self.last = null; self.stroke(e); });
+      c.addEventListener("pointerdown", function (e) {
+        if (self.selecting) { e.preventDefault(); self.pick(e); return; }
+        c.setPointerCapture(e.pointerId); self.push(); self.drawing = true; self.last = null; self.stroke(e);
+      });
+      c.addEventListener("contextmenu", function (e) { if (self.selecting) e.preventDefault(); });
       c.addEventListener("pointermove", function (e) { self.moveRing(e); if (self.drawing) self.stroke(e); });
       c.addEventListener("pointerup", function () { self.drawing = false; render(); });
       c.addEventListener("pointerleave", function () { self.ring.hidden = true; });
-      c.addEventListener("pointerenter", function (e) { self.ring.hidden = false; self.moveRing(e); });
+      c.addEventListener("pointerenter", function (e) { self.ring.hidden = self.selecting; self.moveRing(e); });
       c.addEventListener("wheel", function (e) { e.preventDefault(); self.resize(e.deltaY < 0 ? 1.15 : 1 / 1.15); self.moveRing(e); }, { passive: false });
     },
     reset: function (info) {
@@ -371,6 +384,37 @@
       if (this.last) { ctx.moveTo(this.last[0], this.last[1]); ctx.lineTo(pt[0], pt[1]); ctx.stroke(); }
       else { ctx.arc(pt[0], pt[1], rad, 0, Math.PI * 2); ctx.fill(); }
       this.last = pt; if (!this.erase) this.any = true;
+    },
+    // Select object: a click adds the object under it, Alt+click or a
+    // right click takes it away. The outline comes from the selection model.
+    pick: function (e) {
+      if (this.busy || !S.create.src) return;
+      var r = this.canvas.getBoundingClientRect(), self = this;
+      var u = (e.clientX - r.left) / r.width, v = (e.clientY - r.top) / r.height;
+      var add = !(e.altKey || e.button === 2);
+      this.busy = true; this.hint("Selecting…"); this.canvas.style.cursor = "progress";
+      api().studio_select(S.create.src.path, [[u, v, true]], this.w, this.h).then(function (res) {
+        self.busy = false; self.canvas.style.cursor = "";
+        if (!res || res.error) { self.hint(res && res.error ? res.error : "Couldn't select that."); return; }
+        var img = new Image();
+        img.onload = function () {
+          self.push();
+          var ctx = self.ctx;
+          ctx.globalCompositeOperation = add ? "source-over" : "destination-out";
+          ctx.drawImage(img, 0, 0, self.w, self.h);
+          ctx.globalCompositeOperation = "source-over";
+          self.check(); self.hint(); render();
+        };
+        img.src = res.mask;
+      });
+    },
+    hint: function (text) {
+      var el = document.querySelector("#c-view .s-maskhint");
+      if (el) el.textContent = text || this.hintText();
+    },
+    hintText: function () {
+      return this.selecting ? "Click a part to select it · Alt+click or right click removes · fix edges with the brush"
+        : "Paint what should change · [ ] or mouse wheel: brush size";
     },
     moveRing: function (e) {
       // The ring lives in the view, not in the picture's box: measure from there.
@@ -401,17 +445,19 @@
       if (e.key === "[") this.resize(1 / 1.2);
       else if (e.key === "]") this.resize(1.2);
       else if (e.ctrlKey && e.key.toLowerCase() === "z") { e.preventDefault(); this.back(); }
-      else if (e.key.toLowerCase() === "b") { this.erase = false; render(); }
-      else if (e.key.toLowerCase() === "e") { this.erase = true; render(); }
+      else if (e.key.toLowerCase() === "b") { this.erase = false; this.selecting = false; render(); }
+      else if (e.key.toLowerCase() === "e") { this.erase = true; this.selecting = false; render(); }
+      else if (e.key.toLowerCase() === "s") { this.selecting = true; render(); }
     },
     tools: function () {
       return '<div class="s-tools" id="c-tools">' +
-        '<button type="button" data-t="brush" class="' + (this.erase ? "" : "on") + '">' + svg("brush") + "Brush</button>" +
-        '<button type="button" data-t="erase" class="' + (this.erase ? "on" : "") + '">' + svg("erase") + "Erase</button>" +
+        '<button type="button" data-t="select" class="' + (this.selecting ? "on" : "") + '">' + svg("select") + "Select</button>" +
+        '<button type="button" data-t="brush" class="' + (!this.selecting && !this.erase ? "on" : "") + '">' + svg("brush") + "Brush</button>" +
+        '<button type="button" data-t="erase" class="' + (!this.selecting && this.erase ? "on" : "") + '">' + svg("erase") + "Erase</button>" +
         '<span class="sep"></span><label>Size <input type="range" id="c-size" min="6" max="400" value="' + this.size + '"></label><span class="sep"></span>' +
         '<button type="button" data-t="undo">' + svg("undo") + "Undo</button>" +
         '<button type="button" data-t="clear">Clear</button><button type="button" data-t="invert">Invert</button></div>' +
-        '<div class="s-maskhint">Paint what should change · [ ] or mouse wheel: brush size</div>';
+        '<div class="s-maskhint">' + this.hintText() + "</div>";
     }
   };
 
@@ -535,7 +581,7 @@
     else if (id === "c" && p.src && p.area === "paint") { mode = "paint"; key = p.src.path; }
     else if (p.src && id === "c") { mode = "src"; key = p.src.path; }
     else { mode = "empty"; key = id + (p.src ? "1" : "0"); }
-    key = mode + ":" + key + (mode === "paint" ? ":" + painter.erase : "");
+    key = mode + ":" + key + (mode === "paint" ? ":" + painter.erase + ":" + painter.selecting : "");
     if (view.getAttribute("data-k") !== key) {
       view.setAttribute("data-k", key);
       if (mode === "empty") {
@@ -548,11 +594,13 @@
         fit.appendChild(painter.canvas);
         view.appendChild(painter.ring);
         // The ring only shows over the picture, never over the tools.
-        view.addEventListener("pointermove", function (e) { painter.ring.hidden = e.target !== painter.canvas; });
+        view.addEventListener("pointermove", function (e) { painter.ring.hidden = painter.selecting || e.target !== painter.canvas; });
+        painter.canvas.classList.toggle("sel", painter.selecting);
         view.querySelector("#c-tools").addEventListener("click", function (e) {
           var b = e.target.closest("button[data-t]"); if (!b) return;
           var t = b.getAttribute("data-t");
-          if (t === "brush" || t === "erase") { painter.erase = t === "erase"; render(); }
+          if (t === "brush" || t === "erase") { painter.erase = t === "erase"; painter.selecting = false; render(); }
+          else if (t === "select") { painter.selecting = true; render(); }
           else if (t === "undo") painter.back(); else if (t === "clear") painter.clear(); else if (t === "invert") painter.invert();
         });
         $("c-size").addEventListener("input", function () { painter.size = +this.value; keep("brush", painter.size); });
@@ -619,29 +667,50 @@
   // First run: one button. It takes what is already on this PC (a ComfyUI,
   // the Downloads folder), sets up the image engine and downloads the rest.
   // The only thing left by hand is the one file whose maker wants a sign-in.
+  var TIER_TEXT = {
+    best: ["Best quality", "Needs a free sign-up with the model's maker (about 2 minutes)."],
+    good: ["Good quality", "Free, no sign-up. Downloads by itself."]
+  };
+
+  function tierFiles(st, t) {
+    return st.files.filter(function (f) { return f.part === "create" && !f.optional && (f.tier === t || !f.tier); });
+  }
+
+  function setupGB(st, t) {
+    return tierFiles(st, t).filter(function (f) { return !f.ready && f.can_download; })
+      .reduce(function (a, f) { return a + f.gb; }, 0) + (st.engine_installed ? 0 : 2.1) + (st.select_ready ? 0 : 0.1);
+  }
+
+  // First run: pick the quality, then one button. It takes what is already on
+  // this PC (a ComfyUI, the Downloads folder), sets up the engine and downloads
+  // the rest. Only "Best quality" leaves one file to fetch by hand.
   function setupCard() {
-    var st = S.status, files = st.files.filter(function (f) { return f.part === "create" && !f.optional; });
-    var running = !!S.setup.run;
-    var dl = files.filter(function (f) { return !f.ready && f.can_download; }).reduce(function (a, f) { return a + f.gb; }, 0) + (st.engine_installed ? 0 : 2.1);
-    var byHand = files.filter(function (f) { return !f.ready && !f.can_download; });
-    var tried = !!S.setup.done;
+    var st = S.status, running = !!S.setup.run;
+    var t = S.pickTier || st.chosen || st.tier || "";
+    var err = S.setup.error ? '<div class="s-err">' + esc(S.setup.error) + "</div>" : "";
     var h = '<div class="s-su"><h1>Set up Vistiq Studio</h1>';
     if (running) {
-      h += "<p>Setting up. You can leave this open and come back; it carries on by itself.</p>" + progressHTML();
-    } else if (tried && byHand.length && dl <= 0) {
-      var f = byHand[0];
-      h += "<p>Almost done. One file needs you, because its maker asks everyone to accept their licence first (free):</p>" +
-        '<ol class="s-steps"><li><button type="button" class="s-btn p" data-su="page" data-url="' + esc(f.page) + '">Open the ' + esc(f.label) + " page</button></li>" +
-        "<li>Sign in, accept, and download <b>" + esc(f.file) + "</b> (" + gb(f.gb) + ").</li>" +
-        '<li>When it is in your Downloads folder: <button type="button" class="s-btn p" data-su="download">Finish setup</button></li></ol>' +
-        (S.setup.error ? '<div class="s-err">' + esc(S.setup.error) + "</div>" : "");
+      h += "<p>Setting up. You can leave this open; it carries on by itself.</p>" + progressHTML();
     } else {
-      h += "<p>A one-time setup" + (dl > 0 ? ", about " + gb(dl) + " to download" : "") + ". After that everything runs on this PC, also without internet.</p>" +
-        (st.comfy_models ? "<p>Your ComfyUI was found: files it already has are used from there, without copying.</p>" : "") +
-        '<button type="button" class="s-go" style="height:50px" data-su="download"><span>Set up</span></button>' +
-        (S.setup.error ? '<div class="s-err">' + esc(S.setup.error) + "</div>" : "");
+      var byHand = t ? tierFiles(st, t).filter(function (f) { return !f.ready && !f.can_download; }) : [];
+      var dl = t ? setupGB(st, t) : 0;
+      if (t && S.setup.done && byHand.length && dl <= 0.2) {
+        var f = byHand[0];
+        h += "<p>Almost done. The model's maker asks everyone to accept their free licence first:</p>" +
+          '<ol class="s-steps"><li><button type="button" class="s-btn p" data-su="page" data-url="' + esc(f.page) + '">Open the sign-up page</button></li>' +
+          "<li>Sign in, accept, and download the file (" + gb(f.gb) + ").</li>" +
+          '<li>When it is in your Downloads folder: <button type="button" class="s-btn p" data-su="download">Finish setup</button></li></ol>' +
+          '<p style="font-size:12px">Rather not sign up? <button type="button" class="s-link" data-su="tier" data-t="good">Use Good quality instead</button></p>' + err;
+      } else {
+        h += "<p>A one-time setup. After that everything runs on this PC, also without internet. Pick one; you can switch later in Settings.</p>" +
+          '<div class="s-tiers">' + ["best", "good"].map(function (k) {
+            return '<button type="button" class="s-tier' + (t === k ? " on" : "") + '" data-su="tier" data-t="' + k + '"><b>' + TIER_TEXT[k][0] +
+              (st.tiers[k].ready ? ' <span class="s-ok">Ready</span>' : "") + "</b><small>" + TIER_TEXT[k][1] + "</small><em>about " + gb(setupGB(st, k)) + "</em></button>";
+          }).join("") + "</div>" +
+          '<button type="button" class="s-go" style="height:50px" data-su="download"' + (t ? "" : " disabled") + "><span>Set up</span></button>" + err;
+      }
     }
-    h += '<p style="font-size:12px">Files somewhere else? <button type="button" class="s-link" data-su="take-other">Choose a folder</button></p></div>';
+    h += '<p style="font-size:12px">Already have the files somewhere? <button type="button" class="s-link" data-su="take-other">Choose a folder</button></p></div>';
     return h;
   }
 
@@ -663,7 +732,12 @@
       '<button type="button" class="s-btn" data-su="take-other"' + (running ? " disabled" : "") + ">Take files from a folder…</button>" +
       (st.comfy_models ? '<button type="button" class="s-btn" data-su="take" data-path="' + esc(st.comfy_models) + '"' + (running ? " disabled" : "") + ">Take from my ComfyUI</button>" : "") + "</div>" +
       progressHTML() +
-      '<div class="s-sec">Image generation</div><div class="s-list">' + fileRows(st.files.filter(function (f) { return f.part === "create"; })) + "</div>" +
+      '<div class="s-sec">Quality</div><div class="s-tiers">' + ["best", "good"].map(function (k) {
+        var tt = st.tier || st.chosen;
+        return '<button type="button" class="s-tier' + (tt === k ? " on" : "") + '" data-su="tier" data-t="' + k + '"' + (running ? " disabled" : "") + "><b>" + TIER_TEXT[k][0] +
+          (st.tiers[k].ready ? ' <span class="s-ok">Ready</span>' : "") + "</b><small>" + TIER_TEXT[k][1] + "</small></button>";
+      }).join("") + "</div>" +
+      '<div class="s-list">' + fileRows(tierFiles(st, st.tier || st.chosen || "best").concat(st.files.filter(function (f) { return f.key === "consistency" && (st.tier || "best") === "best"; }))) + "</div>" +
       '<details class="s-adv"' + (S.advOpen ? " open" : "") + '><summary>Advanced: Juice (optional, about 29 GB)</summary>' +
       '<p class="s-hint">A second, light pass with a style, for richer light and materials. Not needed for anything else.</p>' +
       '<div class="s-list">' + fileRows(juice) + "</div>" +
