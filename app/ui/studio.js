@@ -373,7 +373,8 @@
       this.last = pt; if (!this.erase) this.any = true;
     },
     moveRing: function (e) {
-      var r = this.canvas.parentNode.getBoundingClientRect();
+      // The ring lives in the view, not in the picture's box: measure from there.
+      var r = (this.ring.parentNode || this.canvas).getBoundingClientRect();
       this.ring.style.left = (e.clientX - r.left) + "px"; this.ring.style.top = (e.clientY - r.top) + "px";
       this.ring.style.width = this.ring.style.height = this.size + "px";
     },
