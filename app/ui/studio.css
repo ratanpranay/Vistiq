@@ -260,3 +260,5 @@ body.studio .s-page.on{display:flex;flex:1;min-width:0;height:100%}
 .s-acts2{display:flex;gap:8px;flex-shrink:0}
 .s-acts2 .s-btn:disabled{opacity:.4}
 .s-stage .s-ttl{padding-right:0}
+/* nothing in the panel gets squeezed; the panel scrolls instead */
+.s-rail-body>*{flex-shrink:0}
