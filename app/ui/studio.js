@@ -337,6 +337,7 @@
       else if (a === "models") api().studio_open_models();
       else if (a === "outputs") api().studio_open_outputs();
       else if (a === "refresh") refresh();
+      else if (a === "get-select") { S.setup.error = ""; api().studio_get_select(); S.setup.run = { label: "Selection tool", fraction: null }; render(); }
       else if (a === "check") { api().check_updates(); S.update = Object.assign({}, S.update, { state: "checking" }); render(); }
       else if (a === "restart") api().restart().then(function (r) {
         S.restartMsg = r === "ok" ? "" : r === "busy" ? "Wait for the current job to finish, then restart." : r; render();
@@ -757,10 +758,18 @@
     var juice = st.files.filter(function (f) { return f.part === "juice"; });
     var jdl = juice.filter(function (f) { return !f.ready && f.can_download; }).length;
     var running = !!S.setup.run;
-    var loras = st.loras.length ? st.loras.map(function (l) {
-      var use = l.family === "klein9b" ? (/klein-consistency/i.test(l.name) ? "Used by Keep my design" : "A Look in Create") : l.family === "flux1" ? "A style for Juice" : "Can't be used in Vistiq Studio";
-      return '<div class="s-row" title="' + esc(l.name) + '"><div class="n"><b>' + esc(l.label || l.name) + "</b><small>" + use + '</small></div><span class="s-pill">' + gb(l.gb) + "</span></div>";
-    }).join("") : '<div class="s-row"><div class="n"><small>No styles yet. Put style files (.safetensors) in the loras folder, or take them from your ComfyUI.</small></div></div>';
+    // Styles people can use: Looks for Create (made for the image model) and,
+    // under Juice, styles for the Juice pass. Files that work with neither
+    // aren't listed; the design lock is listed with the model files.
+    var looks = st.loras.filter(function (l) { return l.family === "klein9b" && !/klein-consistency/i.test(l.name); });
+    var juiceStyles = st.loras.filter(function (l) { return l.family === "flux1"; });
+    var styleRows = function (list, empty) {
+      return list.length ? list.map(function (l) {
+        return '<div class="s-row" title="' + esc(l.name) + '"><div class="n"><b>' + esc(l.label || l.name) + '</b></div><span class="s-pill">' + gb(l.gb) + "</span></div>";
+      }).join("") : '<div class="s-row"><div class="n"><small>' + empty + "</small></div></div>";
+    };
+    var selectRow = '<div class="s-row"><div class="n"><b>Object selection</b><small>The Select tool: click a part to select it along its edges.</small></div><span class="s-pill">0.1 GB</span>' +
+      (st.select_ready ? '<span class="s-ok">Ready</span>' : '<button type="button" class="s-btn p" data-su="get-select"' + (running ? " disabled" : "") + ">Download</button>") + "</div>";
     var u = S.update || {}, us = u.state;
     var upd = '<div class="s-upd"><div class="n"><b>Vistiq Studio ' + esc(S.version) + "</b><small>" +
       (us === "ready" ? "Version " + esc(u.latest) + " is ready." :
@@ -784,12 +793,16 @@
         return '<button type="button" class="s-tier' + (tt === k ? " on" : "") + '" data-su="tier" data-t="' + k + '"' + (running ? " disabled" : "") + "><b>" + TIER_TEXT[k][0] +
           (st.tiers[k].ready ? ' <span class="s-ok">Ready</span>' : "") + "</b><small>" + TIER_TEXT[k][1] + "</small></button>";
       }).join("") + "</div>" +
-      '<div class="s-list">' + fileRows(tierFiles(st, st.tier || st.chosen || "best").concat(st.files.filter(function (f) { return f.key === "consistency" && (st.tier || "best") === "best"; }))) + "</div>" +
+      '<div class="s-list">' + fileRows(tierFiles(st, st.tier || st.chosen || "best").concat(st.files.filter(function (f) { return f.key === "consistency" && (st.tier || "best") === "best"; }))) + selectRow + "</div>" +
+      '<div class="s-sec">Looks</div><p class="s-hint">Extra styles for Create, shown under Look. Add one by putting its file in the loras folder.</p>' +
+      '<div class="s-list">' + styleRows(looks, "None yet.") + "</div>" +
+      '<div class="s-btns"><button type="button" class="s-btn" data-su="models">Open the loras folder</button></div>' +
       '<details class="s-adv"' + (S.advOpen ? " open" : "") + '><summary>Advanced: Juice (optional, about 29 GB)</summary>' +
       '<p class="s-hint">A second, light pass with a style, for richer light and materials. Not needed for anything else.</p>' +
       '<div class="s-list">' + fileRows(juice) + "</div>" +
+      '<p class="s-hint">Styles for Juice:</p><div class="s-list">' + styleRows(juiceStyles, "None yet.") + "</div>" +
       (jdl ? '<div class="s-btns"><button type="button" class="s-btn p" data-su="download-juice"' + (running ? " disabled" : "") + ">Download the Juice files</button></div>" : "") + "</details>" +
-      '<div class="s-sec">Styles</div><div class="s-list">' + loras + "</div>" +
+
       '<div class="s-sec">Image engine</div><p class="s-hint">' + (st.engine_installed ? "Installed. " : "Not set up yet. ") + esc(S.engine.message || "") +
       " The upscaler keeps its own engine; they take turns on the graphics card.</p>" +
       '<div class="s-btns"><button type="button" class="s-btn" data-su="refresh">Check again</button></div>';

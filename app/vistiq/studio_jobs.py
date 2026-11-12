@@ -195,6 +195,25 @@ class Studio:
         self._setup.start()
         return True
 
+    def get_select(self):
+        """Download the Select tool now (otherwise its first click does)."""
+        if self._setup and self._setup.is_alive():
+            return False
+        self._cancel.clear()
+
+        def run():
+            try:
+                studio.install_select(self.settings, lambda label, f: self.emit(
+                    "studio-setup", {"state": "running", "label": label, "fraction": f}), self._cancel.is_set)
+                self.emit("studio-setup", {"state": "done", "status": studio.status(self.settings)})
+            except Exception as exc:
+                log.exception("select download failed")
+                self.emit("studio-setup", {"state": "cancelled" if str(exc).lower() == "cancelled" else "error",
+                                           "message": str(exc)})
+        self._setup = threading.Thread(target=run, daemon=True)
+        self._setup.start()
+        return True
+
     def cancel(self):
         self._cancel.set()
         self.engine.interrupt()

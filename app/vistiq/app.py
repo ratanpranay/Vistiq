@@ -314,6 +314,9 @@ class Api:
         ok, msg = bridge.install_panel(self._app.app_dir, os.path.join(data_dir(), "photoshop"))
         return {"ok": ok, "message": msg}
 
+    def studio_get_select(self):
+        return self._app.studio.get_select()
+
     def studio_set_tier(self, tier):
         if tier in ("best", "good"):
             self._app.settings.set("studio_tier", tier)
