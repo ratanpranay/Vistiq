@@ -289,9 +289,25 @@ class Api:
     def studio_select(self, path, points, out_w, out_h):
         try:
             return {"mask": self._app.studio.select(path, points, out_w, out_h)}
+        except ImportError:
+            return {"error": "Select needs the newest Vistiq Studio.exe. Download it once from the "
+                             "latest Studio release; after that it updates by itself."}
         except Exception as exc:
             log.exception("select failed")
             return {"error": str(exc)}
+
+    def studio_live(self, on):
+        b = self._app.studio.bridge
+        if on:
+            ok = b.start()
+            return {"on": ok, "error": "" if ok else "Something else is using the Photoshop link's port (8393)."}
+        b.stop()
+        return {"on": False}
+
+    def studio_install_panel(self):
+        from . import bridge
+        ok, msg = bridge.install_panel(self._app.app_dir, os.path.join(data_dir(), "photoshop"))
+        return {"ok": ok, "message": msg}
 
     def studio_set_tier(self, tier):
         if tier in ("best", "good"):

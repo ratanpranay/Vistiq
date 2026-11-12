@@ -151,3 +151,13 @@ body.studio .s-page.on{display:flex;flex:1;min-width:0;height:100%}
 .s-tier small{font-size:12.5px;line-height:17px;color:var(--dim)}
 .s-tier em{font-style:normal;font-size:12px;font-weight:700;color:var(--ink-2);margin-top:4px}
 .s-fit canvas.sel{cursor:crosshair}
+.s-ps{margin-top:-6px}
+.s-ps-on{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:12px;background:var(--field);border:1px solid var(--line)}
+.s-ps-on span:nth-child(2){flex:1;display:flex;flex-direction:column;font-size:13px;min-width:0}
+.s-ps-on small{font-size:11.5px;color:var(--dim);line-height:15px}
+.s-live-dot{width:9px;height:9px;border-radius:50%;background:#E5484D;box-shadow:0 0 0 0 rgba(229,72,77,.5);animation:s-pulse 1.6s infinite;flex-shrink:0}
+@keyframes s-pulse{70%{box-shadow:0 0 0 8px rgba(229,72,77,0)}100%{box-shadow:0 0 0 0 rgba(229,72,77,0)}}
+.s-upd{display:flex;align-items:center;gap:12px;padding:14px 16px;border-radius:16px;background:#fff;box-shadow:0 2px 8px rgba(15,18,32,.06);flex-wrap:wrap}
+.s-upd .n{flex:1;display:flex;flex-direction:column}
+.s-upd b{font-size:14px}
+.s-upd small{font-size:12px;color:var(--dim)}

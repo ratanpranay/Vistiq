@@ -47,7 +47,9 @@
     create: page({ area: "whole", preset: load("c.preset", "sketch"), text: "", keep: load("c.keep", 0.8), vars: load("c.vars", 2),
                    blend: load("c.blend2", 0.15), lora: load("c.lora", ""), juice: load("c.juice", 0), juiceLora: load("c.juiceLora", "") }),
     ref: page({ refimg: null, preset: load("r.preset", "camera"), text: "", keep: load("r.keep", 0.8), vars: load("r.vars", 1) }),
-    dropSlot: ""
+    dropSlot: "",
+    live: { on: false, doc: "", frames: 0, msg: "" },
+    update: { state: "idle" }, version: ""
   };
 
   // ------------------------------------------------------------------ build
@@ -98,6 +100,7 @@
     create.className = "s-page"; create.id = "p-create";
     create.innerHTML = rail("c", "Create",
       '<div class="s-label">Start from</div><button type="button" class="s-slot empty" id="c-slot" data-slot="src"></button>' +
+      '<div class="s-ps" id="c-ps"></div>' +
       '<div class="s-label">Where to change</div><div class="s-seg" id="c-area"><button type="button" data-v="whole">Whole image</button><button type="button" data-v="paint">Painted area only</button></div>' +
       '<p class="s-hint" id="c-area-hint" hidden>Paint over what should change. Everything outside the paint stays exactly the same, pixel for pixel.</p>' +
       '<div class="s-label">What to change</div><div class="s-presets" id="c-presets">' +
@@ -178,7 +181,12 @@
   function setImage(p, slot, info) {
     if (!info) return;
     p[slot] = info;
-    if (p === S.create && slot === "src") { p.results = []; p.sel = -1; painter.reset(info); }
+    if (p === S.create && slot === "src") {
+      var same = info.live && p.liveSize === info.w + "x" + info.h;
+      if (!info.live) { p.results = []; p.sel = -1; }
+      if (!same) painter.reset(info);
+      p.liveSize = info.live ? info.w + "x" + info.h : "";
+    }
     render();
   }
 
@@ -297,6 +305,16 @@
       else if (act === "edit") api().studio_image(path).then(function (info) { setImage(S.create, "src", info); go("create"); });
       else if (act === "ref") api().studio_image(path).then(function (info) { setImage(S.ref, "src", info); go("reference"); });
     });
+    $("c-ps").addEventListener("click", function (e) {
+      var b = e.target.closest("[data-ps]"); if (!b) return;
+      var a = b.getAttribute("data-ps");
+      if (a === "on") api().studio_live(true).then(function (r) { S.live.on = !!(r && r.on); S.live.frames = 0; S.live.msg = r && r.error || ""; render(); });
+      else if (a === "off") api().studio_live(false).then(function () { S.live.on = false; S.live.msg = ""; render(); });
+      else if (a === "install") {
+        S.live.msg = "Installing the panel…"; render();
+        api().studio_install_panel().then(function (r) { S.live.msg = r ? r.message : ""; render(); });
+      }
+    });
     // Settings and setup (the same buttons appear in both)
     document.body.addEventListener("click", function (e) {
       var b = e.target.closest("[data-su]"); if (!b) return;
@@ -319,6 +337,10 @@
       else if (a === "models") api().studio_open_models();
       else if (a === "outputs") api().studio_open_outputs();
       else if (a === "refresh") refresh();
+      else if (a === "check") { api().check_updates(); S.update = Object.assign({}, S.update, { state: "checking" }); render(); }
+      else if (a === "restart") api().restart().then(function (r) {
+        S.restartMsg = r === "ok" ? "" : r === "busy" ? "Wait for the current job to finish, then restart." : r; render();
+      });
     });
     // Which slot a drop lands in.
     window.addEventListener("dragover", function (e) {
@@ -517,8 +539,23 @@
     $(id + "-keep-none").hidden = cons || !st;
   }
 
+  function renderPS() {
+    var L = S.live, h;
+    if (L.on) {
+      h = '<div class="s-ps-on"><span class="s-live-dot"></span><span><b>Live from Photoshop</b><small>' +
+        (L.frames ? esc(L.doc) + " · updates after every stroke" : "Waiting for Photoshop… open the Vistiq Studio panel there (Window → Plugins).") +
+        '</small></span><button type="button" class="s-link" data-ps="off">Stop</button></div>';
+    } else {
+      h = '<button type="button" class="s-btn" data-ps="on" style="width:100%">Connect with Photoshop</button>';
+    }
+    h += '<p class="s-hint" style="margin-top:6px">' + (L.msg ? esc(L.msg) : 'First time? <button type="button" class="s-link" data-ps="install">Install the Photoshop panel</button>') + "</p>";
+    var el = $("c-ps");
+    if (el.getAttribute("data-h") !== h) { el.innerHTML = h; el.setAttribute("data-h", h); }
+  }
+
   function renderCreate() {
     var p = S.create, st = S.status;
+    renderPS();
     setSlot($("c-slot"), p.src, "click to change", "Drop a sketch or render here, or click");
     on($("c-area"), "data-v", p.area);
     $("c-area-hint").hidden = p.area !== "paint";
@@ -607,7 +644,7 @@
       } else {
         var info = mode === "result" ? c : p.src;
         view.innerHTML = '<div class="s-fit" data-w="' + info.w + '" data-h="' + info.h + '"><img class="' + (mode === "result" ? "s-res" : "") + '" src="' + info.preview + '" alt=""></div>' +
-          (mode === "result" ? '<span class="s-tag">Result · hold to see the original</span>' : '<span class="s-tag">Original</span>');
+          (mode === "result" ? '<span class="s-tag">Result · hold to see the original</span>' : '<span class="s-tag">' + (info.live ? "Live from Photoshop" : "Original") + "</span>");
       }
     }
     var busy = view.querySelector(".s-busy");
@@ -724,7 +761,17 @@
       var use = l.family === "klein9b" ? (/klein-consistency/i.test(l.name) ? "Used by Keep my design" : "A Look in Create") : l.family === "flux1" ? "A style for Juice" : "Can't be used in Vistiq Studio";
       return '<div class="s-row" title="' + esc(l.name) + '"><div class="n"><b>' + esc(l.label || l.name) + "</b><small>" + use + '</small></div><span class="s-pill">' + gb(l.gb) + "</span></div>";
     }).join("") : '<div class="s-row"><div class="n"><small>No styles yet. Put style files (.safetensors) in the loras folder, or take them from your ComfyUI.</small></div></div>';
-    var h = '<div class="s-ttl">Settings</div>' +
+    var u = S.update || {}, us = u.state;
+    var upd = '<div class="s-upd"><div class="n"><b>Vistiq Studio ' + esc(S.version) + "</b><small>" +
+      (us === "ready" ? "Version " + esc(u.latest) + " is ready." :
+       us === "downloading" ? "Downloading version " + esc(u.latest) + "…" :
+       us === "checking" ? "Checking for updates…" :
+       us === "current" ? "Up to date." :
+       us === "error" ? esc(u.message || "Couldn't check for updates.") : "Checks for updates by itself.") + "</small></div>" +
+      (us === "ready" ? '<button type="button" class="s-btn p" data-su="restart">Restart to update</button>'
+                      : '<button type="button" class="s-btn" data-su="check"' + (us === "checking" || us === "downloading" ? " disabled" : "") + ">Check for updates</button>") +
+      (S.restartMsg ? '<small class="s-miss">' + esc(S.restartMsg) + "</small>" : "") + "</div>";
+    var h = '<div class="s-ttl">Settings</div>' + upd +
       '<div class="s-sec">Vistiq Studio folder</div>' +
       '<button type="button" class="s-folder" data-su="home"><code>' + esc(st.home) + "</code><em>Change</em></button>" +
       '<div class="s-tree">' + esc(st.home.split(/[\\/]/).pop()) + "<br>├─ <b>Outputs</b> — every result, by date<br>└─ <b>Models</b> — the model files<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;└─ <b>loras</b> — drop your own styles here</div>" +
@@ -792,7 +839,18 @@
   function hook() {
     var base = window.vistiq.event;
     window.vistiq.event = function (kind, data) {
-      if (kind.indexOf("studio-") !== 0) return base(kind, data);
+      if (kind === "update") S.update = data;
+      if (kind.indexOf("studio-") !== 0) { var r = base(kind, data); if (kind === "update") render(); return r; }
+      if (kind === "studio-live") {
+        if (!S.live.on) return;
+        S.live.doc = data.name; S.live.frames++;
+        data.live = true;
+        var keepSel = S.create.sel;
+        setImage(S.create, "src", data);
+        if (S.page === "create" && S.create.results.length && keepSel >= 0) S.create.sel = -1;   // show the live canvas
+        render();
+        return;
+      }
       if (kind === "studio-engine") S.engine = data;
       else if (kind === "studio-job") {
         var p = byJob(data.id);
@@ -835,6 +893,7 @@
     api().init().then(function (s) {
       if (!s || s.flavor !== "studio") return;
       document.title = "Vistiq Studio";
+      S.update = s.update || S.update; S.version = s.version;
       hook();
       build();
     });

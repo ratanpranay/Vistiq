@@ -1,0 +1,22 @@
+{
+  "id": "com.vistiq.studio.link",
+  "name": "Vistiq Studio",
+  "version": "1.0.0",
+  "main": "index.html",
+  "manifestVersion": 5,
+  "host": { "app": "PS", "minVersion": "24.2.0" },
+  "entrypoints": [
+    {
+      "type": "panel",
+      "id": "vistiqLink",
+      "label": { "default": "Vistiq Studio" },
+      "minimumSize": { "width": 200, "height": 110 },
+      "maximumSize": { "width": 800, "height": 600 },
+      "preferredDockedSize": { "width": 240, "height": 130 },
+      "preferredFloatingSize": { "width": 240, "height": 130 }
+    }
+  ],
+  "requiredPermissions": {
+    "network": { "domains": ["http://127.0.0.1:8393", "http://localhost:8393"] }
+  }
+}

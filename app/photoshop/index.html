@@ -1,0 +1,19 @@
+<!DOCTYPE html>
+<html>
+<head>
+<style>
+  body { font-family: sans-serif; font-size: 12px; color: var(--uxp-host-text-color); padding: 10px; }
+  .row { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+  .dot { width: 9px; height: 9px; border-radius: 50%; background: #888; }
+  .dot.on { background: #1F9D55; }
+  #st { flex: 1; }
+  small { color: var(--uxp-host-text-color-secondary); line-height: 15px; }
+</style>
+</head>
+<body>
+  <div class="row"><span class="dot" id="dot"></span><span id="st">Looking for Vistiq Studio…</span></div>
+  <div class="row"><sp-checkbox id="send" checked>Show this canvas in Studio</sp-checkbox></div>
+  <small id="info">In Vistiq Studio, open Create and click Connect with Photoshop.</small>
+  <script src="main.js"></script>
+</body>
+</html>

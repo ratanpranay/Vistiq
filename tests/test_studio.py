@@ -233,3 +233,41 @@ class Picker(unittest.TestCase):
         self.assertEqual(Dec.seen["point_coords"].tolist(), [[[256.0, 512.0], [768.0, 512.0]]])
         self.assertEqual(Dec.seen["point_labels"].tolist(), [[1.0, 0.0]])
         self.assertTrue(picker.to_png(mask).startswith(b"\x89PNG"))
+
+
+class PhotoshopLink(unittest.TestCase):
+    def test_frames_arrive_and_old_ones_go(self):
+        import urllib.request
+        from vistiq import bridge
+        got = []
+        with tempfile.TemporaryDirectory() as tmp:
+            b = bridge.Bridge(tmp, got.append)
+            with mock.patch.object(bridge, "PORT", 18393):
+                self.assertTrue(b.start())
+            try:
+                ping = urllib.request.urlopen("http://127.0.0.1:18393/ping", timeout=5).read()
+                self.assertIn(b"Vistiq Studio", ping)
+                buf = io.BytesIO()
+                Image.new("RGB", (64, 32), "red").save(buf, "JPEG")
+                body = json.dumps({"name": "sketch.psd", "jpeg": base64.b64encode(buf.getvalue()).decode()}).encode()
+                for _ in range(6):
+                    req = urllib.request.Request("http://127.0.0.1:18393/frame", data=body,
+                                                 headers={"Content-Type": "application/json"})
+                    self.assertEqual(urllib.request.urlopen(req, timeout=5).status, 200)
+                self.assertEqual(len(got), 6)
+                self.assertEqual((got[-1]["w"], got[-1]["h"], got[-1]["name"]), (64, 32, "sketch.psd"))
+                self.assertEqual(len(os.listdir(tmp)), bridge.KEEP)
+                self.assertTrue(os.path.isfile(got[-1]["path"]))
+            finally:
+                b.stop()
+
+    def test_panel_package(self):
+        import zipfile
+        from vistiq import bridge
+        with tempfile.TemporaryDirectory() as tmp:
+            ccx = bridge.package(os.path.join(ROOT, "app"), tmp)
+            names = zipfile.ZipFile(ccx).namelist()
+        self.assertIn("manifest.json", names)
+        self.assertIn("main.js", names)
+        m = json.load(open(os.path.join(ROOT, "app", "photoshop", "manifest.json")))
+        self.assertEqual(m["manifestVersion"], 5)

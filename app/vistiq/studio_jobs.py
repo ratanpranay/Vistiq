@@ -110,6 +110,17 @@ class Studio:
         self._job = None
         self._setup = None
         self._thumbs = {}
+        from .bridge import Bridge
+        self.bridge = Bridge(os.path.join(data_dir(), "photoshop"), self._on_frame)
+        self._last_frame = 0
+
+    def _on_frame(self, f):
+        """A new canvas from Photoshop: show it in Create."""
+        try:
+            f["preview"] = imaging.preview(f["path"])
+        except Exception:
+            return
+        self.emit("studio-live", f)
 
     def emit(self, kind, data):
         self.app.emit(kind, data)
@@ -371,6 +382,7 @@ class Studio:
 
     def shutdown(self):
         self._cancel.set()
+        self.bridge.stop()
         if not self.settings.get("keep_engine", True):
             self.engine.stop()
 

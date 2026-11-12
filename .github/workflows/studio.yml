@@ -2,7 +2,9 @@ name: Studio
 
 # Vistiq Studio, the test build with image generation, from the studio
 # branch. Every push is tested and built (the exe is kept as a build
-# artifact) and never published: test builds go to the tester directly.
+# artifact). A STUDIO_VERSION that has no release yet is published as a
+# pre-release "studio-v<version>": unlisted, never "latest", so plain Vistiq
+# and its updates never see it. Studio's update button fetches from there.
 on:
   push:
     branches: [studio]
@@ -30,8 +32,7 @@ jobs:
           Copy-Item app/STUDIO_VERSION app/VERSION -Force
           gh release view "studio-v$v" *> $null
           $exists = $LASTEXITCODE -eq 0
-          $msg = "$env:MSG"
-          if (-not $exists -and $msg.StartsWith("studio-v")) { "PUBLISH=yes" >> $env:GITHUB_ENV } else { "PUBLISH=no" >> $env:GITHUB_ENV }
+          if (-not $exists) { "PUBLISH=yes" >> $env:GITHUB_ENV } else { "PUBLISH=no" >> $env:GITHUB_ENV }
           exit 0
         env:
           GH_TOKEN: ${{ github.token }}
@@ -49,7 +50,7 @@ jobs:
         shell: pwsh
         run: |
           Get-ChildItem -Path app -Recurse -Directory -Filter __pycache__ | Remove-Item -Recurse -Force
-          Compress-Archive -Path app/VERSION, app/STUDIO_VERSION, app/vistiq, app/ui, app/workflow_image.json -DestinationPath vistiq-studio-app.zip
+          Compress-Archive -Path app/VERSION, app/STUDIO_VERSION, app/vistiq, app/ui, app/photoshop, app/workflow_image.json -DestinationPath vistiq-studio-app.zip
 
       - name: Build Vistiq Studio.exe
         run: >
@@ -81,3 +82,13 @@ jobs:
           path: |
             dist/Vistiq Studio.exe
             vistiq-studio-app.zip
+
+      - name: Publish pre-release
+        if: env.PUBLISH == 'yes'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: pwsh
+        run: |
+          gh release create "studio-v${{ env.VERSION }}" "dist/Vistiq Studio.exe" vistiq-studio-app.zip `
+            --target "${{ github.sha }}" --title "Vistiq Studio ${{ env.VERSION }}" `
+            --notes-file STUDIO_NOTES.md --prerelease --latest=false
