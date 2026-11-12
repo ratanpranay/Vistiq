@@ -288,22 +288,36 @@ class MlxEngine:
 
 WORKER = r"""
 import json, sys, traceback
+from pathlib import Path
 model_path = sys.argv[1]
-from mflux.models.flux2.cli.flux2_edit_generate import build_parser, Flux2EditCommand
+# Same steps as mflux 0.24's own edit command, but the model is loaded once and reused.
+from mflux.models.flux2.cli.flux2_edit_generate import build_parser, DEFAULT_MODEL, FAMILY_MODELS
+from mflux.cli.parser.parsers import lora_init_kwargs_from_args
+from mflux.models.common.compute_precision import ComputePrecision
+from mflux.models.common.resolution.config_resolution import ConfigResolution
+from mflux.models.common.vae.vae_decode_options import VAEDecodeOptions
+from mflux.models.flux2.variants import Flux2KleinEdit
 
 def parse(extra):
     sys.argv = ["mflux-generate-flux2-edit", "--model", model_path, "--base-model", "flux2-klein-4b"] + extra
     return build_parser().parse_args()
 
-model = Flux2EditCommand.load(parse(["--prompt", "x", "--image-paths", "x.png"]))
+args = parse(["--prompt", "x", "--image-paths", "x.png"])
+config = ConfigResolution.resolve_restricted(args.model, DEFAULT_MODEL, model_path=args.model_path,
+                                             extra_keys=FAMILY_MODELS, base_model=args.base_model)
+model = Flux2KleinEdit(model_config=config, quantize=args.quantize, model_path=args.model_path,
+                       compute_precision=ComputePrecision.dtype_for(args.compute_precision),
+                       small_text_encoder=args.small_text_encoder, small_decoder=args.small_decoder,
+                       **lora_init_kwargs_from_args(args))
+VAEDecodeOptions.apply(args, model)
 print(json.dumps({"ready": True}), flush=True)
 for line in sys.stdin:
     try:
         j = json.loads(line)
-        args = parse(["--prompt", j["prompt"], "--image-paths"] + j["images"] +
-                     ["--seed", str(j["seed"]), "--steps", "4", "--width", str(j["width"]),
-                      "--height", str(j["height"]), "--output", j["output"]])
-        img = Flux2EditCommand.generate(model, args, j["seed"], j["prompt"])
+        img = model.generate_image(seed=int(j["seed"]), prompt=j["prompt"], width=int(j["width"]),
+                                   height=int(j["height"]), guidance=1.0,
+                                   image_paths=[Path(p) for p in j["images"]], num_inference_steps=4,
+                                   scheduler="flow_match_euler_discrete")
         img.save(path=j["output"], overwrite=True)
         print(json.dumps({"done": True}), flush=True)
     except Exception:
