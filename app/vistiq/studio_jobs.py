@@ -278,6 +278,8 @@ class Studio:
         juice_lora?, seed?, refine_of?}"""
         if self._job and self._job.is_alive():
             return False
+        if job.get("live_app"):
+            job["image"] = self._hold_live(job.get("image"))
         if not studio.status(self.settings)["create_ready"]:
             self.emit("studio-job", {"state": "error", "message": "Some model files are missing. See Settings."})
             return False
@@ -286,6 +288,27 @@ class Studio:
         self._job = threading.Thread(target=self._run, args=(job_id, job), daemon=True)
         self._job.start()
         return job_id
+
+    def _hold_live(self, path):
+        """Live frames get replaced every second; keep our own copy of the one Create uses."""
+        import glob
+        import shutil
+        if not path:
+            return path
+        if not os.path.isfile(path):
+            frames = sorted(glob.glob(os.path.join(os.path.dirname(path), "*.jpg")) +
+                            glob.glob(os.path.join(os.path.dirname(path), "*.png")), key=os.path.getmtime)
+            if not frames:
+                return path
+            path = frames[-1]
+        tmp_dir = os.path.join(studio.home(self.settings), ".work")
+        os.makedirs(tmp_dir, exist_ok=True)
+        keep = os.path.join(tmp_dir, "live_" + os.path.basename(path))
+        try:
+            shutil.copyfile(path, keep)
+            return keep
+        except OSError:
+            return path
 
     def _run(self, job_id, job):
         s = self.settings
@@ -308,8 +331,10 @@ class Studio:
                 raise RuntimeError(self.engine.message)
             src_path = job["image"]
             if job.get("live_app") == "affinity":
-                say("Getting the full-size canvas from Affinity", None)
-                src_path = self.affinity.export_full() or src_path
+                need = __import__("vistiq.macos", fromlist=["x"]).work_side() if sys.platform == "darwin" else None
+                if not need:
+                    say("Getting the full-size canvas from Affinity", None)
+                src_path = self.affinity.export_full(need, src_path) or src_path
             original = load_rgb(src_path)
             mask = box = None
             if job.get("mask"):

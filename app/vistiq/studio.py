@@ -260,7 +260,7 @@ def _mac_status(settings):
             "engine_installed": rows[0]["ready"], "loras": [], "select_ready": select_installed(settings),
             "helper_ready": helper_installed(settings),
             "home": home(settings), "comfy_models": "",
-            "mac": {"chip": macos.chip(), "ram": ram, "can_generate": gen, "max_side": macos.max_side(ram)}}
+            "mac": {"chip": macos.chip(), "ram": ram, "can_generate": gen, "max_side": macos.max_side(ram), "work_side": macos.work_side(ram)}}
 
 
 def status(settings=None):

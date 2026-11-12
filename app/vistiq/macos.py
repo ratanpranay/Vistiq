@@ -257,7 +257,7 @@ class MlxEngine:
         images = [job["image"]] + ([job["ref"]] if job.get("ref") else [])
         if job.get("lines"):
             images[0] = lines_of(job["image"], out_dir)
-        w, h = _work_size(images[0], job.get("mp", 1.0))
+        w, h = _work_size(images[0], job.get("side"))
         out = os.path.join(out_dir, "out_%d.png" % int(time.time() * 1000))
         p = self._worker()
         self._progress = on_progress
@@ -311,10 +311,23 @@ for line in sys.stdin:
 """
 
 
-def _work_size(path, mp=1.0):
-    """About `mp` megapixels, multiples of 16, same shape as the picture."""
+def work_side(ram=None):
+    """Longest side the image model works at on this Mac (upscale afterwards for more)."""
+    ram = ram if ram is not None else ram_gb()
+    if ram >= 32:
+        return 1600
+    if ram >= 24:
+        return 1344
+    if ram >= 16:
+        return 1080
+    return 768
+
+
+def _work_size(path, side=None):
+    """Longest side capped at `side`, multiples of 16, same shape as the picture."""
+    side = side or work_side()
     w, h = Image.open(path).size
-    f = math.sqrt(mp * 1e6 / float(w * h))
+    f = float(side) / max(w, h)
     return max(256, int(w * f) // 16 * 16), max(256, int(h * f) // 16 * 16)
 
 

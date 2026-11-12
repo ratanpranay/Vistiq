@@ -192,8 +192,13 @@ class AffinityLink:
                 continue
             time.sleep(EVERY)
 
-    def export_full(self):
-        """The whole canvas at full size, as a PNG path (None if that fails)."""
+    def export_full(self, need=None, preview=None):
+        """The whole canvas at full size, as a PNG path (None if that fails).
+        If the live preview is already about `need` px on its long side, use it instead (much faster)."""
+        if need and preview and os.path.isfile(preview):
+            from PIL import Image
+            if max(Image.open(preview).size) >= need * 0.9:
+                return preview
         if not self.client or not self.doc:
             return None
         path = os.path.join(os.path.expanduser("~"), "Desktop", ".vistiq-studio-canvas.png")
