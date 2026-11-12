@@ -352,7 +352,7 @@
       c.addEventListener("pointermove", function (e) { self.moveRing(e); if (self.drawing) self.stroke(e); });
       c.addEventListener("pointerup", function () { self.drawing = false; render(); });
       c.addEventListener("pointerleave", function () { self.ring.hidden = true; });
-      c.addEventListener("pointerenter", function () { self.ring.hidden = false; });
+      c.addEventListener("pointerenter", function (e) { self.ring.hidden = false; self.moveRing(e); });
       c.addEventListener("wheel", function (e) { e.preventDefault(); self.resize(e.deltaY < 0 ? 1.15 : 1 / 1.15); self.moveRing(e); }, { passive: false });
     },
     reset: function (info) {
@@ -547,6 +547,8 @@
         var fit = view.querySelector(".s-fit");
         fit.appendChild(painter.canvas);
         view.appendChild(painter.ring);
+        // The ring only shows over the picture, never over the tools.
+        view.addEventListener("pointermove", function (e) { painter.ring.hidden = e.target !== painter.canvas; });
         view.querySelector("#c-tools").addEventListener("click", function (e) {
           var b = e.target.closest("button[data-t]"); if (!b) return;
           var t = b.getAttribute("data-t");
@@ -582,9 +584,14 @@
     document.querySelectorAll(".s-page.on .s-fit").forEach(function (f) {
       var v = f.parentNode, W = v.clientWidth, H = v.clientHeight, w = +f.getAttribute("data-w"), h = +f.getAttribute("data-h");
       if (!W || !H || !w || !h) return;
-      var k = Math.min(W / w, H / h), fw = Math.round(w * k), fh = Math.round(h * k);
+      // While painting, the tools sit above the picture and the hint below
+      // it, never on top of it, so every part of it can be painted.
+      var top = 0, bottom = 0;
+      if (v.querySelector(".s-tools")) { top = 64; bottom = 50; }
+      var aH = H - top - bottom;
+      var k = Math.min(W / w, aH / h), fw = Math.round(w * k), fh = Math.round(h * k);
       f.style.width = fw + "px"; f.style.height = fh + "px";
-      f.style.left = Math.round((W - fw) / 2) + "px"; f.style.top = Math.round((H - fh) / 2) + "px";
+      f.style.left = Math.round((W - fw) / 2) + "px"; f.style.top = Math.round(top + (aH - fh) / 2) + "px";
     });
   }
 

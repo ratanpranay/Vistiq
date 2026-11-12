@@ -67,8 +67,8 @@ body.studio .s-page.on{display:flex;flex:1;min-width:0;height:100%}
 .s-busy{position:absolute;left:50%;bottom:16px;transform:translateX(-50%);padding:8px 16px;border-radius:18px;background:rgba(15,18,32,.82);color:#fff;font-size:12.5px;font-weight:700;display:flex;gap:10px;align-items:center}
 .s-busy i{display:block;width:120px;height:4px;border-radius:2px;background:rgba(255,255,255,.25);overflow:hidden}
 .s-busy i b{display:block;height:100%;background:var(--brand);transition:width .4s}
-.s-ring{position:absolute;border-radius:50%;box-shadow:0 0 0 2px #fff,0 0 0 3.5px rgba(15,18,32,.5);pointer-events:none;transform:translate(-50%,-50%)}
-.s-tools{position:absolute;top:14px;left:50%;transform:translateX(-50%);display:flex;align-items:center;gap:4px;padding:5px;border-radius:16px;background:rgba(255,255,255,.96);box-shadow:0 6px 20px rgba(15,18,32,.18);z-index:2}
+.s-ring{position:absolute;z-index:1;border-radius:50%;box-shadow:0 0 0 2px #fff,0 0 0 3.5px rgba(15,18,32,.5);pointer-events:none;transform:translate(-50%,-50%)}
+.s-tools{position:absolute;top:12px;left:50%;transform:translateX(-50%);display:flex;align-items:center;gap:4px;padding:5px;border-radius:16px;background:rgba(255,255,255,.96);box-shadow:0 6px 20px rgba(15,18,32,.18);z-index:2}
 .s-tools button{height:34px;padding:0 12px;border-radius:11px;display:flex;align-items:center;gap:6px;font-size:12.5px;font-weight:700;color:var(--ink-2)}
 .s-tools button:hover{background:var(--field)}
 .s-tools button.on{background:var(--ink);color:#fff}
@@ -76,7 +76,7 @@ body.studio .s-page.on{display:flex;flex:1;min-width:0;height:100%}
 .s-tools label{display:flex;align-items:center;gap:8px;padding:0 8px;font-size:12px;font-weight:700;color:var(--dim)}
 .s-tools input{width:90px;accent-color:var(--ink)}
 .s-tools .sep{width:1px;height:22px;background:var(--line);margin:0 2px}
-.s-maskhint{position:absolute;bottom:14px;left:50%;transform:translateX(-50%);padding:7px 14px;border-radius:16px;background:rgba(15,18,32,.8);color:#fff;font-size:12.5px;font-weight:700;pointer-events:none;white-space:nowrap}
+.s-maskhint{position:absolute;bottom:10px;left:50%;transform:translateX(-50%);padding:7px 14px;border-radius:16px;background:rgba(15,18,32,.8);color:#fff;font-size:12.5px;font-weight:700;pointer-events:none;white-space:nowrap}
 
 .s-vars{display:flex;gap:10px;align-items:center;min-height:66px;overflow-x:auto}
 .s-vars img{width:112px;height:63px;object-fit:cover;border-radius:12px;border:2px solid transparent;cursor:pointer;flex-shrink:0}
@@ -136,3 +136,4 @@ body.studio .s-page.on{display:flex;flex:1;min-width:0;height:100%}
 .s-su h1{margin:0;font-size:24px}
 .s-su p{margin:0;color:var(--dim);font-size:13.5px;line-height:19px}
 .s-su .s-list{box-shadow:none;border:1px solid var(--line);padding:0 14px}
+.s-ring[hidden]{display:none}
