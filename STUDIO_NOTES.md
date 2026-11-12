@@ -1,5 +1,9 @@
 # Vistiq Studio (test build)
 
+## 0.2.9
+- Mac: Create works again (fixes "name 'json' is not defined"); the faster model-stays-loaded mode now actually runs.
+- In a small window the Create panel scrolls instead of hiding ✨ Improve.
+
 ## 0.2.8
 - Show in folder, Upscale this and × sit under the picture, next to the results.
 - Painting ends with Done inside the paint toolbar (nothing overlaps it any more).
