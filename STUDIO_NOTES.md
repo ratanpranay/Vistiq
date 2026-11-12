@@ -1,5 +1,9 @@
 # Vistiq Studio (test build)
 
+## 0.2.3
+- Largest size shows what's recommended for this computer (Mac: bigger sizes are off).
+- Prompt helper downloads on the Mac; its ✨ button sits in the corner of the text box.
+
 ## 0.2.2
 - One Settings page for everything: the upscaler's settings (engine, largest size, logs) are in it too.
 - The support heart sits in the side bar above Settings.

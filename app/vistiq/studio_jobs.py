@@ -143,6 +143,7 @@ class Studio:
         st = studio.status(self.settings)
         st["engine"] = {"state": self.engine.state, "message": self.engine.message}
         st["apps"] = installed_apps()
+        st["sizes"] = recommended_sizes()
         st["busy"] = bool(self._job and self._job.is_alive())
         st["setup_running"] = bool(self._setup and self._setup.is_alive())
         st["free_gb"] = _free_gb(studio.home(self.settings))
@@ -504,6 +505,22 @@ def _read_meta(path):
             return json.load(fh)
     except Exception:
         return {}
+
+
+def recommended_sizes():
+    """The largest upscale to recommend here (and, on a Mac, allow)."""
+    if sys.platform == "darwin":
+        from . import macos
+        cap = macos.max_side()
+        return {"recommended": cap, "allowed": cap, "why": "%d GB memory" % macos.ram_gb()}
+    try:
+        from . import models
+        vram = models._vram() or 0
+    except Exception:
+        vram = 0
+    rec = 4096 if vram and vram <= 8 else 7000 if vram and vram <= 16 else 8192 if vram else 7000
+    return {"recommended": rec, "allowed": 16384,
+            "why": ("%d GB graphics card" % round(vram)) if vram else "this PC"}
 
 
 def installed_apps():

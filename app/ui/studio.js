@@ -107,7 +107,7 @@
       '<div class="s-label">What to change</div><div class="s-presets" id="c-presets">' +
       PRESETS.map(function (p) { return '<button type="button" data-v="' + p[0] + '">' + p[1] + "</button>"; }).join("") + "</div>" +
       '<textarea class="s-prompt" id="c-text" placeholder="Describe the change"></textarea>' +
-      '<div class="s-imp" id="c-imp" hidden><button type="button">✨ Improve my prompt</button><span></span></div>' +
+      '<div class="s-imp" id="c-imp" hidden><button type="button" title="Improve my prompt" aria-label="Improve my prompt">✨</button><span></span></div>' +
       keepSlider("c") +
       '<div id="c-blend-w" hidden><div class="s-label">Blend edges <em id="c-blend-v"></em></div><input class="s-range" type="range" min="0" max="1" step="0.05" id="c-blend"><div class="s-ends"><span>Sharp</span><span>Soft</span></div></div>' +
       '<div id="c-look-w" hidden><div class="s-label">Look</div><select class="s-select" id="c-lora"></select></div>' +
@@ -124,7 +124,7 @@
       Object.keys(REF).map(function (k) { return '<button type="button" data-v="' + k + '">' + REF[k][0] + "</button>"; }).join("") + "</div>" +
       '<p class="s-hint" id="r-mode-hint"></p>' +
       '<div class="s-label">Extra instructions (optional)</div><textarea class="s-prompt" id="r-text" style="min-height:60px" placeholder="e.g. the floor console must match the reference view"></textarea>' +
-      '<div class="s-imp" id="r-imp" hidden><button type="button">✨ Improve my prompt</button><span></span></div>' +
+      '<div class="s-imp" id="r-imp" hidden><button type="button" title="Improve my prompt" aria-label="Improve my prompt">✨</button><span></span></div>' +
       keepSlider("r") + varsChips("r"), "Transfer") +
       stage("r", '<div class="s-twin"><div class="box" id="r-twin-a"></div><div class="box" id="r-twin-b"></div></div>');
     document.body.appendChild(ref);
@@ -178,6 +178,7 @@
     if (api()) api().studio_drop_target(p);
     if (p === "library") loadLibrary();
     if (p === "settings" || p === "create" || p === "reference") refresh();
+    markSizes();
     var eg = $("s-up") && $("s-up").firstElementChild;
     if (eg && S.status && S.status.mac && eg.querySelector("#keep-engine")) eg.hidden = true;
     render();
@@ -188,6 +189,7 @@
     api().studio_status().then(function (st) {
       if (!st) return;
       S.status = st; S.engine = st.engine || S.engine;
+      markSizes();
       if (st.setup_running && !S.setup.run) S.setup.run = { label: "Setting up", fraction: null };
       render();
     });
@@ -347,9 +349,9 @@
       $(id + "-imp").querySelector("button").addEventListener("click", function () {
         var p = P(id), box = $(id + "-text"), note = $(id + "-imp").querySelector("span"), btn = this;
         if (!box.value.trim()) { note.textContent = "Write a few words first."; return; }
-        btn.disabled = true; note.textContent = "Improving…";
+        btn.disabled = true; btn.classList.add("busy"); note.textContent = "Improving…";
         api().studio_improve(p.preset, box.value).then(function (r) {
-          btn.disabled = false;
+          btn.disabled = false; btn.classList.remove("busy");
           if (r && r.text) { p.undoText = box.value; box.value = r.text; p.text = r.text; note.innerHTML = '<button type="button" class="s-link">Undo</button>'; 
             note.querySelector("button").onclick = function () { box.value = p.undoText; p.text = p.undoText; note.textContent = ""; }; }
           else note.textContent = (r && r.error) || "Couldn't improve it.";
@@ -618,6 +620,20 @@
     }
     var el = $("c-ps");
     if (el.getAttribute("data-h") !== h) { el.innerHTML = h; el.setAttribute("data-h", h); }
+  }
+
+  // Largest size: say which one fits this computer; on a Mac, bigger ones are off.
+  function markSizes() {
+    var sel = $("max-size"), sz = S.status && S.status.sizes;
+    if (!sel || !sz) return;
+    Array.prototype.forEach.call(sel.options, function (o) {
+      if (!o.getAttribute("data-t")) o.setAttribute("data-t", o.textContent);
+      var v = +o.value, t = o.getAttribute("data-t");
+      o.disabled = v > sz.allowed;
+      o.textContent = t + (v === sz.recommended ? " · recommended for this " + (S.status.mac ? "Mac" : "PC") : v > sz.allowed ? " · too big for this Mac" : "");
+    });
+    var hint = sel.closest(".group").querySelector(".hint");
+    if (hint) hint.textContent = "Recommended for " + sz.why + ": " + sz.recommended + " px. Max goes up to this, and 2× and 4× never go past it.";
   }
 
   function useSource(src) {

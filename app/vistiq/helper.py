@@ -65,16 +65,24 @@ def install(models_dir, download, on_progress, cancelled=lambda: False):
     os.makedirs(f, exist_ok=True)
     if not _server(models_dir):
         rel = requests.get(RELEASES, timeout=30, headers={"Accept": "application/vnd.github+json"}).json()
-        pat = r"bin-macos-arm64\.zip$" if sys.platform == "darwin" else r"bin-win-cpu-x64\.zip$"
+        pat = (r"bin-macos-arm64\.(tar\.gz|zip)$" if sys.platform == "darwin"
+               else r"bin-win-cpu-x64\.zip$")
         asset = next((a for a in rel.get("assets", []) if re.search(pat, a["name"])), None)
         if not asset:
-            raise RuntimeError("couldn't find llama.cpp for this computer")
-        z = os.path.join(f, "llama.zip")
+            raise RuntimeError("couldn't find the prompt helper's engine for this computer (%s)"
+                               % (rel.get("message") or rel.get("tag_name") or "no release"))
+        z = os.path.join(f, asset["name"])
         download(asset["browser_download_url"], z, on_progress, "Prompt helper engine", cancelled)
         dest = os.path.join(f, "llama")
         shutil.rmtree(dest, ignore_errors=True)
-        with zipfile.ZipFile(z) as zz:
-            zz.extractall(dest)
+        os.makedirs(dest, exist_ok=True)
+        if z.endswith(".zip"):
+            with zipfile.ZipFile(z) as zz:
+                zz.extractall(dest)
+        else:
+            import tarfile
+            with tarfile.open(z) as t:
+                t.extractall(dest)
         os.remove(z)
         if sys.platform != "win32":
             for root, _d, files in os.walk(dest):
