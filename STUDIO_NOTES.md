@@ -1,5 +1,8 @@
 # Vistiq Studio (test build)
 
+## 0.2.4
+- One logo: the Vistiq mark in the side bar (clear on hover); the upscaler page no longer shows its own.
+
 ## 0.2.3
 - Largest size shows what's recommended for this computer (Mac: bigger sizes are off).
 - Prompt helper downloads on the Mac; its ✨ button sits in the corner of the text box.

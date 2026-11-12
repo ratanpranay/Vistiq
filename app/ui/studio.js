@@ -90,7 +90,7 @@
     document.body.classList.add("studio");
     var nav = document.createElement("nav");
     nav.className = "s-nav";
-    nav.innerHTML = '<div class="s-logo"></div>' +
+    nav.innerHTML = '<div class="s-logo" title="Vistiq Studio"><img src="assets/mark.png" alt=""></div>' +
       ["create", "reference", "upscale", "library"].map(function (p) {
         return '<button type="button" data-page="' + p + '">' + svg(p) + p.charAt(0).toUpperCase() + p.slice(1) + "</button>";
       }).join("") + '<div class="s-sp"></div><button type="button" data-page="settings">' + svg("settings") + "Settings</button>";
