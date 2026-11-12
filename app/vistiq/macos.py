@@ -7,6 +7,7 @@ Everything lives in ~/Library/Application Support/VistiqStudio and the
 Vistiq Studio folder in Documents.
 """
 import io
+import json
 import logging
 import math
 import os
