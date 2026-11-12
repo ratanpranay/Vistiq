@@ -262,3 +262,18 @@ body.studio .s-page.on{display:flex;flex:1;min-width:0;height:100%}
 .s-stage .s-ttl{padding-right:0}
 /* nothing in the panel gets squeezed; the panel scrolls instead */
 .s-rail-body>*{flex-shrink:0}
+
+/* compact Settings */
+#p-settings .s-scroll{gap:10px;padding:20px 24px}
+#p-settings .s-scroll>*{max-width:760px;width:100%}
+#p-settings .s-col{display:flex;flex-direction:column;gap:10px}
+#p-settings .s-ttl{font-size:20px;min-height:0;padding-right:0}
+#p-settings .s-sec{font-size:13px;margin:6px 0 -2px}
+#p-settings .s-upd{padding:10px 14px;border-radius:12px}
+#p-settings .s-folder{padding:8px 12px;border-radius:10px}
+#p-settings .s-list{padding:0 14px;border-radius:12px}
+#p-settings .s-row{padding:8px 0;gap:10px}
+#p-settings .s-row .n b{font-size:13px}
+#p-settings .s-row .n small{font-size:11.5px}
+#p-settings .s-btn{height:30px;font-size:12px;padding:0 12px}
+#p-settings .s-up{padding:12px 14px;border-radius:12px}

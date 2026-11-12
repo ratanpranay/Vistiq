@@ -939,7 +939,7 @@
     var h = '<div class="s-ttl">Settings</div>' + upd +
       '<div class="s-sec">Vistiq Studio folder</div>' +
       '<button type="button" class="s-folder" data-su="home"><code>' + esc(st.home) + "</code><em>Change</em></button>" +
-      '<div class="s-tree">' + esc(st.home.split(/[\\/]/).pop()) + "<br>├─ <b>Outputs</b> — every result, by date<br>└─ <b>Models</b> — the model files<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;└─ <b>loras</b> — drop your own styles here</div>" +
+      '<p class="s-hint"><b>Outputs</b> every result, by date · <b>Models</b> the model files · <b>Models/loras</b> your own styles</p>' +
       '<div class="s-btns"><button type="button" class="s-btn" data-su="outputs">Open Outputs</button><button type="button" class="s-btn" data-su="models">Open Models</button>' +
       '<button type="button" class="s-btn" data-su="take-other"' + (running ? " disabled" : "") + ">Take files from a folder…</button>" +
       (st.comfy_models ? '<button type="button" class="s-btn" data-su="take" data-path="' + esc(st.comfy_models) + '"' + (running ? " disabled" : "") + ">Take from my ComfyUI</button>" : "") + "</div>" +
@@ -961,9 +961,9 @@
       '<p class="s-hint">Styles for Juice:</p><div class="s-list">' + styleRows(juiceStyles, "None yet.") + "</div>" +
       (jdl ? '<div class="s-btns"><button type="button" class="s-btn p" data-su="download-juice"' + (running ? " disabled" : "") + ">Download the Juice files</button></div>" : "") + "</details>") +
 
-      '<div class="s-sec">Image engine</div><p class="s-hint">' + (st.engine_installed ? "Installed. " : "Not set up yet. ") + esc(S.engine.message || "") +
+      (st.mac ? "" : '<div class="s-sec">Image engine</div><p class="s-hint">' + (st.engine_installed ? "Installed. " : "Not set up yet. ") + esc(S.engine.message || "") +
       " The upscaler keeps its own engine; they take turns on the graphics card.</p>" +
-      '<div class="s-btns"><button type="button" class="s-btn" data-su="refresh">Check again</button></div>';
+      '<div class="s-btns"><button type="button" class="s-btn" data-su="refresh">Check again</button></div>');
     if (el.getAttribute("data-h") !== h) {
       el.innerHTML = h; el.setAttribute("data-h", h);
       var adv = el.querySelector(".s-adv");
