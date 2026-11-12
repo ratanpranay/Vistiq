@@ -689,6 +689,32 @@ REF_PRESETS = {
               "the look of image 2: its colour palette, materials, lighting, mood and atmosphere.\n"),
 }
 
+# On a Mac (a general-purpose test so far) the wording is not tied to car interiors.
+GENERIC_PRESETS = {
+    "sketch": ("Turn this sketch into a photorealistic photograph of the same subject. Keep every line, "
+               "proportion, part and the camera view exactly as drawn. Realistic materials and natural light."),
+    "lighting": ("Change only the lighting of this image. Keep every shape, material, colour and the camera "
+                 "view exactly the same."),
+    "cmf": ("Change only the colours, materials and finishes as described. Keep the design, shapes, "
+            "proportions, lighting and camera view exactly the same."),
+    "style": "Restyle this image as described, keeping the design and camera view exactly the same.",
+    "design": "Change the design as described, keeping the camera view, lighting and everything else the same.",
+    "photo": ("Make this image look like a real professional photograph: realistic materials, accurate "
+              "reflections and natural light. Do not change the design."),
+}
+
+GENERIC_REF_PRESETS = {
+    "camera": ("Show the subject of image 1 from exactly the same camera position, angle and "
+               "field of view as image 2. Everything must line up with image 2. "
+               "Keep the design, materials and colours of image 1."),
+    "cmf": ("Image 1 is a line drawing. Render it as a photorealistic photograph that "
+            "follows every line of image 1 exactly: same parts, shapes, proportions and camera view. Dress every part in the colours, materials and finishes of the matching part in image 2. "
+            "Natural light, realistic materials and reflections.\n"),
+    "style": ("Image 1 is a line drawing. Render it as a photorealistic photograph that "
+              "follows every line of image 1 exactly: same parts, shapes, proportions and camera view. Give it "
+              "the look of image 2: its colour palette, materials, lighting, mood and atmosphere.\n"),
+}
+
 
 def _klein_base(settings, keep):
     s = settings
@@ -798,6 +824,8 @@ def juice_prompt(settings, image, text, lora, strength=0.8, denoise=0.35, megapi
 
 
 def build_text(preset, text, presets=PRESETS):
+    if sys.platform == "darwin":
+        presets = GENERIC_REF_PRESETS if presets is REF_PRESETS else GENERIC_PRESETS
     base = presets.get(preset, "")
     text = (text or "").strip()
     if base and text:

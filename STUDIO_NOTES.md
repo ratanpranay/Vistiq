@@ -1,6 +1,9 @@
 # Vistiq Studio (test build)
 
-## Next
+## 0.2.6
+- Mac: the image model stays loaded between variations and runs: only the first Create of a session waits for loading.
+- Mac: the presets no longer assume a car interior, so a car sketch stays a car.
+- Live dot pulses.
 - Roomier Create panel: 4 big "What to change" buttons (Sketch to photo, CMF, Lighting, Photoreal), ✨ Improve in the prompt box's own bar, "Paint an area" on the picture, Keep my design and Variations in one row.
 - Timer while creating: time so far and about how long is left, learned from earlier runs.
 - × clears the results.

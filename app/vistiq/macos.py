@@ -210,42 +210,104 @@ class MlxEngine:
     def upload(self, path):
         return path
 
+    # The model stays loaded in one long-running helper process: loading it
+    # takes longer than making an image, so it happens once per session,
+    # not once per variation.
+    def _worker(self):
+        p = self._proc
+        if p and p.poll() is None:
+            return p
+        md = self.models_dir()
+        script = os.path.join(env_dir(), "vistiq_worker.py")
+        with open(script, "w") as fh:
+            fh.write(WORKER)
+        self._proc = subprocess.Popen([python(), "-u", script, model_dir(md)], stdin=subprocess.PIPE,
+                                      stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, bufsize=1,
+                                      env=_env(md))
+        self._progress = None
+        threading.Thread(target=self._read_err, args=(self._proc,), daemon=True).start()
+        return self._proc
+
+    def _read_err(self, p):
+        buf = ""
+        self._tail = []
+        while True:
+            ch = p.stderr.read(1)
+            if not ch:
+                break
+            if ch in "\r\n":
+                if buf.strip():
+                    self._tail = (self._tail + [buf])[-20:]
+                    cb = self._progress
+                    if cb and "|" in buf and "/" in buf:
+                        try:
+                            a, b = buf.split("|")[2].strip().split(" ")[0].split("/")
+                            cb(int(a) / max(1, int(b)))
+                        except Exception:
+                            pass
+                buf = ""
+            else:
+                buf += ch
+
     def run(self, job, on_progress=None, cancelled=lambda: False):
         """job: {image, ref, text, seed, lines} → PNG bytes."""
-        md = self.models_dir()
         out_dir = os.path.join(support_dir(), "work")
         os.makedirs(out_dir, exist_ok=True)
         images = [job["image"]] + ([job["ref"]] if job.get("ref") else [])
         if job.get("lines"):
             images[0] = lines_of(job["image"], out_dir)
-        w, h = _work_size(images[0])
+        w, h = _work_size(images[0], job.get("mp", 1.0))
         out = os.path.join(out_dir, "out_%d.png" % int(time.time() * 1000))
-        bin_dir = os.path.dirname(python())
-        cmd = [os.path.join(bin_dir, "mflux-generate-flux2-edit"),
-               "--model", model_dir(md), "--base-model", "flux2-klein-4b",
-               "--image-paths"] + images + [
-               "--prompt", job["text"], "--seed", str(int(job["seed"]) % 2**31), "--steps", "4",
-               "--width", str(w), "--height", str(h), "--output", out]
-
-        def line(l):
-            # tqdm: " 50%|█████     | 2/4 [..]"
-            if on_progress and "|" in l and "/" in l:
-                try:
-                    a, b = l.split("|")[2].strip().split(" ")[0].split("/")
-                    on_progress(int(a) / max(1, int(b)))
-                except Exception:
-                    pass
-        self._proc = None
-        try:
-            _run(cmd, on_line=line, env=_env(md), cancelled=cancelled)
-        except RuntimeError as exc:
-            if str(exc) == "cancelled":
+        p = self._worker()
+        self._progress = on_progress
+        p.stdin.write(json.dumps({"images": images, "prompt": job["text"], "seed": int(job["seed"]) % 2**31,
+                                  "width": w, "height": h, "output": out}) + "\n")
+        p.stdin.flush()
+        while True:
+            if cancelled():
+                self.interrupt()
                 raise RuntimeError("Cancelled")
-            raise RuntimeError("The image engine failed: " + str(exc)[-300:])
+            line = p.stdout.readline()
+            if not line:
+                tail = "\n".join(getattr(self, "_tail", [])[-5:])
+                self._proc = None
+                raise RuntimeError("The image engine stopped: " + tail[-300:])
+            line = line.strip()
+            if line.startswith("{"):
+                msg = json.loads(line)
+                if msg.get("error"):
+                    raise RuntimeError("The image engine failed: " + msg["error"][-300:])
+                if msg.get("done"):
+                    break
         with open(out, "rb") as fh:
             data = fh.read()
         os.remove(out)
         return data
+
+
+WORKER = r"""
+import json, sys, traceback
+model_path = sys.argv[1]
+from mflux.models.flux2.cli.flux2_edit_generate import build_parser, Flux2EditCommand
+
+def parse(extra):
+    sys.argv = ["mflux-generate-flux2-edit", "--model", model_path, "--base-model", "flux2-klein-4b"] + extra
+    return build_parser().parse_args()
+
+model = Flux2EditCommand.load(parse(["--prompt", "x", "--image-paths", "x.png"]))
+print(json.dumps({"ready": True}), flush=True)
+for line in sys.stdin:
+    try:
+        j = json.loads(line)
+        args = parse(["--prompt", j["prompt"], "--image-paths"] + j["images"] +
+                     ["--seed", str(j["seed"]), "--steps", "4", "--width", str(j["width"]),
+                      "--height", str(j["height"]), "--output", j["output"]])
+        img = Flux2EditCommand.generate(model, args, j["seed"], j["prompt"])
+        img.save(path=j["output"], overwrite=True)
+        print(json.dumps({"done": True}), flush=True)
+    except Exception:
+        print(json.dumps({"error": traceback.format_exc()}), flush=True)
+"""
 
 
 def _work_size(path, mp=1.0):

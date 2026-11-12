@@ -33,7 +33,10 @@ TASKS = {
     "": "edit the image as described",
 }
 
-SYSTEM = ("You write instructions for an image-editing AI that works on automotive interior images. "
+_WHO = ("You write instructions for an image-editing AI (it edits the picture it is given: sketches, renders "
+        "or photos). " if sys.platform == "darwin" else
+        "You write instructions for an image-editing AI that works on automotive interior images. ")
+SYSTEM = (_WHO +
           "Rewrite the user's note into ONE clear instruction for this task: {task}. Keep the user's intent "
           "and every detail they gave; add precise words for materials, colours, finishes and light where "
           "it helps. Do not invent design changes unless the task is about design. At most 60 words. "
