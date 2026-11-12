@@ -24,7 +24,7 @@ CHECK_EVERY = 2 * 60 * 60
 
 
 def _home():
-    base = os.environ.get("LOCALAPPDATA") or os.path.expanduser("~")
+    base = os.path.join(os.path.expanduser("~"), "Library", "Application Support") if sys.platform == "darwin" else (os.environ.get("LOCALAPPDATA") or os.path.expanduser("~"))
     return os.path.join(base, flavor.FOLDER, "app")
 
 

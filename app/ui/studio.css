@@ -161,3 +161,9 @@ body.studio .s-page.on{display:flex;flex:1;min-width:0;height:100%}
 .s-upd .n{flex:1;display:flex;flex-direction:column}
 .s-upd b{font-size:14px}
 .s-upd small{font-size:12px;color:var(--dim)}
+.s-imp{display:flex;align-items:center;gap:10px;margin-top:-8px}
+.s-imp>button{padding:6px 12px;border-radius:14px;background:var(--field);border:1px solid var(--line);font-size:12.5px;font-weight:700;color:var(--ink)}
+.s-imp>button:hover{border-color:var(--ink)}
+.s-imp>button:disabled{opacity:.5}
+.s-imp span{font-size:12px;color:var(--dim)}
+.m-hw{display:flex;gap:8px;flex-wrap:wrap}.m-hw span{padding:4px 10px;border-radius:10px;background:var(--field);border:1px solid var(--line);font-size:12px;font-weight:700;color:var(--ink-2)}

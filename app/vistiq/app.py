@@ -314,6 +314,16 @@ class Api:
         ok, msg = bridge.install_panel(self._app.app_dir, os.path.join(data_dir(), "photoshop"))
         return {"ok": ok, "message": msg}
 
+    def studio_get_helper(self):
+        return self._app.studio.get_helper()
+
+    def studio_improve(self, preset, text):
+        try:
+            return {"text": self._app.studio.improve(preset or "", text or "")}
+        except Exception as exc:
+            log.exception("prompt helper failed")
+            return {"error": str(exc)}
+
     def studio_get_select(self):
         return self._app.studio.get_select()
 
@@ -357,7 +367,12 @@ class App:
         self.version = version
         self.notice = notice
         self.settings = Settings()
-        self.engine = Engine(self.settings, os.path.join(data_dir(), "logs"))
+        if sys.platform == "darwin":
+            from . import macos, studio as _studio
+            self.engine = macos.ClassicEngine(self.settings, lambda: _studio.models_dir(self.settings))
+            self.settings.set("two_pass", False)
+        else:
+            self.engine = Engine(self.settings, os.path.join(data_dir(), "logs"))
         self.items = []
         self.window = None
         self.installer = None
@@ -519,7 +534,7 @@ class App:
         before the image engine runs)."""
         if self._worker and self._worker.is_alive():
             raise RuntimeError("The upscaler is busy. Wait for it to finish, or cancel it.")
-        if self.engine.url and self.engine.state == "ready":
+        if self.engine.url and self.engine.state == "ready" and sys.platform != "darwin":
             try:
                 _local.post(self.engine.url + "/free", json={"unload_models": True, "free_memory": True},
                             timeout=10)

@@ -245,7 +245,27 @@ def tier(settings=None):
     return chosen if chosen in TIERS else ""
 
 
+def _mac_status(settings):
+    from . import macos
+    md = models_dir(settings)
+    parts = macos.parts(md)
+    rows = [{"key": p["key"], "part": "create", "tier": "good", "label": p["label"], "about": p["about"],
+             "gb": p["gb"], "ready": p["ready"], "file": "", "can_download": True, "page": "",
+             "optional": False} for p in parts]
+    ram = macos.ram_gb()
+    gen = macos.can_generate(ram)
+    ready = all(r["ready"] for r in rows) and gen
+    return {"files": rows, "create_ready": ready, "juice_ready": False, "tier": "good", "chosen": "good",
+            "tiers": {"best": {"label": "Best quality", "ready": False}, "good": {"label": "Good quality", "ready": ready}},
+            "engine_installed": rows[0]["ready"], "loras": [], "select_ready": select_installed(settings),
+            "helper_ready": helper_installed(settings),
+            "home": home(settings), "comfy_models": "",
+            "mac": {"chip": macos.chip(), "ram": ram, "can_generate": gen, "max_side": macos.max_side(ram)}}
+
+
 def status(settings=None):
+    if sys.platform == "darwin":
+        return _mac_status(settings)
     t = tier(settings)
     chosen = (settings.get("studio_tier") if settings else "") or ""
     rows = []
@@ -263,8 +283,13 @@ def status(settings=None):
     return {"files": rows, "create_ready": ready(t), "juice_ready": juice_ok, "tier": t, "chosen": chosen,
             "tiers": {k: {"label": v, "ready": ready(k)} for k, v in TIERS.items()},
             "engine_installed": engine_installed(), "loras": loras(settings),
-            "select_ready": select_installed(settings),
+            "select_ready": select_installed(settings), "helper_ready": helper_installed(settings),
             "home": home(settings), "comfy_models": guess_comfy_models(settings)}
+
+
+def helper_installed(settings=None):
+    from . import helper
+    return helper.installed(models_dir(settings))
 
 
 def select_installed(settings=None):
@@ -350,6 +375,13 @@ def _marker():
 
 
 def engine_installed():
+    if sys.platform == "darwin":
+        from . import macos
+        return os.path.isfile(os.path.join(macos.env_dir(), "ready.txt"))
+    return _comfy_installed()
+
+
+def _comfy_installed():
     try:
         with open(_marker(), encoding="utf-8") as fh:
             return fh.read().strip() == PORTABLE_VERSION and os.path.isdir(portable_dir())

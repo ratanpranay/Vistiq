@@ -38,7 +38,7 @@ ASSET = "vistiq-studio-app.zip" if STUDIO else "vistiq-app.zip"
 TAG_PREFIX = "studio-v" if STUDIO else "v"
 NAME = "Vistiq Studio" if STUDIO else "Vistiq"
 HERE = getattr(sys, "_MEIPASS", os.path.dirname(os.path.abspath(__file__)))
-HOME = os.path.join(os.environ.get("LOCALAPPDATA") or os.path.expanduser("~"),
+HOME = os.path.join(os.path.join(os.path.expanduser("~"), "Library", "Application Support") if sys.platform == "darwin" else (os.environ.get("LOCALAPPDATA") or os.path.expanduser("~")),
                     "VistiqStudio" if STUDIO else "Vistiq")
 APPS = os.path.join(HOME, "app")
 
@@ -178,7 +178,7 @@ def selftest():
     from vistiq import workflow
     assert workflow.output_size(1000, 500, "max") == (7000, 3500)
     if STUDIO:
-        from vistiq import flavor, studio, studio_jobs  # noqa
+        from vistiq import flavor, studio, studio_jobs, macos, helper, picker  # noqa
         assert flavor.STUDIO and studio.FILES and studio_jobs.Studio
     return 0
 

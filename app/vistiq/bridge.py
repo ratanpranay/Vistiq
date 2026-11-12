@@ -200,7 +200,10 @@ def install_panel(app_dir, out_dir):
             break
     # Fall back to Creative Cloud's own handling of a double-clicked .ccx.
     try:
-        os.startfile(ccx)  # noqa
+        if sys.platform == "darwin":
+            subprocess.Popen(["open", ccx])
+        else:
+            os.startfile(ccx)  # noqa
         return True, ("Creative Cloud is installing the panel. Confirm there, restart Photoshop, then "
                       "open Window → Plugins → Vistiq Studio.")
     except Exception:

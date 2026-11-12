@@ -1,5 +1,10 @@
 # Vistiq Studio (test build)
 
+## 0.2.0
+- **Mac version (test)**: Vistiq-Studio-mac.zip. Image generation with FLUX.2 Klein 4B on Apple's MLX, a fast classic upscaler (largest size set by the Mac's memory), Select, Library, Photoshop link.
+- **Starter text**: each "What to change" button shows how to begin your prompt.
+- **Prompt helper** (optional, 1.1 GB, Settings): "Improve my prompt" turns a few words into a clear instruction.
+
 ## 0.1.6
 - Photoshop panel 1.0.2 sends the canvas as plain pixels, and shows any error.
 

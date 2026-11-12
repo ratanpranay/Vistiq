@@ -8,6 +8,7 @@ import io
 import json
 import logging
 import os
+import sys
 import threading
 import time
 
@@ -105,7 +106,11 @@ class Studio:
         self.app = app
         self.settings = app.settings
         from .settings import data_dir
-        self.engine = studio.ImageEngine(app.settings, os.path.join(data_dir(), "logs"))
+        if sys.platform == "darwin":
+            from . import macos
+            self.engine = macos.MlxEngine(lambda: studio.models_dir(app.settings))
+        else:
+            self.engine = studio.ImageEngine(app.settings, os.path.join(data_dir(), "logs"))
         self._cancel = threading.Event()
         self._job = None
         self._setup = None
@@ -162,6 +167,20 @@ class Studio:
             def prog(label, fraction):
                 self.emit("studio-setup", {"state": "running", "label": label, "fraction": fraction})
             try:
+                if sys.platform == "darwin":
+                    from . import macos
+                    macos.install(studio.models_dir(self.settings), studio.download, prog, self._cancel.is_set,
+                                  want_generate=macos.can_generate())
+                    if not studio.select_installed(self.settings):
+                        try:
+                            studio.install_select(self.settings, prog, self._cancel.is_set)
+                        except Exception:
+                            log.exception("couldn't get the selection tool")
+                    self.app.engine.connect()
+                    self.emit("engine", {"state": self.app.engine.state, "message": self.app.engine.message,
+                                         "models": self.app.engine.models})
+                    self.emit("studio-setup", {"state": "done", "status": studio.status(self.settings)})
+                    return
                 # 1. Files already on this PC: an existing ComfyUI, and the
                 #    Downloads folder (where a file fetched by hand lands).
                 for folder in (studio.guess_comfy_models(self.settings), _downloads()):
@@ -194,6 +213,32 @@ class Studio:
         self._setup = threading.Thread(target=run, daemon=True)
         self._setup.start()
         return True
+
+    def get_helper(self):
+        """Download the prompt helper (about 1.1 GB)."""
+        if self._setup and self._setup.is_alive():
+            return False
+        self._cancel.clear()
+        from . import helper
+
+        def run():
+            try:
+                helper.install(studio.models_dir(self.settings), studio.download, lambda label, f: self.emit(
+                    "studio-setup", {"state": "running", "label": label, "fraction": f}), self._cancel.is_set)
+                self.emit("studio-setup", {"state": "done", "status": studio.status(self.settings)})
+            except Exception as exc:
+                log.exception("prompt helper download failed")
+                self.emit("studio-setup", {"state": "cancelled" if str(exc).lower() == "cancelled" else "error",
+                                           "message": str(exc)})
+        self._setup = threading.Thread(target=run, daemon=True)
+        self._setup.start()
+        return True
+
+    def improve(self, preset, text):
+        from . import helper
+        if not hasattr(self, "_helper"):
+            self._helper = helper.Helper(lambda: studio.models_dir(self.settings))
+        return self._helper.improve(preset, text)
 
     def get_select(self):
         """Download the Select tool now (otherwise its first click does)."""
@@ -243,7 +288,7 @@ class Studio:
         try:
             say("Making room on the graphics card", None)
             self.app.free_upscaler()
-            if not studio.engine_installed():
+            if not studio.engine_installed() and sys.platform != "darwin":
                 # First Create on this PC: set up the image engine on the way
                 # (one time, about 2 GB), instead of stopping with an error.
                 if self._setup and self._setup.is_alive():
@@ -293,14 +338,18 @@ class Studio:
                 label = "Variation %d of %d" % (v + 1, n) if n > 1 else "Creating"
                 say(label, v / n)
                 prog = lambda f, v=v: say(label, (v + f) / n)
-                if mode == "reference":
+                if sys.platform == "darwin":
+                    prompt = {"image": image, "ref": ref_image, "text": text, "seed": seed + v,
+                              "lines": mode == "reference" and job.get("preset") in ("cmf", "style")}
+                elif mode == "reference":
                     prompt = studio.reference_prompt(s, image, ref_image, text, job.get("preset") or "camera",
                                                      keep, WORK_MP, seed + v)
                 else:
                     prompt = studio.create_prompt(s, image, text, keep, WORK_MP, seed + v)
-                _add_lora(prompt, job.get("lora"), job.get("lora_strength", 0.8))
+                if sys.platform != "darwin":
+                    _add_lora(prompt, job.get("lora"), job.get("lora_strength", 0.8))
                 data = self.engine.run(prompt, prog, self._cancel.is_set)
-                if job.get("juice") and studio.status(s)["juice_ready"] and job.get("juice_lora"):
+                if sys.platform != "darwin" and job.get("juice") and studio.status(s)["juice_ready"] and job.get("juice_lora"):
                     say("Juice · " + label.lower(), (v + 0.9) / n)
                     jpath = os.path.join(tmp_dir, "juice_%s_%d.png" % (job_id, v))
                     with open(jpath, "wb") as fh:
@@ -402,6 +451,8 @@ class Studio:
     def shutdown(self):
         self._cancel.set()
         self.bridge.stop()
+        if hasattr(self, "_helper"):
+            self._helper.stop()
         if not self.settings.get("keep_engine", True):
             self.engine.stop()
 
@@ -430,7 +481,7 @@ def _write_meta(path, meta):
         mp = _meta_path(path)
         os.makedirs(os.path.dirname(mp), exist_ok=True)
         if os.name == "nt":
-            import ctypes
+            import ctypes  # noqa
             ctypes.windll.kernel32.SetFileAttributesW(os.path.dirname(mp), 0x02)
         with open(mp, "w", encoding="utf-8") as fh:
             json.dump(meta, fh)

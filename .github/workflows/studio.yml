@@ -92,3 +92,76 @@ jobs:
           gh release create "studio-v${{ env.VERSION }}" "dist/Vistiq Studio.exe" vistiq-studio-app.zip `
             --target "${{ github.sha }}" --title "Vistiq Studio ${{ env.VERSION }}" `
             --notes-file STUDIO_NOTES.md --prerelease --latest=false
+
+  # The classic upscaler for the Mac build, made once from Real-ESRGAN x4plus
+  # and kept as an asset of the "studio-assets" pre-release.
+  assets:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Make the upscaler if it isn't there yet
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh release view studio-assets --repo "$GITHUB_REPOSITORY" --json assets --jq '.assets[].name' 2>/dev/null | grep -q realesrgan-x4plus.onnx; then
+            echo "already there"; exit 0
+          fi
+          pip install torch --index-url https://download.pytorch.org/whl/cpu
+          pip install onnx
+          curl -sSLo esr.pth https://github.com/xinntao/Real-ESRGAN/releases/download/v0.1.0/RealESRGAN_x4plus.pth
+          python tools/make_upscaler.py esr.pth realesrgan-x4plus.onnx
+          ls -la realesrgan-x4plus.onnx
+          gh release view studio-assets --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1 || \
+            gh release create studio-assets --repo "$GITHUB_REPOSITORY" --prerelease --latest=false \
+              --title "Vistiq Studio assets" --notes "Model files Vistiq Studio downloads."
+          gh release upload studio-assets realesrgan-x4plus.onnx --repo "$GITHUB_REPOSITORY" --clobber
+
+  mac:
+    runs-on: macos-14
+    needs: build
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Version
+        run: |
+          V=$(tr -d '[:space:]' < app/STUDIO_VERSION)
+          echo "VERSION=$V" >> $GITHUB_ENV
+          cp app/STUDIO_VERSION app/VERSION
+      - name: Install
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt pyinstaller
+      - name: Test
+        run: python -m unittest discover -s tests -v
+      - name: Build Vistiq Studio.app
+        run: >
+          pyinstaller --noconfirm --windowed --name "Vistiq Studio"
+          --icon launcher/icon.ico
+          --osx-bundle-identifier com.vistiq.studio
+          --add-data "app:app"
+          --paths launcher
+          --hidden-import launcher
+          --collect-all webview
+          --collect-submodules websocket
+          --collect-all onnxruntime
+          --hidden-import numpy
+          launcher/studio.py
+      - name: Check the app can load
+        run: |
+          VISTIQ_NO_UPDATE=1 "dist/Vistiq Studio.app/Contents/MacOS/Vistiq Studio" --selftest || \
+            (cat "$HOME/Library/Application Support/VistiqStudio/launcher.log"; exit 1)
+      - name: Zip
+        run: ditto -c -k --sequesterRsrc --keepParent "dist/Vistiq Studio.app" Vistiq-Studio-mac.zip
+      - uses: actions/upload-artifact@v4
+        with:
+          name: vistiq-studio-mac-${{ env.VERSION }}
+          path: Vistiq-Studio-mac.zip
+      - name: Add to the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh release view "studio-v$VERSION" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release upload "studio-v$VERSION" Vistiq-Studio-mac.zip --repo "$GITHUB_REPOSITORY" --clobber
+          fi

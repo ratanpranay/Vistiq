@@ -24,12 +24,12 @@
   function svg(name) { return '<svg viewBox="0 0 24 24" aria-hidden="true">' + ICON[name] + "</svg>"; }
 
   var PRESETS = [
-    ["sketch", "Sketch to photo", "e.g. black nappa leather seats, open-pore walnut, warm afternoon light"],
-    ["lighting", "Lighting", "e.g. golden hour sun from the left, soft shadows"],
-    ["cmf", "CMF", "e.g. seats in cognac leather, dashboard in dark walnut, satin aluminium trim"],
-    ["style", "Style", "e.g. clean studio photograph, white background"],
-    ["design", "Design", "e.g. a wider centre screen floating above the dashboard"],
-    ["photo", "Photoreal", "e.g. make it look like a real photo from a magazine"]
+    ["sketch", "Sketch to photo", "Turn this sketch into a photo with… (e.g. black nappa seats, walnut trim, afternoon sun)"],
+    ["lighting", "Lighting", "Change the lighting to… (e.g. golden hour from the left, soft shadows)"],
+    ["cmf", "CMF", "Change the materials to… (e.g. seats in cognac nappa, dark walnut dashboard)"],
+    ["style", "Style", "Make it look like… (e.g. a clean studio photo on white)"],
+    ["design", "Design", "Change the shape of… (e.g. a wider centre screen above the dashboard)"],
+    ["photo", "Photoreal", "Make it look like a real photo, with… (e.g. magazine lighting)"]
   ];
   var REF = {
     camera: ["Camera", "Shows your design from the reference's camera position, angle and field of view."],
@@ -106,6 +106,7 @@
       '<div class="s-label">What to change</div><div class="s-presets" id="c-presets">' +
       PRESETS.map(function (p) { return '<button type="button" data-v="' + p[0] + '">' + p[1] + "</button>"; }).join("") + "</div>" +
       '<textarea class="s-prompt" id="c-text" placeholder="Describe the change"></textarea>' +
+      '<div class="s-imp" id="c-imp" hidden><button type="button">✨ Improve my prompt</button><span></span></div>' +
       keepSlider("c") +
       '<div id="c-blend-w" hidden><div class="s-label">Blend edges <em id="c-blend-v"></em></div><input class="s-range" type="range" min="0" max="1" step="0.05" id="c-blend"><div class="s-ends"><span>Sharp</span><span>Soft</span></div></div>' +
       '<div id="c-look-w" hidden><div class="s-label">Look</div><select class="s-select" id="c-lora"></select></div>' +
@@ -122,6 +123,7 @@
       Object.keys(REF).map(function (k) { return '<button type="button" data-v="' + k + '">' + REF[k][0] + "</button>"; }).join("") + "</div>" +
       '<p class="s-hint" id="r-mode-hint"></p>' +
       '<div class="s-label">Extra instructions (optional)</div><textarea class="s-prompt" id="r-text" style="min-height:60px" placeholder="e.g. the floor console must match the reference view"></textarea>' +
+      '<div class="s-imp" id="r-imp" hidden><button type="button">✨ Improve my prompt</button><span></span></div>' +
       keepSlider("r") + varsChips("r"), "Transfer") +
       stage("r", '<div class="s-twin"><div class="box" id="r-twin-a"></div><div class="box" id="r-twin-b"></div></div>');
     document.body.appendChild(ref);
@@ -315,6 +317,19 @@
         api().studio_install_panel().then(function (r) { S.live.msg = r ? r.message : ""; render(); });
       }
     });
+    ["c", "r"].forEach(function (id) {
+      $(id + "-imp").querySelector("button").addEventListener("click", function () {
+        var p = P(id), box = $(id + "-text"), note = $(id + "-imp").querySelector("span"), btn = this;
+        if (!box.value.trim()) { note.textContent = "Write a few words first."; return; }
+        btn.disabled = true; note.textContent = "Improving…";
+        api().studio_improve(p.preset, box.value).then(function (r) {
+          btn.disabled = false;
+          if (r && r.text) { p.undoText = box.value; box.value = r.text; p.text = r.text; note.innerHTML = '<button type="button" class="s-link">Undo</button>'; 
+            note.querySelector("button").onclick = function () { box.value = p.undoText; p.text = p.undoText; note.textContent = ""; }; }
+          else note.textContent = (r && r.error) || "Couldn't improve it.";
+        });
+      });
+    });
     // Settings and setup (the same buttons appear in both)
     document.body.addEventListener("click", function (e) {
       var b = e.target.closest("[data-su]"); if (!b) return;
@@ -337,6 +352,7 @@
       else if (a === "models") api().studio_open_models();
       else if (a === "outputs") api().studio_open_outputs();
       else if (a === "refresh") refresh();
+      else if (a === "get-helper") { S.setup.error = ""; api().studio_get_helper(); S.setup.run = { label: "Prompt helper", fraction: null }; render(); }
       else if (a === "get-select") { S.setup.error = ""; api().studio_get_select(); S.setup.run = { label: "Selection tool", fraction: null }; render(); }
       else if (a === "check") { api().check_updates(); S.update = Object.assign({}, S.update, { state: "checking" }); render(); }
       else if (a === "restart") api().restart().then(function (r) {
@@ -563,6 +579,7 @@
     on($("c-presets"), "data-v", p.preset);
     var pr = PRESETS.filter(function (x) { return x[0] === p.preset; })[0];
     $("c-text").placeholder = pr ? pr[2] : "Describe the image you want";
+    $("c-imp").hidden = !(st && st.helper_ready);
     if ($("c-text").value !== p.text && document.activeElement !== $("c-text")) $("c-text").value = p.text;
     $("c-blend-w").hidden = p.area !== "paint";
     var looks = st ? st.loras.filter(function (l) { return l.family === "klein9b" && !/klein-consistency/i.test(l.name); }) : [];
@@ -578,6 +595,7 @@
 
   function renderReference() {
     var p = S.ref;
+    $("r-imp").hidden = !(S.status && S.status.helper_ready);
     setSlot($("r-slot-src"), p.src, "the design to keep", "Drop your design here, or click");
     setSlot($("r-slot-ref"), p.refimg, "what to copy", "Drop the reference here, or click");
     on($("r-mode"), "data-v", p.preset);
@@ -727,6 +745,16 @@
     var t = S.pickTier || st.chosen || st.tier || "";
     var err = S.setup.error ? '<div class="s-err">' + esc(S.setup.error) + "</div>" : "";
     var h = '<div class="s-su"><h1>Set up Vistiq Studio</h1>';
+    if (st.mac && !running) {
+      var need = st.files.filter(function (f) { return !f.ready; }).reduce(function (a, f) { return a + f.gb; }, 0);
+      h += '<div class="m-hw"><span>' + esc(st.mac.chip) + "</span><span>" + st.mac.ram + " GB memory</span></div>" +
+        "<p>A one-time download of about " + gb(need + (st.select_ready ? 0 : 0.1)) + ". After that everything runs on this Mac, also without internet.</p>" +
+        '<div class="s-list">' + fileRows(st.files) + "</div>" +
+        (st.mac.can_generate ? "" : '<div class="s-err">Image generation needs a Mac with 16 GB of memory or more. Upscaling and the rest still work.</div>') +
+        '<button type="button" class="s-go" style="height:50px" data-su="download"><span>Set up</span></button>' + err +
+        '<p style="font-size:12px">Best quality and the Design lock need a Windows PC with an NVIDIA card.</p></div>';
+      return h;
+    }
     if (running) {
       h += "<p>Setting up. You can leave this open; it carries on by itself.</p>" + progressHTML();
     } else {
@@ -770,6 +798,8 @@
     };
     var selectRow = '<div class="s-row"><div class="n"><b>Object selection</b><small>The Select tool: click a part to select it along its edges.</small></div><span class="s-pill">0.1 GB</span>' +
       (st.select_ready ? '<span class="s-ok">Ready</span>' : '<button type="button" class="s-btn p" data-su="get-select"' + (running ? " disabled" : "") + ">Download</button>") + "</div>";
+    var helperRow = '<div class="s-row"><div class="n"><b>Prompt helper (optional)</b><small>Adds “Improve my prompt”: turns a few words into a clear instruction.</small></div><span class="s-pill">1.1 GB</span>' +
+      (st.helper_ready ? '<span class="s-ok">Ready</span>' : '<button type="button" class="s-btn p" data-su="get-helper"' + (running ? " disabled" : "") + ">Download</button>") + "</div>";
     var u = S.update || {}, us = u.state;
     var upd = '<div class="s-upd"><div class="n"><b>Vistiq Studio ' + esc(S.version) + "</b><small>" +
       (us === "ready" ? "Version " + esc(u.latest) + " is ready." :
@@ -788,20 +818,22 @@
       '<button type="button" class="s-btn" data-su="take-other"' + (running ? " disabled" : "") + ">Take files from a folder…</button>" +
       (st.comfy_models ? '<button type="button" class="s-btn" data-su="take" data-path="' + esc(st.comfy_models) + '"' + (running ? " disabled" : "") + ">Take from my ComfyUI</button>" : "") + "</div>" +
       progressHTML() +
-      '<div class="s-sec">Quality</div><div class="s-tiers">' + ["best", "good"].map(function (k) {
+      (st.mac ? '<div class="s-sec">This Mac</div><p class="s-hint">' + esc(st.mac.chip) + " · " + st.mac.ram + " GB memory · upscales up to " + st.mac.max_side + " px" +
+        (st.mac.can_generate ? "" : " · image generation needs 16 GB or more") + '</p><div class="s-list">' + fileRows(st.files) + selectRow + helperRow + "</div>" : "") +
+      (st.mac ? "" : '<div class="s-sec">Quality</div><div class="s-tiers">' + ["best", "good"].map(function (k) {
         var tt = st.tier || st.chosen;
         return '<button type="button" class="s-tier' + (tt === k ? " on" : "") + '" data-su="tier" data-t="' + k + '"' + (running ? " disabled" : "") + "><b>" + TIER_TEXT[k][0] +
           (st.tiers[k].ready ? ' <span class="s-ok">Ready</span>' : "") + "</b><small>" + TIER_TEXT[k][1] + "</small></button>";
       }).join("") + "</div>" +
-      '<div class="s-list">' + fileRows(tierFiles(st, st.tier || st.chosen || "best").concat(st.files.filter(function (f) { return f.key === "consistency" && (st.tier || "best") === "best"; }))) + selectRow + "</div>" +
-      '<div class="s-sec">Looks</div><p class="s-hint">Extra styles for Create, shown under Look. Add one by putting its file in the loras folder.</p>' +
+      '<div class="s-list">' + fileRows(tierFiles(st, st.tier || st.chosen || "best").concat(st.files.filter(function (f) { return f.key === "consistency" && (st.tier || "best") === "best"; }))) + selectRow + helperRow + "</div>") +
+      (st.mac ? "" : '<div class="s-sec">Looks</div><p class="s-hint">Extra styles for Create, shown under Look. Add one by putting its file in the loras folder.</p>' +
       '<div class="s-list">' + styleRows(looks, "None yet.") + "</div>" +
       '<div class="s-btns"><button type="button" class="s-btn" data-su="models">Open the loras folder</button></div>' +
       '<details class="s-adv"' + (S.advOpen ? " open" : "") + '><summary>Advanced: Juice (optional, about 29 GB)</summary>' +
       '<p class="s-hint">A second, light pass with a style, for richer light and materials. Not needed for anything else.</p>' +
       '<div class="s-list">' + fileRows(juice) + "</div>" +
       '<p class="s-hint">Styles for Juice:</p><div class="s-list">' + styleRows(juiceStyles, "None yet.") + "</div>" +
-      (jdl ? '<div class="s-btns"><button type="button" class="s-btn p" data-su="download-juice"' + (running ? " disabled" : "") + ">Download the Juice files</button></div>" : "") + "</details>" +
+      (jdl ? '<div class="s-btns"><button type="button" class="s-btn p" data-su="download-juice"' + (running ? " disabled" : "") + ">Download the Juice files</button></div>" : "") + "</details>") +
 
       '<div class="s-sec">Image engine</div><p class="s-hint">' + (st.engine_installed ? "Installed. " : "Not set up yet. ") + esc(S.engine.message || "") +
       " The upscaler keeps its own engine; they take turns on the graphics card.</p>" +

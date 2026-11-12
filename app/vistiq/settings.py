@@ -7,7 +7,11 @@ from . import workflow as wf
 
 
 def data_dir():
-    base = os.environ.get("APPDATA") or os.path.join(os.path.expanduser("~"), ".config")
+    import sys
+    if sys.platform == "darwin":
+        base = os.path.join(os.path.expanduser("~"), "Library", "Application Support")
+    else:
+        base = os.environ.get("APPDATA") or os.path.join(os.path.expanduser("~"), ".config")
     from . import flavor
     path = os.path.join(base, flavor.FOLDER)
     os.makedirs(path, exist_ok=True)
@@ -73,7 +77,12 @@ class Settings:
             v = int(self._data.get("max_res") or wf.LIMIT)
         except (TypeError, ValueError):
             v = wf.LIMIT
-        return v if v in wf.SIZES else wf.LIMIT
+        v = v if v in wf.SIZES else wf.LIMIT
+        import sys
+        if sys.platform == "darwin":
+            from . import macos
+            v = min(v, macos.max_side())      # what this Mac can do in sensible time
+        return v
 
     def set(self, key, value):
         if key not in DEFAULTS:
