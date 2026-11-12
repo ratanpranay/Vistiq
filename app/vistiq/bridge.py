@@ -71,6 +71,8 @@ class Bridge:
                     self._send(404)
 
             def do_POST(self):
+                if self.path.startswith("/raw"):
+                    return self._raw()
                 if not self.path.startswith("/frame"):
                     return self._send(404)
                 n = int(self.headers.get("Content-Length") or 0)
@@ -82,6 +84,24 @@ class Bridge:
                 except Exception:
                     log.exception("bad frame from Photoshop")
                     self._send(400)
+
+        def _raw(self):
+            """Raw pixels from the panel: ?w=&h=&c= (components 3 or 4, 8 bit)."""
+            from urllib.parse import urlparse, parse_qs
+            q = parse_qs(urlparse(self.path).query)
+            n = int(self.headers.get("Content-Length") or 0)
+            if n <= 0 or n > MAX_BODY * 2:
+                return self._send(413)
+            try:
+                w, h, c = int(q["w"][0]), int(q["h"][0]), int(q.get("c", ["3"])[0])
+                body = self.rfile.read(n)
+                bridge.raw(body, w, h, c, (q.get("name") or ["Photoshop"])[0])
+                self._send(200)
+            except Exception:
+                log.exception("bad raw frame from Photoshop")
+                self._send(400)
+
+        Handler._raw = _raw
 
         try:
             self.server = ThreadingHTTPServer(("127.0.0.1", PORT), Handler)
@@ -105,6 +125,22 @@ class Bridge:
         s, self.server = self.server, None
         if s:
             threading.Thread(target=lambda: (s.shutdown(), s.server_close()), daemon=True).start()
+
+    def raw(self, body, w, h, c, name):
+        mode = {1: "L", 3: "RGB", 4: "RGBA"}.get(c)
+        if not mode or len(body) < w * h * c:
+            raise ValueError("unexpected pixels: %dx%dx%d, %d bytes" % (w, h, c, len(body)))
+        im = Image.frombytes(mode, (w, h), body[:w * h * c])
+        if mode != "RGB":
+            if mode == "RGBA":
+                bg = Image.new("RGB", im.size, (255, 255, 255))
+                bg.paste(im, mask=im.getchannel("A"))
+                im = bg
+            else:
+                im = im.convert("RGB")
+        buf = io.BytesIO()
+        im.save(buf, "JPEG", quality=92)
+        self.frame({"name": name, "jpeg": base64.b64encode(buf.getvalue()).decode("ascii")})
 
     def frame(self, data):
         raw = base64.b64decode(data["jpeg"])

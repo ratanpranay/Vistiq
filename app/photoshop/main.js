@@ -4,8 +4,9 @@ const { action, core, imaging, app } = require("photoshop");
 
 const STUDIO = "http://127.0.0.1:38393";
 const MAX_SIDE = 2048;
-const VERSION = "1.0.1";
+const VERSION = "1.0.2";
 let lastError = "";
+let sendError = "";
 
 let connected = false;
 let sending = false;
@@ -63,29 +64,36 @@ async function send() {
   if (!doc || !connected || !enabled()) return;
   sending = true;
   try {
-    let payload = null;
+    let frame = null;
     await core.executeAsModal(async () => {
       const w = doc.width, h = doc.height;
-      const opts = { documentID: doc.id };
+      const opts = { documentID: doc.id, componentSize: 8, applyAlpha: true, colorSpace: "RGB" };
       if (Math.max(w, h) > MAX_SIDE) opts.targetSize = w >= h ? { width: MAX_SIDE } : { height: MAX_SIDE };
       const px = await imaging.getPixels(opts);
-      const jpeg = await imaging.encodeImageData({ imageData: px.imageData, base64: true });
-      payload = { name: doc.title || doc.name || "Photoshop", id: doc.id,
-                  width: px.imageData.width, height: px.imageData.height, jpeg: jpeg };
-      px.imageData.dispose();
+      const img = px.imageData;
+      const data = await img.getData({ chunky: true });
+      frame = { width: img.width, height: img.height, components: img.components || img.componentCount || 3,
+                bytes: data };
+      img.dispose();
     }, { commandName: "Vistiq Studio live view" });
     lastKey = docKey(doc);
-    if (payload) {
-      await fetch(STUDIO + "/frame", { method: "POST", headers: { "Content-Type": "application/json" },
-                                       body: JSON.stringify(payload) });
-      $("info").textContent = "Showing “" + payload.name + "” in Studio.";
+    if (frame) {
+      const name = doc.title || doc.name || "Photoshop";
+      const r = await fetch(STUDIO + "/raw?w=" + frame.width + "&h=" + frame.height + "&c=" + frame.components +
+                            "&name=" + encodeURIComponent(name),
+                            { method: "POST", headers: { "Content-Type": "application/octet-stream" },
+                              body: frame.bytes.buffer || frame.bytes });
+      sendError = r.ok ? "" : "Studio answered " + r.status;
+      $("info").textContent = r.ok ? "Showing “" + name + "” in Studio." : sendError;
     }
   } catch (e) {
-    // Photoshop is busy (a dialog, a long filter): try again shortly.
+    // Photoshop busy (a dialog, a long filter), or something else: say so, try again.
+    sendError = String(e && e.message || e);
+    $("info").textContent = "Couldn't read the canvas: " + sendError;
     again = true;
   } finally {
     sending = false;
-    if (again) { again = false; schedule(600); }
+    if (again) { again = false; schedule(1500); }
   }
 }
 

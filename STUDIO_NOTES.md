@@ -1,5 +1,8 @@
 # Vistiq Studio (test build)
 
+## 0.1.6
+- Photoshop panel 1.0.2 sends the canvas as plain pixels, and shows any error.
+
 ## 0.1.5
 - Photoshop panel 1.0.1: reinstalling replaces the old panel; the panel shows why it can't reach Studio.
 

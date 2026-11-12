@@ -254,7 +254,12 @@ class PhotoshopLink(unittest.TestCase):
                     req = urllib.request.Request("http://127.0.0.1:18394/frame", data=body,
                                                  headers={"Content-Type": "application/json"})
                     self.assertEqual(urllib.request.urlopen(req, timeout=5).status, 200)
-                self.assertEqual(len(got), 6)
+                raw = Image.new("RGBA", (40, 20), (0, 0, 255, 255)).tobytes()
+                req = urllib.request.Request("http://127.0.0.1:18394/raw?w=40&h=20&c=4&name=a%20b.psd", data=raw,
+                                             headers={"Content-Type": "application/octet-stream"})
+                self.assertEqual(urllib.request.urlopen(req, timeout=5).status, 200)
+                self.assertEqual((got[-1]["w"], got[-1]["name"]), (40, "a b.psd"))
+                got.pop()
                 self.assertEqual((got[-1]["w"], got[-1]["h"], got[-1]["name"]), (64, 32, "sketch.psd"))
                 self.assertEqual(len(os.listdir(tmp)), bridge.KEEP)
                 self.assertTrue(os.path.isfile(got[-1]["path"]))
