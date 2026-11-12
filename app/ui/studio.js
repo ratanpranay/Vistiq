@@ -232,7 +232,8 @@
     if (id === "r" && !p.refimg) return;
     var j = {
       mode: id === "c" ? "create" : "reference", image: p.src.path, name: p.src.name, live_app: p.src.live ? S.live.app : "",
-      preset: p.preset, text: p.text, keep: hasConsistency() ? p.keep : 0, variations: p.vars
+      // An improved prompt already is the whole instruction: send it as it is.
+      preset: p.improved && p.text === p.improved ? "" : p.preset, text: p.text, keep: hasConsistency() ? p.keep : 0, variations: p.vars
     };
     if (id === "r") j.reference = p.refimg.path;
     if (id === "c") {
@@ -366,7 +367,7 @@
         btn.disabled = true; btn.classList.add("busy"); note.textContent = "Improving…";
         api().studio_improve(p.preset, box.value).then(function (r) {
           btn.disabled = false; btn.classList.remove("busy");
-          if (r && r.text) { p.undoText = box.value; box.value = r.text; p.text = r.text; note.innerHTML = '<button type="button" class="s-link">Undo</button>'; 
+          if (r && r.text) { p.undoText = box.value; box.value = r.text; p.text = r.text; p.improved = r.text; note.innerHTML = '<button type="button" class="s-link">Undo</button>'; 
             note.querySelector("button").onclick = function () { box.value = p.undoText; p.text = p.undoText; note.textContent = ""; }; }
           else note.textContent = (r && r.error) || "Couldn't improve it.";
         });
