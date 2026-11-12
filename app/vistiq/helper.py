@@ -23,7 +23,7 @@ RELEASES = "https://api.github.com/repos/ggml-org/llama.cpp/releases?per_page=30
 PORT = 38394
 
 TASKS = {
-    "sketch": "turn a sketch into a photorealistic photo, keeping every line and the camera view",
+    "sketch": "turn a sketch into a photorealistic photo of the same subject, keeping every line and the camera view",
     "lighting": "change only the lighting",
     "cmf": "change only colours, materials and finishes",
     "style": "change the overall look and mood",
@@ -33,9 +33,8 @@ TASKS = {
     "": "edit the image as described",
 }
 
-_WHO = ("You write instructions for an image-editing AI (it edits the picture it is given: sketches, renders "
-        "or photos). " if sys.platform == "darwin" else
-        "You write instructions for an image-editing AI that works on automotive interior images. ")
+_WHO = ("You write instructions for an image-editing AI. It edits the picture it is given (a sketch, render or "
+        "photo of anything: a car interior or exterior, a boat, furniture, a lamp, a building…). ")
 SYSTEM = (_WHO +
           "Rewrite the user's note into ONE clear instruction for this task: {task}. Keep the user's intent "
           "and every detail they gave; add precise words for materials, colours, finishes and light where "

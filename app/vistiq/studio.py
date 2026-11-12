@@ -689,7 +689,7 @@ REF_PRESETS = {
               "the look of image 2: its colour palette, materials, lighting, mood and atmosphere.\n"),
 }
 
-# On a Mac (a general-purpose test so far) the wording is not tied to car interiors.
+# The wording used (any subject, not only car interiors).
 GENERIC_PRESETS = {
     "sketch": ("Turn this sketch into a photorealistic photograph of the same subject. Keep every line, "
                "proportion, part and the camera view exactly as drawn. Realistic materials and natural light."),
@@ -824,10 +824,11 @@ def juice_prompt(settings, image, text, lora, strength=0.8, denoise=0.35, megapi
 
 
 def build_text(preset, text, presets=PRESETS):
-    if sys.platform == "darwin":
-        presets = GENERIC_REF_PRESETS if presets is REF_PRESETS else GENERIC_PRESETS
+    # Any subject: interiors, exteriors, boats, furniture, lamps… The button
+    # only says what kind of change; the prompt says what it is.
+    presets = GENERIC_REF_PRESETS if presets is REF_PRESETS else GENERIC_PRESETS
     base = presets.get(preset, "")
     text = (text or "").strip()
     if base and text:
         return base + "\n\n" + text
-    return base or text or "Photorealistic automotive interior photograph."
+    return base or text or "Photorealistic photograph."

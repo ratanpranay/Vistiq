@@ -28,8 +28,8 @@
   function svg(name) { return '<svg viewBox="0 0 24 24" aria-hidden="true">' + ICON[name] + "</svg>"; }
 
   var PRESETS = [
-    ["sketch", "Sketch to photo", "Turn this sketch into a photo with… (e.g. black nappa seats, walnut trim, afternoon sun)", "sketch"],
-    ["cmf", "CMF", "Change the materials to… (e.g. seats in cognac nappa, dark walnut dashboard)", "cmf"],
+    ["sketch", "Sketch to photo", "Turn this sketch into a photo of… (e.g. a pickup truck, matte olive paint, desert light)", "sketch"],
+    ["cmf", "CMF", "Change the materials to… (e.g. brushed brass base, linen shade)", "cmf"],
     ["lighting", "Lighting", "Change the lighting to… (e.g. golden hour from the left, soft shadows)", "light"],
     ["photo", "Photoreal", "Make it look like a real photo, with… (e.g. magazine lighting)", "photo"]
   ];
