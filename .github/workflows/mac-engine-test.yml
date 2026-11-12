@@ -1,0 +1,23 @@
+name: Mac engine test
+on:
+  push:
+    branches: [mac-engine-test]
+jobs:
+  engine:
+    runs-on: macos-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: |
+          sysctl -n hw.memsize machdep.cpu.brand_string
+          python -m pip install -r requirements.txt
+      - name: Install and create (real Studio code)
+        run: python -u tools/mac_engine_test.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: outputs
+          path: ~/Documents/Vistiq Studio/Outputs
