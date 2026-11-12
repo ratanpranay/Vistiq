@@ -149,6 +149,9 @@ def install_panel(app_dir, out_dir):
     for exe in UPIA:
         if os.path.isfile(exe):
             try:
+                # An older copy of the panel is replaced, not kept.
+                subprocess.run([exe, "/remove", "Vistiq Studio"], capture_output=True, text=True, timeout=120,
+                               creationflags=0x08000000 if sys.platform == "win32" else 0)
                 r = subprocess.run([exe, "/install", ccx], capture_output=True, text=True, timeout=180,
                                    creationflags=0x08000000 if sys.platform == "win32" else 0)
                 text = (r.stdout + r.stderr).strip()

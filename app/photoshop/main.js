@@ -4,6 +4,8 @@ const { action, core, imaging, app } = require("photoshop");
 
 const STUDIO = "http://127.0.0.1:38393";
 const MAX_SIDE = 2048;
+const VERSION = "1.0.1";
+let lastError = "";
 
 let connected = false;
 let sending = false;
@@ -29,11 +31,14 @@ async function ping() {
     const was = connected;
     connected = r.ok;
     if (connected && !was) { lastKey = ""; schedule(0); }
+    lastError = connected ? "" : "answered " + r.status;
   } catch (e) {
     connected = false;
+    lastError = String(e && e.message || e);
   }
   if (connected) show("Connected to Vistiq Studio", true);
   else show("Vistiq Studio isn't listening", false);
+  $("ver").textContent = "Panel " + VERSION + " · " + STUDIO + (lastError ? " · " + lastError : "");
 }
 
 function schedule(delay) {

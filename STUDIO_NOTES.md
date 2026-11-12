@@ -1,5 +1,8 @@
 # Vistiq Studio (test build)
 
+## 0.1.5
+- Photoshop panel 1.0.1: reinstalling replaces the old panel; the panel shows why it can't reach Studio.
+
 ## 0.1.4
 - Settings: Object selection (the Select tool) has its own row with a Download button.
 - Settings: only styles you can use are listed: Looks for Create, and Juice styles under Juice.
