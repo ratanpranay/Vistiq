@@ -1,5 +1,9 @@
 # Vistiq Studio (test build)
 
+## 0.3.1
+- Fixes "'studio_times'" error after the first picture (Mac and Windows).
+- Tested on a real Mac: install, live Create with 2 variations, warm re-run, paint an area and CMF all work.
+
 ## 0.3.0
 - Mac: Create works again (the fast mode that keeps the model loaded was built for a newer library version; now it uses the installed one).
 - Mac: creates at a size that fits the Mac (1080 px on 16 GB); upscale afterwards for more. No more slow full-size export from Affinity.
