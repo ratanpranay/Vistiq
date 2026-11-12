@@ -88,6 +88,7 @@ class Folders(unittest.TestCase):
             open(os.path.join(m, sub, name), "wb").write(b"x" * 10)
         return m
 
+    @unittest.skipIf(sys.platform == "darwin", "the ComfyUI model files are the Windows set-up")
     def test_import_links_known_files_and_loras(self):
         m = self.comfy()
         self.assertFalse(studio.status(self.s)["create_ready"])
@@ -101,6 +102,7 @@ class Folders(unittest.TestCase):
         # Again: nothing new.
         self.assertEqual(studio.import_from(m, self.s), [])
 
+    @unittest.skipIf(sys.platform == "darwin", "ComfyUI workflows are the Windows set-up")
     def test_prompts(self):
         studio.import_from(self.comfy(), self.s)
         p = studio.create_prompt(self.s, "a.png", "text", keep=0.7, seed=5)
