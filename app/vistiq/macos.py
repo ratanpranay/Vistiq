@@ -222,7 +222,7 @@ class MlxEngine:
         out = os.path.join(out_dir, "out_%d.png" % int(time.time() * 1000))
         bin_dir = os.path.dirname(python())
         cmd = [os.path.join(bin_dir, "mflux-generate-flux2-edit"),
-               "--model-path", model_dir(md), "--base-model", "flux2-klein-4b",
+               "--model", model_dir(md), "--base-model", "flux2-klein-4b",
                "--image-paths"] + images + [
                "--prompt", job["text"], "--seed", str(int(job["seed"]) % 2**31), "--steps", "4",
                "--width", str(w), "--height", str(h), "--output", out]
