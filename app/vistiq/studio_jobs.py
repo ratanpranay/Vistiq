@@ -198,6 +198,15 @@ class Studio:
         try:
             say("Making room on the graphics card", None)
             self.app.free_upscaler()
+            if not studio.engine_installed():
+                # First Create on this PC: set up the image engine on the way
+                # (one time, about 2 GB), instead of stopping with an error.
+                if self._setup and self._setup.is_alive():
+                    say("Waiting for the setup to finish", None)
+                    self._setup.join()
+                if not studio.engine_installed():
+                    studio.install_engine(self.settings, lambda label, f: say(
+                        "One-time setup · " + label, f), self._cancel.is_set)
             if not self.engine.alive() and not self.engine.start(self.say):
                 raise RuntimeError(self.engine.message)
             src_path = job["image"]
@@ -277,6 +286,8 @@ class Studio:
             self.emit("studio-job", {"id": job_id, "state": "done", "count": len(results)})
         except Exception as exc:
             msg = str(exc)
+            if msg.lower() == "cancelled":
+                msg = "Cancelled"
             if msg != "Cancelled":
                 log.exception("studio job failed")
             self.emit("studio-job", {"id": job_id, "state": "cancelled" if msg == "Cancelled" else "error",
