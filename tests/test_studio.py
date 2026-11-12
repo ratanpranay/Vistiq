@@ -116,6 +116,8 @@ class Folders(unittest.TestCase):
         self.assertEqual(r["30"]["inputs"]["image"], ["14", 0])
         r2 = studio.reference_prompt(self.s, "a.png", "b.png", "t", mode="cmf")
         self.assertEqual(r2["30"]["inputs"]["image"], ["11", 0])
+        self.assertEqual(r2["12"]["inputs"]["pixels"], ["17", 0])       # the design's lines
+        self.assertNotIn("4", r2)                                       # no design lock
         sj._add_lora(p, "look.safetensors", 0.6)
         self.assertEqual(p["40"]["inputs"]["model"], ["5", 0])
         self.assertEqual(p["5"]["inputs"]["model"], ["4", 0])

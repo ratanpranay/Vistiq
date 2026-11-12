@@ -105,9 +105,10 @@ body.studio .s-page.on{display:flex;flex:1;min-width:0;height:100%}
 .s-card img{width:100%;height:130px;object-fit:cover;display:block;background:#ECEEF2}
 .s-card .s-cap{padding:8px 10px;font-size:12px;font-weight:700;display:flex;justify-content:space-between;gap:8px}
 .s-card .s-cap span:first-child{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.s-card .s-hover{position:absolute;left:0;right:0;top:0;height:130px;display:flex;align-items:flex-end;justify-content:center;gap:6px;padding:8px;background:linear-gradient(transparent 40%,rgba(15,18,32,.55));opacity:0;transition:opacity .15s}
+.s-card .s-hover{position:absolute;left:0;right:0;top:0;height:130px;box-sizing:border-box;display:grid;grid-template-columns:1fr 1fr;align-content:end;gap:6px;padding:8px;background:linear-gradient(transparent 20%,rgba(15,18,32,.6));opacity:0;transition:opacity .15s}
 .s-card:hover .s-hover{opacity:1}
-.s-card .s-hover button{padding:5px 10px;border-radius:12px;background:#fff;font-size:11.5px;font-weight:800;color:var(--ink)}
+.s-card .s-hover button{height:28px;padding:0 6px;border-radius:10px;background:#fff;font-size:11.5px;font-weight:800;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.s-card .s-hover button:hover{background:var(--field)}
 .s-pill{padding:3px 8px;border-radius:9px;font-size:10.5px;font-weight:800;background:var(--field);color:var(--ink-2);flex-shrink:0}
 .s-none{color:var(--dim);font-size:13.5px;padding:40px 0;text-align:center}
 

@@ -593,10 +593,14 @@ REF_PRESETS = {
     "camera": ("Show the automotive interior from image 1 from exactly the same camera position, angle and "
                "field of view as image 2. The steering wheel, seats and console must line up with image 2. "
                "Keep the design, materials and colours of image 1."),
-    "cmf": ("Apply the colours, materials and finishes of the interior in image 2 to the interior in image 1. "
-            "Keep the design, geometry, camera view and lighting of image 1 exactly."),
-    "style": ("Give the interior in image 1 the visual style, mood and lighting of image 2. Keep the design, "
-              "geometry and camera view of image 1 exactly."),
+    "cmf": ("Image 1 is a line drawing of an automotive interior. Render it as a photorealistic photograph that "
+            "follows every line of image 1 exactly: same parts, shapes, proportions and camera view. Dress every "
+            "part in the colours, materials and finishes of the matching part in image 2: the seats like the "
+            "seats of image 2, the dashboard like its dashboard, the door panels, console, trim and stitching "
+            "the same. Natural daylight, realistic leather grain and reflections.\n"),
+    "style": ("Image 1 is a line drawing of an automotive interior. Render it as a photorealistic photograph that "
+              "follows every line of image 1 exactly: same parts, shapes, proportions and camera view. Give it "
+              "the look of image 2: its colour palette, materials, lighting, mood and atmosphere.\n"),
 }
 
 
@@ -648,7 +652,17 @@ def create_prompt(settings, image, text, keep=0.8, megapixels=2.0, seed=None, st
 def reference_prompt(settings, design, reference, text, mode="camera", keep=0.8, megapixels=2.0,
                      seed=None, steps=4):
     """Klein with two reference images: image 1 your design, image 2 the reference."""
-    p = create_prompt(settings, design, text, keep, megapixels, seed, steps)
+    # For CMF and style the design goes in as its lines only (edges of the
+    # picture): the model then has to colour the lines from the reference,
+    # instead of copying the design's own colours back, which the design
+    # lock (trained to keep image 1) would otherwise do. The lock is off.
+    lines = mode in ("cmf", "style")
+    p = create_prompt(settings, design, text, 0 if lines else keep, megapixels, seed, steps)
+    if lines:
+        p["16"] = {"class_type": "Canny", "inputs": {"image": ["11", 0], "low_threshold": 0.15,
+                                                       "high_threshold": 0.35}}
+        p["17"] = {"class_type": "ImageInvert", "inputs": {"image": ["16", 0]}}
+        p["12"]["inputs"]["pixels"] = ["17", 0]
     p.update({
         "13": {"class_type": "LoadImage", "inputs": {"image": reference}},
         "14": {"class_type": "ImageScaleToTotalPixels",

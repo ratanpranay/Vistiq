@@ -690,7 +690,7 @@
     var h = items.length ? items.map(function (i) {
       var pill = i.kind.charAt(0).toUpperCase() + i.kind.slice(1);
       return '<div class="s-card" data-path="' + esc(i.path) + '" title="' + esc(i.text || i.name) + '"><img src="' + i.thumb + '" alt="" loading="lazy">' +
-        '<div class="s-hover"><button type="button" data-act="edit">Edit</button><button type="button" data-act="ref">Use as design</button><button type="button" data-act="upscale">Upscale</button><button type="button" data-act="folder">Folder</button></div>' +
+        '<div class="s-hover"><button type="button" data-act="edit">Create</button><button type="button" data-act="ref">Reference</button><button type="button" data-act="upscale">Upscale</button><button type="button" data-act="folder">Folder</button></div>' +
         '<div class="s-cap"><span>' + esc(short(i.name)) + '</span><span class="s-pill">' + pill + "</span></div></div>";
     }).join("") : '<div class="s-none">' + (S.lib.loading ? "Loading…" : "Nothing here yet. What you create and upscale shows up here.") + "</div>";
     var g = $("l-grid");
