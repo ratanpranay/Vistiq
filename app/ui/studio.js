@@ -16,6 +16,10 @@
     upscale: '<path d="M12 19V5M5 12l7-7 7 7"/>',
     library: '<rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/>',
     settings: '<circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1L7 17M17 7l2.1-2.1"/>',
+    cmf: '<circle cx="8" cy="8" r="4"/><circle cx="16" cy="16" r="4"/><path d="M14 6h6v6"/>',
+    light: '<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M5 5l1.5 1.5M17.5 17.5L19 19M5 19l1.5-1.5M17.5 6.5L19 5"/>',
+    photo: '<rect x="3" y="6" width="18" height="14" rx="3"/><circle cx="12" cy="13" r="4"/><path d="M8 6l2-3h4l2 3"/>',
+    sketch: '<path d="M4 20l4-1 11-11-3-3L5 16z"/><path d="M14 6l3 3"/>',
     brush: '<path d="M4 20c2 0 4-1 4-3s2-3 3-3l7-7-3-3-7 7c0 1-1 3-3 3s-3 2-3 4z"/>',
     erase: '<path d="M7 20h10M5 15l9-9 5 5-9 9H6z"/>',
     undo: '<path d="M9 14L4 9l5-5"/><path d="M4 9h11a5 5 0 010 10h-3"/>',
@@ -24,12 +28,10 @@
   function svg(name) { return '<svg viewBox="0 0 24 24" aria-hidden="true">' + ICON[name] + "</svg>"; }
 
   var PRESETS = [
-    ["sketch", "Sketch to photo", "Turn this sketch into a photo with… (e.g. black nappa seats, walnut trim, afternoon sun)"],
-    ["lighting", "Lighting", "Change the lighting to… (e.g. golden hour from the left, soft shadows)"],
-    ["cmf", "CMF", "Change the materials to… (e.g. seats in cognac nappa, dark walnut dashboard)"],
-    ["style", "Style", "Make it look like… (e.g. a clean studio photo on white)"],
-    ["design", "Design", "Change the shape of… (e.g. a wider centre screen above the dashboard)"],
-    ["photo", "Photoreal", "Make it look like a real photo, with… (e.g. magazine lighting)"]
+    ["sketch", "Sketch to photo", "Turn this sketch into a photo with… (e.g. black nappa seats, walnut trim, afternoon sun)", "sketch"],
+    ["cmf", "CMF", "Change the materials to… (e.g. seats in cognac nappa, dark walnut dashboard)", "cmf"],
+    ["lighting", "Lighting", "Change the lighting to… (e.g. golden hour from the left, soft shadows)", "light"],
+    ["photo", "Photoreal", "Make it look like a real photo, with… (e.g. magazine lighting)", "photo"]
   ];
   var REF = {
     camera: ["Camera", "Shows your design from the reference's camera position, angle and field of view."],
@@ -44,7 +46,7 @@
     page: "create", status: null, engine: { state: "idle", message: "" },
     setup: { run: null, error: "", done: "" },
     lib: { items: [], filter: "all", loading: false },
-    create: page({ source: load("c.source", "image"), area: "whole", preset: load("c.preset", "sketch"), text: "", keep: load("c.keep", 0.8), vars: load("c.vars", 2),
+    create: page({ source: load("c.source", "image"), area: "whole", preset: ["sketch", "cmf", "lighting", "photo"].indexOf(load("c.preset", "sketch")) >= 0 ? load("c.preset", "sketch") : "sketch", text: "", keep: load("c.keep", 0.8), vars: load("c.vars", 2),
                    blend: load("c.blend2", 0.15), lora: load("c.lora", ""), juice: load("c.juice", 0), juiceLora: load("c.juiceLora", "") }),
     ref: page({ refimg: null, preset: load("r.preset", "camera"), text: "", keep: load("r.keep", 0.8), vars: load("r.vars", 1) }),
     dropSlot: "", liveApp: load("liveApp", ""),
@@ -63,21 +65,28 @@
   }
 
   function keepSlider(id) {
-    return '<div class="s-label" id="' + id + '-keep-l">Keep my design <em id="' + id + '-keep-v"></em></div>' +
+    return '<div class="s-k" id="' + id + '-keep-w"><div class="s-label" id="' + id + '-keep-l">Keep my design <em id="' + id + '-keep-v"></em></div>' +
       '<input class="s-range" type="range" min="0" max="1" step="0.05" id="' + id + '-keep">' +
-      '<div class="s-ends" id="' + id + '-keep-e"><span>Free</span><span>Exact</span></div>' +
-      '<p class="s-hint" id="' + id + '-keep-none" hidden>Add the Design lock in Settings to hold the design more tightly.</p>';
+      '<span id="' + id + '-keep-e" hidden></span><span id="' + id + '-keep-none" hidden></span></div>';
   }
 
   function varsChips(id) {
-    return '<div class="s-label">Variations</div><div class="s-seg" id="' + id + '-vars">' +
-      [1, 2, 3, 4].map(function (n) { return '<button type="button" data-n="' + n + '">' + n + "</button>"; }).join("") + "</div>";
+    return '<div class="s-v"><div class="s-label">Variations</div><div class="s-step" id="' + id + '-vars">' +
+      '<button type="button" data-d="-1" aria-label="Fewer">−</button><b id="' + id + '-vars-n">2</b><button type="button" data-d="1" aria-label="More">+</button></div></div>';
+  }
+
+  function optionsRow(id) { return '<div class="s-opts">' + keepSlider(id) + varsChips(id) + "</div>"; }
+
+  function promptBox(id, ph, extraStyle) {
+    return '<div class="s-pbox"><textarea class="s-prompt" id="' + id + '-text"' + (extraStyle || "") + ' placeholder="' + ph + '"></textarea>' +
+      '<div class="s-pbar" id="' + id + '-imp" hidden><button type="button" class="s-impb">✨ Improve</button><span class="s-impn"></span></div></div>';
   }
 
   function stage(id, extra) {
     return '<section class="s-stage" id="' + id + '-stage">' +
       '<div class="s-ttl" id="' + id + '-ttl"></div>' +
-      '<div class="s-acts"><button type="button" id="' + id + '-reveal" disabled>Show in folder</button><button type="button" class="p" id="' + id + '-up" disabled>Upscale this</button></div>' +
+      '<div class="s-acts"><button type="button" id="' + id + '-reveal" disabled>Show in folder</button><button type="button" class="p" id="' + id + '-up" disabled>Upscale this</button>' +
+      '<button type="button" class="s-x" id="' + id + '-clear" title="Clear" aria-label="Clear" hidden>×</button></div>' +
       (extra || "") +
       '<div class="s-view" id="' + id + '-view"></div>' +
       '<div class="s-vars" id="' + id + '-strip"></div>' +
@@ -99,20 +108,17 @@
     var create = document.createElement("div");
     create.className = "s-page"; create.id = "p-create";
     create.innerHTML = rail("c", "Create",
-      '<div class="s-label">Start from</div><div class="m-src" id="c-source"><button type="button" data-v="live"><span class="m-dot"></span>Live from app</button><button type="button" data-v="image">Image</button></div>' +
-      '<button type="button" class="s-slot empty" id="c-slot" data-slot="src"></button>' +
-      '<div class="s-ps" id="c-ps"></div>' +
-      '<div class="s-label">Where to change</div><div class="s-seg" id="c-area"><button type="button" data-v="whole">Whole image</button><button type="button" data-v="paint">Painted area only</button></div>' +
-      '<p class="s-hint" id="c-area-hint" hidden>Paint over what should change. Everything outside the paint stays exactly the same, pixel for pixel.</p>' +
-      '<div class="s-label">What to change</div><div class="s-presets" id="c-presets">' +
-      PRESETS.map(function (p) { return '<button type="button" data-v="' + p[0] + '">' + p[1] + "</button>"; }).join("") + "</div>" +
-      '<textarea class="s-prompt" id="c-text" placeholder="Describe the change"></textarea>' +
-      '<div class="s-imp" id="c-imp" hidden><button type="button" title="Improve my prompt" aria-label="Improve my prompt">✨</button><span></span></div>' +
-      keepSlider("c") +
-      '<div id="c-blend-w" hidden><div class="s-label">Blend edges <em id="c-blend-v"></em></div><input class="s-range" type="range" min="0" max="1" step="0.05" id="c-blend"><div class="s-ends"><span>Sharp</span><span>Soft</span></div></div>' +
+      '<div><div class="s-label">Start from</div><div class="m-src" id="c-source"><button type="button" data-v="live"><span class="m-dot"></span>Live from app</button><button type="button" data-v="image">Image</button></div>' +
+      '<button type="button" class="s-slot s-slim empty" id="c-slot" data-slot="src"></button>' +
+      '<div class="s-ps" id="c-ps"></div></div>' +
+      '<div class="s-seg" id="c-area" hidden><button type="button" data-v="whole"></button><button type="button" data-v="paint"></button></div>' +
+      '<div><div class="s-label">What to change</div><div class="s-tiles4" id="c-presets">' +
+      PRESETS.map(function (p) { return '<button type="button" data-v="' + p[0] + '">' + svg(p[3]) + "<span>" + p[1] + "</span></button>"; }).join("") + "</div></div>" +
+      promptBox("c", "Describe the change") +
+      '<div id="c-blend-w" hidden><div class="s-label">Blend edges <em id="c-blend-v"></em></div><input class="s-range" type="range" min="0" max="1" step="0.05" id="c-blend"></div>' +
       '<div id="c-look-w" hidden><div class="s-label">Look</div><select class="s-select" id="c-lora"></select></div>' +
-      '<div id="c-juice-w" hidden><div class="s-label">Juice <em id="c-juice-v"></em></div><input class="s-range" type="range" min="0" max="1" step="0.05" id="c-juice"><div class="s-ends"><span>Off</span><span>Rich</span></div><select class="s-select" id="c-juice-lora" style="margin-top:8px"></select><p class="s-hint" style="margin-top:6px">A light second pass that adds atmosphere and richer materials. Higher can change small details.</p></div>' +
-      varsChips("c"), "Create") + stage("c");
+      '<div id="c-juice-w" hidden><div class="s-label">Juice <em id="c-juice-v"></em></div><input class="s-range" type="range" min="0" max="1" step="0.05" id="c-juice"><select class="s-select" id="c-juice-lora" style="margin-top:8px"></select></div>' +
+      optionsRow("c"), "Create") + stage("c");
     document.body.appendChild(create);
 
     var ref = document.createElement("div");
@@ -123,9 +129,8 @@
       '<div class="s-label">Take from the reference</div><div class="s-seg" id="r-mode">' +
       Object.keys(REF).map(function (k) { return '<button type="button" data-v="' + k + '">' + REF[k][0] + "</button>"; }).join("") + "</div>" +
       '<p class="s-hint" id="r-mode-hint"></p>' +
-      '<div class="s-label">Extra instructions (optional)</div><textarea class="s-prompt" id="r-text" style="min-height:60px" placeholder="e.g. the floor console must match the reference view"></textarea>' +
-      '<div class="s-imp" id="r-imp" hidden><button type="button" title="Improve my prompt" aria-label="Improve my prompt">✨</button><span></span></div>' +
-      keepSlider("r") + varsChips("r"), "Transfer") +
+      '<div><div class="s-label">Extra instructions (optional)</div>' + promptBox("r", "e.g. the floor console must match the reference view") + "</div>" +
+      optionsRow("r"), "Transfer") +
       stage("r", '<div class="s-twin"><div class="box" id="r-twin-a"></div><div class="box" id="r-twin-b"></div></div>');
     document.body.appendChild(ref);
 
@@ -240,7 +245,7 @@
       if (p.juice > 0 && p.juiceLora && st.juice_ready) { j.juice = p.juice; j.juice_lora = p.juiceLora; }
     }
     Object.assign(j, extra || {});
-    p.error = ""; p.stage = "Starting"; p.frac = 0; p.pending = j.variations;
+    p.error = ""; p.stage = "Starting"; p.frac = 0; p.pending = j.variations; p.started = Date.now(); p.estimate = 0;
     api().studio_run(j).then(function (jid) {
       if (jid) { if (p.job === "starting") p.job = jid; } else { p.job = null; p.pending = 0; refresh(); }
       render();
@@ -298,7 +303,8 @@
       var p = P(id), pre = id === "c" ? "c." : "r.";
       $(id + "-keep").addEventListener("input", function () { p.keep = +this.value; keep(pre + "keep", p.keep); renderValues(); });
       $(id + "-vars").addEventListener("click", function (e) {
-        var b = e.target.closest("button"); if (!b) return; p.vars = +b.getAttribute("data-n"); keep(pre + "vars", p.vars); render();
+        var b = e.target.closest("button"); if (!b) return;
+        p.vars = Math.max(1, Math.min(4, p.vars + +b.getAttribute("data-d"))); keep(pre + "vars", p.vars); render();
       });
       $(id + "-go").addEventListener("click", function () { job(id); });
       $(id + "-cancel").addEventListener("click", function () { api().studio_cancel(); });
@@ -307,6 +313,12 @@
       $(id + "-up").addEventListener("click", function () {
         var c = current(p); if (!c) return;
         api().studio_to_upscale(c.path).then(function () { go("upscale"); });
+      });
+      $(id + "-clear").addEventListener("click", function () {
+        p.results = []; p.sel = -1;
+        if (id === "c" && !(p.src && p.src.live)) { p.src = null; p.imageSrc = null; }
+        if (id === "r") { p.src = null; p.refimg = null; }
+        render();
       });
       $(id + "-reveal").addEventListener("click", function () { var c = current(p); if (c) api().reveal(c.path); });
       $(id + "-strip").addEventListener("click", function (e) {
@@ -346,8 +358,8 @@
       }
     });
     ["c", "r"].forEach(function (id) {
-      $(id + "-imp").querySelector("button").addEventListener("click", function () {
-        var p = P(id), box = $(id + "-text"), note = $(id + "-imp").querySelector("span"), btn = this;
+      $(id + "-imp").querySelector(".s-impb").addEventListener("click", function () {
+        var p = P(id), box = $(id + "-text"), note = $(id + "-imp").querySelector(".s-impn"), btn = this;
         if (!box.value.trim()) { note.textContent = "Write a few words first."; return; }
         btn.disabled = true; btn.classList.add("busy"); note.textContent = "Improving…";
         api().studio_improve(p.preset, box.value).then(function (r) {
@@ -563,6 +575,15 @@
     sel.value = list.some(function (l) { return l.name === value; }) ? value : "";
   }
 
+  function mmss(sec) { sec = Math.max(0, Math.round(sec)); return Math.floor(sec / 60) + ":" + ("0" + sec % 60).slice(-2); }
+  // " · 0:42 · about 1:10 left" while a job runs (the estimate comes from earlier runs)
+  function clock(p) {
+    if (!p.started) return "";
+    var el = (Date.now() - p.started) / 1000, s = " · " + mmss(el);
+    if (p.estimate) s += p.estimate > el ? " · about " + mmss(p.estimate - el) + " left" : " · almost done";
+    return s;
+  }
+
   function renderRail(id) {
     var p = P(id), st = S.status, ready = st && st.create_ready;
     var busy = !!p.job;
@@ -572,16 +593,16 @@
     $(id + "-fill").style.width = busy ? Math.round((p.frac || 0) * 100) + "%" : "0";
     var label = id === "c" ? (S.create.area === "paint" ? "Change painted area" : "Create") : "Transfer";
     $(id + "-golabel").textContent = busy ? (p.stage || "Working") : label;
-    var meta = "";
+    var meta = "", t = st && st.times;
     if (busy && S.engine.state === "starting") meta = S.engine.message;
     else if (!ready) meta = st ? "Set up image generation first" : "";
-    else meta = p.vars + (p.vars > 1 ? " variations" : " variation") + " · the first run of a session loads the models (about a minute)";
+    else if (t && t.per) meta = "About " + mmss(t.per * p.vars + (t.warm ? 0 : (t.load || 0))) + " for " + p.vars + (p.vars > 1 ? " variations" : " variation");
+    else meta = "The first run loads the models, so it takes a little longer";
     $(id + "-meta").textContent = meta;
     $(id + "-err").hidden = !p.error; $(id + "-err").textContent = p.error;
-    on($(id + "-vars"), "data-n", p.vars);
+    $(id + "-vars-n").textContent = p.vars;
     var cons = hasConsistency();
-    [id + "-keep-l", id + "-keep", id + "-keep-e"].forEach(function (k) { $(k).hidden = !cons; });
-    $(id + "-keep-none").hidden = cons || !st;
+    $(id + "-keep-w").hidden = !cons;
   }
 
   var APPS = { photoshop: ["Ps", "Photoshop", "ps"], affinity: ["Af", "Affinity", "af"] };
@@ -650,7 +671,6 @@
     renderPS();
     setSlot($("c-slot"), p.src, "click to change", "Drop a sketch or render here, or click");
     on($("c-area"), "data-v", p.area);
-    $("c-area-hint").hidden = p.area !== "paint";
     on($("c-presets"), "data-v", p.preset);
     var pr = PRESETS.filter(function (x) { return x[0] === p.preset; })[0];
     $("c-text").placeholder = pr ? pr[2] : "Describe the image you want";
@@ -704,6 +724,7 @@
     var ttl = esc(name) + "<small>" + sub + "</small>";
     if ($(id + "-ttl").getAttribute("data-h") !== ttl) { $(id + "-ttl").innerHTML = ttl; $(id + "-ttl").setAttribute("data-h", ttl); }
     $(id + "-up").disabled = !c; $(id + "-reveal").disabled = !c;
+    $(id + "-clear").hidden = !(p.results.length && !p.job);
     $(id + "-refine-go").disabled = !!p.job || !(c || p.src);
 
     // The big view.
@@ -741,10 +762,17 @@
           (mode === "result" ? '<span class="s-tag">Result · hold to see the original</span>' : '<span class="s-tag">' + (info.live ? "Live from " + ((APPS[info.app] || APPS.photoshop)[1]) : "Original") + "</span>");
       }
     }
+    if (id === "c" && p.src && !c) {
+      var pb = view.querySelector(".s-paintbtn");
+      if (!pb) { pb = document.createElement("button"); pb.type = "button"; pb.className = "s-paintbtn";
+        pb.onclick = function () { S.create.area = S.create.area === "paint" ? "whole" : "paint"; S.create.sel = -1; render(); }; view.appendChild(pb); }
+      pb.innerHTML = p.area === "paint" ? "Stop painting" : svg("brush") + "Paint an area";
+      pb.classList.toggle("on", p.area === "paint");
+    }
     var busy = view.querySelector(".s-busy");
     if (p.job) {
       if (!busy) { busy = document.createElement("div"); busy.className = "s-busy"; busy.innerHTML = '<span></span><i><b></b></i>'; view.appendChild(busy); }
-      busy.querySelector("span").textContent = (S.engine.state === "starting" ? S.engine.message : p.stage) || "Working";
+      busy.querySelector("span").textContent = ((S.engine.state === "starting" ? S.engine.message : p.stage) || "Working") + clock(p);
       busy.querySelector("b").style.width = Math.round((p.frac || 0) * 100) + "%";
     } else if (busy) busy.remove();
 
@@ -977,9 +1005,9 @@
       else if (kind === "studio-job") {
         var p = byJob(data.id);
         if (!p) return;
-        if (data.state === "running") { p.stage = data.stage; p.frac = data.fraction == null ? p.frac : data.fraction; }
+        if (data.state === "running") { p.stage = data.stage; p.frac = data.fraction == null ? p.frac : data.fraction; if (data.estimate) p.estimate = data.estimate; if (!p.started) p.started = Date.now(); }
         else {
-          p.job = null; p.pending = 0; p.stage = ""; p.frac = 0;
+          p.job = null; p.pending = 0; p.stage = ""; p.frac = 0; p.started = 0; p.estimate = 0;
           p.error = data.state === "error" ? (data.message || "Something went wrong.") : "";
         }
       } else if (kind === "studio-result") {
@@ -1018,6 +1046,7 @@
       S.update = s.update || S.update; S.version = s.version;
       hook();
       build();
+      setInterval(function () { if (S.create.job || S.ref.job) render(); }, 1000);
     });
   }
   if (api()) start(); else window.addEventListener("pywebviewready", start);

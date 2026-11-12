@@ -193,8 +193,9 @@ body.studio .s-page.on{display:flex;flex:1;min-width:0;height:100%}
 .s-col{display:flex;flex-direction:column;gap:14px}
 .s-up{background:#fff;border-radius:16px;padding:18px 20px;box-shadow:0 2px 8px rgba(15,18,32,.06);display:flex;flex-direction:column;gap:6px}
 .s-up .group{margin:0 0 12px}
-.s-nav .s-heart{width:44px;height:44px;border-radius:50%;margin-bottom:6px;display:flex;align-items:center;justify-content:center;color:#E0507A;background:#FDEEF3;animation:s-beat 1.6s ease-in-out infinite}
-.s-nav .s-heart svg{width:22px;height:22px;fill:currentColor;stroke:none}
+.s-nav .s-heart{width:44px;height:44px;border-radius:50%;margin-bottom:6px;display:flex;align-items:center;justify-content:center;background:none}
+.s-nav .s-heart:hover{background:#FDECF1}
+.s-nav .s-heart svg{width:22px;height:22px;fill:#E0245E;stroke:#E0245E}
 @keyframes s-beat{0%,100%{transform:scale(1)}12%{transform:scale(1.14)}24%{transform:scale(1)}36%{transform:scale(1.1)}48%{transform:scale(1)}}
 .s-prompt{padding-right:44px}
 .s-imp{position:relative;height:0;margin:0}
@@ -203,3 +204,39 @@ body.studio .s-page.on{display:flex;flex:1;min-width:0;height:100%}
 @keyframes s-spin{to{transform:rotate(360deg)}}
 .s-imp span{position:absolute;right:48px;top:-44px;font-size:11.5px;background:rgba(255,255,255,.9);padding:2px 6px;border-radius:6px}
 .s-imp span:empty{display:none}
+
+/* Create panel, roomier */
+.s-rail-body{gap:22px;padding:22px 22px 10px}
+.s-label{font-size:11.5px;font-weight:750;color:var(--dim);text-transform:uppercase;letter-spacing:.06em;margin-bottom:9px}
+.s-label em{text-transform:none;letter-spacing:0}
+.s-rail-body>div>.s-label,.s-rail-body>.s-label{margin-bottom:9px}
+.s-slim{border:none;padding:0;margin-top:10px;height:auto;gap:12px}
+.s-slim.empty{border:1.5px dashed var(--line-2);height:56px;padding:0 12px}
+.s-slim img{width:64px;height:40px}
+.s-slim:hover{background:none}
+#c-ps{margin-top:10px}
+.s-tiles4{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.s-tiles4 button{height:50px;border-radius:12px;border:1.5px solid var(--line);display:flex;align-items:center;gap:10px;padding:0 12px;font-size:13px;font-weight:700;color:var(--ink-2);text-align:left;background:#fff}
+.s-tiles4 button svg{width:20px;height:20px;flex-shrink:0;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.s-tiles4 button:hover{border-color:var(--line-2)}
+.s-tiles4 button.on{border-color:var(--ink);background:var(--field);color:var(--ink)}
+.s-pbox{border-radius:14px;border:1px solid var(--line);background:var(--field);overflow:hidden}
+.s-pbox:focus-within{border-color:var(--ink)}
+.s-pbox .s-prompt{border:none;background:none;border-radius:0;padding:12px 14px;min-height:70px;resize:none}
+.s-pbar{display:flex;align-items:center;gap:10px;padding:6px 8px;border-top:1px solid var(--line);background:#fff}
+.s-pbar[hidden]{display:none}
+.s-impb{height:30px;padding:0 10px;border-radius:9px;font-size:12.5px;font-weight:700;color:var(--ink);background:var(--field)}
+.s-impb:hover{background:var(--line)}
+.s-impb.busy{opacity:.6}
+.s-impn{font-size:12px;color:var(--dim)}
+.s-opts{display:flex;gap:18px;align-items:flex-start}
+.s-k{flex:1;min-width:0}
+.s-k .s-range{margin:2px 0 0}
+.s-step{display:flex;align-items:center;border:1px solid var(--line);border-radius:10px;height:36px;background:#fff}
+.s-step button{width:32px;height:100%;font-size:16px;font-weight:800;color:var(--dim)}
+.s-step button:hover{color:var(--ink)}
+.s-step b{width:22px;text-align:center;font-size:14px}
+.s-paintbtn{position:absolute;top:12px;right:12px;z-index:3;height:34px;padding:0 13px;border-radius:17px;background:rgba(255,255,255,.96);display:flex;align-items:center;gap:6px;font-size:12.5px;font-weight:700;color:var(--ink);box-shadow:0 2px 8px rgba(15,18,32,.15)}
+.s-paintbtn svg{width:15px;height:15px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.s-paintbtn.on{background:var(--ink);color:#fff}
+.s-x{width:38px;padding:0!important;font-size:20px!important;line-height:1}

@@ -144,6 +144,7 @@ class Studio:
         st["engine"] = {"state": self.engine.state, "message": self.engine.message}
         st["apps"] = installed_apps()
         st["sizes"] = recommended_sizes()
+        st["times"] = dict(self.settings.get("studio_times") or {}, warm=bool(getattr(self, "_warm", False)))
         st["busy"] = bool(self._job and self._job.is_alive())
         st["setup_running"] = bool(self._setup and self._setup.is_alive())
         st["free_gb"] = _free_gb(studio.home(self.settings))
@@ -341,9 +342,20 @@ class Studio:
                    ("paint" if mask is not None else ("create" if mode == "create" else (job.get("preset") or "reference"))))
             out_dir = os.path.join(studio.outputs_dir(s), time.strftime("%Y-%m-%d"))
             results = []
+            # How long this should take, from earlier runs on this computer:
+            # seconds per variation, plus the model loading of a session's first run.
+            times = dict(s.get("studio_times") or {})
+            per, load = times.get("per"), times.get("load")
+            first = not getattr(self, "_warm", False)
+            if per:
+                est = per * n + ((load or 0) if first else 0)
+                self.emit("studio-job", {"id": job_id, "state": "running", "stage": "Starting", "fraction": 0,
+                                         "estimate": round(est)})
+            t_start = time.time()
             for v in range(n):
                 if self._cancel.is_set():
                     raise RuntimeError("Cancelled")
+                t_var = time.time()
                 label = "Variation %d of %d" % (v + 1, n) if n > 1 else "Creating"
                 say(label, v / n)
                 prog = lambda f, v=v: say(label, (v + f) / n)
@@ -385,6 +397,14 @@ class Studio:
                 item = {"path": path, "w": w, "h": h, "name": os.path.basename(path),
                         "preview": imaging.preview(path), "meta": meta}
                 results.append(item)
+                took = time.time() - t_var
+                if v == 0 and first:
+                    # The first variation includes loading the models: learn both parts.
+                    times["load"] = round(max(0.0, took - (per or took * 0.5)), 1) if per else round(took * 0.5, 1)
+                    took = took - times["load"]
+                times["per"] = round(took if not times.get("per") else times["per"] * 0.6 + took * 0.4, 1)
+                s.set("studio_times", times)
+                self._warm = True
                 self.emit("studio-result", {"id": job_id, "result": item, "index": v, "of": n})
             self.emit("studio-job", {"id": job_id, "state": "done", "count": len(results)})
         except Exception as exc:
