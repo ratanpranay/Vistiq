@@ -96,38 +96,38 @@ HF = "https://huggingface.co/%s/resolve/main/%s"
 #: download that needs no login (None: take it from a ComfyUI folder, or the
 #: page says how to get it).
 FILES = [
-    {"key": "klein", "part": "create", "folder": "diffusion_models", "label": "FLUX.2 Klein 9B",
+    {"key": "klein", "part": "create", "folder": "diffusion_models", "label": "Image model",
      "names": ["flux-2-klein-9b-fp8mixed.safetensors", "flux-2-klein-9b-fp8.safetensors",
                "flux-2-klein-9b.safetensors"],
      "gb": 9.4, "url": None, "page": "https://huggingface.co/black-forest-labs/FLUX.2-klein-9b-fp8",
-     "about": "The image model. Needs a free Hugging Face account to download."},
-    {"key": "qwen", "part": "create", "folder": "text_encoders", "label": "Qwen 3 8B text encoder",
+     "about": "Makes the images. Its maker asks for a free sign-in to download it."},
+    {"key": "qwen", "part": "create", "folder": "text_encoders", "label": "Prompt reader",
      "names": ["qwen_3_8b_fp8mixed.safetensors", "qwen_3_8b.safetensors"], "gb": 8.7,
      "url": HF % ("Comfy-Org/flux2-klein-9B", "split_files/text_encoders/qwen_3_8b_fp8mixed.safetensors"),
-     "page": "https://huggingface.co/Comfy-Org/flux2-klein-9B", "about": "Reads your prompt."},
-    {"key": "vae2", "part": "create", "folder": "vae", "label": "FLUX.2 VAE",
+     "page": "https://huggingface.co/Comfy-Org/flux2-klein-9B", "about": "Understands what you type."},
+    {"key": "vae2", "part": "create", "folder": "vae", "label": "Image decoder",
      "names": ["flux2-vae.safetensors"], "gb": 0.34,
      "url": HF % ("Comfy-Org/flux2-dev", "split_files/vae/flux2-vae.safetensors"),
-     "page": "https://huggingface.co/Comfy-Org/flux2-dev", "about": "Turns pictures into the model's format and back."},
-    {"key": "consistency", "part": "create", "folder": "loras", "label": "Klein-consistency",
+     "page": "https://huggingface.co/Comfy-Org/flux2-dev", "about": "Turns the model's work into a picture."},
+    {"key": "consistency", "part": "create", "folder": "loras", "label": "Design lock",
      "names": ["Klein-consistency.safetensors"], "gb": 0.33, "url": None, "page": "",
-     "optional": True, "about": "Keeps your design when Keep my design is up."},
-    {"key": "flux1", "part": "juice", "folder": "diffusion_models", "label": "Flux.1 dev",
+     "optional": True, "about": "Holds your design in place (Keep my design)."},
+    {"key": "flux1", "part": "juice", "folder": "diffusion_models", "label": "Juice model",
      "names": ["flux1-dev-fp8.safetensors", "flux1-dev.safetensors"], "gb": 23.8, "url": None,
      "page": "https://huggingface.co/black-forest-labs/FLUX.1-dev",
-     "about": "Adds atmosphere in the Juice pass. Needs a free Hugging Face account."},
-    {"key": "t5", "part": "juice", "folder": "text_encoders", "label": "T5 text encoder",
+     "about": "Adds atmosphere in the Juice pass."},
+    {"key": "t5", "part": "juice", "folder": "text_encoders", "label": "Juice prompt reader",
      "names": ["t5xxl_fp8_e4m3fn.safetensors", "t5xxl_fp8_e4m3fn_scaled.safetensors", "t5xxl_fp16.safetensors"],
      "gb": 4.9, "url": HF % ("comfyanonymous/flux_text_encoders", "t5xxl_fp8_e4m3fn.safetensors"),
-     "page": "https://huggingface.co/comfyanonymous/flux_text_encoders", "about": "Reads the prompt for Flux.1."},
-    {"key": "clipl", "part": "juice", "folder": "text_encoders", "label": "CLIP-L text encoder",
+     "page": "https://huggingface.co/comfyanonymous/flux_text_encoders", "about": "Understands what you type, for Juice."},
+    {"key": "clipl", "part": "juice", "folder": "text_encoders", "label": "Juice prompt reader 2",
      "names": ["clip_l.safetensors"], "gb": 0.25,
      "url": HF % ("comfyanonymous/flux_text_encoders", "clip_l.safetensors"),
-     "page": "https://huggingface.co/comfyanonymous/flux_text_encoders", "about": "Reads the prompt for Flux.1."},
-    {"key": "vae1", "part": "juice", "folder": "vae", "label": "Flux.1 VAE",
+     "page": "https://huggingface.co/comfyanonymous/flux_text_encoders", "about": "Understands what you type, for Juice."},
+    {"key": "vae1", "part": "juice", "folder": "vae", "label": "Juice decoder",
      "names": ["ae.safetensors", "flux1-vae.safetensors"], "gb": 0.34,
      "url": HF % ("Comfy-Org/Lumina_Image_2.0_Repackaged", "split_files/vae/ae.safetensors"),
-     "page": "https://huggingface.co/black-forest-labs/FLUX.1-dev", "about": "Flux.1's picture format."},
+     "page": "https://huggingface.co/black-forest-labs/FLUX.1-dev", "about": "Turns Juice's work into a picture."},
 ]
 
 
@@ -151,9 +151,22 @@ def loras(settings=None):
         for n in sorted(os.listdir(folder)):
             if n.endswith(".safetensors"):
                 p = os.path.join(folder, n)
-                out.append({"name": n, "family": lora_family(p),
+                out.append({"name": n, "label": friendly_name(n), "family": lora_family(p),
                             "gb": round(os.path.getsize(p) / 1e9, 2)})
     return out
+
+
+def friendly_name(file_name):
+    """A LoRA's name for people: no extension, no version tags, no hashes."""
+    stem = os.path.splitext(file_name)[0]
+    if re.fullmatch(r"(?i)klein[-_ ]?consistency", stem):
+        return "Design lock"
+    if re.match(r"(?i)^(libenc|liblib)[-_]?[0-9a-f]{16,}$", stem) or re.fullmatch(r"[0-9a-f]{20,}", stem):
+        return "Liblib style " + stem[-4:].upper()
+    stem = re.sub(r"[_-]+", " ", stem)
+    stem = re.sub(r"(?i)\b(v\d+(\.\d+)*|fp8|fp16|bf16|lora|safetensors|enhanced edition)\b", "", stem)
+    stem = re.sub(r"\s+", " ", stem).strip(" .")
+    return (stem[:1].upper() + stem[1:]) if stem else file_name
 
 
 def lora_family(path):
@@ -247,9 +260,9 @@ def import_from(folder, settings=None, on_progress=None):
         for n in f["names"]:
             wanted[n.lower()] = f["folder"]
     found = []
-    for root, _dirs, files in os.walk(folder):
-        if root[len(folder):].count(os.sep) > 3:
-            continue
+    for root, dirs, files in os.walk(folder):
+        if root[len(folder):].count(os.sep) >= 3:
+            dirs[:] = []
         for n in files:
             low = n.lower()
             sub = wanted.get(low)
@@ -271,7 +284,7 @@ def import_from(folder, settings=None, on_progress=None):
         except OSError:
             shutil.copy2(src, dst)
         taken.append(n)
-    if settings is not None and found:
+    if settings is not None and found and os.path.basename(folder.rstrip("\\/")).lower() == "models":
         settings.set("comfy_models", folder)
     return taken
 

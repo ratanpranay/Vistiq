@@ -137,3 +137,8 @@ body.studio .s-page.on{display:flex;flex:1;min-width:0;height:100%}
 .s-su p{margin:0;color:var(--dim);font-size:13.5px;line-height:19px}
 .s-su .s-list{box-shadow:none;border:1px solid var(--line);padding:0 14px}
 .s-ring[hidden]{display:none}
+.s-steps{margin:0;padding-left:20px;display:flex;flex-direction:column;gap:10px;font-size:13.5px;color:var(--ink-2)}
+.s-steps li{padding-left:4px}
+.s-adv{display:flex;flex-direction:column;gap:10px}
+.s-adv summary{font-size:15px;font-weight:800;cursor:pointer;margin:8px 0 6px}
+.s-adv[open]>*:not(summary){margin-bottom:10px}

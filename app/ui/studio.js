@@ -63,7 +63,7 @@
     return '<div class="s-label" id="' + id + '-keep-l">Keep my design <em id="' + id + '-keep-v"></em></div>' +
       '<input class="s-range" type="range" min="0" max="1" step="0.05" id="' + id + '-keep">' +
       '<div class="s-ends" id="' + id + '-keep-e"><span>Free</span><span>Exact</span></div>' +
-      '<p class="s-hint" id="' + id + '-keep-none" hidden>Add Klein-consistency in Settings to hold the design more tightly.</p>';
+      '<p class="s-hint" id="' + id + '-keep-none" hidden>Add the Design lock in Settings to hold the design more tightly.</p>';
   }
 
   function varsChips(id) {
@@ -444,7 +444,7 @@
 
   function options(sel, list, value, none) {
     var html = '<option value="">' + none + "</option>" + list.map(function (l) {
-      return '<option value="' + esc(l.name) + '"' + (l.name === value ? " selected" : "") + ">" + esc(l.name.replace(/\.safetensors$/, "")) + "</option>";
+      return '<option value="' + esc(l.name) + '"' + (l.name === value ? " selected" : "") + ">" + esc(l.label || l.name) + "</option>";
     }).join("");
     if (sel.getAttribute("data-h") !== html) { sel.innerHTML = html; sel.setAttribute("data-h", html); }
     sel.value = list.some(function (l) { return l.name === value; }) ? value : "";
@@ -483,11 +483,11 @@
     $("c-blend-w").hidden = p.area !== "paint";
     var looks = st ? st.loras.filter(function (l) { return l.family === "klein9b" && !/klein-consistency/i.test(l.name); }) : [];
     $("c-look-w").hidden = !looks.length;
-    options($("c-lora"), looks, p.lora, "Klein only");
+    options($("c-lora"), looks, p.lora, "Standard");
     var juicy = st ? st.loras.filter(function (l) { return l.family === "flux1"; }) : [];
     $("c-juice-w").hidden = !(st && st.juice_ready && juicy.length);
     if (!p.juiceLora && juicy.length) p.juiceLora = juicy[0].name;
-    options($("c-juice-lora"), juicy, p.juiceLora, "Choose a Flux.1 LoRA");
+    options($("c-juice-lora"), juicy, p.juiceLora, "Choose a style");
     renderRail("c");
     renderStage("c");
   }
@@ -512,7 +512,7 @@
 
   function gate(id) {
     var st = S.status, g = $(id + "-gate"), stg = $(id + "-stage");
-    var show = st && !st.create_ready;
+    var show = st && (!st.create_ready || !st.engine_installed);
     g.hidden = !show; stg.hidden = !!show;
     if (show) { var h = setupCard(); if (g.getAttribute("data-h") !== h) { g.innerHTML = h; g.setAttribute("data-h", h); } }
     return show;
@@ -604,7 +604,7 @@
       else if (f.can_download) right = '<span class="s-miss">Missing</span>';
       else if (f.page) right = '<button type="button" class="s-link" data-su="page" data-url="' + esc(f.page) + '">Get it</button>';
       else right = '<span class="s-miss">' + (f.optional ? "Optional" : "Missing") + "</span>";
-      return '<div class="s-row"><div class="n"><b>' + esc(f.label) + "</b><small>" + esc(f.about) + (f.ready ? "" : " · " + esc(f.file)) + '</small></div><span class="s-pill">' + gb(f.gb) + "</span>" + right + "</div>";
+      return '<div class="s-row"><div class="n"><b>' + esc(f.label) + "</b><small>" + esc(f.about) + '</small></div><span class="s-pill">' + gb(f.gb) + "</span>" + right + "</div>";
     }).join("");
   }
 
@@ -616,22 +616,33 @@
       '<div class="s-btns"><button type="button" class="s-btn" data-su="cancel">Stop</button></div>';
   }
 
+  // First run: one button. It takes what is already on this PC (a ComfyUI,
+  // the Downloads folder), sets up the image engine and downloads the rest.
+  // The only thing left by hand is the one file whose maker wants a sign-in.
   function setupCard() {
-    var st = S.status, files = st.files.filter(function (f) { return f.part === "create"; });
-    var dl = files.filter(function (f) { return !f.ready && f.can_download; }).reduce(function (a, f) { return a + f.gb; }, 0) + (st.engine_installed ? 0 : 2.1);
-    var needHand = files.filter(function (f) { return !f.ready && !f.can_download && !f.optional; });
+    var st = S.status, files = st.files.filter(function (f) { return f.part === "create" && !f.optional; });
     var running = !!S.setup.run;
-    var take = st.comfy_models
-      ? '<button type="button" class="s-btn p" data-su="take" data-path="' + esc(st.comfy_models) + '"' + (running ? " disabled" : "") + '>Take files from my ComfyUI</button><button type="button" class="s-btn" data-su="take-other"' + (running ? " disabled" : "") + ">Another folder…</button>"
-      : '<button type="button" class="s-btn p" data-su="take-other"' + (running ? " disabled" : "") + ">Take files from a folder…</button>";
-    return '<div class="s-su"><h1>Set up image generation</h1>' +
-      "<p>A one-time setup. Afterwards everything runs on this PC, also without internet. " + (st.free_gb ? st.free_gb + " GB free where Vistiq Studio keeps its files." : "") + "</p>" +
-      (st.comfy_models ? "<p>Found ComfyUI models in <b>" + esc(st.comfy_models) + "</b>. Files are linked from there, so they take no extra space.</p>" : "<p>If you already have these files in a ComfyUI folder, take them from there: no download, no extra space.</p>") +
-      '<div class="s-btns">' + take + "</div>" +
-      '<div class="s-list">' + fileRows(files) + "</div>" +
-      (needHand.length ? "<p>" + esc(needHand.map(function (f) { return f.label; }).join(", ")) + " can't be downloaded for you: its maker asks you to accept their licence first. Click Get it, sign in, download the file, then take it from your Downloads folder.</p>" : "") +
-      (dl > 0 ? '<div class="s-btns"><button type="button" class="s-go" style="height:48px" data-su="download"' + (running ? " disabled" : "") + "><span>Download the rest · about " + gb(dl) + "</span></button></div>" : "") +
-      progressHTML() + "</div>";
+    var dl = files.filter(function (f) { return !f.ready && f.can_download; }).reduce(function (a, f) { return a + f.gb; }, 0) + (st.engine_installed ? 0 : 2.1);
+    var byHand = files.filter(function (f) { return !f.ready && !f.can_download; });
+    var tried = !!S.setup.done;
+    var h = '<div class="s-su"><h1>Set up Vistiq Studio</h1>';
+    if (running) {
+      h += "<p>Setting up. You can leave this open and come back; it carries on by itself.</p>" + progressHTML();
+    } else if (tried && byHand.length && dl <= 0) {
+      var f = byHand[0];
+      h += "<p>Almost done. One file needs you, because its maker asks everyone to accept their licence first (free):</p>" +
+        '<ol class="s-steps"><li><button type="button" class="s-btn p" data-su="page" data-url="' + esc(f.page) + '">Open the ' + esc(f.label) + " page</button></li>" +
+        "<li>Sign in, accept, and download <b>" + esc(f.file) + "</b> (" + gb(f.gb) + ").</li>" +
+        '<li>When it is in your Downloads folder: <button type="button" class="s-btn p" data-su="download">Finish setup</button></li></ol>' +
+        (S.setup.error ? '<div class="s-err">' + esc(S.setup.error) + "</div>" : "");
+    } else {
+      h += "<p>A one-time setup" + (dl > 0 ? ", about " + gb(dl) + " to download" : "") + ". After that everything runs on this PC, also without internet.</p>" +
+        (st.comfy_models ? "<p>Your ComfyUI was found: files it already has are used from there, without copying.</p>" : "") +
+        '<button type="button" class="s-go" style="height:50px" data-su="download"><span>Set up</span></button>' +
+        (S.setup.error ? '<div class="s-err">' + esc(S.setup.error) + "</div>" : "");
+    }
+    h += '<p style="font-size:12px">Files somewhere else? <button type="button" class="s-link" data-su="take-other">Choose a folder</button></p></div>';
+    return h;
   }
 
   function renderSettings() {
@@ -641,26 +652,31 @@
     var jdl = juice.filter(function (f) { return !f.ready && f.can_download; }).length;
     var running = !!S.setup.run;
     var loras = st.loras.length ? st.loras.map(function (l) {
-      var use = l.family === "klein9b" ? (/klein-consistency/i.test(l.name) ? "Keep my design" : "Create · Look") : l.family === "flux1" ? "Create · Juice" : "Not usable here";
-      return '<div class="s-row"><div class="n"><b>' + esc(l.name.replace(/\.safetensors$/, "")) + "</b><small>Made for " + esc(familyLabel(l.family)) + " · " + use + '</small></div><span class="s-pill">' + gb(l.gb) + "</span></div>";
-    }).join("") : '<div class="s-row"><div class="n"><small>No LoRAs yet. Put .safetensors files in the LoRAs folder, or take them from your ComfyUI.</small></div></div>';
+      var use = l.family === "klein9b" ? (/klein-consistency/i.test(l.name) ? "Used by Keep my design" : "A Look in Create") : l.family === "flux1" ? "A style for Juice" : "Can't be used in Vistiq Studio";
+      return '<div class="s-row" title="' + esc(l.name) + '"><div class="n"><b>' + esc(l.label || l.name) + "</b><small>" + use + '</small></div><span class="s-pill">' + gb(l.gb) + "</span></div>";
+    }).join("") : '<div class="s-row"><div class="n"><small>No styles yet. Put style files (.safetensors) in the loras folder, or take them from your ComfyUI.</small></div></div>';
     var h = '<div class="s-ttl">Settings</div>' +
       '<div class="s-sec">Vistiq Studio folder</div>' +
       '<button type="button" class="s-folder" data-su="home"><code>' + esc(st.home) + "</code><em>Change</em></button>" +
-      '<div class="s-tree">' + esc(st.home.split(/[\\/]/).pop()) + "<br>├─ <b>Outputs</b> — every result, by date<br>└─ <b>Models</b> — image model, text encoders, LoRAs<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;└─ <b>loras</b> — drop your own LoRAs here</div>" +
+      '<div class="s-tree">' + esc(st.home.split(/[\\/]/).pop()) + "<br>├─ <b>Outputs</b> — every result, by date<br>└─ <b>Models</b> — the model files<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;└─ <b>loras</b> — drop your own styles here</div>" +
       '<div class="s-btns"><button type="button" class="s-btn" data-su="outputs">Open Outputs</button><button type="button" class="s-btn" data-su="models">Open Models</button>' +
       '<button type="button" class="s-btn" data-su="take-other"' + (running ? " disabled" : "") + ">Take files from a folder…</button>" +
       (st.comfy_models ? '<button type="button" class="s-btn" data-su="take" data-path="' + esc(st.comfy_models) + '"' + (running ? " disabled" : "") + ">Take from my ComfyUI</button>" : "") + "</div>" +
       progressHTML() +
       '<div class="s-sec">Image generation</div><div class="s-list">' + fileRows(st.files.filter(function (f) { return f.part === "create"; })) + "</div>" +
-      '<div class="s-sec">Juice (optional)</div><p class="s-hint">A second, light pass with Flux.1 and a style LoRA, for richer light and materials. Needs Flux.1 dev and a Flux.1 LoRA.</p>' +
+      '<details class="s-adv"' + (S.advOpen ? " open" : "") + '><summary>Advanced: Juice (optional, about 29 GB)</summary>' +
+      '<p class="s-hint">A second, light pass with a style, for richer light and materials. Not needed for anything else.</p>' +
       '<div class="s-list">' + fileRows(juice) + "</div>" +
-      (jdl ? '<div class="s-btns"><button type="button" class="s-btn p" data-su="download-juice"' + (running ? " disabled" : "") + ">Download the Juice text encoders and VAE</button></div>" : "") +
-      '<div class="s-sec">LoRAs</div><div class="s-list">' + loras + "</div>" +
+      (jdl ? '<div class="s-btns"><button type="button" class="s-btn p" data-su="download-juice"' + (running ? " disabled" : "") + ">Download the Juice files</button></div>" : "") + "</details>" +
+      '<div class="s-sec">Styles</div><div class="s-list">' + loras + "</div>" +
       '<div class="s-sec">Image engine</div><p class="s-hint">' + (st.engine_installed ? "Installed. " : "Not set up yet. ") + esc(S.engine.message || "") +
       " The upscaler keeps its own engine; they take turns on the graphics card.</p>" +
       '<div class="s-btns"><button type="button" class="s-btn" data-su="refresh">Check again</button></div>';
-    if (el.getAttribute("data-h") !== h) { el.innerHTML = h; el.setAttribute("data-h", h); }
+    if (el.getAttribute("data-h") !== h) {
+      el.innerHTML = h; el.setAttribute("data-h", h);
+      var adv = el.querySelector(".s-adv");
+      if (adv) adv.addEventListener("toggle", function () { S.advOpen = adv.open; });
+    }
   }
 
   function familyLabel(f) {

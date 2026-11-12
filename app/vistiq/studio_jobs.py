@@ -151,6 +151,13 @@ class Studio:
             def prog(label, fraction):
                 self.emit("studio-setup", {"state": "running", "label": label, "fraction": fraction})
             try:
+                # 1. Files already on this PC: an existing ComfyUI, and the
+                #    Downloads folder (where a file fetched by hand lands).
+                for folder in (studio.guess_comfy_models(self.settings), _downloads()):
+                    if folder and os.path.isdir(folder):
+                        prog("Looking for model files on this PC", None)
+                        studio.import_from(folder, self.settings, prog)
+                # 2. The image engine, then what can be downloaded.
                 if not studio.engine_installed():
                     studio.install_engine(self.settings, prog, self._cancel.is_set)
                 for f in studio.FILES:
@@ -381,6 +388,10 @@ def _read_meta(path):
             return json.load(fh)
     except Exception:
         return {}
+
+
+def _downloads():
+    return os.path.join(os.path.expanduser("~"), "Downloads")
 
 
 def _free_gb(path):
