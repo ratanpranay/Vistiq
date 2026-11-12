@@ -7,6 +7,9 @@ from PIL import Image, ImageDraw
 from vistiq import studio, macos
 from vistiq.settings import Settings
 from vistiq.studio_jobs import Studio
+# GitHub's test Macs have 7 GB; act like a 16 GB MacBook Air (the app refuses below 16 GB)
+macos.ram_gb = lambda: 16
+macos.can_generate = lambda ram=None: True
 
 s = Settings()
 md = studio.models_dir(s)
