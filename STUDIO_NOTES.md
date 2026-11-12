@@ -4,6 +4,7 @@
 - Roomier Create panel: 4 big "What to change" buttons (Sketch to photo, CMF, Lighting, Photoreal), ✨ Improve in the prompt box's own bar, "Paint an area" on the picture, Keep my design and Variations in one row.
 - Timer while creating: time so far and about how long is left, learned from earlier runs.
 - × clears the results.
+- The strip under the picture shows only results of the current picture (first tile marked Live or Original); results of earlier pictures fold into "Earlier".
 - The heart's ring fades with the beat.
 
 ## 0.2.5

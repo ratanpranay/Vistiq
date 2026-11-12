@@ -246,6 +246,7 @@
     }
     Object.assign(j, extra || {});
     p.error = ""; p.stage = "Starting"; p.frac = 0; p.pending = j.variations; p.started = Date.now(); p.estimate = 0;
+    p.jobKey = srcKey(p.src);
     api().studio_run(j).then(function (jid) {
       if (jid) { if (p.job === "starting") p.job = jid; } else { p.job = null; p.pending = 0; refresh(); }
       render();
@@ -324,6 +325,7 @@
       $(id + "-strip").addEventListener("click", function (e) {
         var t = e.target.closest("[data-i]"); if (t) { p.sel = +t.getAttribute("data-i"); render(); return; }
         if (e.target.closest(".s-more")) job(id, { variations: 1 });
+        if (e.target.closest(".s-earlier")) { p.showEarlier = !p.showEarlier; render(); }
       });
       // Hold on a result to see what it started from.
       var view = $(id + "-view");
@@ -575,6 +577,8 @@
     sel.value = list.some(function (l) { return l.name === value; }) ? value : "";
   }
 
+  function srcKey(src) { return src ? (src.live ? "live:" + src.name : src.path) : ""; }
+
   function mmss(sec) { sec = Math.max(0, Math.round(sec)); return Math.floor(sec / 60) + ":" + ("0" + sec % 60).slice(-2); }
   // " · 0:42 · about 1:10 left" while a job runs (the estimate comes from earlier runs)
   function clock(p) {
@@ -777,11 +781,21 @@
     } else if (busy) busy.remove();
 
     // The strip: original, results, placeholders, + Another.
+    // Only results made from what's in Create now; results of earlier
+    // pictures fold into "Earlier" (and are all in the Library).
+    var key = srcKey(p.src), mine = [], earlier = [];
+    p.results.forEach(function (r, i) { (r.srcKey === key ? mine : earlier).push(i); });
+    var tile = function (i) { var r = p.results[i]; return '<img data-i="' + i + '" class="' + (i === p.sel ? "sel" : "") + '" src="' + r.preview + '" title="' + esc(short(r.name)) + '" alt="">'; };
     var strip = "";
-    if (p.src && p.results.length) strip += '<img data-i="-1" class="' + (p.sel < 0 ? "sel" : "") + '" src="' + p.src.preview + '" title="Original" alt="">';
-    p.results.forEach(function (r, i) { strip += '<img data-i="' + i + '" class="' + (i === p.sel ? "sel" : "") + '" src="' + r.preview + '" title="' + esc(short(r.name)) + '" alt="">'; });
+    if (p.src && (mine.length || earlier.length)) strip += '<span class="s-tilewrap"><img data-i="-1" class="' + (p.sel < 0 ? "sel" : "") + '" src="' + p.src.preview + '" alt="">' +
+      '<em class="' + (p.src.live ? "live" : "") + '">' + (p.src.live ? "● Live" : "Original") + "</em></span>";
+    mine.forEach(function (i) { strip += tile(i); });
     for (var k = 0; k < (p.job ? p.pending : 0); k++) strip += '<span class="s-ph"></span>';
-    if (p.results.length && !p.job) strip += '<button type="button" class="s-more">+ Another</button>';
+    if (mine.length && !p.job) strip += '<button type="button" class="s-more">+ Another</button>';
+    if (earlier.length) {
+      strip += '<button type="button" class="s-earlier">' + (p.showEarlier ? "Hide earlier" : "Earlier · " + earlier.length) + "</button>";
+      if (p.showEarlier) earlier.slice().reverse().forEach(function (i) { strip += '<span class="s-old">' + tile(i) + "</span>"; });
+    }
     var sk = $(id + "-strip");
     if (sk.getAttribute("data-h") !== strip) { sk.innerHTML = strip; sk.setAttribute("data-h", strip); }
     layout();
@@ -1012,7 +1026,7 @@
         }
       } else if (kind === "studio-result") {
         var q = byJob(data.id); if (!q) return;
-        q.results.push(data.result); q.pending = Math.max(0, q.pending - 1);
+        data.result.srcKey = q.jobKey; q.results.push(data.result); q.pending = Math.max(0, q.pending - 1);
         if (data.index === 0) q.sel = q.results.length - 1;
       } else if (kind === "studio-setup") {
         if (data.state === "running") { S.setup.run = { label: data.label, fraction: data.fraction }; S.setup.error = ""; S.setup.done = ""; }

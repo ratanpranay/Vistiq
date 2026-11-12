@@ -240,3 +240,10 @@ body.studio .s-page.on{display:flex;flex:1;min-width:0;height:100%}
 .s-paintbtn svg{width:15px;height:15px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
 .s-paintbtn.on{background:var(--ink);color:#fff}
 .s-x{width:38px;padding:0!important;font-size:20px!important;line-height:1}
+.s-tilewrap{position:relative;flex-shrink:0}
+.s-tilewrap em{position:absolute;left:6px;bottom:6px;padding:2px 7px;border-radius:8px;background:rgba(15,18,32,.75);color:#fff;font:700 10.5px var(--font);font-style:normal}
+.s-tilewrap em.live{background:#E5484D}
+.s-earlier{height:63px;padding:0 14px;border-radius:12px;background:var(--field);border:1px solid var(--line);font-size:12.5px;font-weight:700;color:var(--dim);flex-shrink:0}
+.s-earlier:hover{color:var(--ink)}
+.s-old img{opacity:.7}
+.s-old img:hover,.s-old img.sel{opacity:1}
