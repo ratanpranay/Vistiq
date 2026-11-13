@@ -1,5 +1,11 @@
 # Vistiq Studio (test build)
 
+## 0.3.9
+- Photoshop: your file appears right away when you connect or start Studio (panel 1.0.6 keeps an open line to Studio; restart Photoshop once).
+- Watch it develop: the picture forms over your sketch step by step while creating.
+- The Sketch tile fills in with progress while creating.
+- No more "Failed to remove temporary directory" when Studio closes.
+
 ## 0.3.8
 - Photoshop selection = live mask: lasso / marquee / Select Subject in Photoshop and only that area changes. Tinted on the live picture; "Use whole picture" to ignore it. Panel 1.0.5 installs by itself; restart Photoshop once.
 - Finishing pass removed.
