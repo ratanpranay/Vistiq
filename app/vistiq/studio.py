@@ -169,8 +169,10 @@ def loras(settings=None):
         for n in sorted(os.listdir(folder)):
             if n.endswith(".safetensors"):
                 p = os.path.join(folder, n)
+                # Studio's own helpers (design lock, speed-up) aren't styles to pick.
+                builtin = any(n in f["names"] for f in FILES if f["folder"] == "loras")
                 out.append({"name": n, "label": friendly_name(n), "family": lora_family(p),
-                            "gb": round(os.path.getsize(p) / 1e9, 2)})
+                            "gb": round(os.path.getsize(p) / 1e9, 2), "builtin": builtin})
     return out
 
 

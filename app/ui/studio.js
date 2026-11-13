@@ -713,7 +713,7 @@
     $("c-imp").hidden = !(st && st.helper_ready);
     if ($("c-text").value !== p.text && document.activeElement !== $("c-text")) $("c-text").value = p.text;
     $("c-blend-w").hidden = p.area !== "paint";
-    var looks = st ? st.loras.filter(function (l) { return l.family === "klein9b" && !/klein-consistency/i.test(l.name); }) : [];
+    var looks = st ? st.loras.filter(function (l) { return l.family === "klein9b" && !l.builtin && !/klein-consistency|distill/i.test(l.name); }) : [];
     $("c-look-w").hidden = !looks.length;
     options($("c-lora"), looks, p.lora, "Standard");
     var juicy = st ? st.loras.filter(function (l) { return l.family === "flux1"; }) : [];
@@ -943,7 +943,7 @@
     // Styles people can use: Looks for Create (made for the image model) and,
     // under Juice, styles for the Juice pass. Files that work with neither
     // aren't listed; the design lock is listed with the model files.
-    var looks = st.loras.filter(function (l) { return l.family === "klein9b" && !/klein-consistency/i.test(l.name); });
+    var looks = st.loras.filter(function (l) { return l.family === "klein9b" && !l.builtin && !/klein-consistency|distill/i.test(l.name); });
     var juiceStyles = st.loras.filter(function (l) { return l.family === "flux1"; });
     var styleRows = function (list, empty) {
       return list.length ? list.map(function (l) {

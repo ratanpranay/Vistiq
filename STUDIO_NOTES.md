@@ -1,5 +1,9 @@
 # Vistiq Studio (test build)
 
+## 0.3.5
+- Fixes "Dependency cycle" with True V2: the speed-up file was offered as a Style. Studio's own helper files no longer show under Style, and a job can't contain them twice.
+- Tested on the real image engine: True V2 + speed-up + design lock renders in about 16 s.
+
 ## 0.3.4
 - New quality choice: Realistic (True V2), Klein 9B tuned for realism, with a speed-up add-on. Settings → Quality → Download.
 - Create freezes the sketch when you click it; Live keeps updating in the background and comes back when the run is done. "Hold to see the original" shows the exact sketch each result came from.
