@@ -1,5 +1,12 @@
 # Vistiq Studio (test build)
 
+## 0.3.7
+- Sharper, cleaner pictures from the one offline model (Klein 9B): 6 steps and a crisp-photo instruction, tested on real sketches; about the same time.
+- True V2 removed (no better on real sketches, slower). Liblib-locked style files are skipped quietly.
+- Live from app: the connector and To Photoshop work again (they shared an internal name).
+- Strip: Live | the sketch the results came from, then the results.
+- Screen tests run on every build, so the basics can't break unnoticed.
+
 ## 0.3.6
 - Live from app always shows a way to connect; if its card can't be drawn, Studio logs why.
 - After a Create, the live card stays on your file (no more "Connecting to Photoshop" until the next stroke).
