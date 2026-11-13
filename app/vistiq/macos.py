@@ -265,7 +265,8 @@ class MlxEngine:
                "width": w, "height": h, "output": out}
         strength, steps = start_strength(job)
         if strength:
-            msg.update(start=images[0], strength=strength, steps=steps)
+            msg.update(start=start_image(images[0], job.get("start_mode", "blur"), out_dir),
+                       strength=strength, steps=steps)
         p.stdin.write(json.dumps(msg) + "\n")
         p.stdin.flush()
         while True:
@@ -373,6 +374,23 @@ def work_side(ram=None):
     if ram >= 16:
         return 1080
     return 768
+
+
+def start_image(path, mode, folder):
+    """What the model starts from. A raw line drawing makes it copy the lines, so
+    soften it first: the big shapes stay, the thin lines don't get traced."""
+    if mode == "raw":
+        return path
+    im = ImageOps.exif_transpose(Image.open(path)).convert("RGB")
+    r = max(4, max(im.size) // 90)
+    if mode == "grey":
+        g = im.convert("L").point(lambda v: 40 if v < 128 else 140)
+        im = Image.merge("RGB", (g, g, g)).filter(ImageFilter.GaussianBlur(r // 2))
+    else:  # blur
+        im = im.filter(ImageFilter.MinFilter(5)).filter(ImageFilter.GaussianBlur(r))
+    p = os.path.join(folder, "start_%d.png" % int(time.time() * 1000))
+    im.save(p)
+    return p
 
 
 def start_strength(job):
