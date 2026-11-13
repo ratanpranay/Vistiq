@@ -881,16 +881,46 @@ def juice_prompt(settings, image, text, lora, strength=0.8, denoise=0.35, megapi
     return p
 
 
-# Default lighting, so nobody has to describe light every time. Tested on the
-# engine against the plain prompt: windows keep their detail, trims get
-# highlights, corners fall off. Left out when the prompt sets its own time
-# of day or mood ("ambient lighting" alone doesn't count: that's the LED strips).
+# Default light, so nobody has to describe it every time. The prompt decides
+# which: an interior word gets the on-location interior press look, an
+# exterior word the studio press look, anything else a neutral press look.
+# Tuned on the engine against Pranay's benchmark pictures. Left out when the
+# prompt sets its own time of day or mood ("ambient lighting" alone doesn't
+# count: that's the LED strips).
+LIGHT_INT = ("Photographed like a car maker's interior press photo on location on a clear sunny day: hard "
+             "direct sunlight streaming through the windows and glass roof, casting crisp sun patches and "
+             "shadows across the seats, console and dashboard; through the windows a sharp, clearly visible, "
+             "saturated landscape under a deep blue sky, exposed correctly and never washed out; rich saturated "
+             "real leather with visible stitching and perforation; glossy screens and satin metal trims with "
+             "crisp highlights; ambient lighting strips glowing vividly; deep clean shadows in the footwell. "
+             "Wide-angle, ultra-sharp, high dynamic range, vivid, punchy colours.")
+LIGHT_EXT = ("Photographed like a car maker's press photo in a large minimalist photo studio: smooth light-grey "
+             "back wall, dark grey concrete floor with a faint soft reflection under the car, one huge soft "
+             "overhead light drawing a long smooth highlight along the roof and shoulder, the lower body "
+             "falling gently into shadow, soft contact shadows under the tyres. Satin true-to-life paint, "
+             "crisp panel gaps, real tyres; wheels exactly as drawn. Calm, clean, premium.")
 LIGHT = ("Lit like a premium brand press photo: soft, wrapping daylight; exposure balanced so windows "
          "and bright areas keep their detail; glossy highlights rolling along chrome, glass and lacquered "
          "surfaces; soft sheen on leather and fabric; deeper shadows and a gentle vignette toward the edges "
          "that draw the eye to the centre. Calm, luxurious mood.")
 OWN_LIGHT = ("night", "dusk", "dawn", "sunset", "sunrise", "evening", "golden hour", "blue hour",
              "neon", "moody", "overcast", "sunny", "studio light", "spotlight", "candle")
+INTERIOR = ("interior", "cabin", "cockpit", "dashboard", "dash ", "seat", "steering", "console",
+            "door panel", "headliner", "instrument panel")
+EXTERIOR = ("exterior", "side view", "front view", "rear view", "3/4", "three-quarter", "bodywork",
+            "body side", "wheels", "rims", "bumper", "headlight", "taillight", "supercar", "sports car",
+            "coupe", "sedan", "suv", "hatchback", "roadster")
+
+
+def light_for(text):
+    low = " " + (text or "").lower() + " "
+    if any(w in low for w in OWN_LIGHT):
+        return ""
+    if any(w in low for w in INTERIOR):
+        return LIGHT_INT
+    if any(w in low for w in EXTERIOR):
+        return LIGHT_EXT
+    return LIGHT
 
 
 def build_text(preset, text, presets=PRESETS):
@@ -900,8 +930,8 @@ def build_text(preset, text, presets=PRESETS):
     base = presets.get(preset, "")
     text = (text or "").strip()
     out = (base + "\n\n" + text) if base and text else (base or text or "Photorealistic photograph.")
-    low = " " + text.lower() + " "
-    if not any(w in low for w in OWN_LIGHT):
-        out += "\n\n" + LIGHT
+    light = light_for(text)
+    if light:
+        out += "\n\n" + light
     return out + "\n\n" + CRISP
 

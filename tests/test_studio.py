@@ -152,6 +152,14 @@ class Folders(unittest.TestCase):
         self.assertNotIn(studio.LIGHT, studio.build_text("photo", "the same car at night"))
         self.assertNotIn(studio.LIGHT, studio.build_text("photo", "Golden hour sunset"))
 
+    def test_light_follows_prompt(self):
+        # No interior/exterior switch: the words in the prompt pick the look.
+        self.assertEqual(studio.light_for("SUV interior, tan leather seats"), studio.LIGHT_INT)
+        self.assertEqual(studio.light_for("new dashboard with purple LED strip"), studio.LIGHT_INT)
+        self.assertEqual(studio.light_for("silver sports car, side view"), studio.LIGHT_EXT)
+        self.assertEqual(studio.light_for("a lamp on a table"), studio.LIGHT)
+        self.assertEqual(studio.light_for("SUV interior at night"), "")
+
 
 class Masks(unittest.TestCase):
     def test_outside_the_paint_stays_identical(self):
