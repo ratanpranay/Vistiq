@@ -145,6 +145,13 @@ class Folders(unittest.TestCase):
         self.assertTrue(studio.build_text("", "just this").startswith("just this"))
         self.assertTrue(studio.build_text("", ""))
 
+    def test_default_light(self):
+        # Good light comes by default; a prompt that sets its own mood wins.
+        self.assertIn(studio.LIGHT, studio.build_text("photo", "beige leather, keep the ambient lighting"))
+        self.assertIn(studio.LIGHT, studio.build_text("photo", ""))
+        self.assertNotIn(studio.LIGHT, studio.build_text("photo", "the same car at night"))
+        self.assertNotIn(studio.LIGHT, studio.build_text("photo", "Golden hour sunset"))
+
 
 class Masks(unittest.TestCase):
     def test_outside_the_paint_stays_identical(self):

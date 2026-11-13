@@ -881,6 +881,18 @@ def juice_prompt(settings, image, text, lora, strength=0.8, denoise=0.35, megapi
     return p
 
 
+# Default lighting, so nobody has to describe light every time. Tested on the
+# engine against the plain prompt: windows keep their detail, trims get
+# highlights, corners fall off. Left out when the prompt sets its own time
+# of day or mood ("ambient lighting" alone doesn't count: that's the LED strips).
+LIGHT = ("Lit like a premium brand press photo: soft, wrapping daylight; exposure balanced so windows "
+         "and bright areas keep their detail; glossy highlights rolling along chrome, glass and lacquered "
+         "surfaces; soft sheen on leather and fabric; deeper shadows and a gentle vignette toward the edges "
+         "that draw the eye to the centre. Calm, luxurious mood.")
+OWN_LIGHT = ("night", "dusk", "dawn", "sunset", "sunrise", "evening", "golden hour", "blue hour",
+             "neon", "moody", "overcast", "sunny", "studio light", "spotlight", "candle")
+
+
 def build_text(preset, text, presets=PRESETS):
     # Any subject: interiors, exteriors, boats, furniture, lamps… The button
     # only says what kind of change; the prompt says what it is.
@@ -888,5 +900,8 @@ def build_text(preset, text, presets=PRESETS):
     base = presets.get(preset, "")
     text = (text or "").strip()
     out = (base + "\n\n" + text) if base and text else (base or text or "Photorealistic photograph.")
+    low = " " + text.lower() + " "
+    if not any(w in low for w in OWN_LIGHT):
+        out += "\n\n" + LIGHT
     return out + "\n\n" + CRISP
 
