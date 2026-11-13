@@ -1,5 +1,10 @@
 # Vistiq Studio (test build)
 
+## 0.3.6
+- Live from app always shows a way to connect; if its card can't be drawn, Studio logs why.
+- After a Create, the live card stays on your file (no more "Connecting to Photoshop" until the next stroke).
+- Settings: the Upscaler heading lines up with the rest.
+
 ## 0.3.5
 - Fixes "Dependency cycle" with True V2: the speed-up file was offered as a Style. Studio's own helper files no longer show under Style, and a job can't contain them twice.
 - Tested on the real image engine: True V2 + speed-up + design lock renders in about 16 s.
