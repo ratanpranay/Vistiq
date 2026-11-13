@@ -117,6 +117,9 @@ class Studio:
         self._thumbs = {}
         from .bridge import Bridge
         self.bridge = Bridge(os.path.join(data_dir(), "photoshop"), self._on_frame)
+        self.bridge.on_released = lambda: self.emit("studio-live-state", {
+            "app": "photoshop", "state": "off",
+            "message": "Another Vistiq Studio window took over the Photoshop link. Click Stop, then connect again here."})
         from .affinity import AffinityLink
         self.affinity = AffinityLink(os.path.join(data_dir(), "affinity"), self._on_frame,
                                      lambda st, m: self.emit("studio-live-state", {"app": "affinity", "state": st,

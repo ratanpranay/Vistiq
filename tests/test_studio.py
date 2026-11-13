@@ -278,3 +278,30 @@ class PhotoshopLink(unittest.TestCase):
         self.assertIn("main.js", names)
         m = json.load(open(os.path.join(ROOT, "app", "photoshop", "manifest.json")))
         self.assertEqual(m["manifestVersion"], 5)
+
+
+class LinkTakeover(unittest.TestCase):
+    """A Vistiq Studio left running in the background must hand the Photoshop link to the new one."""
+
+    def test_new_studio_takes_the_link(self):
+        import time
+        import urllib.request
+        from vistiq import bridge
+        with tempfile.TemporaryDirectory() as t, mock.patch.object(bridge, "PORT", 18396):
+            got = {"old": 0, "new": 0}
+            old = bridge.Bridge(os.path.join(t, "a"), lambda f: got.__setitem__("old", got["old"] + 1))
+            released = []
+            old.on_released = lambda: released.append(1)
+            self.assertTrue(old.start())
+            new = bridge.Bridge(os.path.join(t, "b"), lambda f: got.__setitem__("new", got["new"] + 1))
+            try:
+                self.assertTrue(new.start())
+                urllib.request.urlopen(urllib.request.Request(
+                    "http://127.0.0.1:18396/raw?w=2&h=2&c=3&name=x", data=bytes([9] * 12), method="POST"),
+                    timeout=3).read()
+                time.sleep(0.2)
+                self.assertEqual(released, [1])
+                self.assertEqual(got, {"old": 0, "new": 1})
+            finally:
+                new.stop()
+                old.stop()

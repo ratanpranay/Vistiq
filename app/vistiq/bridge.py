@@ -10,9 +10,11 @@ import io
 import json
 import logging
 import os
+import socket
 import subprocess
 import sys
 import threading
+import time
 import zipfile
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
@@ -25,6 +27,17 @@ MAX_BODY = 80 << 20
 KEEP = 4                       # live frames kept on disk
 
 
+class _Server(ThreadingHTTPServer):
+    # Windows lets two programs share a port with SO_REUSEADDR, and then
+    # Photoshop's pictures can go to the wrong one. Take the port for ourselves.
+    allow_reuse_address = sys.platform != "win32"
+
+    def server_bind(self):
+        if sys.platform == "win32" and hasattr(socket, "SO_EXCLUSIVEADDRUSE"):
+            self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_EXCLUSIVEADDRUSE, 1)
+        super().server_bind()
+
+
 class Bridge:
     def __init__(self, folder, on_frame):
         self.folder = folder
@@ -34,6 +47,7 @@ class Bridge:
         self.doc = ""
         self.busy_reason = ""
         self._lock = threading.Lock()
+        self.on_released = lambda: None
 
     @property
     def running(self):
@@ -71,6 +85,16 @@ class Bridge:
                     self._send(404)
 
             def do_POST(self):
+                if self.path.startswith("/release"):
+                    # A newer Vistiq Studio wants the link: step aside.
+                    self._send(200)
+                    log.info("Photoshop link handed over to another Vistiq Studio")
+                    bridge.stop()
+                    try:
+                        bridge.on_released()
+                    except Exception:
+                        pass
+                    return
                 if self.path.startswith("/raw"):
                     return self._raw()
                 if not self.path.startswith("/frame"):
@@ -103,9 +127,24 @@ class Bridge:
 
         Handler._raw = _raw
 
+        # Ask an older Vistiq Studio (left running in the background, e.g. after an
+        # update) to let go of the link first; otherwise Photoshop keeps talking to it.
         try:
-            self.server = ThreadingHTTPServer(("127.0.0.1", PORT), Handler)
-        except OSError as exc:
+            import urllib.request
+            urllib.request.urlopen(urllib.request.Request("http://127.0.0.1:%d/release" % PORT, data=b"{}",
+                                                          method="POST"), timeout=2).read()
+            time.sleep(0.5)
+        except Exception:
+            pass
+        for attempt in range(6):
+            try:
+                self.server = _Server(("127.0.0.1", PORT), Handler)
+                break
+            except OSError as exc:
+                last = exc
+                time.sleep(0.5)
+        else:
+            exc = last
             log.warning("Photoshop link can't listen on %d: %s", PORT, exc)
             self.server = None
             self.busy_reason = "other"
