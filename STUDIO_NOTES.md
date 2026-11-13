@@ -1,5 +1,9 @@
 # Vistiq Studio (test build)
 
+## 0.3.8
+- Photoshop selection = live mask: lasso / marquee / Select Subject in Photoshop and only that area changes. Tinted on the live picture; "Use whole picture" to ignore it. Panel 1.0.5 installs by itself; restart Photoshop once.
+- Finishing pass removed.
+
 ## 0.3.7
 - Sharper, cleaner pictures from the one offline model (Klein 9B): 6 steps and a crisp-photo instruction, tested on real sketches; about the same time.
 - True V2 removed (no better on real sketches, slower). Liblib-locked style files are skipped quietly.
