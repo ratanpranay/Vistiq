@@ -376,7 +376,7 @@ class Navigator(unittest.TestCase):
         self.assertIn("closed", self.states)
 
     def test_panel_version_matches(self):
-        with open(os.path.join(ROOT, "app", "photoshop", "manifest.json")) as fh:
+        with open(os.path.join(ROOT, "app", "photoshop", "manifest.json"), encoding="utf-8") as fh:
             self.assertEqual(json.load(fh)["version"], self.bridge_mod.PANEL_VERSION)
-        with open(os.path.join(ROOT, "app", "photoshop", "main.js")) as fh:
+        with open(os.path.join(ROOT, "app", "photoshop", "main.js"), encoding="utf-8") as fh:
             self.assertIn('const VERSION = "%s"' % self.bridge_mod.PANEL_VERSION, fh.read())
