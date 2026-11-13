@@ -1,5 +1,12 @@
 # Vistiq Studio (test build)
 
+## 0.3.4
+- New quality choice: Realistic (True V2), Klein 9B tuned for realism, with a speed-up add-on. Settings → Quality → Download.
+- Create freezes the sketch when you click it; Live keeps updating in the background and comes back when the run is done. "Hold to see the original" shows the exact sketch each result came from.
+- To Photoshop: puts a result (or anything in the Library, upscales too) into the open file as a new layer, sized to the canvas. Panel 1.0.4 installs by itself; restart Photoshop once.
+- A finishing style that makes a black picture is caught: you get the image without it, and a note.
+- Follow my sketch shows "Exact" only at 100%.
+
 ## 0.3.3
 - Photoshop works like a navigator: your current file shows up in Studio by itself, switches when you switch files, and Studio says when no file is open or Photoshop is closed.
 - The mirror lives in memory; a file is written only when you use the picture (Create, Select, Upscale).
