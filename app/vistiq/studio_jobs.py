@@ -602,7 +602,7 @@ def follow_words(keep):
 
 def _add_lora(prompt, lora, strength):
     """An extra Klein LoRA (a look), after Klein-consistency."""
-    if not lora or any(lora in f["names"] for f in studio.FILES if f["folder"] == "loras"):
+    if not lora or lora in studio.RETIRED or any(lora in f["names"] for f in studio.FILES if f["folder"] == "loras"):
         return          # Studio's own helpers are already in the job
     model = prompt["40"]["inputs"]["model"]
     # Node 5 is True V2's speed-up and 4 the design lock: the style gets its own number.

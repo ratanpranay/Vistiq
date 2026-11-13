@@ -101,7 +101,7 @@ FILES = [
                "flux-2-klein-9b.safetensors"],
      "gb": 9.4, "url": None, "page": "https://huggingface.co/black-forest-labs/FLUX.2-klein-9b-fp8",
      "about": "Makes the images. Its maker asks for a free sign-in to download it."},
-    {"key": "qwen", "part": "create", "tier": ("best", "true"), "folder": "text_encoders", "label": "Prompt reader",
+    {"key": "qwen", "part": "create", "tier": "best", "folder": "text_encoders", "label": "Prompt reader",
      "names": ["qwen_3_8b_fp8mixed.safetensors", "qwen_3_8b.safetensors"], "gb": 8.7,
      "url": HF % ("Comfy-Org/flux2-klein-9B", "split_files/text_encoders/qwen_3_8b_fp8mixed.safetensors"),
      "page": "https://huggingface.co/Comfy-Org/flux2-klein-9B", "about": "Understands what you type."},
@@ -109,17 +109,7 @@ FILES = [
      "names": ["flux2-vae.safetensors"], "gb": 0.34,
      "url": HF % ("Comfy-Org/flux2-dev", "split_files/vae/flux2-vae.safetensors"),
      "page": "https://huggingface.co/Comfy-Org/flux2-dev", "about": "Turns the model's work into a picture."},
-    {"key": "truev2", "part": "create", "tier": "true", "folder": "diffusion_models", "label": "Image model (True V2)",
-     "names": ["Flux2-Klein-9B-True-v2-fp8mixed.safetensors"], "gb": 9.4,
-     "url": HF % ("wikeeyang/Flux2-Klein-9B-True-V2", "Flux2-Klein-9B-True-v2-fp8mixed.safetensors"),
-     "page": "https://huggingface.co/wikeeyang/Flux2-Klein-9B-True-V2",
-     "about": "Klein 9B tuned by the community for realism. Free, no sign-up."},
-    {"key": "truespeed", "part": "create", "tier": "true", "folder": "loras", "label": "Speed-up for True V2",
-     "names": ["Klein-9B-distill-speedup.safetensors"], "gb": 0.3,
-     "url": "hf:vafipas663/flux2-klein-base-9b-distill-lora",
-     "page": "https://huggingface.co/vafipas663/flux2-klein-base-9b-distill-lora",
-     "about": "Lets True V2 finish in a few steps instead of dozens."},
-    {"key": "consistency", "part": "create", "tier": ("best", "true"), "folder": "loras", "label": "Design lock",
+    {"key": "consistency", "part": "create", "tier": "best", "folder": "loras", "label": "Design lock",
      "names": ["Klein-consistency.safetensors"], "gb": 0.33, "url": None, "page": "",
      "optional": True, "about": "Holds your design in place (Keep my design)."},
     {"key": "klein4b", "part": "create", "tier": "good", "folder": "diffusion_models", "label": "Image model",
@@ -170,7 +160,7 @@ def loras(settings=None):
             if n.endswith(".safetensors"):
                 p = os.path.join(folder, n)
                 # Studio's own helpers (design lock, speed-up) aren't styles to pick.
-                builtin = any(n in f["names"] for f in FILES if f["folder"] == "loras")
+                builtin = any(n in f["names"] for f in FILES if f["folder"] == "loras") or n in RETIRED
                 out.append({"name": n, "label": friendly_name(n), "family": lora_family(p),
                             "gb": round(os.path.getsize(p) / 1e9, 2), "builtin": builtin})
     return out
@@ -238,9 +228,14 @@ FAMILY_LABEL = {"klein9b": "FLUX.2 Klein 9B", "klein4b": "FLUX.2 Klein 4B", "flu
                 "sdxl": "SDXL", "sd15": "SD 1.5", "unknown": "unknown model"}
 
 
-TIERS = {"best": "Best quality", "good": "Good quality", "true": "Realistic (True V2)"}
-TRUE_STEPS = 6            # True V2 with the speed-up: a few steps instead of dozens
-TRUE_SPEEDUP = 0.5        # how strongly the speed-up is applied (its maker suggests 0.4-0.6)
+TIERS = {"best": "Best quality", "good": "Good quality"}
+# Tested on real sketches on the user's PC (Nov 2026): without this wording the
+# model tends to a flat, hazy look, and 6 steps are clearly crisper than 4.
+CRISP = ("A professional photograph: crisp sharp focus, rich contrast, true-to-life colours, "
+         "detailed real materials and textures, no haze.")
+STEPS = 6
+# Files from options that were tried and removed: never offered as styles.
+RETIRED = ("Klein-9B-distill-speedup.safetensors",)
 
 
 def in_tier(f, t):
@@ -263,7 +258,7 @@ def tier(settings=None):
     chosen = (settings.get("studio_tier") if settings else "") or ""
     if chosen in TIERS and ready(chosen):
         return chosen
-    for t in ("best", "true", "good"):
+    for t in ("best", "good"):
         if ready(t):
             return t
     return chosen if chosen in TIERS else ""
@@ -292,6 +287,7 @@ def status(settings=None):
         return _mac_status(settings)
     t = tier(settings)
     chosen = (settings.get("studio_tier") if settings else "") or ""
+    chosen = chosen if chosen in TIERS else ""
     rows = []
     for f in FILES:
         p = find(f["key"], settings)
@@ -758,20 +754,14 @@ def _klein_base(settings, keep):
     s = settings
     t = tier(s)
     best = t != "good"
-    unet = {"true": "truev2", "good": "klein4b"}.get(t, "klein")
     p = {
-        "1": {"class_type": "UNETLoader", "inputs": {"unet_name": os.path.basename(find(unet, s)),
+        "1": {"class_type": "UNETLoader", "inputs": {"unet_name": os.path.basename(find("klein" if best else "klein4b", s)),
                                                        "weight_dtype": "default"}},
         "2": {"class_type": "CLIPLoader", "inputs": {"clip_name": os.path.basename(find("qwen" if best else "qwen4b", s)),
                                                        "type": "flux2"}},
         "3": {"class_type": "VAELoader", "inputs": {"vae_name": os.path.basename(find("vae2", s))}},
     }
     model = ["1", 0]
-    speed = find("truespeed", s) if t == "true" else None
-    if speed:
-        p["5"] = {"class_type": "LoraLoaderModelOnly",
-                  "inputs": {"model": model, "lora_name": os.path.basename(speed), "strength_model": TRUE_SPEEDUP}}
-        model = ["5", 0]
     lora = find("consistency", s) if best else None      # the design lock is made for 9B only
     if lora and keep > 0:
         p["4"] = {"class_type": "LoraLoaderModelOnly",
@@ -781,12 +771,7 @@ def _klein_base(settings, keep):
     return p, model
 
 
-def steps_for(settings, steps):
-    """True V2 needs a few more steps than the standard model."""
-    return max(int(steps), TRUE_STEPS) if tier(settings) == "true" else int(steps)
-
-
-def create_prompt(settings, image, text, keep=0.8, megapixels=2.0, seed=None, steps=4):
+def create_prompt(settings, image, text, keep=0.8, megapixels=2.0, seed=None, steps=STEPS):
     """Klein edit of one image (render or sketch)."""
     p, model = _klein_base(settings, keep)
     p.update({
@@ -805,7 +790,7 @@ def create_prompt(settings, image, text, keep=0.8, megapixels=2.0, seed=None, st
         "40": {"class_type": "KSampler",
                "inputs": {"model": model, "positive": ["22", 0], "negative": ["23", 0], "latent_image": ["31", 0],
                           "seed": int(seed if seed is not None else random.randint(1, 2**48)),
-                          "steps": steps_for(settings, steps),
+                          "steps": int(steps),
                           "cfg": 1.0, "sampler_name": "euler", "scheduler": "simple", "denoise": 1.0}},
         "41": {"class_type": "VAEDecode", "inputs": {"samples": ["40", 0], "vae": ["3", 0]}},
         "42": {"class_type": "SaveImage", "inputs": {"images": ["41", 0], "filename_prefix": "VistiqStudio"}},
@@ -814,7 +799,7 @@ def create_prompt(settings, image, text, keep=0.8, megapixels=2.0, seed=None, st
 
 
 def reference_prompt(settings, design, reference, text, mode="camera", keep=0.8, megapixels=2.0,
-                     seed=None, steps=4):
+                     seed=None, steps=STEPS):
     """Klein with two reference images: image 1 your design, image 2 the reference."""
     # For CMF and style the design goes in as its lines only (edges of the
     # picture): the model then has to colour the lines from the reference,
@@ -881,6 +866,6 @@ def build_text(preset, text, presets=PRESETS):
     presets = GENERIC_REF_PRESETS if presets is REF_PRESETS else GENERIC_PRESETS
     base = presets.get(preset, "")
     text = (text or "").strip()
-    if base and text:
-        return base + "\n\n" + text
-    return base or text or "Photorealistic photograph."
+    out = (base + "\n\n" + text) if base and text else (base or text or "Photorealistic photograph.")
+    return out + "\n\n" + CRISP
+

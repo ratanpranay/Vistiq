@@ -348,7 +348,7 @@ class Api:
         return self._app.studio.get_select()
 
     def studio_set_tier(self, tier):
-        if tier in ("best", "good", "true"):
+        if tier in ("best", "good"):
             self._app.settings.set("studio_tier", tier)
         return self._app.studio.status()
 

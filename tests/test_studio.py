@@ -108,7 +108,7 @@ class Folders(unittest.TestCase):
         p = studio.create_prompt(self.s, "a.png", "text", keep=0.7, seed=5)
         self.assertEqual(p["4"]["inputs"]["strength_model"], 0.7)
         self.assertEqual(p["40"]["inputs"]["model"], ["4", 0])
-        self.assertEqual(p["40"]["inputs"]["steps"], 4)
+        self.assertEqual(p["40"]["inputs"]["steps"], studio.STEPS)
         p0 = studio.create_prompt(self.s, "a.png", "text", keep=0)
         self.assertNotIn("4", p0)
         self.assertEqual(p0["40"]["inputs"]["model"], ["1", 0])
@@ -139,8 +139,9 @@ class Folders(unittest.TestCase):
         self.assertNotIn("\\", text)
 
     def test_text(self):
-        self.assertTrue(studio.build_text("cmf", "red seats").endswith("red seats"))
-        self.assertEqual(studio.build_text("", "just this"), "just this")
+        self.assertIn("red seats", studio.build_text("cmf", "red seats"))
+        self.assertTrue(studio.build_text("cmf", "red seats").endswith(studio.CRISP))
+        self.assertTrue(studio.build_text("", "just this").startswith("just this"))
         self.assertTrue(studio.build_text("", ""))
 
 
@@ -415,29 +416,6 @@ class SendToPhotoshop(unittest.TestCase):
                 b.stop()
 
 
-class TrueV2(unittest.TestCase):
-    @unittest.skipIf(sys.platform == "darwin", "the Mac has its own image engine")
-    def test_tier_and_pipeline(self):
-        with tempfile.TemporaryDirectory() as t:
-            s = Settings(studio_home=t, studio_tier="true")
-            md = studio.models_dir(s)
-            for key in ("truev2", "truespeed", "qwen", "vae2", "consistency"):
-                spec = next(f for f in studio.FILES if f["key"] == key)
-                os.makedirs(os.path.join(md, spec["folder"]), exist_ok=True)
-                open(os.path.join(md, spec["folder"], spec["names"][0]), "wb").close()
-            self.assertEqual(studio.tier(s), "true")
-            self.assertTrue(studio.status(s)["tiers"]["true"]["ready"])
-            p = studio.create_prompt(s, "in.png", "make it real", keep=0.8)
-            self.assertEqual(p["1"]["inputs"]["unet_name"], "Flux2-Klein-9B-True-v2-fp8mixed.safetensors")
-            self.assertEqual(p["5"]["inputs"]["lora_name"], "Klein-9B-distill-speedup.safetensors")
-            self.assertEqual(p["4"]["inputs"]["model"], ["5", 0])          # design lock on top of the speed-up
-            self.assertEqual(p["40"]["inputs"]["model"], ["4", 0])
-            self.assertEqual(p["40"]["inputs"]["steps"], studio.TRUE_STEPS)
-            self.assertIn("qwen", p["2"]["inputs"]["clip_name"])
-            s["studio_tier"] = "best"                                       # 9B files missing: still True V2 is used
-            self.assertEqual(studio.tier(s), "true")
-
-
 class PromptGraph(unittest.TestCase):
     """Every node a prompt points at exists and nothing points in a circle, for all tiers with a style."""
 
@@ -445,7 +423,7 @@ class PromptGraph(unittest.TestCase):
     def test_no_cycles_any_tier(self):
         for tier_name, keys in (("best", ("klein", "qwen", "vae2", "consistency")),
                                 ("good", ("klein4b", "qwen4b", "vae2")),
-                                ("true", ("truev2", "truespeed", "qwen", "vae2", "consistency"))):
+                                ):
             with tempfile.TemporaryDirectory() as t:
                 s = Settings(studio_home=t, studio_tier=tier_name)
                 md = studio.models_dir(s)
