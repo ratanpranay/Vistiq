@@ -48,6 +48,15 @@ jobs:
       - name: Test
         run: python -m unittest discover -s tests -v
 
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Screen tests (the basics must work every time)
+        run: |
+          npm install --no-save --no-package-lock playwright@1.63.0
+          npx playwright install chromium
+          node tests/ui/run.js
+
       - name: Package the app
         shell: pwsh
         run: |

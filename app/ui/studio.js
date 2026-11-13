@@ -90,7 +90,7 @@
       // Under the picture: the results, then what to do with the chosen one.
       '<div class="s-under"><div class="s-vars" id="' + id + '-strip"></div>' +
       '<div class="s-acts2"><button type="button" class="s-btn" id="' + id + '-reveal" disabled>Show in folder</button>' +
-      '<button type="button" class="s-btn" id="' + id + '-ps" hidden>' + '<span class="m-ico ps">Ps</span>To Photoshop</button>' +
+      '<button type="button" class="s-btn" id="' + id + '-tops" hidden>' + '<span class="m-ico ps">Ps</span>To Photoshop</button>' +
       '<button type="button" class="s-btn p" id="' + id + '-up" disabled>Upscale this</button>' +
       '<button type="button" class="s-btn s-x" id="' + id + '-clear" title="Clear" aria-label="Clear" hidden>×</button></div></div>' +
       '<div class="s-refine"><input type="text" id="' + id + '-refine" placeholder="Refine: e.g. make the seats lighter, keep everything else"><button type="button" id="' + id + '-refine-go">Refine</button></div>' +
@@ -334,7 +334,7 @@
         render();
       });
       $(id + "-reveal").addEventListener("click", function () { var c = current(p); if (c) api().reveal(c.path); });
-      $(id + "-ps").addEventListener("click", function () { var c = current(p); if (c) sendPS(c.path); });
+      $(id + "-tops").addEventListener("click", function () { var c = current(p); if (c) sendPS(c.path); });
       $(id + "-strip").addEventListener("click", function (e) {
         var t = e.target.closest("[data-i]"); if (t) { p.sel = +t.getAttribute("data-i"); render(); return; }
         if (e.target.closest(".s-more")) job(id, { variations: 1 });
@@ -774,15 +774,17 @@
     var ttl = esc(name) + "<small>" + sub + "</small>";
     if ($(id + "-ttl").getAttribute("data-h") !== ttl) { $(id + "-ttl").innerHTML = ttl; $(id + "-ttl").setAttribute("data-h", ttl); }
     $(id + "-up").disabled = !c; $(id + "-reveal").disabled = !c;
-    $(id + "-ps").hidden = !(c && S.psOn);
+    $(id + "-tops").hidden = !(c && S.psOn);
     $(id + "-clear").hidden = !(p.results.length && !p.job);
     $(id + "-refine-go").disabled = !!p.job || !(c || p.src);
 
     // The big view.
     var view = $(id + "-view"), mode, key;
+    var origOf = p.sel === -2 ? (p.job ? p.jobOrig : (p.results.length ? p.results[p.results.length - 1].orig : null)) : null;
     if (c) { mode = "result"; key = c.path; }
+    else if (origOf) { mode = "orig"; key = origOf.length + ":" + origOf.slice(-40); }
     else if (id === "c" && p.src && p.area === "paint") { mode = "paint"; key = p.src.path; }
-    else if (p.src && id === "c") { mode = "src"; key = p.src.path; }
+    else if (p.src && id === "c") { mode = "src"; key = p.src.path + (p.src.frozen ? ":frozen" : ""); }
     else { mode = "empty"; key = id + (p.src ? "1" : "0"); }
     key = mode + ":" + key + (mode === "paint" ? ":" + painter.erase + ":" + painter.selecting : "");
     if (view.getAttribute("data-k") !== key) {
@@ -809,9 +811,9 @@
         });
         $("c-size").addEventListener("input", function () { painter.size = +this.value; keep("brush", painter.size); });
       } else {
-        var info = mode === "result" ? c : p.src;
+        var info = mode === "result" ? c : mode === "orig" ? { preview: origOf, w: p.src.w, h: p.src.h, frozen: true } : p.src;
         view.innerHTML = '<div class="s-fit" data-w="' + info.w + '" data-h="' + info.h + '"><img class="' + (mode === "result" ? "s-res" : "") + '" src="' + info.preview + '" alt=""></div>' +
-          (mode === "result" ? '<span class="s-tag">Result · hold to see the original</span>' : '<span class="s-tag">' + (info.live ? "Live from " + ((APPS[info.app] || APPS.photoshop)[1]) : "Original") + "</span>");
+          (mode === "result" ? '<span class="s-tag">Result · hold to see the original</span>' : '<span class="s-tag">' + (info.live ? "Live from " + ((APPS[info.app] || APPS.photoshop)[1]) : info.frozen ? (mode === "orig" ? "Sketch · what these results were made from" : "Sketch · frozen while creating") : "Original") + "</span>");
       }
     }
     var oldpb = view.querySelector(".s-paintbtn");
@@ -837,9 +839,21 @@
     p.results.forEach(function (r, i) { (r.srcKey === key ? mine : earlier).push(i); });
     var tile = function (i) { var r = p.results[i]; return '<img data-i="' + i + '" class="' + (i === p.sel ? "sel" : "") + '" src="' + r.preview + '" title="' + esc(short(r.name)) + '" alt="">'; };
     var strip = "";
-    if (p.src && (mine.length || earlier.length)) strip += '<span class="s-tilewrap"><img data-i="-1" class="' + (p.sel < 0 ? "sel" : "") + '" src="' + p.src.preview + '" alt="">' +
-      '<em class="' + (p.src.live ? "live" : "") + '">' + (p.src.live ? '<i class="ld"></i>Live' : "Original") + "</em></span>" +
-      '<span class="s-div" aria-hidden="true"></span>';
+    // Live: first tile, always the current canvas (it keeps updating, even during a run).
+    // Then a divider, then the sketch these results were made from (frozen at Create), then the results.
+    var live = id === "c" && p.source === "live" ? (p.liveSrc || (p.src && (p.src.live || p.src.frozen) ? p.src : null)) : null;
+    var origPrev = p.job ? p.jobOrig : (mine.length ? p.results[mine[mine.length - 1]].orig : null);
+    if (p.src && (mine.length || earlier.length || p.job)) {
+      if (live) {
+        strip += '<span class="s-tilewrap"><img data-i="-1" class="' + (p.sel === -1 ? "sel" : "") + '" src="' + live.preview + '" alt="">' +
+          '<em class="live"><i class="ld"></i>Live</em></span><span class="s-div" aria-hidden="true"></span>';
+        if (origPrev && (mine.length || p.job)) strip += '<span class="s-tilewrap"><img data-i="-2" class="' + (p.sel === -2 ? "sel" : "") + '" src="' + origPrev + '" alt="" title="The sketch these were made from">' +
+          "<em>Sketch</em></span>";
+      } else {
+        strip += '<span class="s-tilewrap"><img data-i="-1" class="' + (p.sel < 0 ? "sel" : "") + '" src="' + p.src.preview + '" alt="">' +
+          "<em>Original</em></span><span class=\"s-div\" aria-hidden=\"true\"></span>";
+      }
+    }
     mine.forEach(function (i) { strip += tile(i); });
     for (var k = 0; k < (p.job ? p.pending : 0); k++) strip += '<span class="s-ph"></span>';
     if (mine.length && !p.job) strip += '<button type="button" class="s-more">+ Another</button>';

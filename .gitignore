@@ -5,3 +5,4 @@ dist/
 *.spec
 vistiq-app.zip
 .venv/
+node_modules/
