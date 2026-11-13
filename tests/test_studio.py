@@ -159,7 +159,11 @@ class Folders(unittest.TestCase):
         self.assertEqual(studio.light_for("new dashboard with purple LED strip"), studio.LIGHT_INT)
         self.assertEqual(studio.light_for("silver sports car, side view"), studio.LIGHT_EXT)
         self.assertEqual(studio.light_for("a lamp on a table"), studio.LIGHT)
-        self.assertEqual(studio.light_for("SUV interior at night"), "")
+        self.assertEqual(studio.light_for("SUV interior at night"), studio.LIGHT_NIGHT)
+        self.assertEqual(studio.light_for("white cabin, night mode"), studio.LIGHT_NIGHT)
+        self.assertEqual(studio.light_for("the same car at night"), "")
+        self.assertEqual(studio.light_for("sports car at night"), "")
+        self.assertEqual(studio.light_for("SUV interior at sunset"), "")
 
 
 class Masks(unittest.TestCase):

@@ -889,13 +889,23 @@ def juice_prompt(settings, image, text, lora, strength=0.8, denoise=0.35, megapi
 # Tuned on the engine against Pranay's benchmark pictures. Left out when the
 # prompt sets its own time of day or mood ("ambient lighting" alone doesn't
 # count: that's the LED strips).
-LIGHT_INT = ("Photographed like a car maker's interior press photo: clean, soft natural daylight filling the "
-             "cabin, with gentle sunlight falling in through the windows and a few soft sun patches; soft, "
-             "gradual shadows and a natural falloff into the footwell, the cabin slightly darker than outside; "
-             "exposure balanced for the windows, so the landscape outside is clearly visible with soft "
-             "atmospheric depth, never washed out to white; colours true to each material, never "
-             "oversaturated; satin highlights on metal trims, screens and stitching; ambient lighting strips "
-             "glowing softly. Calm, premium, ultra-clean and sharp.")
+# Day and night interiors, modelled on Pranay's theme renders (same cabin by
+# day and by night): soft skylight that shapes every volume by day; by night
+# the car's own lights lead and the rest falls into soft shadow.
+LIGHT_INT = ("Photographed like a car maker's interior press photo on a bright overcast day: soft, even skylight "
+             "floods in through the windows and glass roof from above and in front; the windows glow bright and "
+             "softly white; every volume is modelled by smooth, gradual gradients, tops of surfaces lighter, "
+             "undersides and recesses gently darker, with soft contact shadows where parts meet and no hard "
+             "shadows; leather and satin surfaces show broad, soft highlights along their curves; ambient "
+             "lighting strips are visible but subtle in daylight; colours clean and true to the materials. "
+             "Airy, calm, high-key, ultra-clean.")
+LIGHT_NIGHT = ("Photographed like a car maker's interior press photo at night: the cabin is lit mainly by its "
+               "own lights. Glowing ambient light strips along the dashboard and doors cast soft coloured light "
+               "onto the surfaces next to them, warm white footwell lights pool on the floor mats and the lower "
+               "console, the screens glow; everything else falls off smoothly into deep, soft shadow; the "
+               "windows and glass roof are dark, showing a night sky and distant city lights; light surfaces "
+               "pick up gentle reflections of the ambient colour. Low-key, no harsh contrast, true material "
+               "colours. Calm, premium, ultra-clean.")
 # Interiors burnt with "rich contrast" in the closing line; they get a cleaner one.
 CLEAN = "A professional photograph: crisp sharp focus, true-to-life colours, detailed real materials and textures."
 LIGHT_EXT = ("Photographed like a car maker's press photo in a large minimalist photo studio: smooth light-grey "
@@ -916,8 +926,13 @@ EXTERIOR = ("exterior", "side view", "front view", "rear view", "3/4", "three-qu
             "coupe", "sedan", "suv", "hatchback", "roadster")
 
 
+NIGHT = ("night", "evening", "after dark", "dark mode", "night mode")
+
+
 def light_for(text):
     low = " " + (text or "").lower() + " "
+    if any(w in low for w in NIGHT) and any(w in low for w in INTERIOR):
+        return LIGHT_NIGHT                 # an interior at night: the car's own lights lead
     if any(w in low for w in OWN_LIGHT):
         return ""
     if any(w in low for w in INTERIOR):
@@ -938,5 +953,5 @@ def build_text(preset, text, presets=PRESETS):
     light = "" if (presets is GENERIC_REF_PRESETS and preset == "style") else light_for(text)
     if light:
         out += "\n\n" + light
-    return out + "\n\n" + (CLEAN if light == LIGHT_INT else CRISP)
+    return out + "\n\n" + (CLEAN if light in (LIGHT_INT, LIGHT_NIGHT) else CRISP)
 
