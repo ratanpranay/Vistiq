@@ -146,7 +146,7 @@ body.studio .s-page.on{display:flex;flex:1;min-width:0;height:100%}
 .s-adv{display:flex;flex-direction:column;gap:10px}
 .s-adv summary{font-size:15px;font-weight:800;cursor:pointer;margin:8px 0 6px}
 .s-adv[open]>*:not(summary){margin-bottom:10px}
-.s-tiers{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.s-tiers{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px}
 .s-tier{display:flex;flex-direction:column;gap:4px;text-align:left;padding:14px 16px;border-radius:14px;border:1.5px solid var(--line);background:#fff}
 .s-tier:hover{border-color:var(--line-2)}
 .s-tier.on{border-color:var(--ink);box-shadow:0 0 0 1px var(--ink)}

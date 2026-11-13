@@ -101,7 +101,7 @@ FILES = [
                "flux-2-klein-9b.safetensors"],
      "gb": 9.4, "url": None, "page": "https://huggingface.co/black-forest-labs/FLUX.2-klein-9b-fp8",
      "about": "Makes the images. Its maker asks for a free sign-in to download it."},
-    {"key": "qwen", "part": "create", "tier": "best", "folder": "text_encoders", "label": "Prompt reader",
+    {"key": "qwen", "part": "create", "tier": ("best", "true"), "folder": "text_encoders", "label": "Prompt reader",
      "names": ["qwen_3_8b_fp8mixed.safetensors", "qwen_3_8b.safetensors"], "gb": 8.7,
      "url": HF % ("Comfy-Org/flux2-klein-9B", "split_files/text_encoders/qwen_3_8b_fp8mixed.safetensors"),
      "page": "https://huggingface.co/Comfy-Org/flux2-klein-9B", "about": "Understands what you type."},
@@ -109,7 +109,17 @@ FILES = [
      "names": ["flux2-vae.safetensors"], "gb": 0.34,
      "url": HF % ("Comfy-Org/flux2-dev", "split_files/vae/flux2-vae.safetensors"),
      "page": "https://huggingface.co/Comfy-Org/flux2-dev", "about": "Turns the model's work into a picture."},
-    {"key": "consistency", "part": "create", "tier": "best", "folder": "loras", "label": "Design lock",
+    {"key": "truev2", "part": "create", "tier": "true", "folder": "diffusion_models", "label": "Image model (True V2)",
+     "names": ["Flux2-Klein-9B-True-v2-fp8mixed.safetensors"], "gb": 9.4,
+     "url": HF % ("wikeeyang/Flux2-Klein-9B-True-V2", "Flux2-Klein-9B-True-v2-fp8mixed.safetensors"),
+     "page": "https://huggingface.co/wikeeyang/Flux2-Klein-9B-True-V2",
+     "about": "Klein 9B tuned by the community for realism. Free, no sign-up."},
+    {"key": "truespeed", "part": "create", "tier": "true", "folder": "loras", "label": "Speed-up for True V2",
+     "names": ["Klein-9B-distill-speedup.safetensors"], "gb": 0.3,
+     "url": "hf:vafipas663/flux2-klein-base-9b-distill-lora",
+     "page": "https://huggingface.co/vafipas663/flux2-klein-base-9b-distill-lora",
+     "about": "Lets True V2 finish in a few steps instead of dozens."},
+    {"key": "consistency", "part": "create", "tier": ("best", "true"), "folder": "loras", "label": "Design lock",
      "names": ["Klein-consistency.safetensors"], "gb": 0.33, "url": None, "page": "",
      "optional": True, "about": "Holds your design in place (Keep my design)."},
     {"key": "klein4b", "part": "create", "tier": "good", "folder": "diffusion_models", "label": "Image model",
@@ -222,7 +232,15 @@ FAMILY_LABEL = {"klein9b": "FLUX.2 Klein 9B", "klein4b": "FLUX.2 Klein 4B", "flu
                 "sdxl": "SDXL", "sd15": "SD 1.5", "unknown": "unknown model"}
 
 
-TIERS = {"best": "Best quality", "good": "Good quality"}
+TIERS = {"best": "Best quality", "good": "Good quality", "true": "Realistic (True V2)"}
+TRUE_STEPS = 6            # True V2 with the speed-up: a few steps instead of dozens
+TRUE_SPEEDUP = 0.5        # how strongly the speed-up is applied (its maker suggests 0.4-0.6)
+
+
+def in_tier(f, t):
+    """Is file spec (or status row) `f` part of quality tier `t`? Shared files have no tier."""
+    ft = f.get("tier")
+    return ft is None or ft == t or (isinstance(ft, (tuple, list)) and t in ft)
 
 
 def _have(key, settings):
@@ -235,11 +253,11 @@ def tier(settings=None):
     files aren't all here falls back to the other one when that is."""
     def ready(t):
         return all(_have(f["key"], settings) for f in FILES
-                   if f["part"] == "create" and f.get("tier") in (t, None) and not f.get("optional"))
+                   if f["part"] == "create" and in_tier(f, t) and not f.get("optional"))
     chosen = (settings.get("studio_tier") if settings else "") or ""
     if chosen in TIERS and ready(chosen):
         return chosen
-    for t in ("best", "good"):
+    for t in ("best", "true", "good"):
         if ready(t):
             return t
     return chosen if chosen in TIERS else ""
@@ -277,7 +295,7 @@ def status(settings=None):
                      "can_download": bool(f["url"]), "page": f["page"], "optional": f.get("optional", False)})
 
     def ready(tt):
-        return bool(tt) and all(r["ready"] for r in rows if r["part"] == "create" and r["tier"] in (tt, None)
+        return bool(tt) and all(r["ready"] for r in rows if r["part"] == "create" and in_tier(r, tt)
                                 and not r["optional"])
     juice_ok = all(r["ready"] for r in rows if r["part"] == "juice")
     return {"files": rows, "create_ready": ready(t), "juice_ready": juice_ok, "tier": t, "chosen": chosen,
@@ -304,7 +322,7 @@ def install_select(settings, on_progress, cancelled=lambda: False):
 
 def needed(settings, t):
     """The files a tier needs that can be downloaded and aren't here."""
-    return [f for f in FILES if f["part"] == "create" and f.get("tier") in (t, None)
+    return [f for f in FILES if f["part"] == "create" and in_tier(f, t)
             and f["url"] and not _have(f["key"], settings)]
 
 
@@ -400,8 +418,22 @@ def write_model_paths(settings=None):
         fh.write("\n".join(lines) + "\n")
 
 
+def _hf_pick(repo):
+    """The LoRA file of a Hugging Face repo whose file name isn't fixed: the
+    rank-128 one if there are several, else the only .safetensors."""
+    r = requests.get("https://huggingface.co/api/models/" + repo, timeout=30, headers={"User-Agent": "VistiqStudio"})
+    r.raise_for_status()
+    names = [x["rfilename"] for x in r.json().get("siblings", []) if x["rfilename"].endswith(".safetensors")]
+    if not names:
+        raise RuntimeError("no model file found in " + repo)
+    pick = next((n for n in names if "128" in n), None) or sorted(names, key=len)[0]
+    return HF % (repo, pick)
+
+
 def download(url, path, on_progress=None, label="", cancelled=lambda: False):
     """Resumable download to `path`."""
+    if url.startswith("hf:"):
+        url = _hf_pick(url[3:])
     os.makedirs(os.path.dirname(path), exist_ok=True)
     part = path + ".part"
     have = os.path.getsize(part) if os.path.isfile(part) else 0
@@ -718,22 +750,34 @@ GENERIC_REF_PRESETS = {
 
 def _klein_base(settings, keep):
     s = settings
-    best = tier(s) != "good"
+    t = tier(s)
+    best = t != "good"
+    unet = {"true": "truev2", "good": "klein4b"}.get(t, "klein")
     p = {
-        "1": {"class_type": "UNETLoader", "inputs": {"unet_name": os.path.basename(find("klein" if best else "klein4b", s)),
+        "1": {"class_type": "UNETLoader", "inputs": {"unet_name": os.path.basename(find(unet, s)),
                                                        "weight_dtype": "default"}},
         "2": {"class_type": "CLIPLoader", "inputs": {"clip_name": os.path.basename(find("qwen" if best else "qwen4b", s)),
                                                        "type": "flux2"}},
         "3": {"class_type": "VAELoader", "inputs": {"vae_name": os.path.basename(find("vae2", s))}},
     }
     model = ["1", 0]
+    speed = find("truespeed", s) if t == "true" else None
+    if speed:
+        p["5"] = {"class_type": "LoraLoaderModelOnly",
+                  "inputs": {"model": model, "lora_name": os.path.basename(speed), "strength_model": TRUE_SPEEDUP}}
+        model = ["5", 0]
     lora = find("consistency", s) if best else None      # the design lock is made for 9B only
     if lora and keep > 0:
         p["4"] = {"class_type": "LoraLoaderModelOnly",
-                  "inputs": {"model": ["1", 0], "lora_name": os.path.basename(lora),
+                  "inputs": {"model": model, "lora_name": os.path.basename(lora),
                              "strength_model": round(float(keep), 2)}}
         model = ["4", 0]
     return p, model
+
+
+def steps_for(settings, steps):
+    """True V2 needs a few more steps than the standard model."""
+    return max(int(steps), TRUE_STEPS) if tier(settings) == "true" else int(steps)
 
 
 def create_prompt(settings, image, text, keep=0.8, megapixels=2.0, seed=None, steps=4):
@@ -754,7 +798,8 @@ def create_prompt(settings, image, text, keep=0.8, megapixels=2.0, seed=None, st
                                                                   "batch_size": 1}},
         "40": {"class_type": "KSampler",
                "inputs": {"model": model, "positive": ["22", 0], "negative": ["23", 0], "latent_image": ["31", 0],
-                          "seed": int(seed if seed is not None else random.randint(1, 2**48)), "steps": int(steps),
+                          "seed": int(seed if seed is not None else random.randint(1, 2**48)),
+                          "steps": steps_for(settings, steps),
                           "cfg": 1.0, "sampler_name": "euler", "scheduler": "simple", "denoise": 1.0}},
         "41": {"class_type": "VAEDecode", "inputs": {"samples": ["40", 0], "vae": ["3", 0]}},
         "42": {"class_type": "SaveImage", "inputs": {"images": ["41", 0], "filename_prefix": "VistiqStudio"}},
@@ -815,7 +860,8 @@ def juice_prompt(settings, image, text, lora, strength=0.8, denoise=0.35, megapi
         "22": {"class_type": "ConditioningZeroOut", "inputs": {"conditioning": ["20", 0]}},
         "40": {"class_type": "KSampler",
                "inputs": {"model": ["4", 0], "positive": ["21", 0], "negative": ["22", 0], "latent_image": ["12", 0],
-                          "seed": int(seed if seed is not None else random.randint(1, 2**48)), "steps": int(steps),
+                          "seed": int(seed if seed is not None else random.randint(1, 2**48)),
+                          "steps": int(steps),
                           "cfg": 1.0, "sampler_name": "euler", "scheduler": "simple", "denoise": float(denoise)}},
         "41": {"class_type": "VAEDecode", "inputs": {"samples": ["40", 0], "vae": ["3", 0]}},
         "42": {"class_type": "SaveImage", "inputs": {"images": ["41", 0], "filename_prefix": "VistiqStudioJuice"}},

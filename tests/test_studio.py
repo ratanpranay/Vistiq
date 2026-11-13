@@ -413,3 +413,25 @@ class SendToPhotoshop(unittest.TestCase):
                 self.assertEqual(done, [("Vistiq · flat 2", True)])
             finally:
                 b.stop()
+
+
+class TrueV2(unittest.TestCase):
+    def test_tier_and_pipeline(self):
+        with tempfile.TemporaryDirectory() as t:
+            s = Settings(studio_home=t, studio_tier="true")
+            md = studio.models_dir(s)
+            for key in ("truev2", "truespeed", "qwen", "vae2", "consistency"):
+                spec = next(f for f in studio.FILES if f["key"] == key)
+                os.makedirs(os.path.join(md, spec["folder"]), exist_ok=True)
+                open(os.path.join(md, spec["folder"], spec["names"][0]), "wb").close()
+            self.assertEqual(studio.tier(s), "true")
+            self.assertTrue(studio.status(s)["tiers"]["true"]["ready"])
+            p = studio.create_prompt(s, "in.png", "make it real", keep=0.8)
+            self.assertEqual(p["1"]["inputs"]["unet_name"], "Flux2-Klein-9B-True-v2-fp8mixed.safetensors")
+            self.assertEqual(p["5"]["inputs"]["lora_name"], "Klein-9B-distill-speedup.safetensors")
+            self.assertEqual(p["4"]["inputs"]["model"], ["5", 0])          # design lock on top of the speed-up
+            self.assertEqual(p["40"]["inputs"]["model"], ["4", 0])
+            self.assertEqual(p["40"]["inputs"]["steps"], studio.TRUE_STEPS)
+            self.assertIn("qwen", p["2"]["inputs"]["clip_name"])
+            s["studio_tier"] = "best"                                       # 9B files missing: still True V2 is used
+            self.assertEqual(studio.tier(s), "true")

@@ -878,11 +878,12 @@
   // The only thing left by hand is the one file whose maker wants a sign-in.
   var TIER_TEXT = {
     best: ["Best quality", "Needs a free sign-up with the model's maker (about 2 minutes)."],
-    good: ["Good quality", "Free, no sign-up. Downloads by itself."]
+    good: ["Good quality", "Free, no sign-up. Downloads by itself."],
+    "true": ["Realistic (True V2)", "Klein 9B tuned for realism by the community. Free, about 10 GB. On trial."]
   };
 
   function tierFiles(st, t) {
-    return st.files.filter(function (f) { return f.part === "create" && !f.optional && (f.tier === t || !f.tier); });
+    return st.files.filter(function (f) { return f.part === "create" && !f.optional && (f.tier === t || !f.tier || (Array.isArray(f.tier) && f.tier.indexOf(t) >= 0)); });
   }
 
   function setupGB(st, t) {
@@ -973,12 +974,14 @@
       progressHTML() +
       (st.mac ? '<div class="s-sec">This Mac</div><p class="s-hint">' + esc(st.mac.chip) + " · " + st.mac.ram + " GB memory · creates at up to " + st.mac.work_side + " px, upscales up to " + st.mac.max_side + " px" +
         (st.mac.can_generate ? "" : " · image generation needs 16 GB or more") + '</p><div class="s-list">' + fileRows(st.files) + selectRow + helperRow + "</div>" : "") +
-      (st.mac ? "" : '<div class="s-sec">Quality</div><div class="s-tiers">' + ["best", "good"].map(function (k) {
-        var tt = st.tier || st.chosen;
+      (st.mac ? "" : '<div class="s-sec">Quality</div><div class="s-tiers">' + ["best", "good", "true"].map(function (k) {
+        var tt = st.chosen || st.tier;
         return '<button type="button" class="s-tier' + (tt === k ? " on" : "") + '" data-su="tier" data-t="' + k + '"' + (running ? " disabled" : "") + "><b>" + TIER_TEXT[k][0] +
           (st.tiers[k].ready ? ' <span class="s-ok">Ready</span>' : "") + "</b><small>" + TIER_TEXT[k][1] + "</small></button>";
       }).join("") + "</div>" +
-      '<div class="s-list">' + fileRows(tierFiles(st, st.tier || st.chosen || "best").concat(st.files.filter(function (f) { return f.key === "consistency" && (st.tier || "best") === "best"; }))) + selectRow + helperRow + "</div>") +
+      '<div class="s-list">' + fileRows(tierFiles(st, st.chosen || st.tier || "best").concat(st.files.filter(function (f) { return f.key === "consistency" && ["best", "true"].indexOf(st.chosen || st.tier || "best") >= 0; }))) + selectRow + helperRow + "</div>" +
+      (function () { var miss = setupGB(st, st.chosen || st.tier || "best") - (st.engine_installed ? 0 : 2.1) - (st.select_ready ? 0 : 0.1);
+        return miss > 0.05 && !running ? '<div class="s-btns"><button type="button" class="s-btn p" data-su="download">Download (' + gb(miss) + ")</button></div>" : ""; })()) +
       (st.mac ? "" : '<div class="s-sec">Looks</div><p class="s-hint">Extra styles for Create, shown under Style. To add one, put its file in Models › loras; it shows up when you come back to Studio.</p>' +
       '<div class="s-list">' + styleRows(looks, "None yet.") + "</div>" +
       '<div class="s-btns"><button type="button" class="s-btn" data-su="models">Open the loras folder</button></div>' +

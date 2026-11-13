@@ -240,11 +240,11 @@ class Studio:
                 # 2. The image engine, then what can be downloaded.
                 if not studio.engine_installed():
                     studio.install_engine(self.settings, prog, self._cancel.is_set)
-                t = studio.tier(self.settings) or self.settings.get("studio_tier") or "good"
+                t = self.settings.get("studio_tier") or studio.tier(self.settings) or "good"
                 for f in studio.FILES:
                     if f["part"] == "juice" and not juice:
                         continue
-                    if f["part"] == "create" and f.get("tier") not in (t, None):
+                    if f["part"] == "create" and not studio.in_tier(f, t):
                         continue
                     if f["url"] and not studio.find(f["key"], self.settings):
                         dst = os.path.join(studio.models_dir(self.settings), f["folder"], f["names"][0])
