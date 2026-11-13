@@ -261,8 +261,12 @@ class MlxEngine:
         out = os.path.join(out_dir, "out_%d.png" % int(time.time() * 1000))
         p = self._worker()
         self._progress = on_progress
-        p.stdin.write(json.dumps({"images": images, "prompt": job["text"], "seed": int(job["seed"]) % 2**31,
-                                  "width": w, "height": h, "output": out}) + "\n")
+        msg = {"images": images, "prompt": job["text"], "seed": int(job["seed"]) % 2**31,
+               "width": w, "height": h, "output": out}
+        strength, steps = start_strength(job)
+        if strength:
+            msg.update(start=images[0], strength=strength, steps=steps)
+        p.stdin.write(json.dumps(msg) + "\n")
         p.stdin.flush()
         while True:
             if cancelled():
@@ -297,6 +301,32 @@ from mflux.models.common.compute_precision import ComputePrecision
 from mflux.models.common.resolution.config_resolution import ConfigResolution
 from mflux.models.common.vae.vae_decode_options import VAEDecodeOptions
 from mflux.models.flux2.variants import Flux2KleinEdit
+from mflux.models.flux2.variants.edit import flux2_klein_edit as _edit_mod
+from mflux.models.flux2.variants.edit.flux2_klein_edit_helpers import _Flux2KleinEditHelpers as H
+from mflux.models.flux2.latent_creator.flux2_latent_creator import Flux2LatentCreator
+from mflux.models.common.latent_creator.latent_creator import LatentCreator
+from mflux.models.common.config.config import Config
+from mflux.models.flux2.variants.txt2img.flux2_klein import Flux2Klein
+
+_plain_latents = H.prepare_generation_latents
+
+def _start_from(path, strength, steps):
+    # The edit model normally starts from pure noise and only looks at the
+    # sketch. Start from the sketch itself instead (img2img), so its shapes stay.
+    def make(*, seed, height, width):
+        noise, ids, lh, lw = _plain_latents(seed=seed, height=height, width=width)
+        enc = LatentCreator.encode_image(vae=model.vae, image_path=path, height=height, width=width,
+                                         tiling_config=model.tiling_config)
+        enc = H.crop_to_even_spatial(H.ensure_4d_latents(enc))
+        enc = Flux2Klein._match_latent_spatial_size(encoded=enc, target_height=lh * 2, target_width=lw * 2)
+        enc = H.bn_normalize_vae_encoded_latents(Flux2LatentCreator.patchify_latents(enc), vae=model.vae)
+        clean = Flux2LatentCreator.pack_latents(enc)
+        cfg = Config(model_config=model.model_config, num_inference_steps=steps, height=height, width=width,
+                     guidance=1.0, image_path=path, image_strength=strength,
+                     scheduler="flow_match_euler_discrete")
+        sigma = cfg.scheduler.sigmas[cfg.init_time_step]
+        return LatentCreator.add_noise_by_interpolation(clean=clean, noise=noise, sigma=sigma), ids, lh, lw
+    return make
 
 def parse(extra):
     sys.argv = ["mflux-generate-flux2-edit", "--model", model_path, "--base-model", "flux2-klein-4b"] + extra
@@ -314,10 +344,18 @@ print(json.dumps({"ready": True}), flush=True)
 for line in sys.stdin:
     try:
         j = json.loads(line)
-        img = model.generate_image(seed=int(j["seed"]), prompt=j["prompt"], width=int(j["width"]),
-                                   height=int(j["height"]), guidance=1.0,
-                                   image_paths=[Path(p) for p in j["images"]], num_inference_steps=4,
-                                   scheduler="flow_match_euler_discrete")
+        steps = int(j.get("steps") or 4)
+        strength = j.get("strength")
+        H.prepare_generation_latents = (_start_from(j["start"], float(strength), steps)
+                                        if strength and j.get("start") else _plain_latents)
+        try:
+            img = model.generate_image(seed=int(j["seed"]), prompt=j["prompt"], width=int(j["width"]),
+                                       height=int(j["height"]), guidance=1.0,
+                                       image_paths=[Path(p) for p in j["images"]], num_inference_steps=steps,
+                                       image_strength=float(strength) if strength and j.get("start") else None,
+                                       scheduler="flow_match_euler_discrete")
+        finally:
+            H.prepare_generation_latents = _plain_latents
         img.save(path=j["output"], overwrite=True)
         print(json.dumps({"done": True}), flush=True)
     except Exception:
@@ -335,6 +373,17 @@ def work_side(ram=None):
     if ram >= 16:
         return 1080
     return 768
+
+
+def start_strength(job):
+    """How far from the sketch the model starts: (image_strength, steps), or (None, 4)
+    to start from noise. Driven by the "Follow my sketch" slider (keep, 0..1)."""
+    if "strength" in job:
+        return job["strength"], job.get("steps", 8)
+    keep = job.get("keep")
+    if keep is None or job.get("lines") or keep < 0.3:
+        return None, 4
+    return round(0.125 + 0.25 * (keep - 0.3) / 0.7, 3), 8
 
 
 def _work_size(path, side=None):

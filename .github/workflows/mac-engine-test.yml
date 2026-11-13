@@ -15,7 +15,7 @@ jobs:
           sysctl -n hw.memsize machdep.cpu.brand_string
           python -m pip install -r requirements.txt
       - name: Install and create (real Studio code)
-        run: python -u tools/mac_engine_test.py
+        run: python -u tools/${{ startsWith(github.event.head_commit.message, 'follow') && 'mac_follow_test.py' || 'mac_engine_test.py' }}
       - uses: actions/upload-artifact@v4
         if: always()
         with:

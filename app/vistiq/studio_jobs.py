@@ -388,7 +388,7 @@ class Studio:
                 say(label, v / n)
                 prog = lambda f, v=v: say(label, (v + f) / n)
                 if sys.platform == "darwin":
-                    prompt = {"image": image, "ref": ref_image, "text": text, "seed": seed + v,
+                    prompt = {"image": image, "ref": ref_image, "text": text, "seed": seed + v, "keep": keep,
                               "lines": mode == "reference" and job.get("preset") in ("cmf", "style")}
                 elif mode == "reference":
                     prompt = studio.reference_prompt(s, image, ref_image, text, job.get("preset") or "camera",
