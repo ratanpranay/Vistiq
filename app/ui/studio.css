@@ -291,3 +291,6 @@ body.studio .s-page.on{display:flex;flex:1;min-width:0;height:100%}
 .s-toast{position:fixed;left:50%;bottom:24px;transform:translate(-50%,20px);background:#14161f;color:#fff;font-size:13px;font-weight:650;padding:10px 16px;border-radius:12px;box-shadow:0 8px 24px rgba(0,0,0,.18);opacity:0;pointer-events:none;transition:opacity .2s,transform .2s;z-index:50;max-width:70vw}
 .s-toast.on{opacity:1;transform:translate(-50%,0)}
 .s-acts2 .s-btn .m-ico{margin-right:6px;vertical-align:-1px}
+
+/* a thin divider: the Live/Original tile stands apart from the results, results apart from earlier ones */
+.s-vars .s-div{width:1px;align-self:stretch;margin:8px 6px;background:var(--line);flex-shrink:0}

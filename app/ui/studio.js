@@ -838,11 +838,13 @@
     var tile = function (i) { var r = p.results[i]; return '<img data-i="' + i + '" class="' + (i === p.sel ? "sel" : "") + '" src="' + r.preview + '" title="' + esc(short(r.name)) + '" alt="">'; };
     var strip = "";
     if (p.src && (mine.length || earlier.length)) strip += '<span class="s-tilewrap"><img data-i="-1" class="' + (p.sel < 0 ? "sel" : "") + '" src="' + p.src.preview + '" alt="">' +
-      '<em class="' + (p.src.live ? "live" : "") + '">' + (p.src.live ? '<i class="ld"></i>Live' : "Original") + "</em></span>";
+      '<em class="' + (p.src.live ? "live" : "") + '">' + (p.src.live ? '<i class="ld"></i>Live' : "Original") + "</em></span>" +
+      '<span class="s-div" aria-hidden="true"></span>';
     mine.forEach(function (i) { strip += tile(i); });
     for (var k = 0; k < (p.job ? p.pending : 0); k++) strip += '<span class="s-ph"></span>';
     if (mine.length && !p.job) strip += '<button type="button" class="s-more">+ Another</button>';
     if (earlier.length) {
+      if (mine.length || p.job) strip += '<span class="s-div" aria-hidden="true"></span>';
       strip += '<button type="button" class="s-earlier">' + (p.showEarlier ? "Hide earlier" : "Earlier · " + earlier.length) + "</button>";
       if (p.showEarlier) earlier.slice().reverse().forEach(function (i) { strip += '<span class="s-old">' + tile(i) + "</span>"; });
     }
