@@ -398,10 +398,10 @@ def start_strength(job):
     to start from noise. Driven by the "Follow my sketch" slider (keep, 0..1)."""
     if "strength" in job:
         return job["strength"], job.get("steps", 8)
-    keep = job.get("keep")
-    if keep is None or job.get("lines") or keep < 0.3:
-        return None, 4
-    return round(0.125 + 0.25 * (keep - 0.3) / 0.7, 3), 8
+    # Tested on a Mac (Nov 2026): with Klein 4B, starting from the sketch either
+    # changes nothing or copies the lines; there is no useful middle. So Create
+    # starts from noise and the sketch guides it.
+    return None, 4
 
 
 def _work_size(path, side=None):
