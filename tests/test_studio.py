@@ -141,7 +141,8 @@ class Folders(unittest.TestCase):
 
     def test_text(self):
         self.assertIn("red seats", studio.build_text("cmf", "red seats"))
-        self.assertTrue(studio.build_text("cmf", "red seats").endswith(studio.CRISP))
+        self.assertTrue(studio.build_text("cmf", "red paint").endswith(studio.CRISP))
+        self.assertTrue(studio.build_text("cmf", "red seats").endswith(studio.CLEAN))
         self.assertTrue(studio.build_text("", "just this").startswith("just this"))
         self.assertTrue(studio.build_text("", ""))
 
@@ -557,20 +558,26 @@ class Previews(unittest.TestCase):
 
 
 class Finish(unittest.TestCase):
-    def test_finish_adds_colour_and_contrast_keeps_size(self):
+    def test_finish_is_clean_never_burnt(self):
+        # Highlights roll off instead of clipping, blacks aren't crushed,
+        # colours aren't pushed, and it gets crisper.
         import numpy as np
-        from PIL import Image
+        from PIL import Image, ImageFilter
         from vistiq import studio_jobs
         rng = np.random.default_rng(1)
-        base = np.zeros((90, 160, 3), np.uint8)
-        base[..., 0] = np.linspace(60, 200, 160)[None, :]
-        base[..., 1] = 120
-        base[..., 2] = np.linspace(80, 140, 90)[:, None]
-        base = np.clip(base + rng.integers(-8, 8, base.shape), 0, 255).astype(np.uint8)
+        base = np.zeros((90, 160, 3), np.float32)
+        base[..., 0] = np.linspace(0, 255, 160)[None, :]
+        base[..., 1] = np.linspace(0, 255, 160)[None, :] * 0.8
+        base[..., 2] = np.linspace(20, 255, 90)[:, None]
+        base[30:60, 60:100] = 255                       # a blown window
+        base = np.clip(base + rng.integers(-6, 6, base.shape), 0, 255).astype(np.uint8)
         im = Image.fromarray(base)
         out = studio_jobs.finish(im)
+        a = np.asarray(out)
         self.assertEqual(out.size, im.size)
+        self.assertLess(a.max(), 250)                   # nothing hard white
+        self.assertGreaterEqual(a.min(), 4)             # no crushed black
         sat = lambda x: np.asarray(x.convert("HSV"))[..., 1].mean()
-        con = lambda x: np.asarray(x.convert("L")).std()
-        self.assertGreater(sat(out), sat(im))
-        self.assertGreater(con(out), con(im))
+        self.assertLessEqual(sat(out), sat(im) * 1.03)  # colour not boosted
+        edges = lambda x: np.asarray(x.convert("L").filter(ImageFilter.FIND_EDGES)).mean()
+        self.assertGreater(edges(out), edges(im) * 0.95)

@@ -78,26 +78,24 @@ def composite(original, result, mask, box, blend_px):
     return out
 
 
-def finish(im, vib=0.28, contrast=0.18, gamma=1.08, clarity=0.35, sharp=0.6):
-    """The "juice": what a good retoucher does to a render. Richer midtones,
-    an S-curve, more colour in the dull parts (vibrance), local contrast
-    (clarity) and a fine sharpen. Tuned on the engine's results against
-    Pranay's benchmark renders (colour, contrast and punch measured)."""
+def finish(im, clarity=0.25, sharp=0.5):
+    """A clean finish, the way a retoucher cleans a render, without burning it:
+    highlights roll off softly instead of clipping to white, the deepest
+    blacks lift a touch (no crushed shadows), then local contrast (clarity)
+    and a fine sharpen. No colour boost: colours stay true to the CMF. Checked
+    against Pranay's reference interiors (clipping, black level, colour)."""
     import numpy as np
-    a = np.asarray(im.convert("RGB")).astype(np.float32) / 255
-    a = a ** gamma
-    lum = a.mean(2, keepdims=True)
-    curve = lum + contrast * (lum - 0.5) * (1 - np.abs(2 * lum - 1)) * 2
-    a = np.clip(a * (curve / np.maximum(lum, 1e-4)), 0, 1)
-    sat = a.max(2, keepdims=True) - a.min(2, keepdims=True)
-    mid = a.mean(2, keepdims=True)
-    a = np.clip(mid + (a - mid) * (1 + vib * (1 - sat)), 0, 1)
-    out = Image.fromarray((a * 255 + 0.5).astype(np.uint8))
+    out = im.convert("RGB")
     if clarity:
-        out = out.filter(ImageFilter.UnsharpMask(radius=max(out.size) // 60, percent=int(clarity * 100), threshold=2))
+        out = out.filter(ImageFilter.UnsharpMask(radius=max(out.size) // 80, percent=int(clarity * 100), threshold=3))
     if sharp:
-        out = out.filter(ImageFilter.UnsharpMask(radius=1.2, percent=int(sharp * 100), threshold=2))
-    return out
+        out = out.filter(ImageFilter.UnsharpMask(radius=1.0, percent=int(sharp * 100), threshold=2))
+    a = np.asarray(out).astype(np.float32) / 255
+    knee, top = 0.80, 0.965                       # highlights ease into 96%, never hard white
+    h = top - knee
+    a = np.where(a > knee, knee + h * np.tanh((a - knee) / h), a)
+    a = 0.018 + a * (1 - 0.018)                   # lift the floor: no crushed blacks
+    return Image.fromarray((np.clip(a, 0, 1) * 255 + 0.5).astype(np.uint8))
 
 
 def load_rgb(path):

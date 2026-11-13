@@ -889,13 +889,15 @@ def juice_prompt(settings, image, text, lora, strength=0.8, denoise=0.35, megapi
 # Tuned on the engine against Pranay's benchmark pictures. Left out when the
 # prompt sets its own time of day or mood ("ambient lighting" alone doesn't
 # count: that's the LED strips).
-LIGHT_INT = ("Photographed like a car maker's interior press photo on location on a clear sunny day: hard "
-             "direct sunlight streaming through the windows and glass roof, casting crisp sun patches and "
-             "shadows across the seats, console and dashboard; through the windows a sharp, clearly visible, "
-             "saturated landscape under a deep blue sky, exposed correctly and never washed out; rich saturated "
-             "real leather with visible stitching and perforation; glossy screens and satin metal trims with "
-             "crisp highlights; ambient lighting strips glowing vividly; deep clean shadows in the footwell. "
-             "Wide-angle, ultra-sharp, high dynamic range, vivid, punchy colours.")
+LIGHT_INT = ("Photographed like a car maker's interior press photo: clean, soft natural daylight filling the "
+             "cabin, with gentle sunlight falling in through the windows and a few soft sun patches; soft, "
+             "gradual shadows and a natural falloff into the footwell, the cabin slightly darker than outside; "
+             "exposure balanced for the windows, so the landscape outside is clearly visible with soft "
+             "atmospheric depth, never washed out to white; colours true to each material, never "
+             "oversaturated; satin highlights on metal trims, screens and stitching; ambient lighting strips "
+             "glowing softly. Calm, premium, ultra-clean and sharp.")
+# Interiors burnt with "rich contrast" in the closing line; they get a cleaner one.
+CLEAN = "A professional photograph: crisp sharp focus, true-to-life colours, detailed real materials and textures."
 LIGHT_EXT = ("Photographed like a car maker's press photo in a large minimalist photo studio: smooth light-grey "
              "back wall, dark grey concrete floor with a faint soft reflection under the car, one huge soft "
              "overhead light drawing a long smooth highlight along the roof and shoulder, the lower body "
@@ -936,5 +938,5 @@ def build_text(preset, text, presets=PRESETS):
     light = "" if (presets is GENERIC_REF_PRESETS and preset == "style") else light_for(text)
     if light:
         out += "\n\n" + light
-    return out + "\n\n" + CRISP
+    return out + "\n\n" + (CLEAN if light == LIGHT_INT else CRISP)
 
