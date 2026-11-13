@@ -254,7 +254,7 @@
     // Create works on the sketch as it is now: freeze a copy. Live keeps
     // updating in the background and comes back when the run is done.
     p.jobOrig = p.src.preview; p.preview = null; p.previewN = 0;
-    if (p.src.live) p.src = Object.assign({}, p.src, { live: false, frozen: true });
+    if (p.src.live) { p.src = Object.assign({}, p.src, { live: false, frozen: true }); p.sel = -2; }
     api().studio_run(j).then(function (jid) {
       if (jid) { if (p.job === "starting") p.job = jid; } else { p.job = null; p.pending = 0; refresh(); }
       render();
@@ -775,9 +775,9 @@
     var view = $(id + "-view"), mode, key;
     var origOf = p.sel === -2 ? (p.job ? p.jobOrig : (p.results.length ? p.results[p.results.length - 1].orig : null)) : null;
     if (c) { mode = "result"; key = c.path; }
-    else if (origOf) { mode = "orig"; key = origOf.length + ":" + origOf.slice(-40); }
+    else if (origOf) { mode = "orig"; key = origOf.length + ":" + origOf.slice(-40) + (p.job && p.preview ? ":dev" + (p.previewN || 0) : ""); }
     else if (id === "c" && p.src && p.area === "paint") { mode = "paint"; key = p.src.path; }
-    else if (p.src && id === "c") { mode = "src"; key = p.src.path + (p.src.frozen ? ":frozen" : "") + (p.job && p.preview ? ":dev" + (p.previewN || 0) : "") + (S.psSel && S.useSel !== false ? ":sel" + S.psSel.preview.length + S.psSel.preview.slice(-24) : ""); }
+    else if (p.src && id === "c") { mode = "src"; key = (p.job && p.liveSrc ? p.liveSrc.path : p.src.path + (p.src.frozen ? ":frozen" : "")) + (S.psSel && S.useSel !== false ? ":sel" + S.psSel.preview.length + S.psSel.preview.slice(-24) : ""); }
     else { mode = "empty"; key = id + (p.src ? "1" : "0"); }
     key = mode + ":" + key + (mode === "paint" ? ":" + painter.erase + ":" + painter.selecting : "");
     if (view.getAttribute("data-k") !== key) {
@@ -804,18 +804,19 @@
         });
         $("c-size").addEventListener("input", function () { painter.size = +this.value; keep("brush", painter.size); });
       } else {
-        var info = mode === "result" ? c : mode === "orig" ? { preview: origOf, w: p.src.w, h: p.src.h, frozen: true } : p.src;
-        var dev = mode === "src" && p.job && p.preview
+        var info = mode === "result" ? c : mode === "orig" ? { preview: origOf, w: p.src.w, h: p.src.h, frozen: true } :
+          (p.job && p.liveSrc ? p.liveSrc : p.src);
+        var dev = mode === "orig" && p.job && p.preview
           ? '<img class="s-dev" src="' + p.preview + '" alt="" style="opacity:' + Math.min(1, 0.35 + 0.13 * (p.previewN || 1)) + '">' : "";
-        var selOv = !dev && mode === "src" && info.live && S.psSel && S.useSel !== false && id === "c"
+        var selOv = mode === "src" && info.live && S.psSel && S.useSel !== false && id === "c"
           ? '<div class="s-selov" style="-webkit-mask-image:url(' + S.psSel.preview + ');mask-image:url(' + S.psSel.preview + ')"></div>' : "";
         view.innerHTML = '<div class="s-fit" data-w="' + info.w + '" data-h="' + info.h + '"><img class="' + (mode === "result" ? "s-res" : "") + '" src="' + info.preview + '" alt="">' + dev + selOv + "</div>" +
-          (mode === "result" ? '<span class="s-tag">Result · hold to see the original</span>' : '<span class="s-tag">' + (info.live ? "Live from " + ((APPS[info.app] || APPS.photoshop)[1]) : info.frozen ? (mode === "orig" ? "Sketch · what these results were made from" : dev ? "Developing · step " + (p.previewN || 1) : "Sketch · frozen while creating") : "Original") + "</span>");
+          (mode === "result" ? '<span class="s-tag">Result · hold to see the original</span>' : '<span class="s-tag">' + (info.live ? "Live from " + ((APPS[info.app] || APPS.photoshop)[1]) : info.frozen ? (dev ? "Developing · step " + (p.previewN || 1) : mode === "orig" && !p.job ? "Sketch · what these results were made from" : "Sketch · frozen while creating") : "Original") + "</span>");
       }
     }
     var oldpb = view.querySelector(".s-paintbtn");
-    if (oldpb && (p.area === "paint" || c || !p.src)) oldpb.remove();
-    if (id === "c" && p.src && !c && p.area !== "paint") {
+    if (oldpb && (p.area === "paint" || c || !p.src || p.job)) oldpb.remove();
+    if (id === "c" && p.src && !c && p.area !== "paint" && !p.job) {
       var pb = view.querySelector(".s-paintbtn");
       if (!pb) { pb = document.createElement("button"); pb.type = "button"; pb.className = "s-paintbtn";
         pb.onclick = function () { S.create.area = S.create.area === "paint" ? "whole" : "paint"; S.create.sel = -1; render(); }; view.appendChild(pb); }
@@ -846,7 +847,7 @@
           '<em class="live"><i class="ld"></i>Live</em></span><span class="s-div" aria-hidden="true"></span>';
         if (origPrev && p.job) {
           var pct = Math.max(2, Math.round((p.frac || 0) * 100));
-          strip += '<span class="s-tilewrap s-fillt" data-i="-2" title="Creating from this sketch"><img src="' + origPrev + '" alt="">' +
+          strip += '<span class="s-tilewrap s-fillt' + (p.sel === -2 ? " sel" : "") + '" data-i="-2" title="Creating from this sketch"><img src="' + origPrev + '" alt="">' +
             '<span class="s-fillc" style="width:' + pct + '%"><img src="' + (p.preview || origPrev) + '" alt=""></span>' +
             '<span class="s-fillb"><i style="width:' + pct + '%"></i></span><em>Creating · ' + pct + "%</em></span>";
         } else if (origPrev && mine.length) strip += '<span class="s-tilewrap"><img data-i="-2" class="' + (p.sel === -2 ? "sel" : "") + '" src="' + origPrev + '" alt="" title="The sketch these were made from">' +

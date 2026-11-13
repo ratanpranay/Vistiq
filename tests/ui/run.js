@@ -70,6 +70,15 @@ const frame = (n, name) => ({ path: "live://photoshop/" + n, name: name || "flat
     await p.waitForTimeout(100);
     check("the picture develops on the main view", /Developing · step 2/.test(await p.text("#c-stage .s-tag")) &&
       await p.evaluate(() => !!document.querySelector("#c-view .s-dev")), await p.text("#c-stage .s-tag"));
+    check("developing happens on the Sketch copy, which is selected", await p.evaluate(() => {
+      const t = document.querySelector("#c-strip .s-fillt"); return !!t && t.classList.contains("sel"); }), "Sketch tile not selected");
+    await p.click('#c-strip img[data-i="-1"]');
+    await p.waitForTimeout(100);
+    check("Live during a run shows the live canvas, not the developing picture",
+      /Live from Photoshop/.test(await p.text("#c-stage .s-tag")) && await p.evaluate(() => !document.querySelector("#c-view .s-dev")),
+      await p.text("#c-stage .s-tag"));
+    await p.click("#c-strip .s-fillt");
+    await p.waitForTimeout(100);
     check("Sketch tile fills in with progress", /Creating · 50%/.test(await p.text("#c-strip")) &&
       await p.evaluate(() => document.querySelector("#c-strip .s-fillc").style.width === "50%"), await p.text("#c-strip"));
 
