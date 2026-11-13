@@ -78,6 +78,28 @@ def composite(original, result, mask, box, blend_px):
     return out
 
 
+def finish(im, vib=0.28, contrast=0.18, gamma=1.08, clarity=0.35, sharp=0.6):
+    """The "juice": what a good retoucher does to a render. Richer midtones,
+    an S-curve, more colour in the dull parts (vibrance), local contrast
+    (clarity) and a fine sharpen. Tuned on the engine's results against
+    Pranay's benchmark renders (colour, contrast and punch measured)."""
+    import numpy as np
+    a = np.asarray(im.convert("RGB")).astype(np.float32) / 255
+    a = a ** gamma
+    lum = a.mean(2, keepdims=True)
+    curve = lum + contrast * (lum - 0.5) * (1 - np.abs(2 * lum - 1)) * 2
+    a = np.clip(a * (curve / np.maximum(lum, 1e-4)), 0, 1)
+    sat = a.max(2, keepdims=True) - a.min(2, keepdims=True)
+    mid = a.mean(2, keepdims=True)
+    a = np.clip(mid + (a - mid) * (1 + vib * (1 - sat)), 0, 1)
+    out = Image.fromarray((a * 255 + 0.5).astype(np.uint8))
+    if clarity:
+        out = out.filter(ImageFilter.UnsharpMask(radius=max(out.size) // 60, percent=int(clarity * 100), threshold=2))
+    if sharp:
+        out = out.filter(ImageFilter.UnsharpMask(radius=1.2, percent=int(sharp * 100), threshold=2))
+    return out
+
+
 def load_rgb(path):
     im = ImageOps.exif_transpose(Image.open(path))
     if im.mode in ("RGBA", "LA", "P"):
@@ -498,6 +520,8 @@ class Studio:
                     else:
                         data = juiced
                 result = Image.open(io.BytesIO(data)).convert("RGB")
+                if not (mode == "reference" and job.get("preset") == "style") and s.get("studio_finish", True):
+                    result = finish(result)        # a style reference keeps its own look
                 if mask is not None:
                     blend = int(float(job.get("blend", 0.35)) * 0.06 * max(box[2] - box[0], box[3] - box[1])) + 2
                     result = composite(original, result, mask, box, blend)

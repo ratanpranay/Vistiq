@@ -554,3 +554,23 @@ class Previews(unittest.TestCase):
         raw = (4).to_bytes(4, "big") + len(meta).to_bytes(4, "big") + meta + jpeg
         self.assertEqual(studio._preview_bytes(raw), jpeg)
         self.assertIsNone(studio._preview_bytes((3).to_bytes(4, "big") + b"x" * 20))
+
+
+class Finish(unittest.TestCase):
+    def test_finish_adds_colour_and_contrast_keeps_size(self):
+        import numpy as np
+        from PIL import Image
+        from vistiq import studio_jobs
+        rng = np.random.default_rng(1)
+        base = np.zeros((90, 160, 3), np.uint8)
+        base[..., 0] = np.linspace(60, 200, 160)[None, :]
+        base[..., 1] = 120
+        base[..., 2] = np.linspace(80, 140, 90)[:, None]
+        base = np.clip(base + rng.integers(-8, 8, base.shape), 0, 255).astype(np.uint8)
+        im = Image.fromarray(base)
+        out = studio_jobs.finish(im)
+        self.assertEqual(out.size, im.size)
+        sat = lambda x: np.asarray(x.convert("HSV"))[..., 1].mean()
+        con = lambda x: np.asarray(x.convert("L")).std()
+        self.assertGreater(sat(out), sat(im))
+        self.assertGreater(con(out), con(im))

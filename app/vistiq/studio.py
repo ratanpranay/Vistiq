@@ -762,9 +762,11 @@ GENERIC_REF_PRESETS = {
     "camera": ("Show the subject of image 1 from exactly the same camera position, angle and "
                "field of view as image 2. Everything must line up with image 2. "
                "Keep the design, materials and colours of image 1."),
+    # Short on purpose: the longer "dress every part…" wording copied the
+    # wrong colours (brown seats from a white-seat reference) in engine tests.
     "cmf": ("Image 1 is a line drawing. Render it as a photorealistic photograph that "
-            "follows every line of image 1 exactly: same parts, shapes, proportions and camera view. Dress every part in the colours, materials and finishes of the matching part in image 2. "
-            "Natural light, realistic materials and reflections.\n"),
+            "follows every line of image 1 exactly: same parts, shapes, proportions and camera view. Give it "
+            "the colours, materials and finishes of image 2: the same colour on the same kind of part.\n"),
     "style": ("Image 1 is a line drawing. Render it as a photorealistic photograph that "
               "follows every line of image 1 exactly: same parts, shapes, proportions and camera view. Give it "
               "the look of image 2: its colour palette, materials, lighting, mood and atmosphere.\n"),
@@ -930,7 +932,8 @@ def build_text(preset, text, presets=PRESETS):
     base = presets.get(preset, "")
     text = (text or "").strip()
     out = (base + "\n\n" + text) if base and text else (base or text or "Photorealistic photograph.")
-    light = light_for(text)
+    # A style reference brings its own light; ours would fight it.
+    light = "" if (presets is GENERIC_REF_PRESETS and preset == "style") else light_for(text)
     if light:
         out += "\n\n" + light
     return out + "\n\n" + CRISP
