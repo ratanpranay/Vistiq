@@ -133,6 +133,7 @@ class Studio:
         # Like a navigator: listen for Photoshop the whole time Studio is open.
         try:
             self.bridge.start()
+            self.bridge.poke()
         except Exception:
             log.exception("Photoshop link")
         self.bridge.on_released = lambda: self.emit("studio-live-state", {

@@ -5,7 +5,7 @@ const uxpStorage = require("uxp").storage;
 
 const STUDIO = "http://127.0.0.1:38393";
 const MAX_SIDE = 2048;
-const VERSION = "1.0.5";
+const VERSION = "1.0.6";
 let lastError = "";
 let sendError = "";
 
@@ -185,5 +185,37 @@ setInterval(() => {
 }, 1000);
 
 $("send").addEventListener("change", () => { lastKey = ""; schedule(0); });
-setInterval(ping, 1000);
+// One request always open to Studio, answered the moment Studio needs a
+// picture (Connect, Studio starting, a lost picture) or has one to place.
+// Photoshop slows a panel's timers down while you work elsewhere, but not this.
+let waiting = false;
+async function waitLoop() {
+  if (waiting) return;
+  waiting = true;
+  while (true) {
+    let key = "none";
+    try { const d = app.activeDocument; if (d) key = docKey(d); } catch (e) {}
+    try {
+      const r = await fetch(STUDIO + "/wait?v=" + VERSION + "&key=" + encodeURIComponent(enabled() ? key : "off"));
+      connected = r.ok;
+      let have = "", place = [];
+      try { const j = await r.json(); have = j.have || ""; place = j.place || []; } catch (e) {}
+      for (const item of place) placeQueue(item);
+      let now = "none";
+      try { const d = app.activeDocument; if (d) now = docKey(d); } catch (e) {}
+      if (connected && now !== "none" && enabled() && have !== now) {
+        if (!sending) { lastKey = ""; await send(); }
+        await new Promise((res) => setTimeout(res, 250));    // never spin if Photoshop is busy
+      }
+      show("Connected to Vistiq Studio", true);
+    } catch (e) {
+      connected = false;
+      show("Vistiq Studio isn't open", false);
+      await new Promise((res) => setTimeout(res, 1500));   // Studio closed: try again soon
+    }
+  }
+}
+
+setInterval(ping, 1000);      // backup
 ping();
+waitLoop();

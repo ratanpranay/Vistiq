@@ -309,6 +309,8 @@ class Api:
         a.stop()
         ok = b.start()
         if ok:
+            b.poke()            # the panel sends the picture right away
+        if ok:
             return {"on": True, "error": ""}
         if b.busy_reason == "studio":
             return {"on": False, "error": "Another Vistiq Studio window is already connected. Close it, then try again."}

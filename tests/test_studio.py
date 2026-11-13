@@ -1,4 +1,5 @@
 import base64
+import time
 import io
 import json
 import os
@@ -480,3 +481,51 @@ class SelectionMask(unittest.TestCase):
                 self.assertIsNone(got[-1])
             finally:
                 b.stop()
+
+
+class OpenLine(unittest.TestCase):
+    """The panel's /wait is answered the moment Studio needs a picture."""
+
+    def setUp(self):
+        from vistiq import bridge
+        self.bridge = bridge
+        self.tmp = tempfile.TemporaryDirectory()
+        self.port = mock.patch.object(bridge, "PORT", 18400)
+        self.port.start()
+        self.b = bridge.Bridge(self.tmp.name, lambda f: None)
+        self.assertTrue(self.b.start())
+
+    def tearDown(self):
+        self.b.stop()
+        self.port.stop()
+        self.tmp.cleanup()
+
+    def wait(self, key, results):
+        import urllib.request
+        t = time.time()
+        body = json.loads(urllib.request.urlopen("http://127.0.0.1:18400/wait?key=%s&v=%s" % (key, self.bridge.PANEL_VERSION),
+                                                 timeout=30).read())
+        results.append((round(time.time() - t, 1), body))
+
+    def test_answers(self):
+        import threading
+        r = []
+        self.wait("k1", r)                                   # Studio has nothing yet: answered at once
+        self.assertLess(r[-1][0], 1)
+        self.b.have = "k1"
+        th = threading.Thread(target=self.wait, args=("k1", r)); th.start()
+        time.sleep(1.2)
+        self.assertEqual(len(r), 1)                          # up to date: the line stays open
+        self.b.poke()                                        # Connect clicked / Studio started
+        th.join(5)
+        self.assertEqual(len(r), 2)
+        self.assertLess(r[-1][0], 2.5)
+        self.b.have = "k1"
+        th = threading.Thread(target=self.wait, args=("k1", r)); th.start()
+        time.sleep(0.5)
+        pic = os.path.join(self.tmp.name, "x.png")
+        Image.new("RGB", (4, 4)).save(pic)
+        self.assertTrue(self.b.send(pic, "x"))               # To Photoshop: answered at once
+        th.join(5)
+        self.assertEqual(len(r), 3)
+        self.assertEqual(r[-1][1]["place"][0]["name"], "x")

@@ -26,7 +26,7 @@ PORT = 38393
 MAX_BODY = 80 << 20
 KEEP = 4                       # live frames kept on disk
 LIVE = "live://photoshop/"     # how the window names the mirrored picture
-PANEL_VERSION = "1.0.5"        # the panel in app/photoshop (tests check they match)
+PANEL_VERSION = "1.0.6"        # the panel in app/photoshop (tests check they match)
 
 
 class _Server(ThreadingHTTPServer):
@@ -54,6 +54,9 @@ class Bridge:
         self.on_old_panel = lambda: None              # an older panel checked in
         self.latest = None                            # the current picture (JPEG bytes)
         self.outbox = {}                              # pictures waiting to go into Photoshop
+        self._cv = threading.Condition()
+        self._pokes = 0
+        self._waiters = 0
         self.sel = None                               # Photoshop's selection as a mask (PIL "L"), or None
         self.on_sel = lambda mask: None
         self.on_placed = lambda name, ok, message: None
@@ -101,6 +104,16 @@ class Bridge:
             def do_GET(self):
                 if self.path.startswith("/file"):
                     return self._file()
+                if self.path.startswith("/wait"):
+                    # The panel keeps one of these open: answered as soon as Studio
+                    # needs a picture (Photoshop slows the panel's own timers down).
+                    from urllib.parse import urlparse, parse_qs
+                    q = parse_qs(urlparse(self.path).query)
+                    key = (q.get("key") or [None])[0]
+                    bridge.seen(key, (q.get("v") or [""])[0])
+                    bridge.wait_for(key, 20)
+                    return self._send(200, json.dumps({"app": "Vistiq Studio", "have": bridge.have,
+                                                       "place": bridge.waiting()}).encode())
                 if self.path.startswith("/ping"):
                     from urllib.parse import urlparse, parse_qs
                     q = parse_qs(urlparse(self.path).query)
@@ -249,6 +262,8 @@ class Bridge:
         pid = uuid.uuid4().hex[:12]
         self.outbox[pid] = {"path": path, "name": name, "ext": os.path.splitext(path)[1].lower() or ".png",
                             "queued": time.time(), "fetched": 0}
+        with self._cv:
+            self._cv.notify_all()
         return pid
 
     def waiting(self):
@@ -289,6 +304,34 @@ class Bridge:
             self.on_sel(mask)
         except Exception:
             log.exception("selection")
+
+    def wait_for(self, key, timeout):
+        """Hold a panel's /wait until Studio needs something from it: a picture it
+        hasn't got, a picture to place, or a nudge (Connect, Studio starting)."""
+        end = time.time() + timeout
+        with self._cv:
+            poke = self._pokes
+            self._waiters += 1
+            try:
+                while True:
+                    if key not in (None, "none", "off") and self.have != key:
+                        return
+                    if self.waiting() or self._pokes != poke or not self.server:
+                        return
+                    left = end - time.time()
+                    if left <= 0:
+                        return
+                    self._cv.wait(min(left, 1.0))
+                    self.last_seen = time.time()      # an open /wait means Photoshop is there
+            finally:
+                self._waiters -= 1
+
+    def poke(self):
+        """Ask the panel for a fresh picture now."""
+        with self._cv:
+            self.have = ""
+            self._pokes += 1
+            self._cv.notify_all()
 
     def seen(self, key, version=""):
         """The panel checked in (every second while Photoshop runs)."""

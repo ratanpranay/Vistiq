@@ -46,6 +46,35 @@ ASSET = "vistiq-studio-app.zip" if STUDIO else "vistiq-app.zip"
 TAG_PREFIX = "studio-v" if STUDIO else "v"
 NAME = "Vistiq Studio" if STUDIO else "Vistiq"
 HERE = getattr(sys, "_MEIPASS", os.path.dirname(os.path.abspath(__file__)))
+
+
+def _children_dont_hold_our_temp_folder():
+    """Programs Studio starts (image engines, prompt helper) can keep running
+    after it closes. On Windows they'd inherit this exe's unpack folder as a
+    place to load DLLs from, keep files in it open, and Windows then shows
+    "Failed to remove temporary directory" when Studio exits. Start them
+    without it."""
+    if sys.platform != "win32" or not getattr(sys, "frozen", False):
+        return
+    os.environ["PYINSTALLER_RESET_ENVIRONMENT"] = "1"   # children get a clean environment
+    try:
+        import ctypes
+        k32 = ctypes.windll.kernel32
+        orig = subprocess.Popen.__init__
+
+        def init(self, *a, **k):
+            k32.SetDllDirectoryW(None)
+            try:
+                orig(self, *a, **k)
+            finally:
+                k32.SetDllDirectoryW(HERE)
+        init._vistiq = True
+        subprocess.Popen.__init__ = init
+    except Exception:
+        pass
+
+
+_children_dont_hold_our_temp_folder()
 HOME = os.path.join(os.path.join(os.path.expanduser("~"), "Library", "Application Support") if sys.platform == "darwin" else (os.environ.get("LOCALAPPDATA") or os.path.expanduser("~")),
                     "VistiqStudio" if STUDIO else "Vistiq")
 APPS = os.path.join(HOME, "app")
