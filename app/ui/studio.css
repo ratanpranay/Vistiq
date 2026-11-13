@@ -277,3 +277,12 @@ body.studio .s-page.on{display:flex;flex:1;min-width:0;height:100%}
 #p-settings .s-row .n small{font-size:11.5px}
 #p-settings .s-btn{height:30px;font-size:12px;padding:0 12px}
 #p-settings .s-up{padding:12px 14px;border-radius:12px}
+
+/* Finishing pass: its own little card with room to breathe */
+.s-fin{background:var(--field);border:1px solid var(--line);border-radius:14px;padding:14px 14px 10px;display:flex;flex-direction:column;gap:10px}
+.s-fin .s-label{margin-bottom:0}
+.s-fin-hint{margin:-4px 0 2px;font-size:12px;line-height:16px;color:var(--dim)}
+.s-fin .s-select{background:#fff}
+.s-fin-row{display:flex;justify-content:space-between;align-items:baseline;font-size:12.5px;font-weight:650;color:var(--ink-2);margin-top:4px}
+.s-fin-row em{font-style:normal;font-weight:700;color:var(--dim)}
+.s-fin .s-range{margin:0}

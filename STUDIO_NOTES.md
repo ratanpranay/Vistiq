@@ -1,5 +1,10 @@
 # Vistiq Studio (test build)
 
+## 0.3.2
+- Photoshop link: a Studio left running in the background (e.g. after an update) can no longer catch Photoshop's pictures; the window you connect from takes over.
+- Create: "Look" is now "Style"; "Juice" is now "Finishing pass", in its own card: pick a style, then set Strength (Subtle / Medium / Strong).
+- Style files you put in Models › loras show up as soon as you come back to Studio.
+
 ## 0.3.1
 - Fixes "'studio_times'" error after the first picture (Mac and Windows).
 - Tested on a real Mac: install, live Create with 2 variations, warm re-run, paint an area and CMF all work.

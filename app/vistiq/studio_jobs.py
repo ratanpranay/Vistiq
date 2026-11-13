@@ -402,7 +402,7 @@ class Studio:
                     _add_lora(prompt, job.get("lora"), job.get("lora_strength", 0.8))
                 data = self.engine.run(prompt, prog, self._cancel.is_set)
                 if sys.platform != "darwin" and job.get("juice") and studio.status(s)["juice_ready"] and job.get("juice_lora"):
-                    say("Juice · " + label.lower(), (v + 0.9) / n)
+                    say("Finishing pass · " + label.lower(), (v + 0.9) / n)
                     jpath = os.path.join(tmp_dir, "juice_%s_%d.png" % (job_id, v))
                     with open(jpath, "wb") as fh:
                         fh.write(data)

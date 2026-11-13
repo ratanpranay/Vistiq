@@ -118,8 +118,12 @@
       PRESETS.map(function (p) { return '<button type="button" data-v="' + p[0] + '">' + svg(p[3]) + "<span>" + p[1] + "</span></button>"; }).join("") + "</div></div>" +
       promptBox("c", "Describe the change") +
       '<div id="c-blend-w" hidden><div class="s-label">Blend edges <em id="c-blend-v"></em></div><input class="s-range" type="range" min="0" max="1" step="0.05" id="c-blend"></div>' +
-      '<div id="c-look-w" hidden><div class="s-label">Look</div><select class="s-select" id="c-lora"></select></div>' +
-      '<div id="c-juice-w" hidden><div class="s-label">Juice <em id="c-juice-v"></em></div><input class="s-range" type="range" min="0" max="1" step="0.05" id="c-juice"><select class="s-select" id="c-juice-lora" style="margin-top:8px"></select></div>' +
+      '<div id="c-look-w" hidden><div class="s-label">Style</div><select class="s-select" id="c-lora"></select></div>' +
+      '<div id="c-juice-w" class="s-fin" hidden><div class="s-label">Finishing pass</div>' +
+      '<p class="s-fin-hint">A second, light pass for richer light and materials.</p>' +
+      '<select class="s-select" id="c-juice-lora"></select>' +
+      '<div class="s-fin-row"><span>Strength</span><em id="c-juice-v"></em></div>' +
+      '<input class="s-range" type="range" min="0" max="1" step="0.05" id="c-juice"></div>' +
       optionsRow("c"), "Create") + stage("c");
     document.body.appendChild(create);
 
@@ -570,7 +574,7 @@
       $(id + "-keep-v").textContent = p.keep >= 0.95 ? "Exact" : p.keep <= 0.25 ? "Creative" : Math.round(p.keep * 100) + "%";
     });
     $("c-blend").value = S.create.blend; $("c-blend-v").textContent = Math.round(S.create.blend * 100) + "%";
-    $("c-juice").value = S.create.juice; $("c-juice-v").textContent = S.create.juice > 0 ? Math.round(S.create.juice * 100) + "%" : "Off";
+    $("c-juice").value = S.create.juice; $("c-juice-v").textContent = S.create.juice > 0 ? (S.create.juice < 0.35 ? "Subtle · " : S.create.juice < 0.7 ? "Medium · " : "Strong · ") + Math.round(S.create.juice * 100) + "%" : "Off";
   }
 
   function options(sel, list, value, none) {
@@ -693,7 +697,7 @@
     var juicy = st ? st.loras.filter(function (l) { return l.family === "flux1"; }) : [];
     $("c-juice-w").hidden = !(st && st.juice_ready && juicy.length);
     if (!p.juiceLora && juicy.length) p.juiceLora = juicy[0].name;
-    options($("c-juice-lora"), juicy, p.juiceLora, "Choose a style");
+    options($("c-juice-lora"), juicy, p.juiceLora, "Pick a finishing style");
     renderRail("c");
     renderStage("c");
   }
@@ -952,14 +956,14 @@
           (st.tiers[k].ready ? ' <span class="s-ok">Ready</span>' : "") + "</b><small>" + TIER_TEXT[k][1] + "</small></button>";
       }).join("") + "</div>" +
       '<div class="s-list">' + fileRows(tierFiles(st, st.tier || st.chosen || "best").concat(st.files.filter(function (f) { return f.key === "consistency" && (st.tier || "best") === "best"; }))) + selectRow + helperRow + "</div>") +
-      (st.mac ? "" : '<div class="s-sec">Looks</div><p class="s-hint">Extra styles for Create, shown under Look. Add one by putting its file in the loras folder.</p>' +
+      (st.mac ? "" : '<div class="s-sec">Looks</div><p class="s-hint">Extra styles for Create, shown under Style. To add one, put its file in Models › loras; it shows up when you come back to Studio.</p>' +
       '<div class="s-list">' + styleRows(looks, "None yet.") + "</div>" +
       '<div class="s-btns"><button type="button" class="s-btn" data-su="models">Open the loras folder</button></div>' +
-      '<details class="s-adv"' + (S.advOpen ? " open" : "") + '><summary>Advanced: Juice (optional, about 29 GB)</summary>' +
+      '<details class="s-adv"' + (S.advOpen ? " open" : "") + '><summary>Advanced: Finishing pass (optional, about 29 GB)</summary>' +
       '<p class="s-hint">A second, light pass with a style, for richer light and materials. Not needed for anything else.</p>' +
       '<div class="s-list">' + fileRows(juice) + "</div>" +
-      '<p class="s-hint">Styles for Juice:</p><div class="s-list">' + styleRows(juiceStyles, "None yet.") + "</div>" +
-      (jdl ? '<div class="s-btns"><button type="button" class="s-btn p" data-su="download-juice"' + (running ? " disabled" : "") + ">Download the Juice files</button></div>" : "") + "</details>") +
+      '<p class="s-hint">Styles for the finishing pass:</p><div class="s-list">' + styleRows(juiceStyles, "None yet.") + "</div>" +
+      (jdl ? '<div class="s-btns"><button type="button" class="s-btn p" data-su="download-juice"' + (running ? " disabled" : "") + ">Download the finishing-pass files</button></div>" : "") + "</details>") +
 
       (st.mac ? "" : '<div class="s-sec">Image engine</div><p class="s-hint">' + (st.engine_installed ? "Installed. " : "Not set up yet. ") + esc(S.engine.message || "") +
       " The upscaler keeps its own engine; they take turns on the graphics card.</p>" +
@@ -1070,6 +1074,7 @@
       hook();
       build();
       setInterval(function () { if (S.create.job || S.ref.job) render(); }, 1000);
+      window.addEventListener("focus", function () { try { refresh(); } catch (e) {} });
     });
   }
   if (api()) start(); else window.addEventListener("pywebviewready", start);
