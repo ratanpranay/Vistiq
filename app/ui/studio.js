@@ -1019,6 +1019,9 @@
       '<p class="s-hint">A second, light pass with a style, for richer light and materials. Not needed for anything else.</p>' +
       '<div class="s-list">' + fileRows(juice) + "</div>" +
       '<p class="s-hint">Styles for the finishing pass:</p><div class="s-list">' + styleRows(juiceStyles, "None yet.") + "</div>" +
+      (function () { var locked = st.loras.filter(function (l) { return l.family === "locked"; });
+        return locked.length ? '<p class="s-hint">Locked by Liblib (they only work inside Liblib\'s app, so Studio skips them): ' +
+          locked.map(function (l) { return esc(l.label || l.name); }).join(", ") + "</p>" : ""; })() +
       (jdl ? '<div class="s-btns"><button type="button" class="s-btn p" data-su="download-juice"' + (running ? " disabled" : "") + ">Download the finishing-pass files</button></div>" : "") + "</details>") +
 
       (st.mac ? "" : '<div class="s-sec">Image engine</div><p class="s-hint">' + (st.engine_installed ? "Installed. " : "Not set up yet. ") + esc(S.engine.message || "") +

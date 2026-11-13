@@ -200,7 +200,11 @@ def lora_family(path):
             head = json.loads(fh.read(n))
     except Exception:
         return "unknown"
-    head.pop("__metadata__", None)
+    meta = head.pop("__metadata__", None) or {}
+    if meta.get("provider") == "liblib" or "liblibai_model_version_id" in meta:
+        # Downloaded from Liblib in its locked form: the weights are scrambled and
+        # only Liblib's own app can use them (anywhere else they give black pictures).
+        return "locked"
     keys = list(head)
     joined = " ".join(keys[:4000])
     flux_like = any(t in joined for t in ("double_blocks", "single_blocks", "single_transformer_blocks",

@@ -460,9 +460,7 @@ class Studio:
                         # Some styles break the finishing model (it returns a black
                         # picture). Keep the image from before the pass instead.
                         log.warning("finishing pass with %s gave a blank picture", job.get("juice_lora"))
-                        self.emit("studio-note", {"message": "This finishing style made a black picture, so the "
-                                                             "image is shown without it. Try another style or a lower "
-                                                             "strength."})
+                        pass   # keep the picture from before the pass, quietly
                     else:
                         data = juiced
                 result = Image.open(io.BytesIO(data)).convert("RGB")
