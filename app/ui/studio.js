@@ -713,7 +713,12 @@
     var p = S.create, st = S.status;
     $("c-imp").hidden = !(st && st.helper_ready);
     // One part failing to draw must not leave the rest of the panel stale.
-    try { renderPS(); } catch (e) { report("renderPS", e); }
+    try { renderPS(); } catch (e) {
+      report("renderPS", e);
+      // Never leave Live from app without a way to connect.
+      var el = $("c-ps"), fb = '<button type="button" class="s-btn p" data-ps="on" data-app="photoshop" style="width:100%">Connect Photoshop</button>';
+      if ((p.source || "image") === "live" && el.getAttribute("data-h") !== fb) { el.innerHTML = fb; el.setAttribute("data-h", fb); }
+    }
     try { setSlot($("c-slot"), p.src, "click to change", "Drop a sketch or render here, or click"); } catch (e) { if (window.console) console.error(e); }
     on($("c-area"), "data-v", p.area);
     on($("c-presets"), "data-v", p.preset);
