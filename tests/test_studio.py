@@ -416,6 +416,7 @@ class SendToPhotoshop(unittest.TestCase):
 
 
 class TrueV2(unittest.TestCase):
+    @unittest.skipIf(sys.platform == "darwin", "the Mac has its own image engine")
     def test_tier_and_pipeline(self):
         with tempfile.TemporaryDirectory() as t:
             s = Settings(studio_home=t, studio_tier="true")
