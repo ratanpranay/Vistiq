@@ -116,6 +116,17 @@ class WholeRun(unittest.TestCase):
         self.assertEqual(len(r2), 1)
         self.assertTrue(self.st.status()["times"]["warm"])
 
+    def test_create_from_photoshop_mirror(self):
+        b = io.BytesIO()
+        Image.new("RGB", (800, 450), "white").save(b, "JPEG")
+        self.st.bridge.frame({"name": "flat 2.psd", "jpeg": base64.b64encode(b.getvalue()).decode()})
+        live = [d for k, d in self.events if k == "studio-live"][-1]
+        self.assertTrue(live["path"].startswith("live://") and live["preview"].startswith("data:image/jpeg"))
+        r = self.go({"mode": "create", "image": live["path"], "name": "flat 2.psd", "live_app": "photoshop",
+                     "preset": "sketch", "text": "interior", "variations": 1})
+        self.assertEqual(len(r), 1)
+        self.assertIn("flat 2", r[0]["name"])
+
     def test_paint_and_reference(self):
         src = os.path.join(self.tmp.name, "src.png")
         Image.new("RGB", (1200, 800), "white").save(src)

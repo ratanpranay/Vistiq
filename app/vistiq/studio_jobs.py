@@ -4,6 +4,7 @@ Lives next to the upscaler's App; `Studio(app)` is made only in the Studio
 build.
 """
 import base64
+import glob
 import io
 import json
 import logging
@@ -139,10 +140,33 @@ class Studio:
                                                                                    "message": m}))
         self._last_frame = 0
 
+    def real_path(self, path):
+        """A file for a picture: the mirrored Photoshop picture lives in memory,
+        so write it out (once per picture) when something needs a file."""
+        from .bridge import LIVE
+        if not path or not str(path).startswith(LIVE):
+            return path
+        data = self.bridge.latest
+        if not data:
+            raise RuntimeError("Photoshop's picture isn't here any more. Open the file in Photoshop again.")
+        tmp_dir = os.path.join(studio.home(self.settings), ".work")
+        os.makedirs(tmp_dir, exist_ok=True)
+        out = os.path.join(tmp_dir, "photoshop_live_%d.jpg" % self.bridge.n)
+        if not os.path.isfile(out):
+            for old in glob.glob(os.path.join(tmp_dir, "photoshop_live_*.jpg")):
+                try:
+                    os.remove(old)
+                except OSError:
+                    pass
+            with open(out, "wb") as fh:
+                fh.write(data)
+        return out
+
     def _on_frame(self, f):
         """A new canvas from Photoshop: show it in Create."""
         try:
-            f["preview"] = imaging.preview(f["path"])
+            data = f.pop("data", None)
+            f["preview"] = imaging.preview(data if data is not None else f["path"])
         except Exception:
             return
         self.emit("studio-live", f)
@@ -294,8 +318,12 @@ class Studio:
         juice_lora?, seed?, refine_of?}"""
         if self._job and self._job.is_alive():
             return False
-        if job.get("live_app"):
-            job["image"] = self._hold_live(job.get("image"))
+        if job.get("live_app") or str(job.get("image") or "").startswith("live://"):
+            try:
+                job["image"] = self._hold_live(job.get("image"))
+            except Exception as exc:
+                self.emit("studio-job", {"state": "error", "message": str(exc)})
+                return False
         if not studio.status(self.settings)["create_ready"]:
             self.emit("studio-job", {"state": "error", "message": "Some model files are missing. See Settings."})
             return False
@@ -311,6 +339,7 @@ class Studio:
         import shutil
         if not path:
             return path
+        path = self.real_path(path)
         if not os.path.isfile(path):
             frames = sorted(glob.glob(os.path.join(os.path.dirname(path), "*.jpg")) +
                             glob.glob(os.path.join(os.path.dirname(path), "*.png")), key=os.path.getmtime)
@@ -469,6 +498,7 @@ class Studio:
         """Outline of the object under the clicked points, as a PNG data URL
         of out_w x out_h (the painting canvas)."""
         from . import picker
+        path = self.real_path(path)
         if not studio.select_installed(self.settings):
             self.emit("studio-select", {"state": "installing"})
             studio.install_select(self.settings, lambda label, f: self.emit(

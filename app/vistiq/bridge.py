@@ -25,6 +25,7 @@ log = logging.getLogger("vistiq")
 PORT = 38393
 MAX_BODY = 80 << 20
 KEEP = 4                       # live frames kept on disk
+LIVE = "live://photoshop/"     # how the window names the mirrored picture
 PANEL_VERSION = "1.0.3"        # the panel in app/photoshop (tests check they match)
 
 
@@ -51,6 +52,7 @@ class Bridge:
         self.on_released = lambda: None
         self.on_state = lambda state, message: None   # Photoshop open / no file / closed
         self.on_old_panel = lambda: None              # an older panel checked in
+        self.latest = None                            # the current picture (JPEG bytes)
         self._asked_update = False
         self.have = ""            # the panel's document key of the picture we have
         self.last_seen = 0.0
@@ -65,7 +67,7 @@ class Bridge:
             return True
         os.makedirs(self.folder, exist_ok=True)
         self.have, self.ps_state, self.last_seen = "", "", 0.0
-        # Pictures from an earlier session would confuse the numbering: start clean.
+        # Older versions kept pictures here; they're not needed any more.
         for old in glob.glob(os.path.join(self.folder, "photoshop_*.jpg")):
             try:
                 os.remove(old)
@@ -230,26 +232,20 @@ class Bridge:
         self.frame({"name": name, "jpeg": base64.b64encode(buf.getvalue()).decode("ascii")})
 
     def frame(self, data):
+        """A new picture from Photoshop. Kept in memory only, like a screen
+        mirror; a file is made only when it's used (Create, Select, Upscale)."""
         raw = base64.b64decode(data["jpeg"])
         im = Image.open(io.BytesIO(raw))
         im.load()
+        name = str(data.get("name") or "Photoshop")
         with self._lock:
             self.n += 1
             n = self.n
-            path = os.path.join(self.folder, "photoshop_%05d.jpg" % n)
-            with open(path, "wb") as fh:
-                fh.write(raw)
-            for old in sorted(glob.glob(os.path.join(self.folder, "photoshop_*.jpg")), key=os.path.getmtime)[:-KEEP]:
-                if old == path:
-                    continue
-                try:
-                    os.remove(old)
-                except OSError:
-                    pass
-        name = str(data.get("name") or "Photoshop")
+            self.latest = raw
         self.doc = name
         self._state("live", "")
-        self.on_frame({"path": path, "name": name, "w": im.size[0], "h": im.size[1], "n": n, "app": "photoshop"})
+        self.on_frame({"path": LIVE + str(n), "data": raw, "name": name, "w": im.size[0], "h": im.size[1],
+                       "n": n, "app": "photoshop"})
 
 
 # -- installing the panel into Photoshop ---------------------------------------

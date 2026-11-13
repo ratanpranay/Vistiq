@@ -342,6 +342,7 @@ class Api:
         return self._app.studio.library()
 
     def studio_to_upscale(self, path):
+        path = self._app.studio.real_path(path)
         added = self._app.add([path])
         if not added:
             added = [self._app.public(i) for i in self._app.items if i["path"] == path]

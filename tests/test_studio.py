@@ -263,8 +263,8 @@ class PhotoshopLink(unittest.TestCase):
                 self.assertEqual((got[-1]["w"], got[-1]["name"]), (40, "a b.psd"))
                 got.pop()
                 self.assertEqual((got[-1]["w"], got[-1]["h"], got[-1]["name"]), (64, 32, "sketch.psd"))
-                self.assertEqual(len(os.listdir(tmp)), bridge.KEEP)
-                self.assertTrue(os.path.isfile(got[-1]["path"]))
+                self.assertEqual(os.listdir(tmp), [])            # a mirror: nothing written to disk
+                self.assertTrue(got[-1]["path"].startswith(bridge.LIVE))
             finally:
                 b.stop()
 
@@ -336,17 +336,17 @@ class Navigator(unittest.TestCase):
             "http://127.0.0.1:18397/raw?w=2&h=2&c=3&name=a.psd&key=" + key, data=bytes([9] * 12),
             method="POST"), timeout=3).read()
 
-    def test_leftover_pictures_dont_eat_new_ones(self):
-        # Yesterday's session left photoshop_00046..49; today's numbering starts at 1 again.
+    def test_mirror_in_memory_file_only_when_used(self):
+        # Leftovers from older versions are cleared and nothing new is written.
         for n in range(46, 50):
             Image.new("RGB", (2, 2)).save(os.path.join(self.tmp.name, "photoshop_%05d.jpg" % n))
         self.assertTrue(self.b.start())
-        self.post_raw("k1")
-        self.assertEqual(len(self.frames), 1)
-        self.assertTrue(os.path.isfile(self.frames[0]["path"]))
-        for _ in range(6):
+        for _ in range(5):
             self.post_raw("k1")
-        self.assertTrue(os.path.isfile(self.frames[-1]["path"]))
+        self.assertEqual(len(self.frames), 5)
+        self.assertEqual(os.listdir(self.tmp.name), [])
+        self.assertTrue(self.frames[-1]["path"].startswith(self.bridge_mod.LIVE))
+        self.assertTrue(self.b.latest)
 
     def test_ping_says_what_studio_has(self):
         from vistiq.bridge import PANEL_VERSION
