@@ -472,7 +472,14 @@ class Studio:
                     prompt = studio.create_prompt(s, image, text, keep, WORK_MP, seed + v)
                 if sys.platform != "darwin":
                     _add_lora(prompt, job.get("lora"), job.get("lora_strength", 0.8))
-                data = self.engine.run(prompt, prog, self._cancel.is_set)
+                def preview(pic, v=v):
+                    self.emit("studio-preview", {"id": job_id, "index": v,
+                                                 "preview": "data:image/jpeg;base64," + base64.b64encode(pic).decode()})
+                import inspect
+                if "on_preview" in inspect.signature(self.engine.run).parameters:
+                    data = self.engine.run(prompt, prog, self._cancel.is_set, on_preview=preview)
+                else:                      # an engine without previews (the Mac one)
+                    data = self.engine.run(prompt, prog, self._cancel.is_set)
                 if sys.platform != "darwin" and job.get("juice") and studio.status(s)["juice_ready"] and job.get("juice_lora"):
                     say("Finishing pass · " + label.lower(), (v + 0.9) / n)
                     jpath = os.path.join(tmp_dir, "juice_%s_%d.png" % (job_id, v))

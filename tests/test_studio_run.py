@@ -31,10 +31,12 @@ class FakeEngine:
         assert os.path.isfile(path), path
         return path
 
-    def run(self, prompt, on_progress=None, cancelled=lambda: False):
+    def run(self, prompt, on_progress=None, cancelled=lambda: False, on_preview=None):
         self.runs.append(prompt)
         if on_progress:
             on_progress(0.5)
+        if on_preview:
+            on_preview(b"\xff\xd8preview")
         b = io.BytesIO()
         Image.new("RGB", (640, 360), (200, 30, 30)).save(b, "PNG")
         return b.getvalue()
@@ -110,6 +112,7 @@ class WholeRun(unittest.TestCase):
         self.assertEqual(len(r), 2)
         for x in r:
             self.assertTrue(os.path.isfile(x["path"]))
+        self.assertTrue([d for k, d in self.events if k == "studio-preview"], "no step pictures")
         times = self.settings.get("studio_times")
         self.assertTrue(times.get("per") is not None, times)
         r2 = self.go({"mode": "create", "image": r[0]["path"], "text": "make it red", "variations": 1})

@@ -490,6 +490,20 @@ def install_engine(settings, on_progress, cancelled=lambda: False):
         fh.write(PORTABLE_VERSION)
 
 
+def _preview_bytes(raw):
+    """The picture in one of the engine's binary preview messages, or None.
+    Type 1: 4 bytes type, 4 bytes format, then the image. Type 4 adds metadata."""
+    if len(raw) < 12:
+        return None
+    kind = int.from_bytes(raw[:4], "big")
+    if kind == 1:
+        return bytes(raw[8:])
+    if kind == 4:
+        n = int.from_bytes(raw[4:8], "big")
+        return bytes(raw[8 + n:]) if 8 + n < len(raw) else None
+    return None
+
+
 class ImageEngine:
     """Vistiq Studio's second, private ComfyUI."""
 
@@ -606,8 +620,9 @@ class ImageEngine:
         d = r.json()
         return (d["subfolder"] + "/" if d.get("subfolder") else "") + d["name"]
 
-    def run(self, prompt, on_progress=None, cancelled=lambda: False):
-        """Queue a prompt, wait for it, return the bytes of its saved image."""
+    def run(self, prompt, on_progress=None, cancelled=lambda: False, on_preview=None):
+        """Queue a prompt, wait for it, return the bytes of its saved image.
+        on_preview(jpeg_bytes) gets a small picture after each step ("watch it develop")."""
         import websocket
         ws = None
         try:
@@ -616,7 +631,9 @@ class ImageEngine:
             ws.settimeout(0.5)
         except Exception:
             ws = None
-        r = _local.post(self.url + "/prompt", json={"prompt": prompt, "client_id": self.client_id}, timeout=30)
+        # latent2rgb: a quick colour preview after each step, no extra download (tested on ComfyUI 0.44).
+        r = _local.post(self.url + "/prompt", json={"prompt": prompt, "client_id": self.client_id,
+                                                    "extra_data": {"preview_method": "latent2rgb"}}, timeout=30)
         if not r.ok:
             raise RuntimeError(_error_text(r))
         pid = r.json()["prompt_id"]
@@ -630,6 +647,10 @@ class ImageEngine:
                     try:
                         raw = ws.recv()
                         msg = json.loads(raw) if isinstance(raw, str) else None
+                        if on_preview and isinstance(raw, (bytes, bytearray)):
+                            pic = _preview_bytes(raw)
+                            if pic:
+                                on_preview(pic)
                     except Exception:
                         msg = None
                 else:

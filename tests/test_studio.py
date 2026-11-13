@@ -529,3 +529,13 @@ class OpenLine(unittest.TestCase):
         th.join(5)
         self.assertEqual(len(r), 3)
         self.assertEqual(r[-1][1]["place"][0]["name"], "x")
+
+
+class Previews(unittest.TestCase):
+    def test_preview_messages(self):
+        jpeg = b"\xff\xd8" + b"x" * 20
+        self.assertEqual(studio._preview_bytes((1).to_bytes(4, "big") + (1).to_bytes(4, "big") + jpeg), jpeg)
+        meta = b'{"prompt_id":"p"}'
+        raw = (4).to_bytes(4, "big") + len(meta).to_bytes(4, "big") + meta + jpeg
+        self.assertEqual(studio._preview_bytes(raw), jpeg)
+        self.assertIsNone(studio._preview_bytes((3).to_bytes(4, "big") + b"x" * 20))

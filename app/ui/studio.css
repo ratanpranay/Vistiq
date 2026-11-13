@@ -300,3 +300,13 @@ body.studio .s-page.on{display:flex;flex:1;min-width:0;height:100%}
 .s-selnote{display:flex;align-items:center;gap:8px;margin-top:8px;padding:8px 10px;border-radius:10px;background:#F4EEFF;border:1px solid #E4D6FF;font-size:12.5px}
 .s-selnote span:nth-child(2){flex:1}
 .s-selsw{width:10px;height:10px;border-radius:3px;background:#8A2BF2;flex-shrink:0}
+
+/* Watch it develop: the engine's step pictures over the frozen sketch */
+.s-fit .s-dev{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;transition:opacity .4s}
+/* Sketch tile while creating: fills in colour, left to right, with a gradient bar */
+.s-vars .s-fillt{position:relative;width:112px;height:63px;border-radius:12px;overflow:hidden;flex-shrink:0;cursor:pointer}
+.s-vars .s-fillt>img{filter:grayscale(.7) brightness(1.04);border:0;border-radius:0}
+.s-vars .s-fillt .s-fillc{position:absolute;left:0;top:0;bottom:0;overflow:hidden;transition:width .4s}
+.s-vars .s-fillt .s-fillc img{width:112px;height:63px;object-fit:cover;border:0;border-radius:0;max-width:none}
+.s-vars .s-fillt .s-fillb{position:absolute;left:0;right:0;bottom:0;height:3px;background:rgba(255,255,255,.6)}
+.s-vars .s-fillt .s-fillb i{display:block;height:100%;background:linear-gradient(90deg,#4FA3F7,#7B3FF2,#E0517E,#F2A15A);transition:width .4s}

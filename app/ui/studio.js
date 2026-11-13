@@ -253,7 +253,7 @@
     p.jobKey = srcKey(p.src);
     // Create works on the sketch as it is now: freeze a copy. Live keeps
     // updating in the background and comes back when the run is done.
-    p.jobOrig = p.src.preview;
+    p.jobOrig = p.src.preview; p.preview = null; p.previewN = 0;
     if (p.src.live) p.src = Object.assign({}, p.src, { live: false, frozen: true });
     api().studio_run(j).then(function (jid) {
       if (jid) { if (p.job === "starting") p.job = jid; } else { p.job = null; p.pending = 0; refresh(); }
@@ -777,7 +777,7 @@
     if (c) { mode = "result"; key = c.path; }
     else if (origOf) { mode = "orig"; key = origOf.length + ":" + origOf.slice(-40); }
     else if (id === "c" && p.src && p.area === "paint") { mode = "paint"; key = p.src.path; }
-    else if (p.src && id === "c") { mode = "src"; key = p.src.path + (p.src.frozen ? ":frozen" : "") + (S.psSel && S.useSel !== false ? ":sel" + S.psSel.preview.length + S.psSel.preview.slice(-24) : ""); }
+    else if (p.src && id === "c") { mode = "src"; key = p.src.path + (p.src.frozen ? ":frozen" : "") + (p.job && p.preview ? ":dev" + (p.previewN || 0) : "") + (S.psSel && S.useSel !== false ? ":sel" + S.psSel.preview.length + S.psSel.preview.slice(-24) : ""); }
     else { mode = "empty"; key = id + (p.src ? "1" : "0"); }
     key = mode + ":" + key + (mode === "paint" ? ":" + painter.erase + ":" + painter.selecting : "");
     if (view.getAttribute("data-k") !== key) {
@@ -805,10 +805,12 @@
         $("c-size").addEventListener("input", function () { painter.size = +this.value; keep("brush", painter.size); });
       } else {
         var info = mode === "result" ? c : mode === "orig" ? { preview: origOf, w: p.src.w, h: p.src.h, frozen: true } : p.src;
-        var selOv = mode === "src" && info.live && S.psSel && S.useSel !== false && id === "c"
+        var dev = mode === "src" && p.job && p.preview
+          ? '<img class="s-dev" src="' + p.preview + '" alt="" style="opacity:' + Math.min(1, 0.35 + 0.13 * (p.previewN || 1)) + '">' : "";
+        var selOv = !dev && mode === "src" && info.live && S.psSel && S.useSel !== false && id === "c"
           ? '<div class="s-selov" style="-webkit-mask-image:url(' + S.psSel.preview + ');mask-image:url(' + S.psSel.preview + ')"></div>' : "";
-        view.innerHTML = '<div class="s-fit" data-w="' + info.w + '" data-h="' + info.h + '"><img class="' + (mode === "result" ? "s-res" : "") + '" src="' + info.preview + '" alt="">' + selOv + "</div>" +
-          (mode === "result" ? '<span class="s-tag">Result · hold to see the original</span>' : '<span class="s-tag">' + (info.live ? "Live from " + ((APPS[info.app] || APPS.photoshop)[1]) : info.frozen ? (mode === "orig" ? "Sketch · what these results were made from" : "Sketch · frozen while creating") : "Original") + "</span>");
+        view.innerHTML = '<div class="s-fit" data-w="' + info.w + '" data-h="' + info.h + '"><img class="' + (mode === "result" ? "s-res" : "") + '" src="' + info.preview + '" alt="">' + dev + selOv + "</div>" +
+          (mode === "result" ? '<span class="s-tag">Result · hold to see the original</span>' : '<span class="s-tag">' + (info.live ? "Live from " + ((APPS[info.app] || APPS.photoshop)[1]) : info.frozen ? (mode === "orig" ? "Sketch · what these results were made from" : dev ? "Developing · step " + (p.previewN || 1) : "Sketch · frozen while creating") : "Original") + "</span>");
       }
     }
     var oldpb = view.querySelector(".s-paintbtn");
@@ -842,7 +844,12 @@
       if (live) {
         strip += '<span class="s-tilewrap"><img data-i="-1" class="' + (p.sel === -1 ? "sel" : "") + '" src="' + live.preview + '" alt="">' +
           '<em class="live"><i class="ld"></i>Live</em></span><span class="s-div" aria-hidden="true"></span>';
-        if (origPrev && (mine.length || p.job)) strip += '<span class="s-tilewrap"><img data-i="-2" class="' + (p.sel === -2 ? "sel" : "") + '" src="' + origPrev + '" alt="" title="The sketch these were made from">' +
+        if (origPrev && p.job) {
+          var pct = Math.max(2, Math.round((p.frac || 0) * 100));
+          strip += '<span class="s-tilewrap s-fillt" data-i="-2" title="Creating from this sketch"><img src="' + origPrev + '" alt="">' +
+            '<span class="s-fillc" style="width:' + pct + '%"><img src="' + (p.preview || origPrev) + '" alt=""></span>' +
+            '<span class="s-fillb"><i style="width:' + pct + '%"></i></span><em>Creating · ' + pct + "%</em></span>";
+        } else if (origPrev && mine.length) strip += '<span class="s-tilewrap"><img data-i="-2" class="' + (p.sel === -2 ? "sel" : "") + '" src="' + origPrev + '" alt="" title="The sketch these were made from">' +
           "<em>Sketch</em></span>";
       } else {
         strip += '<span class="s-tilewrap"><img data-i="-1" class="' + (p.sel < 0 ? "sel" : "") + '" src="' + p.src.preview + '" alt="">' +
@@ -1097,7 +1104,7 @@
         if (!p) return;
         if (data.state === "running") { p.stage = data.stage; p.frac = data.fraction == null ? p.frac : data.fraction; if (data.estimate) p.estimate = data.estimate; if (!p.started) p.started = Date.now(); }
         else {
-          p.job = null; p.pending = 0; p.stage = ""; p.frac = 0; p.started = 0; p.estimate = 0;
+          p.job = null; p.pending = 0; p.stage = ""; p.frac = 0; p.started = 0; p.estimate = 0; p.preview = null; p.previewN = 0;
           // The run is over: live takes over again with the newest sketch.
           if (p === S.create && p.source === "live" && p.src && p.src.frozen) {
             var keepSel2 = p.sel; if (p.liveSrc) p.src = p.liveSrc; p.sel = keepSel2;
@@ -1105,9 +1112,13 @@
           p.error = data.state === "error" ? (data.message || "Something went wrong.") : (p.note || "");
           p.note = "";
         }
+      } else if (kind === "studio-preview") {
+        var pv = byJob(data.id); if (!pv) return;
+        pv.preview = data.preview; pv.previewN = (pv.previewN || 0) + 1;
       } else if (kind === "studio-result") {
         var q = byJob(data.id); if (!q) return;
-        data.result.srcKey = q.jobKey; data.result.orig = q.jobOrig; q.results.push(data.result); q.pending = Math.max(0, q.pending - 1);
+        data.result.srcKey = q.jobKey; data.result.orig = q.jobOrig; q.results.push(data.result);
+        q.preview = null; q.previewN = 0; q.pending = Math.max(0, q.pending - 1);
         if (data.index === 0) q.sel = q.results.length - 1;
       } else if (kind === "studio-setup") {
         if (data.state === "running") { S.setup.run = { label: data.label, fraction: data.fraction }; S.setup.error = ""; S.setup.done = ""; }

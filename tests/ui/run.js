@@ -63,6 +63,16 @@ const frame = (n, name) => ({ path: "live://photoshop/" + n, name: name || "flat
     const tagAfter = await p.text("#c-stage .s-tag");
     check("sketch is frozen during a run", /frozen/.test(tagDuring) && /frozen/.test(tagAfter), tagDuring + " / " + tagAfter);
 
+    // 3b. Watch it develop: step pictures show on the main view; the Sketch tile fills in.
+    await p.ev("studio-job", { id: "j1", state: "running", stage: "Creating", fraction: 0.5 });
+    await p.ev("studio-preview", { id: "j1", index: 0, preview: img });
+    await p.ev("studio-preview", { id: "j1", index: 0, preview: img });
+    await p.waitForTimeout(100);
+    check("the picture develops on the main view", /Developing · step 2/.test(await p.text("#c-stage .s-tag")) &&
+      await p.evaluate(() => !!document.querySelector("#c-view .s-dev")), await p.text("#c-stage .s-tag"));
+    check("Sketch tile fills in with progress", /Creating · 50%/.test(await p.text("#c-strip")) &&
+      await p.evaluate(() => document.querySelector("#c-strip .s-fillc").style.width === "50%"), await p.text("#c-strip"));
+
     // 4. The result shows, Live comes back, the card stays on the file.
     await p.ev("studio-result", { id: "j1", index: 0, of: 1, result: { path: "C:/o/r.png", name: "r.png", w: 1600, h: 900, preview: img } });
     await p.ev("studio-job", { id: "j1", state: "done", count: 1 });
