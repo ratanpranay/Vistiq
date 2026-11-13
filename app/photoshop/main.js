@@ -5,7 +5,7 @@ const uxpStorage = require("uxp").storage;
 
 const STUDIO = "http://127.0.0.1:38393";
 const MAX_SIDE = 2048;
-const VERSION = "1.0.4";
+const VERSION = "1.0.5";
 let lastError = "";
 let sendError = "";
 
@@ -116,7 +116,7 @@ async function send() {
   sending = true;
   const key0 = docKey(doc);
   try {
-    let frame = null;
+    let frame = null, sel = null;
     await core.executeAsModal(async () => {
       const w = doc.width, h = doc.height;
       const opts = { documentID: doc.id, componentSize: 8, applyAlpha: true, colorSpace: "RGB" };
@@ -127,6 +127,19 @@ async function send() {
       frame = { width: img.width, height: img.height, components: img.components || img.componentCount || 3,
                 bytes: data };
       img.dispose();
+      // The current selection (lasso, marquee, Select Subject…) as a mask the
+      // same size as the picture: Studio uses it as "change only this area".
+      try {
+        const s = await imaging.getSelection({ documentID: doc.id,
+          sourceBounds: { left: 0, top: 0, right: w, bottom: h },
+          targetSize: { width: frame.width, height: frame.height } });
+        if (s && s.imageData) {
+          const sd = await s.imageData.getData({ chunky: true });
+          sel = { width: s.imageData.width, height: s.imageData.height, bytes: sd,
+                  b: s.sourceBounds || { left: 0, top: 0, right: w, bottom: h }, dw: w, dh: h };
+          s.imageData.dispose();
+        }
+      } catch (e) { sel = null; }   // no selection
     }, { commandName: "Vistiq Studio live view" });
     const key = key0;
     lastKey = key;
@@ -138,6 +151,17 @@ async function send() {
                               body: frame.bytes.buffer || frame.bytes });
       sendError = r.ok ? "" : "Studio answered " + r.status;
       $("info").textContent = r.ok ? "Showing “" + name + "” in Studio." : sendError;
+      try {
+        if (sel) {
+          const q = "/sel?w=" + sel.width + "&h=" + sel.height + "&fw=" + frame.width + "&fh=" + frame.height +
+                    "&dw=" + sel.dw + "&dh=" + sel.dh + "&l=" + sel.b.left + "&t=" + sel.b.top + "&r=" + sel.b.right +
+                    "&b=" + sel.b.bottom + "&key=" + encodeURIComponent(key);
+          await fetch(STUDIO + q, { method: "POST", headers: { "Content-Type": "application/octet-stream" },
+                                    body: sel.bytes.buffer || sel.bytes });
+        } else {
+          await fetch(STUDIO + "/sel?none=1&key=" + encodeURIComponent(key), { method: "POST", body: "" });
+        }
+      } catch (e) {}
     }
   } catch (e) {
     // Photoshop busy (a dialog, a long filter), or something else: say so, try again.

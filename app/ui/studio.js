@@ -120,11 +120,6 @@
       promptBox("c", "Describe the change") +
       '<div id="c-blend-w" hidden><div class="s-label">Blend edges <em id="c-blend-v"></em></div><input class="s-range" type="range" min="0" max="1" step="0.05" id="c-blend"></div>' +
       '<div id="c-look-w" hidden><div class="s-label">Style</div><select class="s-select" id="c-lora"></select></div>' +
-      '<div id="c-juice-w" class="s-fin" hidden><div class="s-label">Finishing pass</div>' +
-      '<p class="s-fin-hint">A second, light pass for richer light and materials.</p>' +
-      '<select class="s-select" id="c-juice-lora"></select>' +
-      '<div class="s-fin-row"><span>Strength</span><em id="c-juice-v"></em></div>' +
-      '<input class="s-range" type="range" min="0" max="1" step="0.05" id="c-juice"></div>' +
       optionsRow("c"), "Create") + stage("c");
     document.body.appendChild(create);
 
@@ -244,13 +239,14 @@
     };
     if (id === "r") j.reference = p.refimg.path;
     if (id === "c") {
-      if (p.area === "paint") {
+      if (p.area !== "paint" && p.src.live && S.psSel && S.useSel !== false) {
+        j.mask = "ps-selection"; j.blend = p.blend;     // Photoshop's selection: change only that area
+      } else if (p.area === "paint") {
         var m = painter.export();
         if (!m) { p.error = "Paint over the part that should change first."; render(); return; }
         j.mask = m; j.blend = p.blend;
       }
       j.lora = p.lora || null;
-      if (p.juice > 0 && p.juiceLora && st.juice_ready) { j.juice = p.juice; j.juice_lora = p.juiceLora; }
     }
     Object.assign(j, extra || {});
     p.error = ""; p.stage = "Starting"; p.frac = 0; p.pending = j.variations; p.started = Date.now(); p.estimate = 0;
@@ -302,8 +298,6 @@
     $("c-text").addEventListener("input", function () { S.create.text = this.value; });
     $("c-blend").addEventListener("input", function () { S.create.blend = +this.value; keep("c.blend2", S.create.blend); renderValues(); });
     $("c-lora").addEventListener("change", function () { S.create.lora = this.value; keep("c.lora", this.value); });
-    $("c-juice").addEventListener("input", function () { S.create.juice = +this.value; keep("c.juice", S.create.juice); renderValues(); });
-    $("c-juice-lora").addEventListener("change", function () { S.create.juiceLora = this.value; keep("c.juiceLora", this.value); });
     // Reference
     $("r-slot-src").addEventListener("click", function () { pick("r", "src"); });
     $("r-slot-ref").addEventListener("click", function () { pick("r", "refimg"); });
@@ -366,6 +360,7 @@
       if (a === "app") { S.liveApp = b.getAttribute("data-app"); keep("liveApp", S.liveApp); if (S.live.on && S.live.app !== S.liveApp) {
           api().studio_live(true, S.liveApp).then(function (r) { S.live.on = !!(r && r.on); S.live.app = S.liveApp; S.live.frames = 0; S.live.state = ""; S.live.msg = r && r.error || ""; render(); }); } else render(); }
       else if (a === "on") { var app = b.getAttribute("data-app"); S.live.stopped = false; api().studio_live(true, app).then(function (r) { S.live.on = !!(r && r.on); S.live.app = app; S.liveApp = app; S.live.frames = 0; S.live.state = ""; S.live.msg = r && r.error || ""; render(); }); }
+      else if (a === "sel") { S.useSel = S.useSel === false; render(); }
       else if (a === "off") api().studio_live(false, S.live.app).then(function () { S.live.on = false; S.live.stopped = true; S.live.msg = ""; S.create.liveSrc = null; if (S.create.source === "live") S.create.src = null; render(); });
       else if (a === "back") useSource("live");
       else if (a === "install") {
@@ -581,7 +576,6 @@
       $(id + "-keep-v").textContent = p.keep >= 0.999 ? "Exact" : p.keep <= 0.25 ? "Creative" : Math.round(p.keep * 100) + "%";
     });
     $("c-blend").value = S.create.blend; $("c-blend-v").textContent = Math.round(S.create.blend * 100) + "%";
-    $("c-juice").value = S.create.juice; $("c-juice-v").textContent = S.create.juice > 0 ? (S.create.juice < 0.35 ? "Subtle · " : S.create.juice < 0.7 ? "Medium · " : "Strong · ") + Math.round(S.create.juice * 100) + "%" : "Off";
   }
 
   function options(sel, list, value, none) {
@@ -670,6 +664,9 @@
       } else {
         h += '<button type="button" class="s-btn p" data-ps="on" data-app="' + cur + '" style="width:100%">Connect ' + APPS[cur][1] + "</button>";
       }
+      if (cur === "photoshop" && L.on && S.psSel) h += '<div class="s-selnote"><span class="s-selsw"></span><span><b>' +
+        (S.useSel !== false ? "Only your Photoshop selection changes" : "Whole picture (selection ignored)") +
+        '</b></span><button type="button" class="s-link" data-ps="sel">' + (S.useSel !== false ? "Use whole picture" : "Use selection") + "</button></div>";
       if (cur === "photoshop") h += '<p class="s-hint" style="margin-top:6px">' + (L.msg || L.note ? esc(L.msg || L.note) : 'First time? <button type="button" class="s-link" data-ps="install">Install the Photoshop plugin</button>') + "</p>";
       else if (L.msg) h += '<p class="s-hint" style="margin-top:6px">' + esc(L.msg) + "</p>";
     } else if (L.on && L.frames) {
@@ -730,10 +727,6 @@
     var looks = st ? st.loras.filter(function (l) { return l.family === "klein9b" && !l.builtin && !/klein-consistency|distill/i.test(l.name); }) : [];
     $("c-look-w").hidden = !looks.length;
     options($("c-lora"), looks, p.lora, "Standard");
-    var juicy = st ? st.loras.filter(function (l) { return l.family === "flux1"; }) : [];
-    $("c-juice-w").hidden = !(st && st.juice_ready && juicy.length);
-    if (!p.juiceLora && juicy.length) p.juiceLora = juicy[0].name;
-    options($("c-juice-lora"), juicy, p.juiceLora, "Pick a finishing style");
     renderRail("c");
     renderStage("c");
   }
@@ -784,7 +777,7 @@
     if (c) { mode = "result"; key = c.path; }
     else if (origOf) { mode = "orig"; key = origOf.length + ":" + origOf.slice(-40); }
     else if (id === "c" && p.src && p.area === "paint") { mode = "paint"; key = p.src.path; }
-    else if (p.src && id === "c") { mode = "src"; key = p.src.path + (p.src.frozen ? ":frozen" : ""); }
+    else if (p.src && id === "c") { mode = "src"; key = p.src.path + (p.src.frozen ? ":frozen" : "") + (S.psSel && S.useSel !== false ? ":sel" + S.psSel.preview.length + S.psSel.preview.slice(-24) : ""); }
     else { mode = "empty"; key = id + (p.src ? "1" : "0"); }
     key = mode + ":" + key + (mode === "paint" ? ":" + painter.erase + ":" + painter.selecting : "");
     if (view.getAttribute("data-k") !== key) {
@@ -812,7 +805,9 @@
         $("c-size").addEventListener("input", function () { painter.size = +this.value; keep("brush", painter.size); });
       } else {
         var info = mode === "result" ? c : mode === "orig" ? { preview: origOf, w: p.src.w, h: p.src.h, frozen: true } : p.src;
-        view.innerHTML = '<div class="s-fit" data-w="' + info.w + '" data-h="' + info.h + '"><img class="' + (mode === "result" ? "s-res" : "") + '" src="' + info.preview + '" alt=""></div>' +
+        var selOv = mode === "src" && info.live && S.psSel && S.useSel !== false && id === "c"
+          ? '<div class="s-selov" style="-webkit-mask-image:url(' + S.psSel.preview + ');mask-image:url(' + S.psSel.preview + ')"></div>' : "";
+        view.innerHTML = '<div class="s-fit" data-w="' + info.w + '" data-h="' + info.h + '"><img class="' + (mode === "result" ? "s-res" : "") + '" src="' + info.preview + '" alt="">' + selOv + "</div>" +
           (mode === "result" ? '<span class="s-tag">Result · hold to see the original</span>' : '<span class="s-tag">' + (info.live ? "Live from " + ((APPS[info.app] || APPS.photoshop)[1]) : info.frozen ? (mode === "orig" ? "Sketch · what these results were made from" : "Sketch · frozen while creating") : "Original") + "</span>");
       }
     }
@@ -966,14 +961,11 @@
   function renderSettings() {
     var st = S.status, el = $("s-body");
     if (!st) { el.innerHTML = '<div class="s-ttl">Settings</div>'; return; }
-    var juice = st.files.filter(function (f) { return f.part === "juice"; });
-    var jdl = juice.filter(function (f) { return !f.ready && f.can_download; }).length;
     var running = !!S.setup.run;
     // Styles people can use: Looks for Create (made for the image model) and,
     // under Juice, styles for the Juice pass. Files that work with neither
     // aren't listed; the design lock is listed with the model files.
     var looks = st.loras.filter(function (l) { return l.family === "klein9b" && !l.builtin && !/klein-consistency|distill/i.test(l.name); });
-    var juiceStyles = st.loras.filter(function (l) { return l.family === "flux1"; });
     var styleRows = function (list, empty) {
       return list.length ? list.map(function (l) {
         return '<div class="s-row" title="' + esc(l.name) + '"><div class="n"><b>' + esc(l.label || l.name) + '</b></div><span class="s-pill">' + gb(l.gb) + "</span></div>";
@@ -1014,14 +1006,7 @@
       (st.mac ? "" : '<div class="s-sec">Looks</div><p class="s-hint">Extra styles for Create, shown under Style. To add one, put its file in Models › loras; it shows up when you come back to Studio.</p>' +
       '<div class="s-list">' + styleRows(looks, "None yet.") + "</div>" +
       '<div class="s-btns"><button type="button" class="s-btn" data-su="models">Open the loras folder</button></div>' +
-      '<details class="s-adv"' + (S.advOpen ? " open" : "") + '><summary>Advanced: Finishing pass (optional, about 29 GB)</summary>' +
-      '<p class="s-hint">A second, light pass with a style, for richer light and materials. Not needed for anything else.</p>' +
-      '<div class="s-list">' + fileRows(juice) + "</div>" +
-      '<p class="s-hint">Styles for the finishing pass:</p><div class="s-list">' + styleRows(juiceStyles, "None yet.") + "</div>" +
-      (function () { var locked = st.loras.filter(function (l) { return l.family === "locked"; });
-        return locked.length ? '<p class="s-hint">Locked by Liblib (they only work inside Liblib\'s app, so Studio skips them): ' +
-          locked.map(function (l) { return esc(l.label || l.name); }).join(", ") + "</p>" : ""; })() +
-      (jdl ? '<div class="s-btns"><button type="button" class="s-btn p" data-su="download-juice"' + (running ? " disabled" : "") + ">Download the finishing-pass files</button></div>" : "") + "</details>") +
+      "") +
 
       (st.mac ? "" : '<div class="s-sec">Image engine</div><p class="s-hint">' + (st.engine_installed ? "Installed. " : "Not set up yet. ") + esc(S.engine.message || "") +
       " The upscaler keeps its own engine; they take turns on the graphics card.</p>" +
@@ -1104,6 +1089,7 @@
         render(); return;
       }
       if (kind === "studio-sent") { toast(data.message); return; }
+      if (kind === "studio-sel") { S.psSel = data.on ? data : null; render(); return; }
       if (kind === "studio-note") { S.create.note = data.message; render(); return; }
       if (kind === "studio-engine") S.engine = data;
       else if (kind === "studio-job") {

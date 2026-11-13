@@ -127,6 +127,30 @@ class WholeRun(unittest.TestCase):
         self.assertEqual(len(r), 1)
         self.assertIn("flat 2", r[0]["name"])
 
+    def test_photoshop_selection_is_the_mask(self):
+        import urllib.request
+        from vistiq import bridge
+        # The panel sends a white live picture and a selection covering the left half.
+        b = io.BytesIO()
+        Image.new("RGB", (800, 450), "white").save(b, "JPEG")
+        self.st.bridge.frame({"name": "flat 2.psd", "jpeg": base64.b64encode(b.getvalue()).decode()})
+        sel = Image.new("L", (400, 225), 0)
+        ImageDraw.Draw(sel).rectangle([0, 0, 199, 224], fill=255)
+        mask = bridge.Bridge.mask_from(sel.tobytes(), 400, 225, 800, 450, 1600, 900, 0, 0, 1600, 900)
+        self.st.bridge.selection(mask)
+        shown = [d for k, d in self.events if k == "studio-sel"][-1]
+        self.assertTrue(shown["on"] and shown["preview"].startswith("data:image/png"))
+        live = [d for k, d in self.events if k == "studio-live"][-1]
+        r = self.go({"mode": "create", "image": live["path"], "name": "flat 2.psd", "live_app": "photoshop",
+                     "text": "red", "variations": 1, "mask": "ps-selection", "blend": 0.1})
+        out = Image.open(r[0]["path"]).convert("RGB")
+        self.assertEqual(out.size, (800, 450))
+        self.assertNotEqual(out.getpixel((100, 225)), (255, 255, 255))   # inside the selection: changed
+        self.assertEqual(out.getpixel((700, 225)), (255, 255, 255))      # outside: untouched
+        # Selection removed in Photoshop: the window is told.
+        self.st.bridge.selection(None)
+        self.assertFalse([d for k, d in self.events if k == "studio-sel"][-1]["on"])
+
     def test_paint_and_reference(self):
         src = os.path.join(self.tmp.name, "src.png")
         Image.new("RGB", (1200, 800), "white").save(src)

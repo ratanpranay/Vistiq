@@ -23,7 +23,7 @@ async function open(browser, before) {
   await page.waitForTimeout(400);
   await page.evaluate(() => {
     const api = window.pywebview.api;
-    api.studio_run = () => Promise.resolve("j1");
+    api.studio_run = (j) => { window.__lastJob = j; return Promise.resolve("j1"); };
     api.studio_send = () => Promise.resolve({ ok: true });
     api.js_log = () => Promise.resolve();
   });
@@ -90,6 +90,29 @@ const frame = (n, name) => ({ path: "live://photoshop/" + n, name: name || "flat
     await p.ev("studio-live-state", { app: "photoshop", state: "closed", message: "Photoshop is closed." });
     check("Photoshop closed is shown", /Photoshop is closed/.test(await p.text("#c-ps")), await p.text("#c-ps"));
     check("no page errors in the live flow", p.errors.length === 0, p.errors.join(" | "));
+    await p.close();
+  }
+
+  // 6b. A Photoshop selection becomes the mask: shown, used by Create, can be switched off.
+  {
+    const p = await open(browser);
+    await p.ev("studio-live", frame(1));
+    await p.ev("studio-sel", { on: true, preview: img });
+    check("selection note shows", /Only your Photoshop selection changes/.test(await p.text("#c-ps")), await p.text("#c-ps"));
+    check("selection is tinted on the picture", await p.evaluate(() => !!document.querySelector("#c-view .s-selov")), "no overlay");
+    await p.click("#c-go");
+    await p.waitForTimeout(100);
+    check("Create uses the selection", await p.evaluate(() => window.__lastJob && window.__lastJob.mask === "ps-selection"), JSON.stringify(await p.evaluate(() => window.__lastJob)));
+    await p.ev("studio-job", { id: "j1", state: "done", count: 0 });
+    await p.click('[data-ps="sel"]');
+    await p.waitForTimeout(100);
+    await p.click("#c-go");
+    await p.waitForTimeout(100);
+    check("whole picture when switched off", await p.evaluate(() => !window.__lastJob.mask), JSON.stringify(await p.evaluate(() => window.__lastJob.mask)));
+    await p.ev("studio-sel", { on: false });
+    check("note goes when the selection does", !/selection/.test(await p.text("#c-ps")), await p.text("#c-ps"));
+    check("no finishing pass in Create", await p.evaluate(() => !document.getElementById("c-juice-w")), "still there");
+    check("no page errors with a selection", p.errors.length === 0, p.errors.join(" | "));
     await p.close();
   }
 

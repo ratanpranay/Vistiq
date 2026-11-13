@@ -294,3 +294,9 @@ body.studio .s-page.on{display:flex;flex:1;min-width:0;height:100%}
 
 /* a thin divider: the Live/Original tile stands apart from the results, results apart from earlier ones */
 .s-vars .s-div{width:1px;align-self:stretch;margin:8px 6px;background:var(--line);flex-shrink:0}
+
+/* Photoshop selection: the area that will change, tinted over the live picture */
+.s-selov{position:absolute;inset:0;background:rgba(138,43,242,.35);-webkit-mask-size:100% 100%;mask-size:100% 100%;pointer-events:none}
+.s-selnote{display:flex;align-items:center;gap:8px;margin-top:8px;padding:8px 10px;border-radius:10px;background:#F4EEFF;border:1px solid #E4D6FF;font-size:12.5px}
+.s-selnote span:nth-child(2){flex:1}
+.s-selsw{width:10px;height:10px;border-radius:3px;background:#8A2BF2;flex-shrink:0}

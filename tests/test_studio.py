@@ -447,3 +447,36 @@ class PromptGraph(unittest.TestCase):
                                     self.assertNotEqual(v[0], start, (tier_name, "cycle at", start))
                                     if v[0] not in seen:
                                         seen.add(v[0]); todo.append(v[0])
+
+
+class SelectionMask(unittest.TestCase):
+    def test_selection_bounds_land_in_place(self):
+        from vistiq import bridge
+        # A selection returned only for its bounds (doc 2000x1000, sel at 1000..2000 x 0..500),
+        # picture downscaled to 1000x500: the mask lands on the right-top quarter.
+        sel = Image.new("L", (500, 250), 255).tobytes()
+        m = bridge.Bridge.mask_from(sel, 500, 250, 1000, 500, 2000, 1000, 1000, 0, 2000, 500)
+        self.assertEqual(m.size, (1000, 500))
+        self.assertEqual(m.getpixel((750, 100)), 255)
+        self.assertEqual(m.getpixel((250, 100)), 0)
+        self.assertEqual(m.getpixel((750, 400)), 0)
+        self.assertIsNone(bridge.Bridge.mask_from(bytes(500 * 250), 500, 250, 1000, 500, 2000, 1000, 0, 0, 2000, 1000))
+
+    def test_sel_endpoint(self):
+        import urllib.request
+        from vistiq import bridge
+        with tempfile.TemporaryDirectory() as t, mock.patch.object(bridge, "PORT", 18399):
+            got = []
+            b = bridge.Bridge(t, lambda f: None)
+            b.on_sel = got.append
+            self.assertTrue(b.start())
+            try:
+                base = "http://127.0.0.1:18399"
+                q = "/sel?w=4&h=2&fw=4&fh=2&dw=4&dh=2&l=0&t=0&r=4&b=2&key=k"
+                urllib.request.urlopen(urllib.request.Request(base + q, data=bytes([255, 255, 0, 0] * 2), method="POST"), timeout=3).read()
+                self.assertEqual(got[-1].getpixel((0, 0)), 255)
+                self.assertEqual(got[-1].getpixel((3, 0)), 0)
+                urllib.request.urlopen(urllib.request.Request(base + "/sel?none=1&key=k", data=b"", method="POST"), timeout=3).read()
+                self.assertIsNone(got[-1])
+            finally:
+                b.stop()

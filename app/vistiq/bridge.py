@@ -26,7 +26,7 @@ PORT = 38393
 MAX_BODY = 80 << 20
 KEEP = 4                       # live frames kept on disk
 LIVE = "live://photoshop/"     # how the window names the mirrored picture
-PANEL_VERSION = "1.0.4"        # the panel in app/photoshop (tests check they match)
+PANEL_VERSION = "1.0.5"        # the panel in app/photoshop (tests check they match)
 
 
 class _Server(ThreadingHTTPServer):
@@ -54,6 +54,8 @@ class Bridge:
         self.on_old_panel = lambda: None              # an older panel checked in
         self.latest = None                            # the current picture (JPEG bytes)
         self.outbox = {}                              # pictures waiting to go into Photoshop
+        self.sel = None                               # Photoshop's selection as a mask (PIL "L"), or None
+        self.on_sel = lambda mask: None
         self.on_placed = lambda name, ok, message: None
         self._asked_update = False
         self.have = ""            # the panel's document key of the picture we have
@@ -126,6 +128,8 @@ class Bridge:
                     except Exception:
                         pass
                     return
+                if self.path.startswith("/sel"):
+                    return self._sel()
                 if self.path.startswith("/raw"):
                     return self._raw()
                 if not self.path.startswith("/frame"):
@@ -159,6 +163,26 @@ class Bridge:
                 self._send(400)
 
         Handler._raw = _raw
+
+        def _sel(self):
+            """The Photoshop selection as a mask (or none)."""
+            from urllib.parse import urlparse, parse_qs
+            q = parse_qs(urlparse(self.path).query)
+            n = int(self.headers.get("Content-Length") or 0)
+            body = self.rfile.read(n) if 0 < n <= MAX_BODY else b""
+            try:
+                if q.get("none") or not body:
+                    bridge.selection(None)
+                else:
+                    g = lambda k: int(float(q[k][0]))
+                    bridge.selection(bridge.mask_from(body, g("w"), g("h"), g("fw"), g("fh"), g("dw"), g("dh"),
+                                                      g("l"), g("t"), g("r"), g("b")))
+                self._send(200)
+            except Exception:
+                log.exception("bad selection from Photoshop")
+                self._send(400)
+
+        Handler._sel = _sel
 
         def _file(self):
             from urllib.parse import urlparse, parse_qs
@@ -243,6 +267,29 @@ class Bridge:
             except Exception:
                 log.exception("placed")
 
+    # -- the Photoshop selection, used as "change only this area" --------------
+
+    @staticmethod
+    def mask_from(body, w, h, fw, fh, dw, dh, left, top, right, bottom):
+        """A white-on-black mask the size of the live picture (fw x fh), from the
+        selection pixels (w x h) that cover document area left..right, top..bottom."""
+        if len(body) < w * h:
+            raise ValueError("selection: %d bytes for %dx%d" % (len(body), w, h))
+        sel = Image.frombytes("L", (w, h), body[:w * h])
+        sx, sy = fw / float(dw), fh / float(dh)
+        box = (int(round(left * sx)), int(round(top * sy)), int(round(right * sx)), int(round(bottom * sy)))
+        size = (max(1, box[2] - box[0]), max(1, box[3] - box[1]))
+        out = Image.new("L", (fw, fh), 0)
+        out.paste(sel.resize(size, Image.BILINEAR), box[:2])
+        return out if out.getextrema()[1] >= 8 else None
+
+    def selection(self, mask):
+        self.sel = mask
+        try:
+            self.on_sel(mask)
+        except Exception:
+            log.exception("selection")
+
     def seen(self, key, version=""):
         """The panel checked in (every second while Photoshop runs)."""
         self.last_seen = time.time()
@@ -256,6 +303,8 @@ class Bridge:
             self._state("live", "")
 
     def _state(self, state, message):
+        if state in ("closed", "nodoc") and self.sel is not None:
+            self.selection(None)
         if state != self.ps_state:
             self.ps_state = state
             try:

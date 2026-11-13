@@ -126,6 +126,7 @@ class Studio:
                 self.emit("studio-live-state", {"app": "photoshop", "state": "note",
                                                 "message": "The Photoshop panel was updated. Restart Photoshop once."})
         self.bridge.on_old_panel = old_panel
+        self.bridge.on_sel = self._on_sel
         self.bridge.on_placed = lambda name, ok, msg: self.emit("studio-sent", {
             "app": "photoshop", "ok": ok, "message": ("Placed in Photoshop as a new layer: " + name) if ok
             else ("Photoshop couldn't place it: " + (msg or "unknown reason"))})
@@ -142,6 +143,28 @@ class Studio:
                                      lambda st, m: self.emit("studio-live-state", {"app": "affinity", "state": st,
                                                                                    "message": m}))
         self._last_frame = 0
+
+    def _on_sel(self, mask):
+        """Photoshop's selection changed: show it over the live picture."""
+        if mask is None:
+            self.emit("studio-sel", {"on": False})
+            return
+        small = mask.copy()
+        small.thumbnail((512, 512))
+        # Transparent outside the selection, so the window can tint just that area.
+        small = Image.merge("LA", (Image.new("L", small.size, 255), small))
+        buf = io.BytesIO()
+        small.save(buf, "PNG")
+        self.emit("studio-sel", {"on": True, "preview": "data:image/png;base64," + base64.b64encode(buf.getvalue()).decode()})
+
+    def _ps_selection(self):
+        """The current Photoshop selection as a PNG data URL (what a painted mask looks like)."""
+        m = self.bridge.sel
+        if m is None:
+            return None
+        buf = io.BytesIO()
+        m.save(buf, "PNG")
+        return "data:image/png;base64," + base64.b64encode(buf.getvalue()).decode()
 
     def real_path(self, path):
         """A file for a picture: the mirrored Photoshop picture lives in memory,
@@ -321,6 +344,9 @@ class Studio:
         juice_lora?, seed?, refine_of?}"""
         if self._job and self._job.is_alive():
             return False
+        if job.get("mask") == "ps-selection":
+            # Taken together with the picture, so both are from the same moment.
+            job["mask"] = self._ps_selection()
         if job.get("live_app") or str(job.get("image") or "").startswith("live://"):
             try:
                 job["image"] = self._hold_live(job.get("image"))
