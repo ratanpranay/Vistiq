@@ -315,6 +315,9 @@ class Api:
         return {"on": False, "error": "Another program is using the Photoshop link's port (38393). "
                                       "Restart the computer if this keeps happening."}
 
+    def js_log(self, text):
+        log.warning("window: %s", str(text)[:2000])
+
     def studio_send(self, path, app="photoshop"):
         """Put a picture into the open Photoshop file as a new layer."""
         st = self._app.studio

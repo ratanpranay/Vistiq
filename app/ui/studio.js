@@ -652,15 +652,18 @@
     if (src === "live") {
       var have = Object.keys(APPS).filter(function (k) { return apps[k]; });
       if (!have.length) have = Object.keys(APPS);
+      if (L.app && !APPS[L.app]) L.app = "";
       var cur = L.app || (have.indexOf(S.liveApp) >= 0 ? S.liveApp : have[0]);
+      var nm = APPS[L.app || cur][1];
       h += '<div class="m-apps">' + have.map(function (k) {
         return '<button type="button" data-ps="app" data-app="' + k + '" class="' + (k === cur ? "on" : "") + '"><span class="m-ico ' + APPS[k][2] + '">' + APPS[k][0] + "</span>" + APPS[k][1] + "</button>";
       }).join("") + "</div>";
-      if (L.on && L.frames && p.liveSrc) {
-        h += '<div class="m-card"><img src="' + p.liveSrc.preview + '"><span>' + esc(L.doc) + "<small>" + APPS[L.app][1] +
+      var lv = p.liveSrc || (p.src && (p.src.live || p.src.frozen) ? p.src : null);
+      if (L.on && L.frames && lv) {
+        h += '<div class="m-card"><img src="' + lv.preview + '"><span>' + esc(L.doc) + "<small>" + nm +
           ' · updates as you draw</small></span><button type="button" class="s-link" data-ps="off">Stop</button></div>';
       } else if (L.on) {
-        h += '<div class="s-ps-on"><span class="s-live-dot"></span><span><b>' + (L.state ? "Waiting for " : "Connecting to ") + APPS[L.app][1] + "</b><small>" +
+        h += '<div class="s-ps-on"><span class="s-live-dot"></span><span><b>' + (L.state ? "Waiting for " : "Connecting to ") + nm + "</b><small>" +
           esc(L.state || (L.app === "photoshop" ? "Open Photoshop with the Vistiq Studio panel; your current file shows up here by itself."
                                                  : "Waiting for Affinity… turn on Settings → Model Context Protocol → Enable Affinity MCP.")) +
           '</small></span><button type="button" class="s-link" data-ps="off">Stop</button></div>';
@@ -670,7 +673,7 @@
       if (cur === "photoshop") h += '<p class="s-hint" style="margin-top:6px">' + (L.msg || L.note ? esc(L.msg || L.note) : 'First time? <button type="button" class="s-link" data-ps="install">Install the Photoshop plugin</button>') + "</p>";
       else if (L.msg) h += '<p class="s-hint" style="margin-top:6px">' + esc(L.msg) + "</p>";
     } else if (L.on && L.frames) {
-      h += '<div class="m-back"><span class="m-dot"></span><span><b>' + APPS[L.app][1] + " is still live</b><br>" + esc(L.doc) +
+      h += '<div class="m-back"><span class="m-dot"></span><span><b>' + (APPS[L.app] || APPS.photoshop)[1] + " is still live</b><br>" + esc(L.doc) +
         ' keeps updating</span><button type="button" data-ps="back">Bring back</button></div>';
     }
     var el = $("c-ps");
@@ -700,11 +703,17 @@
     render();
   }
 
+  // Page errors go into Studio's log, so problems can be found.
+  function report(where, e) {
+    try { if (window.console) console.error(e); api().js_log(where + ": " + (e && (e.stack || e.message) || e)); } catch (x) {}
+  }
+  window.addEventListener("error", function (ev) { report("page", ev.error || ev.message); });
+
   function renderCreate() {
     var p = S.create, st = S.status;
     $("c-imp").hidden = !(st && st.helper_ready);
     // One part failing to draw must not leave the rest of the panel stale.
-    try { renderPS(); } catch (e) { if (window.console) console.error(e); }
+    try { renderPS(); } catch (e) { report("renderPS", e); }
     try { setSlot($("c-slot"), p.src, "click to change", "Drop a sketch or render here, or click"); } catch (e) { if (window.console) console.error(e); }
     on($("c-area"), "data-v", p.area);
     on($("c-presets"), "data-v", p.preset);
@@ -1082,7 +1091,7 @@
           p.job = null; p.pending = 0; p.stage = ""; p.frac = 0; p.started = 0; p.estimate = 0;
           // The run is over: live takes over again with the newest sketch.
           if (p === S.create && p.source === "live" && p.src && p.src.frozen) {
-            var keepSel2 = p.sel; if (p.liveSrc) { p.src = p.liveSrc; p.liveSrc = null; } p.sel = keepSel2;
+            var keepSel2 = p.sel; if (p.liveSrc) p.src = p.liveSrc; p.sel = keepSel2;
           }
           p.error = data.state === "error" ? (data.message || "Something went wrong.") : (p.note || "");
           p.note = "";
