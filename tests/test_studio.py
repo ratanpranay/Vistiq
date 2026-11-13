@@ -121,8 +121,8 @@ class Folders(unittest.TestCase):
         self.assertEqual(r2["12"]["inputs"]["pixels"], ["17", 0])       # the design's lines
         self.assertNotIn("4", r2)                                       # no design lock
         sj._add_lora(p, "look.safetensors", 0.6)
-        self.assertEqual(p["40"]["inputs"]["model"], ["5", 0])
-        self.assertEqual(p["5"]["inputs"]["model"], ["4", 0])
+        self.assertEqual(p["40"]["inputs"]["model"], ["7", 0])
+        self.assertEqual(p["7"]["inputs"]["model"], ["4", 0])
         # Every link points at a node that exists.
         for prompt in (p, p0, r, r2):
             for node in prompt.values():
@@ -436,3 +436,36 @@ class TrueV2(unittest.TestCase):
             self.assertIn("qwen", p["2"]["inputs"]["clip_name"])
             s["studio_tier"] = "best"                                       # 9B files missing: still True V2 is used
             self.assertEqual(studio.tier(s), "true")
+
+
+class PromptGraph(unittest.TestCase):
+    """Every node a prompt points at exists and nothing points in a circle, for all tiers with a style."""
+
+    @unittest.skipIf(sys.platform == "darwin", "the Mac has its own image engine")
+    def test_no_cycles_any_tier(self):
+        for tier_name, keys in (("best", ("klein", "qwen", "vae2", "consistency")),
+                                ("good", ("klein4b", "qwen4b", "vae2")),
+                                ("true", ("truev2", "truespeed", "qwen", "vae2", "consistency"))):
+            with tempfile.TemporaryDirectory() as t:
+                s = Settings(studio_home=t, studio_tier=tier_name)
+                md = studio.models_dir(s)
+                for key in keys:
+                    spec = next(f for f in studio.FILES if f["key"] == key)
+                    os.makedirs(os.path.join(md, spec["folder"]), exist_ok=True)
+                    open(os.path.join(md, spec["folder"], spec["names"][0]), "wb").close()
+                for p in (studio.create_prompt(s, "a.png", "x", keep=0.8),
+                          studio.reference_prompt(s, "a.png", "b.png", "x", "cmf", 0.8)):
+                    sj._add_lora(p, "style.safetensors", 0.8)
+                    for nid, node in p.items():
+                        for v in node["inputs"].values():
+                            if isinstance(v, list) and len(v) == 2 and isinstance(v[0], str):
+                                self.assertIn(v[0], p, (tier_name, nid, v))
+                    for start in p:
+                        seen, todo = set(), [start]
+                        while todo:
+                            n = todo.pop()
+                            for v in p[n]["inputs"].values():
+                                if isinstance(v, list) and len(v) == 2 and isinstance(v[0], str):
+                                    self.assertNotEqual(v[0], start, (tier_name, "cycle at", start))
+                                    if v[0] not in seen:
+                                        seen.add(v[0]); todo.append(v[0])

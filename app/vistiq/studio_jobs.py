@@ -607,9 +607,10 @@ def _add_lora(prompt, lora, strength):
     if not lora:
         return
     model = prompt["40"]["inputs"]["model"]
-    prompt["5"] = {"class_type": "LoraLoaderModelOnly",
+    # Node 5 is True V2's speed-up and 4 the design lock: the style gets its own number.
+    prompt["7"] = {"class_type": "LoraLoaderModelOnly",
                    "inputs": {"model": model, "lora_name": lora, "strength_model": round(float(strength), 2)}}
-    prompt["40"]["inputs"]["model"] = ["5", 0]
+    prompt["40"]["inputs"]["model"] = ["7", 0]
 
 
 def _strip_tags(stem):
