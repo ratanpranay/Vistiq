@@ -380,3 +380,36 @@ class Navigator(unittest.TestCase):
             self.assertEqual(json.load(fh)["version"], self.bridge_mod.PANEL_VERSION)
         with open(os.path.join(ROOT, "app", "photoshop", "main.js"), encoding="utf-8") as fh:
             self.assertIn('const VERSION = "%s"' % self.bridge_mod.PANEL_VERSION, fh.read())
+
+
+class SendToPhotoshop(unittest.TestCase):
+    def test_queue_fetch_place(self):
+        import time
+        import urllib.request
+        from vistiq import bridge
+        with tempfile.TemporaryDirectory() as t, mock.patch.object(bridge, "PORT", 18398):
+            b = bridge.Bridge(t, lambda f: None)
+            done = []
+            b.on_placed = lambda name, ok, msg: done.append((name, ok))
+            self.assertTrue(b.start())
+            try:
+                pic = os.path.join(t, "Vistiq_flat 2_create_v1.png")
+                Image.new("RGB", (8, 4), "red").save(pic)
+                self.assertFalse(b.send(pic, "x"))                      # Photoshop not seen: refuse
+                base = "http://127.0.0.1:18398"
+                urllib.request.urlopen(base + "/ping?key=k&v=" + bridge.PANEL_VERSION, timeout=3).read()
+                pid = b.send(pic, "Vistiq · flat 2")
+                self.assertTrue(pid)
+                ping = json.loads(urllib.request.urlopen(base + "/ping?key=k&v=" + bridge.PANEL_VERSION,
+                                                         timeout=3).read())
+                self.assertEqual(ping["place"], [{"id": pid, "name": "Vistiq · flat 2", "ext": ".png"}])
+                body = urllib.request.urlopen(base + "/file?id=" + pid, timeout=3).read()
+                self.assertEqual(Image.open(io.BytesIO(body)).size, (8, 4))
+                ping = json.loads(urllib.request.urlopen(base + "/ping?key=k&v=" + bridge.PANEL_VERSION,
+                                                         timeout=3).read())
+                self.assertEqual(ping["place"], [])                      # handed out once
+                urllib.request.urlopen(urllib.request.Request(base + "/placed?id=%s&ok=1" % pid, data=b"",
+                                                              method="POST"), timeout=3).read()
+                self.assertEqual(done, [("Vistiq · flat 2", True)])
+            finally:
+                b.stop()

@@ -90,6 +90,7 @@
       // Under the picture: the results, then what to do with the chosen one.
       '<div class="s-under"><div class="s-vars" id="' + id + '-strip"></div>' +
       '<div class="s-acts2"><button type="button" class="s-btn" id="' + id + '-reveal" disabled>Show in folder</button>' +
+      '<button type="button" class="s-btn" id="' + id + '-ps" hidden>' + '<span class="m-ico ps">Ps</span>To Photoshop</button>' +
       '<button type="button" class="s-btn p" id="' + id + '-up" disabled>Upscale this</button>' +
       '<button type="button" class="s-btn s-x" id="' + id + '-clear" title="Clear" aria-label="Clear" hidden>×</button></div></div>' +
       '<div class="s-refine"><input type="text" id="' + id + '-refine" placeholder="Refine: e.g. make the seats lighter, keep everything else"><button type="button" id="' + id + '-refine-go">Refine</button></div>' +
@@ -254,6 +255,10 @@
     Object.assign(j, extra || {});
     p.error = ""; p.stage = "Starting"; p.frac = 0; p.pending = j.variations; p.started = Date.now(); p.estimate = 0;
     p.jobKey = srcKey(p.src);
+    // Create works on the sketch as it is now: freeze a copy. Live keeps
+    // updating in the background and comes back when the run is done.
+    p.jobOrig = p.src.preview;
+    if (p.src.live) p.src = Object.assign({}, p.src, { live: false, frozen: true });
     api().studio_run(j).then(function (jid) {
       if (jid) { if (p.job === "starting") p.job = jid; } else { p.job = null; p.pending = 0; refresh(); }
       render();
@@ -329,6 +334,7 @@
         render();
       });
       $(id + "-reveal").addEventListener("click", function () { var c = current(p); if (c) api().reveal(c.path); });
+      $(id + "-ps").addEventListener("click", function () { var c = current(p); if (c) sendPS(c.path); });
       $(id + "-strip").addEventListener("click", function (e) {
         var t = e.target.closest("[data-i]"); if (t) { p.sel = +t.getAttribute("data-i"); render(); return; }
         if (e.target.closest(".s-more")) job(id, { variations: 1 });
@@ -336,7 +342,7 @@
       });
       // Hold on a result to see what it started from.
       var view = $(id + "-view");
-      view.addEventListener("pointerdown", function () { var img = view.querySelector("img.s-res"); if (img && p.src) { img.src = p.src.preview; view.classList.add("hold"); } });
+      view.addEventListener("pointerdown", function () { var img = view.querySelector("img.s-res"), c = current(p), o = (c && c.orig) || (p.src && p.src.preview); if (img && o) { img.src = o; view.classList.add("hold"); } });
       var up = function () { var img = view.querySelector("img.s-res"), c = current(p); if (img && c) img.src = c.preview; };
       view.addEventListener("pointerup", up); view.addEventListener("pointerleave", up);
     });
@@ -349,6 +355,7 @@
       var b = e.target.closest("button[data-act]"); if (!b) return;
       var path = b.closest(".s-card").getAttribute("data-path"), act = b.getAttribute("data-act");
       if (act === "folder") api().reveal(path);
+      else if (act === "ps") sendPS(path);
       else if (act === "upscale") api().studio_to_upscale(path).then(function () { go("upscale"); });
       else if (act === "edit") api().studio_image(path).then(function (info) { setImage(S.create, "src", info); go("create"); });
       else if (act === "ref") api().studio_image(path).then(function (info) { setImage(S.ref, "src", info); go("reference"); });
@@ -571,7 +578,7 @@
     ["c", "r"].forEach(function (id) {
       var p = P(id);
       $(id + "-keep").value = p.keep;
-      $(id + "-keep-v").textContent = p.keep >= 0.95 ? "Exact" : p.keep <= 0.25 ? "Creative" : Math.round(p.keep * 100) + "%";
+      $(id + "-keep-v").textContent = p.keep >= 0.999 ? "Exact" : p.keep <= 0.25 ? "Creative" : Math.round(p.keep * 100) + "%";
     });
     $("c-blend").value = S.create.blend; $("c-blend-v").textContent = Math.round(S.create.blend * 100) + "%";
     $("c-juice").value = S.create.juice; $("c-juice-v").textContent = S.create.juice > 0 ? (S.create.juice < 0.35 ? "Subtle · " : S.create.juice < 0.7 ? "Medium · " : "Strong · ") + Math.round(S.create.juice * 100) + "%" : "Off";
@@ -585,7 +592,22 @@
     sel.value = list.some(function (l) { return l.name === value; }) ? value : "";
   }
 
-  function srcKey(src) { return src ? (src.live ? "live:" + src.name : src.path) : ""; }
+  // Put a picture into the open Photoshop file as a new layer.
+  function sendPS(path) {
+    toast("Sending to Photoshop…");
+    api().studio_send(path, "photoshop").then(function (r) {
+      if (!(r && r.ok)) toast((r && r.error) || "Couldn't send it.");
+    });
+  }
+
+  function toast(msg) {
+    var t = document.querySelector(".s-toast");
+    if (!t) { t = document.createElement("div"); t.className = "s-toast"; document.body.appendChild(t); }
+    t.textContent = msg; t.classList.add("on");
+    clearTimeout(toast.t); toast.t = setTimeout(function () { t.classList.remove("on"); }, 5000);
+  }
+
+  function srcKey(src) { return src ? (src.live || src.frozen ? "live:" + src.name : src.path) : ""; }
 
   function mmss(sec) { sec = Math.max(0, Math.round(sec)); return Math.floor(sec / 60) + ":" + ("0" + sec % 60).slice(-2); }
   // " · 0:42 · about 1:10 left" while a job runs (the estimate comes from earlier runs)
@@ -738,6 +760,7 @@
     var ttl = esc(name) + "<small>" + sub + "</small>";
     if ($(id + "-ttl").getAttribute("data-h") !== ttl) { $(id + "-ttl").innerHTML = ttl; $(id + "-ttl").setAttribute("data-h", ttl); }
     $(id + "-up").disabled = !c; $(id + "-reveal").disabled = !c;
+    $(id + "-ps").hidden = !(c && S.psOn);
     $(id + "-clear").hidden = !(p.results.length && !p.job);
     $(id + "-refine-go").disabled = !!p.job || !(c || p.src);
 
@@ -986,7 +1009,8 @@
     var h = items.length ? items.map(function (i) {
       var pill = i.kind.charAt(0).toUpperCase() + i.kind.slice(1);
       return '<div class="s-card" data-path="' + esc(i.path) + '" title="' + esc(i.text || i.name) + '"><img src="' + i.thumb + '" alt="" loading="lazy">' +
-        '<div class="s-hover"><button type="button" data-act="edit">Create</button><button type="button" data-act="ref">Reference</button><button type="button" data-act="upscale">Upscale</button><button type="button" data-act="folder">Folder</button></div>' +
+        '<div class="s-hover"><button type="button" data-act="edit">Create</button><button type="button" data-act="ref">Reference</button><button type="button" data-act="upscale">Upscale</button><button type="button" data-act="folder">Folder</button>' +
+        (S.psOn ? '<button type="button" data-act="ps" class="s-psb">To Photoshop</button>' : "") + "</div>" +
         '<div class="s-cap"><span>' + esc(short(i.name)) + '</span><span class="s-pill">' + pill + "</span></div></div>";
     }).join("") : '<div class="s-none">' + (S.lib.loading ? "Loading…" : "Nothing here yet. What you create and upscale shows up here.") + "</div>";
     var g = $("l-grid");
@@ -1021,13 +1045,14 @@
         // unless you pressed Stop or are live with another app.
         if (!S.live.on && data.app === "photoshop" && !S.live.stopped) {
           S.live.on = true; S.live.app = "photoshop"; S.live.frames = 0; S.live.msg = "";
-          if (!S.create.src && !S.create.source) S.create.source = "live";
+          if (!S.create.src) S.create.source = "live";
         }
+        if (data.app === "photoshop") S.psOn = true;
         if (!S.live.on || (data.app && data.app !== S.live.app)) return;
         S.live.doc = data.name; S.live.frames++; S.live.state = "";
         data.live = true;
         var keepSel = S.create.sel;
-        if (S.create.source !== "live") { S.create.liveSrc = data; render(); return; }   // stays ready in the background
+        if (S.create.source !== "live" || S.create.job) { S.create.liveSrc = data; render(); return; }   // stays ready in the background
         setImage(S.create, "src", data);
         S.create.sel = keepSel;   // keep looking at the result you picked; the live tile updates quietly
         render();
@@ -1035,6 +1060,7 @@
       }
       if (kind === "studio-live-state") {
         if (data.state === "note") { S.live.note = data.message; render(); return; }
+        if (data.app === "photoshop") S.psOn = data.state === "live" || data.state === "nodoc";
         if (data.app === "photoshop" && (data.state === "closed" || data.state === "nodoc") && S.live.app === "photoshop") {
           S.live.frames = 0; S.create.liveSrc = null;
           if (S.create.source === "live" && S.create.src && S.create.src.live) S.create.src = null;
@@ -1042,6 +1068,8 @@
         if (S.live.on && data.app === S.live.app) S.live.state = data.message;
         render(); return;
       }
+      if (kind === "studio-sent") { toast(data.message); return; }
+      if (kind === "studio-note") { S.create.note = data.message; render(); return; }
       if (kind === "studio-engine") S.engine = data;
       else if (kind === "studio-job") {
         var p = byJob(data.id);
@@ -1049,11 +1077,16 @@
         if (data.state === "running") { p.stage = data.stage; p.frac = data.fraction == null ? p.frac : data.fraction; if (data.estimate) p.estimate = data.estimate; if (!p.started) p.started = Date.now(); }
         else {
           p.job = null; p.pending = 0; p.stage = ""; p.frac = 0; p.started = 0; p.estimate = 0;
-          p.error = data.state === "error" ? (data.message || "Something went wrong.") : "";
+          // The run is over: live takes over again with the newest sketch.
+          if (p === S.create && p.source === "live" && p.src && p.src.frozen) {
+            var keepSel2 = p.sel; if (p.liveSrc) { p.src = p.liveSrc; p.liveSrc = null; } p.sel = keepSel2;
+          }
+          p.error = data.state === "error" ? (data.message || "Something went wrong.") : (p.note || "");
+          p.note = "";
         }
       } else if (kind === "studio-result") {
         var q = byJob(data.id); if (!q) return;
-        data.result.srcKey = q.jobKey; q.results.push(data.result); q.pending = Math.max(0, q.pending - 1);
+        data.result.srcKey = q.jobKey; data.result.orig = q.jobOrig; q.results.push(data.result); q.pending = Math.max(0, q.pending - 1);
         if (data.index === 0) q.sel = q.results.length - 1;
       } else if (kind === "studio-setup") {
         if (data.state === "running") { S.setup.run = { label: data.label, fraction: data.fraction }; S.setup.error = ""; S.setup.done = ""; }

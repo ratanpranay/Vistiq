@@ -286,3 +286,8 @@ body.studio .s-page.on{display:flex;flex:1;min-width:0;height:100%}
 .s-fin-row{display:flex;justify-content:space-between;align-items:baseline;font-size:12.5px;font-weight:650;color:var(--ink-2);margin-top:4px}
 .s-fin-row em{font-style:normal;font-weight:700;color:var(--dim)}
 .s-fin .s-range{margin:0}
+
+/* small message at the bottom (e.g. "Placed in Photoshop") */
+.s-toast{position:fixed;left:50%;bottom:24px;transform:translate(-50%,20px);background:#14161f;color:#fff;font-size:13px;font-weight:650;padding:10px 16px;border-radius:12px;box-shadow:0 8px 24px rgba(0,0,0,.18);opacity:0;pointer-events:none;transition:opacity .2s,transform .2s;z-index:50;max-width:70vw}
+.s-toast.on{opacity:1;transform:translate(-50%,0)}
+.s-acts2 .s-btn .m-ico{margin-right:6px;vertical-align:-1px}

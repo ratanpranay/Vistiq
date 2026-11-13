@@ -315,6 +315,17 @@ class Api:
         return {"on": False, "error": "Another program is using the Photoshop link's port (38393). "
                                       "Restart the computer if this keeps happening."}
 
+    def studio_send(self, path, app="photoshop"):
+        """Put a picture into the open Photoshop file as a new layer."""
+        st = self._app.studio
+        path = st.real_path(path)
+        if not path or not os.path.isfile(path):
+            return {"ok": False, "error": "That picture isn't there any more."}
+        name = "Vistiq · " + os.path.splitext(os.path.basename(path))[0].replace("Vistiq_", "")
+        if not st.bridge.send(path, name):
+            return {"ok": False, "error": "Photoshop isn't connected. Open it with the Vistiq Studio panel."}
+        return {"ok": True}
+
     def studio_install_panel(self):
         from . import bridge
         ok, msg = bridge.install_panel(self._app.app_dir, os.path.join(data_dir(), "photoshop"))

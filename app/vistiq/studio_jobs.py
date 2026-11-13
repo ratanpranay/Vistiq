@@ -126,6 +126,9 @@ class Studio:
                 self.emit("studio-live-state", {"app": "photoshop", "state": "note",
                                                 "message": "The Photoshop panel was updated. Restart Photoshop once."})
         self.bridge.on_old_panel = old_panel
+        self.bridge.on_placed = lambda name, ok, msg: self.emit("studio-sent", {
+            "app": "photoshop", "ok": ok, "message": ("Placed in Photoshop as a new layer: " + name) if ok
+            else ("Photoshop couldn't place it: " + (msg or "unknown reason"))})
         # Like a navigator: listen for Photoshop the whole time Studio is open.
         try:
             self.bridge.start()
@@ -452,7 +455,16 @@ class Studio:
                     amount = max(0.0, min(1.0, float(job.get("juice"))))
                     jp = studio.juice_prompt(s, jimg, text, job["juice_lora"], 0.8, 0.18 + 0.27 * amount,
                                              WORK_MP, seed + v)
-                    data = self.engine.run(jp, None, self._cancel.is_set)
+                    juiced = self.engine.run(jp, None, self._cancel.is_set)
+                    if _is_blank(juiced):
+                        # Some styles break the finishing model (it returns a black
+                        # picture). Keep the image from before the pass instead.
+                        log.warning("finishing pass with %s gave a blank picture", job.get("juice_lora"))
+                        self.emit("studio-note", {"message": "This finishing style made a black picture, so the "
+                                                             "image is shown without it. Try another style or a lower "
+                                                             "strength."})
+                    else:
+                        data = juiced
                 result = Image.open(io.BytesIO(data)).convert("RGB")
                 if mask is not None:
                     blend = int(float(job.get("blend", 0.35)) * 0.06 * max(box[2] - box[0], box[3] - box[1])) + 2
@@ -562,6 +574,17 @@ class Studio:
             self._helper.stop()
         if not self.settings.get("keep_engine", True):
             self.engine.stop()
+
+
+def _is_blank(data):
+    """A black (or one-colour) picture: what a broken style makes."""
+    try:
+        im = Image.open(io.BytesIO(data)).convert("L")
+        im.thumbnail((64, 64))
+        lo, hi = im.getextrema()
+        return hi - lo < 8
+    except Exception:
+        return False
 
 
 def _has_lock(settings):

@@ -1,10 +1,11 @@
 // Vistiq Studio link: after every change in Photoshop, the active document's
 // visible canvas is sent to Vistiq Studio on this PC (nothing leaves the PC).
 const { action, core, imaging, app } = require("photoshop");
+const uxpStorage = require("uxp").storage;
 
 const STUDIO = "http://127.0.0.1:38393";
 const MAX_SIDE = 2048;
-const VERSION = "1.0.3";
+const VERSION = "1.0.4";
 let lastError = "";
 let sendError = "";
 
@@ -35,8 +36,9 @@ async function ping() {
   try {
     const r = await fetch(STUDIO + "/ping?v=" + VERSION + "&key=" + encodeURIComponent(enabled() ? key : "off"));
     connected = r.ok;
-    let have = "";
-    try { have = (await r.json()).have || ""; } catch (e) {}
+    let have = "", place = [];
+    try { const j = await r.json(); have = j.have || ""; place = j.place || []; } catch (e) {}
+    for (const item of place) placeQueue(item);
     if (connected && key !== "none" && enabled() && have !== key && !sending) schedule(0);
     lastError = connected ? "" : "answered " + r.status;
   } catch (e) {
@@ -53,6 +55,48 @@ function schedule(delay) {
   if (!connected || !enabled()) return;
   clearTimeout(timer);
   timer = setTimeout(send, delay == null ? 300 : delay);
+}
+
+// Pictures Studio sends back ("Send to Photoshop"): placed as a new layer,
+// stretched to the canvas so it lines up with the sketch.
+const placing = new Set();
+async function placeQueue(item) {
+  if (placing.has(item.id)) return;
+  placing.add(item.id);
+  let ok = false, msg = "";
+  try {
+    const doc = app.activeDocument;
+    if (!doc) throw new Error("No file is open.");
+    const r = await fetch(STUDIO + "/file?id=" + encodeURIComponent(item.id));
+    if (!r.ok) throw new Error("Studio answered " + r.status);
+    const buf = await r.arrayBuffer();
+    const tmp = await uxpStorage.localFileSystem.getTemporaryFolder();
+    const f = await tmp.createFile("vistiq_" + item.id + (item.ext || ".png"), { overwrite: true });
+    await f.write(buf, { format: uxpStorage.formats.binary });
+    const token = uxpStorage.localFileSystem.createSessionToken(f);
+    await core.executeAsModal(async () => {
+      await action.batchPlay([{
+        _obj: "placeEvent", null: { _path: token, _kind: "local" },
+        freeTransformCenterState: { _enum: "quadCenterState", _value: "QCSAverage" },
+        offset: { _obj: "offset", horizontal: { _unit: "pixelsUnit", _value: 0 }, vertical: { _unit: "pixelsUnit", _value: 0 } }
+      }], {});
+      const layer = doc.activeLayers[0];
+      if (layer) {
+        const b = layer.bounds, w = b.right - b.left, h = b.bottom - b.top;
+        if (w > 0 && h > 0) await layer.scale(doc.width / w * 100, doc.height / h * 100);
+        const b2 = layer.bounds;
+        await layer.translate(-b2.left, -b2.top);
+        layer.name = item.name || "Vistiq";
+      }
+    }, { commandName: "Place from Vistiq Studio" });
+    ok = true;
+    $("info").textContent = "Placed “" + (item.name || "picture") + "” as a new layer.";
+  } catch (e) {
+    msg = String(e && e.message || e);
+    $("info").textContent = "Couldn't place the picture: " + msg;
+  }
+  try { await fetch(STUDIO + "/placed?id=" + encodeURIComponent(item.id) + "&ok=" + (ok ? 1 : 0), { method: "POST", body: msg }); } catch (e) {}
+  lastKey = "";   // the canvas changed: send it again
 }
 
 // Something to tell "has anything changed" without reading pixels.

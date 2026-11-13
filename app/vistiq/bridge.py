@@ -26,7 +26,7 @@ PORT = 38393
 MAX_BODY = 80 << 20
 KEEP = 4                       # live frames kept on disk
 LIVE = "live://photoshop/"     # how the window names the mirrored picture
-PANEL_VERSION = "1.0.3"        # the panel in app/photoshop (tests check they match)
+PANEL_VERSION = "1.0.4"        # the panel in app/photoshop (tests check they match)
 
 
 class _Server(ThreadingHTTPServer):
@@ -53,6 +53,8 @@ class Bridge:
         self.on_state = lambda state, message: None   # Photoshop open / no file / closed
         self.on_old_panel = lambda: None              # an older panel checked in
         self.latest = None                            # the current picture (JPEG bytes)
+        self.outbox = {}                              # pictures waiting to go into Photoshop
+        self.on_placed = lambda name, ok, message: None
         self._asked_update = False
         self.have = ""            # the panel's document key of the picture we have
         self.last_seen = 0.0
@@ -95,15 +97,25 @@ class Bridge:
                 self.end_headers()
 
             def do_GET(self):
+                if self.path.startswith("/file"):
+                    return self._file()
                 if self.path.startswith("/ping"):
                     from urllib.parse import urlparse, parse_qs
                     q = parse_qs(urlparse(self.path).query)
                     bridge.seen((q.get("key") or [None])[0], (q.get("v") or [""])[0])
-                    self._send(200, json.dumps({"app": "Vistiq Studio", "have": bridge.have}).encode())
+                    self._send(200, json.dumps({"app": "Vistiq Studio", "have": bridge.have,
+                                                "place": bridge.waiting()}).encode())
                 else:
                     self._send(404)
 
             def do_POST(self):
+                if self.path.startswith("/placed"):
+                    from urllib.parse import urlparse, parse_qs
+                    q = parse_qs(urlparse(self.path).query)
+                    n = int(self.headers.get("Content-Length") or 0)
+                    msg = self.rfile.read(n).decode("utf-8", "replace") if 0 < n < 4096 else ""
+                    bridge.placed((q.get("id") or [""])[0], (q.get("ok") or ["0"])[0] == "1", msg)
+                    return self._send(200)
                 if self.path.startswith("/release"):
                     # A newer Vistiq Studio wants the link: step aside.
                     self._send(200)
@@ -148,6 +160,23 @@ class Bridge:
 
         Handler._raw = _raw
 
+        def _file(self):
+            from urllib.parse import urlparse, parse_qs
+            item = bridge.outbox.get((parse_qs(urlparse(self.path).query).get("id") or [""])[0])
+            if not item or not os.path.isfile(item["path"]):
+                return self._send(404)
+            with open(item["path"], "rb") as fh:
+                body = fh.read()
+            item["fetched"] = time.time()
+            self.send_response(200)
+            self.send_header("Content-Type", "application/octet-stream")
+            self.send_header("Access-Control-Allow-Origin", "*")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+
+        Handler._file = _file
+
         # Ask an older Vistiq Studio (left running in the background, e.g. after an
         # update) to let go of the link first; otherwise Photoshop keeps talking to it.
         try:
@@ -181,6 +210,38 @@ class Bridge:
         threading.Thread(target=self._watch, args=(self.server,), daemon=True).start()
         log.info("Photoshop link listening on %d", PORT)
         return True
+
+    # -- sending pictures back into Photoshop ---------------------------------
+
+    def connected(self):
+        return bool(self.server) and time.time() - self.last_seen < 5
+
+    def send(self, path, name):
+        """Queue a picture for Photoshop; the panel places it as a new layer on
+        its next check-in (within a second)."""
+        if not self.connected():
+            return False
+        import uuid
+        pid = uuid.uuid4().hex[:12]
+        self.outbox[pid] = {"path": path, "name": name, "ext": os.path.splitext(path)[1].lower() or ".png",
+                            "queued": time.time(), "fetched": 0}
+        return pid
+
+    def waiting(self):
+        now = time.time()
+        for pid, it in list(self.outbox.items()):
+            if now - it["queued"] > 120:
+                del self.outbox[pid]
+        return [{"id": pid, "name": it["name"], "ext": it["ext"]} for pid, it in self.outbox.items()
+                if not it["fetched"]]
+
+    def placed(self, pid, ok, message=""):
+        it = self.outbox.pop(pid, None)
+        if it:
+            try:
+                self.on_placed(it["name"], ok, message)
+            except Exception:
+                log.exception("placed")
 
     def seen(self, key, version=""):
         """The panel checked in (every second while Photoshop runs)."""

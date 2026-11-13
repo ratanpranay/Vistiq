@@ -1,7 +1,7 @@
 {
   "id": "com.vistiq.studio.link",
   "name": "Vistiq Studio",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "main": "index.html",
   "manifestVersion": 5,
   "host": {
@@ -36,6 +36,7 @@
   "requiredPermissions": {
     "network": {
       "domains": "all"
-    }
+    },
+    "localFileSystem": "plugin"
   }
 }
