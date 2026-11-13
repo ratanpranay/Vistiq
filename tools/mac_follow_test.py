@@ -40,8 +40,8 @@ text = ("Turn this sketch into a photorealistic photograph of a pickup truck, ma
         "Keep every line, proportion, part and the camera view exactly as drawn.")
 for label, extra in [("grey 5/16", {"strength": 0.3125, "steps": 16, "start_mode": "grey"}),
                      ("blur 5/16", {"strength": 0.3125, "steps": 16, "start_mode": "blur"}),
-                     ("grey 9/24", {"strength": 0.375, "steps": 24, "start_mode": "grey"}),
-                     ("grey 6/16", {"strength": 0.375, "steps": 16, "start_mode": "grey"})]:
+                     ("grey 7/24", {"strength": 0.2917, "steps": 24, "start_mode": "grey"}),
+                     ("grey 8/24", {"strength": 0.3334, "steps": 24, "start_mode": "grey"})]:
     t = time.time()
     job = dict({"image": sp, "text": text, "seed": 42}, **extra)
     data = eng.run(job)
