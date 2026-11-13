@@ -1,5 +1,11 @@
 # Vistiq Studio (test build)
 
+## 0.3.3
+- Photoshop works like a navigator: your current file shows up in Studio by itself, switches when you switch files, and Studio says when no file is open or Photoshop is closed.
+- The mirror lives in memory; a file is written only when you use the picture (Create, Select, Upscale).
+- Fixes: after restarting Studio, Photoshop pictures were deleted as soon as they arrived.
+- New Photoshop panel (1.0.3) is installed by itself; restart Photoshop once.
+
 ## 0.3.2
 - Photoshop link: a Studio left running in the background (e.g. after an update) can no longer catch Photoshop's pictures; the window you connect from takes over.
 - Create: "Look" is now "Style"; "Juice" is now "Finishing pass", in its own card: pick a style, then set Strength (Subtle / Medium / Strong).
