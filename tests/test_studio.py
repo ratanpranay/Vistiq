@@ -305,3 +305,78 @@ class LinkTakeover(unittest.TestCase):
             finally:
                 new.stop()
                 old.stop()
+
+
+class Navigator(unittest.TestCase):
+    """The Photoshop link behaves like a navigator."""
+
+    def setUp(self):
+        from vistiq import bridge
+        self.bridge_mod = bridge
+        self.tmp = tempfile.TemporaryDirectory()
+        self.port = mock.patch.object(bridge, "PORT", 18397)
+        self.port.start()
+        self.frames, self.states = [], []
+        self.b = bridge.Bridge(self.tmp.name, self.frames.append)
+        self.b.on_state = lambda st, m: self.states.append(st)
+        self.b.on_old_panel = lambda: self.states.append("old-panel")
+
+    def tearDown(self):
+        self.b.stop()
+        self.port.stop()
+        self.tmp.cleanup()
+
+    def get(self, path):
+        import urllib.request
+        return json.loads(urllib.request.urlopen("http://127.0.0.1:18397" + path, timeout=3).read())
+
+    def post_raw(self, key):
+        import urllib.request
+        urllib.request.urlopen(urllib.request.Request(
+            "http://127.0.0.1:18397/raw?w=2&h=2&c=3&name=a.psd&key=" + key, data=bytes([9] * 12),
+            method="POST"), timeout=3).read()
+
+    def test_leftover_pictures_dont_eat_new_ones(self):
+        # Yesterday's session left photoshop_00046..49; today's numbering starts at 1 again.
+        for n in range(46, 50):
+            Image.new("RGB", (2, 2)).save(os.path.join(self.tmp.name, "photoshop_%05d.jpg" % n))
+        self.assertTrue(self.b.start())
+        self.post_raw("k1")
+        self.assertEqual(len(self.frames), 1)
+        self.assertTrue(os.path.isfile(self.frames[0]["path"]))
+        for _ in range(6):
+            self.post_raw("k1")
+        self.assertTrue(os.path.isfile(self.frames[-1]["path"]))
+
+    def test_ping_says_what_studio_has(self):
+        from vistiq.bridge import PANEL_VERSION
+        self.assertTrue(self.b.start())
+        v = "&v=" + PANEL_VERSION
+        self.assertEqual(self.get("/ping?key=k1" + v)["have"], "")   # panel sees a mismatch and sends
+        self.post_raw("k1")
+        self.assertEqual(self.get("/ping?key=k1" + v)["have"], "k1")
+        self.get("/ping?key=none" + v)
+        self.assertIn("nodoc", self.states)
+        self.assertNotIn("old-panel", self.states)
+
+    def test_old_panel_is_noticed_once(self):
+        import time
+        self.assertTrue(self.b.start())
+        self.get("/ping?key=k1")
+        self.get("/ping?key=k1")
+        time.sleep(0.2)
+        self.assertEqual(self.states.count("old-panel"), 1)
+
+    def test_closing_photoshop_is_noticed(self):
+        import time
+        self.assertTrue(self.b.start())
+        self.post_raw("k1")
+        self.b.last_seen = time.time() - 10
+        time.sleep(1.5)
+        self.assertIn("closed", self.states)
+
+    def test_panel_version_matches(self):
+        with open(os.path.join(ROOT, "app", "photoshop", "manifest.json")) as fh:
+            self.assertEqual(json.load(fh)["version"], self.bridge_mod.PANEL_VERSION)
+        with open(os.path.join(ROOT, "app", "photoshop", "main.js")) as fh:
+            self.assertIn('const VERSION = "%s"' % self.bridge_mod.PANEL_VERSION, fh.read())

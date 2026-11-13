@@ -299,12 +299,12 @@ class Api:
     def studio_live(self, on, app="photoshop"):
         st = self._app.studio
         b, a = st.bridge, st.affinity
+        # The Photoshop link always listens (it costs nothing and works like a
+        # navigator); only Affinity's link is switched on and off.
         if not on:
-            b.stop()
             a.stop()
             return {"on": False}
         if app == "affinity":
-            b.stop()
             return {"on": a.start(), "error": ""}
         a.stop()
         ok = b.start()

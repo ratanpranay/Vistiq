@@ -25,6 +25,7 @@ log = logging.getLogger("vistiq")
 PORT = 38393
 MAX_BODY = 80 << 20
 KEEP = 4                       # live frames kept on disk
+PANEL_VERSION = "1.0.3"        # the panel in app/photoshop (tests check they match)
 
 
 class _Server(ThreadingHTTPServer):
@@ -48,6 +49,12 @@ class Bridge:
         self.busy_reason = ""
         self._lock = threading.Lock()
         self.on_released = lambda: None
+        self.on_state = lambda state, message: None   # Photoshop open / no file / closed
+        self.on_old_panel = lambda: None              # an older panel checked in
+        self._asked_update = False
+        self.have = ""            # the panel's document key of the picture we have
+        self.last_seen = 0.0
+        self.ps_state = ""
 
     @property
     def running(self):
@@ -57,6 +64,13 @@ class Bridge:
         if self.server:
             return True
         os.makedirs(self.folder, exist_ok=True)
+        self.have, self.ps_state, self.last_seen = "", "", 0.0
+        # Pictures from an earlier session would confuse the numbering: start clean.
+        for old in glob.glob(os.path.join(self.folder, "photoshop_*.jpg")):
+            try:
+                os.remove(old)
+            except OSError:
+                pass
         bridge = self
 
         class Handler(BaseHTTPRequestHandler):
@@ -80,7 +94,10 @@ class Bridge:
 
             def do_GET(self):
                 if self.path.startswith("/ping"):
-                    self._send(200, b'{"app": "Vistiq Studio"}')
+                    from urllib.parse import urlparse, parse_qs
+                    q = parse_qs(urlparse(self.path).query)
+                    bridge.seen((q.get("key") or [None])[0], (q.get("v") or [""])[0])
+                    self._send(200, json.dumps({"app": "Vistiq Studio", "have": bridge.have}).encode())
                 else:
                     self._send(404)
 
@@ -120,6 +137,8 @@ class Bridge:
                 w, h, c = int(q["w"][0]), int(q["h"][0]), int(q.get("c", ["3"])[0])
                 body = self.rfile.read(n)
                 bridge.raw(body, w, h, c, (q.get("name") or ["Photoshop"])[0])
+                if q.get("key"):
+                    bridge.have = q["key"][0]
                 self._send(200)
             except Exception:
                 log.exception("bad raw frame from Photoshop")
@@ -157,8 +176,37 @@ class Bridge:
             return False
         self.server.daemon_threads = True
         threading.Thread(target=self.server.serve_forever, daemon=True).start()
+        threading.Thread(target=self._watch, args=(self.server,), daemon=True).start()
         log.info("Photoshop link listening on %d", PORT)
         return True
+
+    def seen(self, key, version=""):
+        """The panel checked in (every second while Photoshop runs)."""
+        self.last_seen = time.time()
+        if version != PANEL_VERSION and not self._asked_update:
+            self._asked_update = True
+            threading.Thread(target=self.on_old_panel, daemon=True).start()
+        if key == "none":
+            self._state("nodoc", "No file open in Photoshop.")
+            self.have = "none"
+        elif key and self.have == key:
+            self._state("live", "")
+
+    def _state(self, state, message):
+        if state != self.ps_state:
+            self.ps_state = state
+            try:
+                self.on_state(state, message)
+            except Exception:
+                log.exception("live state")
+
+    def _watch(self, server):
+        # No check-in for a while: Photoshop was closed (or the panel unloaded).
+        while self.server is server:
+            if self.last_seen and time.time() - self.last_seen > 6 and self.ps_state != "closed":
+                self.have = ""
+                self._state("closed", "Photoshop is closed. Open it with the Vistiq Studio panel and it shows up here.")
+            time.sleep(1)
 
     def stop(self):
         s, self.server = self.server, None
@@ -191,13 +239,16 @@ class Bridge:
             path = os.path.join(self.folder, "photoshop_%05d.jpg" % n)
             with open(path, "wb") as fh:
                 fh.write(raw)
-            for old in sorted(glob.glob(os.path.join(self.folder, "photoshop_*.jpg")))[:-KEEP]:
+            for old in sorted(glob.glob(os.path.join(self.folder, "photoshop_*.jpg")), key=os.path.getmtime)[:-KEEP]:
+                if old == path:
+                    continue
                 try:
                     os.remove(old)
                 except OSError:
                     pass
         name = str(data.get("name") or "Photoshop")
         self.doc = name
+        self._state("live", "")
         self.on_frame({"path": path, "name": name, "w": im.size[0], "h": im.size[1], "n": n, "app": "photoshop"})
 
 
@@ -218,7 +269,16 @@ def package(app_dir, out_dir):
     return out
 
 
-def install_panel(app_dir, out_dir):
+def update_panel(app_dir, out_dir):
+    """Quietly replace an older panel through Adobe's installer (no dialogs).
+    Photoshop picks it up the next time it starts."""
+    if not any(os.path.isfile(exe) for exe in UPIA):
+        return False
+    ok, _ = install_panel(app_dir, out_dir, quiet=True)
+    return ok
+
+
+def install_panel(app_dir, out_dir, quiet=False):
     """Hand the panel to Adobe's installer. Returns (ok, message)."""
     ccx = package(app_dir, out_dir)
     for exe in UPIA:
@@ -237,6 +297,8 @@ def install_panel(app_dir, out_dir):
                 log.exception("panel install failed")
                 text = str(exc)
             break
+    if quiet:
+        return False, ""
     # Fall back to Creative Cloud's own handling of a double-clicked .ccx.
     try:
         if sys.platform == "darwin":

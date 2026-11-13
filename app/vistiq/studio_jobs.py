@@ -117,6 +117,19 @@ class Studio:
         self._thumbs = {}
         from .bridge import Bridge
         self.bridge = Bridge(os.path.join(data_dir(), "photoshop"), self._on_frame)
+        self.bridge.on_state = lambda state, msg: self.emit("studio-live-state", {
+            "app": "photoshop", "state": state, "message": msg})
+        def old_panel():
+            from . import bridge as _b
+            if getattr(app, "app_dir", None) and _b.update_panel(app.app_dir, os.path.join(data_dir(), "photoshop")):
+                self.emit("studio-live-state", {"app": "photoshop", "state": "note",
+                                                "message": "The Photoshop panel was updated. Restart Photoshop once."})
+        self.bridge.on_old_panel = old_panel
+        # Like a navigator: listen for Photoshop the whole time Studio is open.
+        try:
+            self.bridge.start()
+        except Exception:
+            log.exception("Photoshop link")
         self.bridge.on_released = lambda: self.emit("studio-live-state", {
             "app": "photoshop", "state": "off",
             "message": "Another Vistiq Studio window took over the Photoshop link. Click Stop, then connect again here."})

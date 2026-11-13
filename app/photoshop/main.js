@@ -4,7 +4,7 @@ const { action, core, imaging, app } = require("photoshop");
 
 const STUDIO = "http://127.0.0.1:38393";
 const MAX_SIDE = 2048;
-const VERSION = "1.0.2";
+const VERSION = "1.0.3";
 let lastError = "";
 let sendError = "";
 
@@ -26,20 +26,27 @@ function enabled() {
   return !c || c.checked !== false;
 }
 
+// Every second: tell Studio which file is in front. Studio answers with the
+// file it has; if they differ (new file, a change, Studio restarted, a lost
+// picture), send the canvas. So it can't get stuck, like a navigator.
 async function ping() {
+  let key = "none";
+  try { const d = app.activeDocument; if (d) key = docKey(d); } catch (e) {}
   try {
-    const r = await fetch(STUDIO + "/ping");
-    const was = connected;
+    const r = await fetch(STUDIO + "/ping?v=" + VERSION + "&key=" + encodeURIComponent(enabled() ? key : "off"));
     connected = r.ok;
-    if (connected && !was) { lastKey = ""; schedule(0); }
+    let have = "";
+    try { have = (await r.json()).have || ""; } catch (e) {}
+    if (connected && key !== "none" && enabled() && have !== key && !sending) schedule(0);
     lastError = connected ? "" : "answered " + r.status;
   } catch (e) {
     connected = false;
     lastError = String(e && e.message || e);
   }
   if (connected) show("Connected to Vistiq Studio", true);
-  else show("Vistiq Studio isn't listening", false);
-  $("ver").textContent = "Panel " + VERSION + " · " + STUDIO + (lastError ? " · " + lastError : "");
+  else show("Vistiq Studio isn't open", false);
+  if (key === "none") $("info").textContent = "Open a file to show it in Studio.";
+  $("ver").textContent = "Panel " + VERSION + (lastError ? " · " + lastError : "");
 }
 
 function schedule(delay) {
@@ -63,6 +70,7 @@ async function send() {
   const doc = app.activeDocument;
   if (!doc || !connected || !enabled()) return;
   sending = true;
+  const key0 = docKey(doc);
   try {
     let frame = null;
     await core.executeAsModal(async () => {
@@ -76,11 +84,12 @@ async function send() {
                 bytes: data };
       img.dispose();
     }, { commandName: "Vistiq Studio live view" });
-    lastKey = docKey(doc);
+    const key = key0;
+    lastKey = key;
     if (frame) {
       const name = doc.title || doc.name || "Photoshop";
       const r = await fetch(STUDIO + "/raw?w=" + frame.width + "&h=" + frame.height + "&c=" + frame.components +
-                            "&name=" + encodeURIComponent(name),
+                            "&name=" + encodeURIComponent(name) + "&key=" + encodeURIComponent(key),
                             { method: "POST", headers: { "Content-Type": "application/octet-stream" },
                               body: frame.bytes.buffer || frame.bytes });
       sendError = r.ok ? "" : "Studio answered " + r.status;
@@ -99,7 +108,7 @@ async function send() {
 
 action.addNotificationListener(
   ["historyStateChanged", "select", "open", "close", "make", "set", "delete", "paste", "move", "transform"],
-  () => schedule());
+  () => schedule(150));
 
 // A safety net for changes that send no notice: look every second.
 setInterval(() => {
@@ -108,5 +117,5 @@ setInterval(() => {
 }, 1000);
 
 $("send").addEventListener("change", () => { lastKey = ""; schedule(0); });
-setInterval(ping, 2000);
+setInterval(ping, 1000);
 ping();

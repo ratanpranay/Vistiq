@@ -1,7 +1,7 @@
 {
   "id": "com.vistiq.studio.link",
   "name": "Vistiq Studio",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "main": "index.html",
   "manifestVersion": 5,
   "host": {

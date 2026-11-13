@@ -358,8 +358,8 @@
       var a = b.getAttribute("data-ps");
       if (a === "app") { S.liveApp = b.getAttribute("data-app"); keep("liveApp", S.liveApp); if (S.live.on && S.live.app !== S.liveApp) {
           api().studio_live(true, S.liveApp).then(function (r) { S.live.on = !!(r && r.on); S.live.app = S.liveApp; S.live.frames = 0; S.live.state = ""; S.live.msg = r && r.error || ""; render(); }); } else render(); }
-      else if (a === "on") { var app = b.getAttribute("data-app"); api().studio_live(true, app).then(function (r) { S.live.on = !!(r && r.on); S.live.app = app; S.liveApp = app; S.live.frames = 0; S.live.state = ""; S.live.msg = r && r.error || ""; render(); }); }
-      else if (a === "off") api().studio_live(false, S.live.app).then(function () { S.live.on = false; S.live.msg = ""; S.create.liveSrc = null; if (S.create.source === "live") S.create.src = null; render(); });
+      else if (a === "on") { var app = b.getAttribute("data-app"); S.live.stopped = false; api().studio_live(true, app).then(function (r) { S.live.on = !!(r && r.on); S.live.app = app; S.liveApp = app; S.live.frames = 0; S.live.state = ""; S.live.msg = r && r.error || ""; render(); }); }
+      else if (a === "off") api().studio_live(false, S.live.app).then(function () { S.live.on = false; S.live.stopped = true; S.live.msg = ""; S.create.liveSrc = null; if (S.create.source === "live") S.create.src = null; render(); });
       else if (a === "back") useSource("live");
       else if (a === "install") {
         S.live.msg = "Installing the panel…"; render();
@@ -638,14 +638,14 @@
         h += '<div class="m-card"><img src="' + p.liveSrc.preview + '"><span>' + esc(L.doc) + "<small>" + APPS[L.app][1] +
           ' · updates as you draw</small></span><button type="button" class="s-link" data-ps="off">Stop</button></div>';
       } else if (L.on) {
-        h += '<div class="s-ps-on"><span class="s-live-dot"></span><span><b>Connecting to ' + APPS[L.app][1] + "</b><small>" +
-          esc(L.state || (L.app === "photoshop" ? "Waiting for Photoshop… keep it open with the Vistiq Studio plugin installed."
+        h += '<div class="s-ps-on"><span class="s-live-dot"></span><span><b>' + (L.state ? "Waiting for " : "Connecting to ") + APPS[L.app][1] + "</b><small>" +
+          esc(L.state || (L.app === "photoshop" ? "Open Photoshop with the Vistiq Studio panel; your current file shows up here by itself."
                                                  : "Waiting for Affinity… turn on Settings → Model Context Protocol → Enable Affinity MCP.")) +
           '</small></span><button type="button" class="s-link" data-ps="off">Stop</button></div>';
       } else {
         h += '<button type="button" class="s-btn p" data-ps="on" data-app="' + cur + '" style="width:100%">Connect ' + APPS[cur][1] + "</button>";
       }
-      if (cur === "photoshop") h += '<p class="s-hint" style="margin-top:6px">' + (L.msg ? esc(L.msg) : 'First time? <button type="button" class="s-link" data-ps="install">Install the Photoshop plugin</button>') + "</p>";
+      if (cur === "photoshop") h += '<p class="s-hint" style="margin-top:6px">' + (L.msg || L.note ? esc(L.msg || L.note) : 'First time? <button type="button" class="s-link" data-ps="install">Install the Photoshop plugin</button>') + "</p>";
       else if (L.msg) h += '<p class="s-hint" style="margin-top:6px">' + esc(L.msg) + "</p>";
     } else if (L.on && L.frames) {
       h += '<div class="m-back"><span class="m-dot"></span><span><b>' + APPS[L.app][1] + " is still live</b><br>" + esc(L.doc) +
@@ -1017,7 +1017,13 @@
       if (kind === "update") S.update = data;
       if (kind.indexOf("studio-") !== 0) { var r = base(kind, data); if (kind === "update") render(); return r; }
       if (kind === "studio-live") {
-        if (!S.live.on) return;
+        // Photoshop works like a navigator: its current file shows up by itself,
+        // unless you pressed Stop or are live with another app.
+        if (!S.live.on && data.app === "photoshop" && !S.live.stopped) {
+          S.live.on = true; S.live.app = "photoshop"; S.live.frames = 0; S.live.msg = "";
+          if (!S.create.src && !S.create.source) S.create.source = "live";
+        }
+        if (!S.live.on || (data.app && data.app !== S.live.app)) return;
         S.live.doc = data.name; S.live.frames++; S.live.state = "";
         data.live = true;
         var keepSel = S.create.sel;
@@ -1027,7 +1033,15 @@
         render();
         return;
       }
-      if (kind === "studio-live-state") { if (S.live.on && data.app === S.live.app) S.live.state = data.message; render(); return; }
+      if (kind === "studio-live-state") {
+        if (data.state === "note") { S.live.note = data.message; render(); return; }
+        if (data.app === "photoshop" && (data.state === "closed" || data.state === "nodoc") && S.live.app === "photoshop") {
+          S.live.frames = 0; S.create.liveSrc = null;
+          if (S.create.source === "live" && S.create.src && S.create.src.live) S.create.src = null;
+        }
+        if (S.live.on && data.app === S.live.app) S.live.state = data.message;
+        render(); return;
+      }
       if (kind === "studio-engine") S.engine = data;
       else if (kind === "studio-job") {
         var p = byJob(data.id);
