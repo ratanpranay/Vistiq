@@ -126,7 +126,7 @@
     return '<section class="s-stage" id="' + id + '-stage">' +
       '<div class="s-top"><div class="s-ttl" id="' + id + '-ttl"></div><div class="s-acts2">' +
       '<button type="button" class="s-btn" id="' + id + '-reveal" disabled>Show in folder</button>' +
-      '<button type="button" class="s-btn s-x" id="' + id + '-clear" title="Clear the results" aria-label="Clear" hidden>×</button></div></div>' +
+      '<button type="button" class="s-btn s-x" id="' + id + '-clear" hidden style="display:none" aria-hidden="true"></button></div></div>' +
       (extra || "") +
       '<div class="s-view" id="' + id + '-view"></div>' +
       '<div class="s-under"><div class="s-vars" id="' + id + '-strip"></div></div>' +
@@ -612,12 +612,7 @@
         var c = target(p); if (!c) return;
         api().studio_to_upscale(c.path).then(function () { go("upscale"); });
       });
-      $(id + "-clear").addEventListener("click", function () {
-        p.results = []; p.sel = -1;
-        if (id === "c" && !(p.src && p.src.live)) { p.src = null; p.imageSrc = null; }
-        if (id === "r") { p.src = null; p.refimg = null; }
-        render();
-      });
+      // (No Clear: each picture always keeps everything made from it.)
       $(id + "-reveal").addEventListener("click", function () { var c = target(p); if (c) api().reveal(c.path); });
       $(id + "-refine-this").addEventListener("click", function () {
         var t = (p.text || "").trim();
