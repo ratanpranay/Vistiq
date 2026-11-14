@@ -26,7 +26,7 @@
 
   // -------------------------------------------------------------------- documents
 
-  function keyOf(src) { return src ? (src.live ? "live" : src.path) : ""; }
+  function keyOf(src) { return src ? (src.live || src.frozen ? "live" : src.path) : ""; }
   function get(src) {
     var k = keyOf(src);
     if (!docs[k]) {
@@ -36,7 +36,7 @@
                   layers: [], active: null, hist: [], redo: [] };
       docs[k].layers.push(docs[k].base);
       addLayer(docs[k], "Layer 1", true);
-      if (!src.live) restore(docs[k]);
+      if (!src.live && !src.frozen) restore(docs[k]);
     }
     var d = docs[k]; d.src = src;
     return d;
@@ -572,7 +572,7 @@
       if (T.tool === "hand") return;
       e.preventDefault();
       var src = V().S.create.src;
-      if (src && src.live && (T.tool === "brush" || T.tool === "erase" || T.tool === "tr")) { branch(); return; }
+      if (src && (src.live || src.frozen) && (T.tool === "brush" || T.tool === "erase" || T.tool === "tr")) { branch(); return; }
       if ((T.tool === "brush" && e.altKey) || T.tool === "pick") { setColor(sample.apply(null, point(e).map(Math.floor)), true); if (T.tool === "pick") setTool("brush"); return; }
       if (T.tool === "tr") { if (tf) tfDown(e); return; }
       if (isSel(T.tool)) { V().painter.pointerDown(e); return; }

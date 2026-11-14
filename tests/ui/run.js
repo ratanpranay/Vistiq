@@ -64,9 +64,9 @@ const frame = (n, name) => ({ path: "live://photoshop/" + n, name: name || "flat
     // 3. Create freezes the sketch; drawing on doesn't change the run's picture.
     await p.click("#c-go");
     await p.waitForTimeout(100);
-    const tagDuring = await p.text("#c-stage .s-tag");
+    const tagDuring = await p.text("#c-view > .s-tag");
     await p.ev("studio-live", frame(2));
-    const tagAfter = await p.text("#c-stage .s-tag");
+    const tagAfter = await p.text("#c-view > .s-tag");
     check("sketch is frozen during a run", /frozen/.test(tagDuring) && /frozen/.test(tagAfter), tagDuring + " / " + tagAfter);
 
     // 3b. Watch it develop: step pictures show on the main view; the Sketch tile fills in.
@@ -74,15 +74,15 @@ const frame = (n, name) => ({ path: "live://photoshop/" + n, name: name || "flat
     await p.ev("studio-preview", { id: "j1", index: 0, preview: img });
     await p.ev("studio-preview", { id: "j1", index: 0, preview: img });
     await p.waitForTimeout(100);
-    check("the picture develops on the main view", /Developing · step 2/.test(await p.text("#c-stage .s-tag")) &&
-      await p.evaluate(() => !!document.querySelector("#c-view .s-dev")), await p.text("#c-stage .s-tag"));
+    check("the picture develops beside the sketch", /Making/.test(await p.text("#c-view .s-pane .s-tag")) &&
+      await p.evaluate(() => !!document.querySelector("#c-view .s-pane .s-dev")), await p.text("#c-view .s-pane .s-tag"));
     check("developing happens on the Sketch copy, which is selected", await p.evaluate(() => {
       const t = document.querySelector("#c-strip .s-fillt"); return !!t && t.classList.contains("sel"); }), "Sketch tile not selected");
     await p.click('#c-strip img[data-i="-1"]');
     await p.waitForTimeout(100);
-    check("Live during a run shows the live canvas, not the developing picture",
-      /Live from Photoshop/.test(await p.text("#c-stage .s-tag")) && await p.evaluate(() => !document.querySelector("#c-view .s-dev")),
-      await p.text("#c-stage .s-tag"));
+    check("the sketch stays on the left while it's made",
+      /frozen/.test(await p.text("#c-view > .s-tag")) && await p.evaluate(() => !!document.querySelector("#c-view .s-pane .s-dev")),
+      await p.text("#c-view > .s-tag"));
     await p.click("#c-strip .s-fillt");
     await p.waitForTimeout(100);
     check("Sketch tile fills in with progress", /Creating · 50%/.test(await p.text("#c-strip")) &&
@@ -92,7 +92,7 @@ const frame = (n, name) => ({ path: "live://photoshop/" + n, name: name || "flat
     await p.ev("studio-result", { id: "j1", index: 0, of: 1, result: { path: "C:/o/r.png", name: "r.png", w: 1600, h: 900, preview: img } });
     await p.ev("studio-job", { id: "j1", state: "done", count: 1 });
     await p.waitForTimeout(100);
-    check("result is shown after the run", /Result/.test(await p.text("#c-stage .s-tag")), await p.text("#c-stage .s-tag"));
+    check("result is shown beside the sketch after the run", /Result/.test(await p.text("#c-view .s-pane .s-tag")) && !!(await p.evaluate(() => document.querySelector("#c-view > .s-fit .sk-base"))), await p.text("#c-view .s-pane .s-tag"));
     check("Live is back after the run", /Live/.test(await p.text("#c-strip")), await p.text("#c-strip"));
     check("card stays on the file after the run", /flat 2\.psd/.test(await p.text("#c-ps")) && /updates as you draw/.test(await p.text("#c-ps")), await p.text("#c-ps"));
     check("strip order: Live | Sketch, results", await p.evaluate(() => {
@@ -100,7 +100,7 @@ const frame = (n, name) => ({ path: "live://photoshop/" + n, name: name || "flat
       return kids.slice(0, 4).join(",");
     }) === "Live,|,Sketch,IMG", await p.evaluate(() => [...document.getElementById("c-strip").children].map((e) => e.className + ":" + (e.innerText || "").trim()).join(" ")));
     await p.click('#c-strip img[data-i="-2"]');
-    check("clicking Sketch shows the frozen sketch", /made from/.test(await p.text("#c-stage .s-tag")), await p.text("#c-stage .s-tag"));
+    check("clicking Sketch shows the frozen sketch", /made from/.test(await p.text("#c-view .s-pane .s-tag")), await p.text("#c-view .s-pane .s-tag"));
     check("strip has a divider after Live", await p.evaluate(() => {
       const w = document.querySelector("#c-strip .s-tilewrap");
       return !!(w && w.nextElementSibling && w.nextElementSibling.classList.contains("s-div"));
@@ -440,10 +440,16 @@ const frame = (n, name) => ({ path: "live://photoshop/" + n, name: name || "flat
   {
     const p = await open(browser, null, {});
     await p.evaluate(() => { window.pywebview.api.studio_results_for = (name) => Promise.resolve(/flat 2/.test(name) ? [
-      { path: "C:/o/Vistiq_flat 2_create_v1.png", name: "Vistiq_flat 2_create_v1.png", w: 2368, h: 1328, thumb: "data:image/gif;base64,R0lGODlhAQABAAAAACw=", made: 1 },
-      { path: "C:/o/Vistiq_flat 2_create_v2.png", name: "Vistiq_flat 2_create_v2.png", w: 2368, h: 1328, thumb: "data:image/gif;base64,R0lGODlhAQABAAAAACw=", made: 2 }] : []); });
+      { path: "C:/o/Vistiq_flat 2_create_v2.png", name: "Vistiq_flat 2_create_v2.png", w: 2368, h: 1328, thumb: "data:image/gif;base64,R0lGODlhAQABAAAAACw=", made: 2 },
+      { path: "C:/o/Vistiq_flat 2_create_v1.png", name: "Vistiq_flat 2_create_v1.png", w: 2368, h: 1328, thumb: "data:image/gif;base64,R0lGODlhAQABAAAAACw=", made: 1 }] : []); });
     await p.evaluate(() => { window.VS.S.create.results = []; window.VS.S.create.source = "image"; window.VS.setImage(window.VS.S.create, "src", { path: "C:/i/flat 2.png", name: "flat 2.png", w: 1600, h: 900, preview: "data:image/gif;base64,R0lGODlhAQABAAAAACw=" }); });
     await p.waitForTimeout(200);
+    await p.click("#c-strip [data-i='0']"); await p.waitForTimeout(80);
+    check("a result opens beside the picture; the layers stay", await p.evaluate(() => !!document.querySelector("#c-view .s-pane .s-res") && !!document.querySelector("#sk-panel")), "");
+    check("the result is about a fifth smaller than the picture", await p.evaluate(() => { const a = document.querySelector("#c-view > .s-fit").offsetHeight, b = document.querySelector("#c-view .s-pane").offsetHeight; return Math.abs(b / a - 0.8) < 0.03; }), "");
+    await p.keyboard.press("ArrowRight"); await p.waitForTimeout(80);
+    check("→ flips to the next result", await p.evaluate(() => window.VS.S.create.sel === 1), String(await p.evaluate(() => window.VS.S.create.sel)));
+    check("results run oldest first", await p.evaluate(() => window.VS.S.create.results.map((r) => r.made).join(",")) === "1,2", "");
     check("a picture's strip shows everything made from it", await p.evaluate(() => document.querySelectorAll("#c-strip img[data-i]:not([data-i='-1']):not([data-i='-2'])").length) === 2, await p.evaluate(() => document.getElementById("c-strip").innerHTML.slice(0, 200)));
     check("there is no Clear button any more", await p.evaluate(() => document.getElementById("c-clear").hidden), "still there");
     check("no page errors with the full strip", p.errors.length === 0, p.errors.join(" | "));

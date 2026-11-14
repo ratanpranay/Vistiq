@@ -419,7 +419,7 @@
   function stripData() {
     function one(p) {
       return p.results.slice(-80).map(function (r) {
-        return { path: r.path, name: r.name, w: r.w, h: r.h, srcKey: r.srcKey || "",
+        return { path: r.path, name: r.name, w: r.w, h: r.h, srcKey: r.srcKey || "", made: r.made || 0,
                  source: (r.meta && r.meta.source) || r.source || "", meta: r.meta ? { text: r.meta.text || "", preset: r.meta.preset || "" } : null };
       });
     }
@@ -441,7 +441,7 @@
       [[S.create, d.create], [S.ref, d.ref]].forEach(function (pair) {
         var p = pair[0], list = pair[1] || [];
         var back = list.map(function (r) {
-          return { path: r.path, name: r.name, w: r.w, h: r.h, srcKey: r.srcKey, source: r.source, meta: r.meta,
+          return { path: r.path, name: r.name, w: r.w, h: r.h, srcKey: r.srcKey, source: r.source, meta: r.meta, made: r.made || 0,
                    preview: BLANK, thin: true };
         });
         p.results = back.concat(p.results);         // anything made already this session stays after
@@ -744,7 +744,8 @@
         });
         return;
       }
-      if (pg === "create" && !inText && window.VSSketch && S.create.src && !current(S.create) && window.VSSketch.key(e)) e.preventDefault();
+      if (pg === "create" && !inText && (e.key === "ArrowLeft" || e.key === "ArrowRight") && !e.ctrlKey && !e.altKey) { e.preventDefault(); cycle(S.create, e.key === "ArrowRight" ? 1 : -1); return; }
+      if (pg === "create" && !inText && window.VSSketch && S.create.src && window.VSSketch.key(e)) e.preventDefault();
     });
     new ResizeObserver(function () { layout(); }).observe(document.body);
   }
@@ -1220,18 +1221,69 @@
     var a = api(); if (!a || !a.studio_results_for) return;
     a.studio_results_for(src.name || "").then(function (list) {
       if (!list || !list.length || keyOfSrc(p.src) !== keyOfSrc(src)) return;
-      var have = {}; p.results.forEach(function (r) { have[(r.path || "").toLowerCase()] = 1; });
+      var have = {}; p.results.forEach(function (r) { have[(r.path || "").toLowerCase()] = r; });
       var k = srcKey(src), add = [];
       list.forEach(function (r) {
-        if (have[r.path.toLowerCase()]) return;
+        var old = have[r.path.toLowerCase()];
+        if (old) { old.made = r.made; return; }             // the file's own time sets the order
         add.push({ path: r.path, name: r.name, w: r.w, h: r.h, preview: r.thumb || BLANK, thin: true, srcKey: k, meta: r.meta, made: r.made });
       });
-      if (!add.length) return;
       var selPath = p.sel >= 0 && p.results[p.sel] ? p.results[p.sel].path : null;
       p.results = p.results.concat(add).sort(function (a, b) { return (a.made || 0) - (b.made || 0); });
       if (selPath) p.sel = p.results.map(function (r) { return r.path; }).indexOf(selPath);
       render();
     });
+  }
+  // Create: the picture (with its layers) stays on the left; the chosen result
+  // (or the one being made) shows beside it, a fifth smaller. Click results or
+  // use the arrow keys to flip through them; the original never goes away.
+  function renderPane(id, p, c, origOf, view) {
+    var pane = view.querySelector(".s-pane"), what = null;
+    if (c) what = { k: "r:" + c.path + (c.thin ? ":thin" : ""), img: c.preview, w: c.w, h: c.h, res: true };
+    else if (p.job) what = { k: "job:" + (p.jobOrig || "").length, img: p.jobOrig || p.src.preview, w: p.src.w, h: p.src.h, job: true };
+    else if (origOf) what = { k: "orig:" + origOf.length, img: origOf, w: p.src.w, h: p.src.h };
+    if (!what) { if (pane) { pane.remove(); layout(); } return; }
+    if (!pane) { pane = document.createElement("div"); pane.className = "s-pane"; view.appendChild(pane); }
+    if (pane.getAttribute("data-k") !== what.k) {
+      pane.setAttribute("data-k", what.k); pane.setAttribute("data-w", what.w); pane.setAttribute("data-h", what.h);
+      var mine = p.results.map(function (r, i) { return r.srcKey === srcKey(p.src) ? i : -1; }).filter(function (i) { return i >= 0; });
+      var n = c ? mine.indexOf(p.sel) + 1 : 0;
+      pane.innerHTML = '<div class="s-pfit"><img class="' + (what.res ? "s-res" : "") + '" src="' + what.img + '" alt=""></div>' +
+        '<span class="s-tag">' + (what.res ? "Result" + (n ? " " + n + " of " + mine.length : "") + " · ← → to flip through" : what.job ? "Making…" : "Sketch these were made from") + "</span>" +
+        (what.res ? '<div class="s-ra">' + '<button type="button" data-ra="add" title="Put this result on a layer over your picture">' + svg("plus") + "Add</button>" +
+          '<button type="button" data-ra="export" title="Save as PNG or JPEG">' + svg("download") + "Export</button></div>" : "");
+      layout();
+    }
+    // While making: the sketch blurred, the steps coming through, a progress ring and the stage.
+    var pf = pane.querySelector(".s-pfit");
+    pf.classList.toggle("s-loading", !!what.job);
+    var dev = pf.querySelector(".s-dev");
+    if (what.job && p.preview) {
+      if (!dev) { dev = document.createElement("img"); dev.className = "s-dev"; pf.appendChild(dev); }
+      if (dev.getAttribute("src") !== p.preview) dev.setAttribute("src", p.preview);
+      dev.style.opacity = Math.min(1, 0.35 + 0.13 * (p.previewN || 1));
+    } else if (dev) dev.remove();
+    var ring = pane.querySelector(".s-pring"), busy = pane.querySelector(".s-busy");
+    if (what.job) {
+      if (!ring) { ring = document.createElement("div"); ring.className = "s-pring";
+        ring.innerHTML = '<svg viewBox="0 0 48 48"><circle cx="24" cy="24" r="20" class="bg"/><circle cx="24" cy="24" r="20" class="fg"/></svg><b></b>'; pane.appendChild(ring); }
+      var fr = Math.max(0.02, p.frac || 0);
+      ring.querySelector(".fg").style.strokeDashoffset = String(125.7 * (1 - fr));
+      ring.querySelector("b").textContent = Math.round(fr * 100) + "%";
+      pf.style.setProperty("--blur", Math.max(2, 18 - 2.5 * (p.previewN || 0)) + "px");
+    } else if (ring) ring.remove();
+    if (p.job) {
+      if (!busy) { busy = document.createElement("div"); busy.className = "s-busy"; busy.innerHTML = '<span></span><i><b></b></i>'; pane.appendChild(busy); }
+      busy.querySelector("span").textContent = ((S.engine.state === "starting" ? S.engine.message : p.stage) || "Working") + clock(p);
+      busy.querySelector("b").style.width = Math.round((p.frac || 0) * 100) + "%";
+    } else if (busy) busy.remove();
+  }
+  // Flip through this picture's results (← →).
+  function cycle(p, d) {
+    var mine = p.results.map(function (r, i) { return r.srcKey === srcKey(p.src) && !r.missing ? i : -1; }).filter(function (i) { return i >= 0; });
+    if (!mine.length) return;
+    var at = mine.indexOf(p.sel), next = at < 0 ? (d > 0 ? mine[0] : mine[mine.length - 1]) : mine[Math.max(0, Math.min(mine.length - 1, at + d))];
+    pickResult(p, next);
   }
   function keyOfSrc(src) { return src ? (src.live ? "live" : src.path) : ""; }
   // A word in the prompt that changes something locked: say so, with one click to unlock.
@@ -1337,7 +1389,9 @@
     // The big view.
     var view = $(id + "-view"), mode, key;
     var origOf = p.sel === -2 ? (p.job ? p.jobOrig : (p.results.length ? p.results[p.results.length - 1].orig : null)) : null;
-    if (c) { mode = "result"; key = c.path + (c.thin ? ":thin" : ""); }
+    var split = id === "c" && p.src && window.VSSketch;
+    if (split) { mode = "paint"; key = p.src.live || p.src.frozen ? "live" : p.src.path; }
+    else if (c) { mode = "result"; key = c.path + (c.thin ? ":thin" : ""); }
     else if (origOf) { mode = "orig"; key = origOf.length + ":" + origOf.slice(-40) + (p.job && p.preview ? ":dev" + (p.previewN || 0) : ""); }
     else if (id === "c" && p.src && !p.job && window.VSSketch) { mode = "paint"; key = p.src.live ? "live" : p.src.path; }
     else if (p.src && id === "c") { mode = "src"; key = (p.job && p.liveSrc ? p.liveSrc.path : p.src.path + (p.src.frozen ? ":frozen" : "")) + (S.psSel && S.useSel !== false ? ":sel" + S.psSel.preview.length + S.psSel.preview.slice(-24) : ""); }
@@ -1372,6 +1426,8 @@
       }
     }
     if (mode === "paint") {
+      var mtag = view.querySelector(":scope > .s-tag"), tt = p.src.live ? '<i class="s-ldot"></i>Live from ' + ((APPS[p.src.app] || APPS.photoshop)[1]) : p.src.frozen ? "Sketch · frozen while making" : "Original";
+      if (mtag && mtag.getAttribute("data-t") !== tt) { mtag.setAttribute("data-t", tt); mtag.innerHTML = tt; mtag.classList.toggle("s-livetag", !!p.src.live); }
       var bimg = view.querySelector(".sk-base"); if (bimg && bimg.getAttribute("src") !== p.src.preview) bimg.setAttribute("src", p.src.preview);
       // Photoshop's selection, tinted on the live picture.
       var fitP = view.querySelector(".s-fit"), ov = fitP && fitP.querySelector(".s-selov");
@@ -1380,6 +1436,7 @@
       if (ov && !want) ov.remove();
       else if (ov && ov.getAttribute("data-m") !== want.slice(-40)) { ov.setAttribute("data-m", want.slice(-40)); ov.style.webkitMaskImage = ov.style.maskImage = "url(" + want + ")"; }
     }
+    if (split) renderPane(id, p, c, origOf, view);
     var oldpb = view.querySelector(".s-paintbtn");
     if (oldpb && (p.area === "paint" || c || !p.src || p.job)) oldpb.remove();
     if (false) {
@@ -1391,9 +1448,9 @@
     }
     // While a picture is being made from the frozen sketch: it shows blurred,
     // with a progress ring in the middle that clears as the steps come in.
-    var fitEl = view.querySelector(".s-fit"), loading = !!(p.job && fitEl && mode === "orig");
+    var fitEl = split ? null : view.querySelector(".s-fit"), loading = !split && !!(p.job && fitEl && mode === "orig");
     if (fitEl) fitEl.classList.toggle("s-loading", loading);
-    var ring = view.querySelector(".s-pring");
+    var ring = split ? null : view.querySelector(".s-pring");
     if (loading) {
       if (!ring) { ring = document.createElement("div"); ring.className = "s-pring";
         ring.innerHTML = '<svg viewBox="0 0 48 48"><circle cx="24" cy="24" r="20" class="bg"/><circle cx="24" cy="24" r="20" class="fg"/></svg><b></b>'; view.appendChild(ring); }
@@ -1403,7 +1460,8 @@
       if (fitEl) fitEl.style.setProperty("--blur", Math.max(2, 18 - 2.5 * (p.previewN || 0)) + "px");
     } else if (ring) ring.remove();
     var busy = view.querySelector(".s-busy");
-    if (p.job) {
+    if (split) { if (busy) busy.remove(); busy = null; }
+    else if (p.job) {
       if (!busy) { busy = document.createElement("div"); busy.className = "s-busy"; busy.innerHTML = '<span></span><i><b></b></i>'; view.appendChild(busy); }
       busy.querySelector("span").textContent = ((S.engine.state === "starting" ? S.engine.message : p.stage) || "Working") + clock(p);
       busy.querySelector("b").style.width = Math.round((p.frac || 0) * 100) + "%";
@@ -1449,7 +1507,10 @@
       if (p.showEarlier) earlier.slice().reverse().forEach(function (i) { strip += '<span class="s-old">' + tile(i) + "</span>"; });
     }
     var sk = $(id + "-strip");
-    if (sk.getAttribute("data-h") !== strip) { sk.innerHTML = strip; sk.setAttribute("data-h", strip); }
+    if (sk.getAttribute("data-h") !== strip) {
+      sk.innerHTML = strip; sk.setAttribute("data-h", strip);
+      var on = sk.querySelector("img.sel,.s-miss.sel"); if (on && on.scrollIntoView) on.scrollIntoView({ block: "nearest", inline: "nearest" });
+    }
     layout();
   }
 
@@ -1542,15 +1603,25 @@
       if (v.querySelector(".s-tools")) { top = 64; bottom = 50; }
       var aH = H - top - bottom;
       var pad = /-view$/.test(v.id) ? 28 : 0;          // floating: a margin of canvas round the picture
-      var k = Math.min((W - 2 * pad) / w, (aH - 2 * pad) / h), fw = Math.round(w * k), fh = Math.round(h * k);
-      f.style.width = fw + "px"; f.style.height = fh + "px";
-      f.style.left = Math.round((W - fw) / 2) + "px"; f.style.top = Math.round(top + (aH - fh) / 2) + "px";
+      var pane = pad && v.querySelector(".s-pane"), GAP = 28;
+      if (pane) {
+        // Side by side: the picture, then the result a fifth smaller, centred together.
+        var pw = +pane.getAttribute("data-w") || w, ph = +pane.getAttribute("data-h") || h, r2 = 0.8 * h * pw / ph;
+        var k = Math.min((aH - 2 * pad) / h, (W - 2 * pad - GAP) / (w + r2)), fw = Math.round(w * k), fh = Math.round(h * k);
+        var qw = Math.round(r2 * k), qh = Math.round(0.8 * fh), x0 = Math.round((W - fw - GAP - qw) / 2);
+        f.style.width = fw + "px"; f.style.height = fh + "px"; f.style.left = x0 + "px"; f.style.top = Math.round(top + (aH - fh) / 2) + "px";
+        pane.style.left = (x0 + fw + GAP) + "px"; pane.style.top = Math.round(top + (aH - qh) / 2) + "px"; pane.style.width = qw + "px"; pane.style.height = qh + "px";
+      } else {
+        var k = Math.min((W - 2 * pad) / w, (aH - 2 * pad) / h), fw = Math.round(w * k), fh = Math.round(h * k);
+        f.style.width = fw + "px"; f.style.height = fh + "px";
+        f.style.left = Math.round((W - fw) / 2) + "px"; f.style.top = Math.round(top + (aH - fh) / 2) + "px";
+      }
       if (pad) zoom.apply(v, f, w, h);
       // The "Variation 1 of 2" pill sits on the picture, near its bottom edge.
       // Add / Export float at the picture's bottom-right corner.
-      var ra = pad && v.querySelector(".s-ra");
+      var ra = pad && v.querySelector(":scope > .s-ra");
       if (ra) { ra.style.left = "auto"; ra.style.right = Math.max(8, Math.round(W - (f.offsetLeft + fw) + 12)) + "px"; ra.style.top = Math.max(8, Math.round(f.offsetTop + fh - 46)) + "px"; }
-      var busy = pad && v.querySelector(".s-busy");
+      var busy = pad && v.querySelector(":scope > .s-busy");
       if (busy) { busy.style.bottom = "auto"; busy.style.top = Math.max(8, Math.round(f.offsetTop + fh - 52)) + "px"; }
     });
   }
