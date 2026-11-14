@@ -1003,6 +1003,7 @@
       progressHTML() +
       (st.mac ? '<div class="s-sec">This Mac</div><p class="s-hint">' + esc(st.mac.chip) + " · " + st.mac.ram + " GB memory · creates at up to " + st.mac.work_side + " px, upscales up to " + st.mac.max_side + " px" +
         (st.mac.can_generate ? "" : " · image generation needs 16 GB or more") + '</p><div class="s-list">' + fileRows(st.files) + selectRow + helperRow + "</div>" : "") +
+      (st.mac || !st.flux3 ? "" : '<div class="s-sec">Image model</div><p class="s-hint">FLUX 3 Klein, the newest model: results at about 2736 × 1536 with clean, refined lines and textures, about a minute a picture. Below is the earlier model, used if FLUX 3 is removed.</p>') +
       (st.mac ? "" : '<div class="s-sec">Quality</div><div class="s-tiers">' + ["best", "good"].map(function (k) {
         var tt = st.chosen || st.tier;
         return '<button type="button" class="s-tier' + (tt === k ? " on" : "") + '" data-su="tier" data-t="' + k + '"' + (running ? " disabled" : "") + "><b>" + TIER_TEXT[k][0] +

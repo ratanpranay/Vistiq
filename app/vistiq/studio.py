@@ -813,9 +813,13 @@ def _klein_base(settings, keep):
 
 
 F3_STEPS = 16          # the distilled FLUX 3 Klein's own setting (BFL's templates)
+# Results at 4 megapixels (about 2736x1536), references read at 2: cleaner
+# lines and textures for about a minute a picture (tested on the user's PC).
+F3_MP = 4.0
+F3_REF_MP = 2.0
 
 
-def flux3_prompt(settings, images, text, megapixels=2.0, seed=None, steps=F3_STEPS, frame=0):
+def flux3_prompt(settings, images, text, megapixels=F3_MP, seed=None, steps=F3_STEPS, frame=0, ref_mp=F3_REF_MP):
     """FLUX 3 Image Klein: an edit of image 1, with any further images as
     references (colours, materials, style). Built like BFL's own template,
     minus the prompt upsampler. `frame` is the image whose size the result takes."""
@@ -831,14 +835,14 @@ def flux3_prompt(settings, images, text, megapixels=2.0, seed=None, steps=F3_STE
         "21": {"class_type": "CLIPTextEncode", "inputs": {"text": "", "clip": ["2", 0]}},
         "24": {"class_type": "ReferenceMultiLatent",
                "inputs": {"positive": ["20", 0], "negative": ["21", 0], "vae": ["3", 0],
-                          "resolution": "resize", "resolution.megapixels": mp}},
+                          "resolution": "resize", "resolution.megapixels": float(ref_mp)}},
     }
     for i, im in enumerate(images):
         load, scale = str(10 + 2 * i), str(11 + 2 * i)
         p[load] = {"class_type": "LoadImage", "inputs": {"image": im}}
         p[scale] = {"class_type": "ImageScaleToTotalPixels",
-                    "inputs": {"image": [load, 0], "upscale_method": "lanczos", "megapixels": mp,
-                               "resolution_steps": 16}}
+                    "inputs": {"image": [load, 0], "upscale_method": "lanczos",
+                               "megapixels": mp if i == frame else float(ref_mp), "resolution_steps": 16}}
         p["24"]["inputs"]["images.image%d" % i] = [scale, 0]
     p.update({
         "30": {"class_type": "GetImageSize", "inputs": {"image": [str(11 + 2 * frame), 0]}},
@@ -861,7 +865,9 @@ def flux3_prompt(settings, images, text, megapixels=2.0, seed=None, steps=F3_STE
 def create_prompt(settings, image, text, keep=0.8, megapixels=2.0, seed=None, steps=STEPS):
     """Klein edit of one image (render or sketch)."""
     if flux3_ready(settings):
-        return flux3_prompt(settings, [image], text, megapixels, seed)
+        # "Follow my sketch" at the top: the sketch goes in twice, which holds
+        # the design tighter (tested: the rear and front stayed as drawn).
+        return flux3_prompt(settings, [image, image] if keep >= 0.95 else [image], text, seed=seed)
     p, model = _klein_base(settings, keep)
     p.update({
         "10": {"class_type": "LoadImage", "inputs": {"image": image}},
@@ -892,7 +898,7 @@ def reference_prompt(settings, design, reference, text, mode="camera", keep=0.8,
     """Klein with two reference images: image 1 your design, image 2 the reference."""
     if flux3_ready(settings):
         # FLUX 3 reads both pictures as they are (no line extraction needed).
-        return flux3_prompt(settings, [design, reference], text, megapixels, seed,
+        return flux3_prompt(settings, [design, reference], text, seed=seed,
                             frame=1 if mode == "camera" else 0)
     # For CMF and style the design goes in as its lines only (edges of the
     # picture): the model then has to colour the lines from the reference,

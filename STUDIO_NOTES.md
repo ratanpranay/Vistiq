@@ -1,5 +1,13 @@
 # Vistiq Studio (test build)
 
+## 0.3.10
+- FLUX 3 Klein, the newest image model, is used automatically when its two files are in Models (the earlier model stays as fallback). Results at about 2736 × 1536 with clean, refined lines and textures, about a minute a picture.
+- Reference: colours and materials (CMF) or the whole look (Style) come over from a reference picture while your design stays.
+- "Follow my sketch" at the top holds your design tighter.
+- Light by default, picked from your prompt: interiors by day (soft skylight shaping every volume) or at night (the car's own lights lead), exteriors in a clean grey studio. Your own words (sunset, overcast…) win.
+- A clean finish on every result: highlights never burn out, shadows keep detail, colours stay true.
+- Watch it develop now runs on the Sketch copy; Live keeps showing your canvas during a run.
+
 ## 0.3.9
 - Photoshop: your file appears right away when you connect or start Studio (panel 1.0.6 keeps an open line to Studio; restart Photoshop once).
 - Watch it develop: the picture forms over your sketch step by step while creating.

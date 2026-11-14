@@ -624,6 +624,13 @@ class Flux3(unittest.TestCase):
             self.assertEqual(r["30"]["inputs"]["image"], ["11", 0])   # the result takes the design's frame
             cam = studio.reference_prompt(s, "a.png", "b.png", "x", "camera")
             self.assertEqual(cam["30"]["inputs"]["image"], ["13", 0])  # camera: the reference's frame
+            self.assertEqual(p["11"]["inputs"]["megapixels"], 4.0)    # results at 4 MP
+            self.assertEqual(r["13"]["inputs"]["megapixels"], 2.0)    # references read at 2
+            self.assertEqual(cam["13"]["inputs"]["megapixels"], 4.0)
+            held = studio.create_prompt(s, "a.png", "x", keep=1.0)    # design hold: the sketch twice
+            self.assertEqual(held["24"]["inputs"]["images.image1"], ["13", 0])
+            self.assertEqual(held["12"]["inputs"]["image"], "a.png")
+            self.assertNotIn("images.image1", studio.create_prompt(s, "a.png", "x", keep=0.8)["24"]["inputs"])
 
     def test_reference_words(self):
         t = studio.build_text("cmf", "", studio.REF_PRESETS, f3=True)
