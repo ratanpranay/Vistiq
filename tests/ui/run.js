@@ -74,14 +74,14 @@ const frame = (n, name) => ({ path: "live://photoshop/" + n, name: name || "flat
     await p.ev("studio-preview", { id: "j1", index: 0, preview: img });
     await p.ev("studio-preview", { id: "j1", index: 0, preview: img });
     await p.waitForTimeout(100);
-    check("the picture develops beside the sketch", /Making/.test(await p.text("#c-view .s-pane .s-tag")) &&
+    check("the picture develops in the main view", /Making/.test(await p.text("#c-view .s-pane .s-tag")) &&
       await p.evaluate(() => !!document.querySelector("#c-view .s-pane .s-dev")), await p.text("#c-view .s-pane .s-tag"));
     check("developing happens on the Sketch copy, which is selected", await p.evaluate(() => {
       const t = document.querySelector("#c-strip .s-fillt"); return !!t && t.classList.contains("sel"); }), "Sketch tile not selected");
     await p.click('#c-strip img[data-i="-1"]');
     await p.waitForTimeout(100);
-    check("the sketch stays on the left while it's made",
-      /frozen/.test(await p.text("#c-view > .s-tag")) && await p.evaluate(() => !!document.querySelector("#c-view .s-pane .s-dev")),
+    check("Live during a run shows the live canvas, not the developing picture",
+      /Live from Photoshop/.test(await p.text("#c-view > .s-tag")) && await p.evaluate(() => !document.querySelector("#c-view .s-pane")),
       await p.text("#c-view > .s-tag"));
     await p.click("#c-strip .s-fillt");
     await p.waitForTimeout(100);
@@ -92,7 +92,7 @@ const frame = (n, name) => ({ path: "live://photoshop/" + n, name: name || "flat
     await p.ev("studio-result", { id: "j1", index: 0, of: 1, result: { path: "C:/o/r.png", name: "r.png", w: 1600, h: 900, preview: img } });
     await p.ev("studio-job", { id: "j1", state: "done", count: 1 });
     await p.waitForTimeout(100);
-    check("result is shown beside the sketch after the run", /Result/.test(await p.text("#c-view .s-pane .s-tag")) && !!(await p.evaluate(() => document.querySelector("#c-view > .s-fit .sk-base"))), await p.text("#c-view .s-pane .s-tag"));
+    check("result is shown after the run", /Result/.test(await p.text("#c-view .s-pane .s-tag")) && !!(await p.evaluate(() => document.querySelector("#c-view > .s-fit .sk-base"))), await p.text("#c-view .s-pane .s-tag"));
     check("Live is back after the run", /Live/.test(await p.text("#c-strip")), await p.text("#c-strip"));
     check("card stays on the file after the run", /flat 2\.psd/.test(await p.text("#c-ps")) && /updates as you draw/.test(await p.text("#c-ps")), await p.text("#c-ps"));
     check("strip order: Live | Sketch, results", await p.evaluate(() => {
@@ -445,10 +445,13 @@ const frame = (n, name) => ({ path: "live://photoshop/" + n, name: name || "flat
     await p.evaluate(() => { window.VS.S.create.results = []; window.VS.S.create.source = "image"; window.VS.setImage(window.VS.S.create, "src", { path: "C:/i/flat 2.png", name: "flat 2.png", w: 1600, h: 900, preview: "data:image/gif;base64,R0lGODlhAQABAAAAACw=" }); });
     await p.waitForTimeout(200);
     await p.click("#c-strip [data-i='0']"); await p.waitForTimeout(80);
-    check("a result opens beside the picture; the layers stay", await p.evaluate(() => !!document.querySelector("#c-view .s-pane .s-res") && !!document.querySelector("#sk-panel")), "");
-    check("the result is about a fifth smaller than the picture", await p.evaluate(() => { const a = document.querySelector("#c-view > .s-fit").offsetHeight, b = document.querySelector("#c-view .s-pane").offsetHeight; return Math.abs(b / a - 0.8) < 0.03; }), "");
+    check("a result shows in the main view; the layers stay", await p.evaluate(() => !!document.querySelector("#c-view .s-pane .s-res") && !!document.querySelector("#sk-panel")), "");
+    check("the result covers the picture exactly", await p.evaluate(() => { const a = document.querySelector("#c-view > .s-fit").getBoundingClientRect(), b = document.querySelector("#c-view .s-pane").getBoundingClientRect(); return Math.abs(a.width - b.width) < 2 && Math.abs(a.left - b.left) < 2; }), "");
     await p.keyboard.press("ArrowRight"); await p.waitForTimeout(80);
     check("→ flips to the next result", await p.evaluate(() => window.VS.S.create.sel === 1), String(await p.evaluate(() => window.VS.S.create.sel)));
+    await p.click("#c-strip [data-i='1']"); await p.waitForTimeout(80);
+    check("clicking the chosen thumbnail again shows your picture", await p.evaluate(() => window.VS.S.create.sel === -1 && !document.querySelector("#c-view .s-pane")), "");
+    check("no + Another", await p.evaluate(() => !document.querySelector("#c-strip .s-more")), "");
     check("results run oldest first", await p.evaluate(() => window.VS.S.create.results.map((r) => r.made).join(",")) === "1,2", "");
     check("a picture's strip shows everything made from it", await p.evaluate(() => document.querySelectorAll("#c-strip img[data-i]:not([data-i='-1']):not([data-i='-2'])").length) === 2, await p.evaluate(() => document.getElementById("c-strip").innerHTML.slice(0, 200)));
     check("there is no Clear button any more", await p.evaluate(() => document.getElementById("c-clear").hidden), "still there");

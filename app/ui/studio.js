@@ -461,6 +461,7 @@
   var BLANK = "data:image/gif;base64,R0lGODlhAQABAIAAAO7v8wAAACH5BAAAAAAALAAAAAABAAEAAAICRAEAOw==";
   // Clicking a result kept from an earlier session reads the full picture from its folder.
   function pickResult(p, i) {
+    if (i >= 0 && i === p.sel && p === S.create) { p.sel = -1; render(); return; }
     var r = i >= 0 ? p.results[i] : null;
     if (!r || !r.thin) { p.sel = i; render(); return; }
     api().studio_image(r.path).then(function (info) {
@@ -531,7 +532,8 @@
     // Create works on the sketch as it is now: freeze a copy. Live keeps
     // updating in the background and comes back when the run is done.
     p.jobOrig = p.src.preview; p.preview = null; p.previewN = 0;
-    if (p.src.live) { p.src = Object.assign({}, p.src, { live: false, frozen: true }); p.sel = -2; }
+    if (p.src.live) p.src = Object.assign({}, p.src, { live: false, frozen: true });
+    p.sel = -2;
     api().studio_run(j).then(function (jid) {
       if (jid) { if (p.job === "starting") p.job = jid; } else { p.job = null; p.pending = 0; refresh(); }
       render();
@@ -648,6 +650,10 @@
       // Hold on a result to see what it started from.
       var view = $(id + "-view");
       zoom.wire(view);
+      // Layers and sketch tools always work: touching them while a result shows goes back to your picture.
+      if (id === "c") view.addEventListener("pointerdown", function (e) {
+        if (p.sel !== -1 && view.querySelector(".s-pane") && e.target.closest(".sk-bar,.sk-opts,.sk-panel")) { p.sel = -1; render(); }
+      }, true);
       view.addEventListener("pointerdown", function (e) { if (e.button !== 0 || zoom.space || zoom.pan || e.target.closest(".s-zpill,.s-paintbtn,.s-ra")) return; var img = view.querySelector("img.s-res"), c = current(p), o = (c && c.orig) || (p.src && p.src.preview); if (img && o) { img.src = o; view.classList.add("hold"); } });
       var up = function () { var img = view.querySelector("img.s-res"), c = current(p); if (img && c) img.src = c.preview; };
       view.addEventListener("pointerup", up); view.addEventListener("pointerleave", up);
@@ -1239,9 +1245,11 @@
   // use the arrow keys to flip through them; the original never goes away.
   function renderPane(id, p, c, origOf, view) {
     var pane = view.querySelector(".s-pane"), what = null;
+    var hideTag = function (on) { var mt = view.querySelector(":scope > .s-tag"); if (mt) mt.hidden = on; };
     if (c) what = { k: "r:" + c.path + (c.thin ? ":thin" : ""), img: c.preview, w: c.w, h: c.h, res: true };
-    else if (p.job) what = { k: "job:" + (p.jobOrig || "").length, img: p.jobOrig || p.src.preview, w: p.src.w, h: p.src.h, job: true };
+    else if (p.job && p.sel === -2) what = { k: "job:" + (p.jobOrig || "").length, img: p.jobOrig || p.src.preview, w: p.src.w, h: p.src.h, job: true };
     else if (origOf) what = { k: "orig:" + origOf.length, img: origOf, w: p.src.w, h: p.src.h };
+    var mt = view.querySelector(":scope > .s-tag"); if (mt) mt.hidden = !!what;
     if (!what) { if (pane) { pane.remove(); layout(); } return; }
     if (!pane) { pane = document.createElement("div"); pane.className = "s-pane"; view.appendChild(pane); }
     if (pane.getAttribute("data-k") !== what.k) {
@@ -1249,7 +1257,7 @@
       var mine = p.results.map(function (r, i) { return r.srcKey === srcKey(p.src) ? i : -1; }).filter(function (i) { return i >= 0; });
       var n = c ? mine.indexOf(p.sel) + 1 : 0;
       pane.innerHTML = '<div class="s-pfit"><img class="' + (what.res ? "s-res" : "") + '" src="' + what.img + '" alt=""></div>' +
-        '<span class="s-tag">' + (what.res ? "Result" + (n ? " " + n + " of " + mine.length : "") + " · ← → to flip through" : what.job ? "Making…" : "Sketch these were made from") + "</span>" +
+        '<span class="s-tag">' + (what.res ? "Result" + (n ? " " + n + " of " + mine.length : "") + " · click it again for your picture" : what.job ? "Making…" : "Sketch these were made from") + "</span>" +
         (what.res ? '<div class="s-ra">' + '<button type="button" data-ra="add" title="Put this result on a layer over your picture">' + svg("plus") + "Add</button>" +
           '<button type="button" data-ra="export" title="Save as PNG or JPEG">' + svg("download") + "Export</button></div>" : "");
       layout();
@@ -1263,7 +1271,7 @@
       if (dev.getAttribute("src") !== p.preview) dev.setAttribute("src", p.preview);
       dev.style.opacity = Math.min(1, 0.35 + 0.13 * (p.previewN || 1));
     } else if (dev) dev.remove();
-    var ring = pane.querySelector(".s-pring"), busy = pane.querySelector(".s-busy");
+    var ring = pane.querySelector(".s-pring");
     if (what.job) {
       if (!ring) { ring = document.createElement("div"); ring.className = "s-pring";
         ring.innerHTML = '<svg viewBox="0 0 48 48"><circle cx="24" cy="24" r="20" class="bg"/><circle cx="24" cy="24" r="20" class="fg"/></svg><b></b>'; pane.appendChild(ring); }
@@ -1272,11 +1280,6 @@
       ring.querySelector("b").textContent = Math.round(fr * 100) + "%";
       pf.style.setProperty("--blur", Math.max(2, 18 - 2.5 * (p.previewN || 0)) + "px");
     } else if (ring) ring.remove();
-    if (p.job) {
-      if (!busy) { busy = document.createElement("div"); busy.className = "s-busy"; busy.innerHTML = '<span></span><i><b></b></i>'; pane.appendChild(busy); }
-      busy.querySelector("span").textContent = ((S.engine.state === "starting" ? S.engine.message : p.stage) || "Working") + clock(p);
-      busy.querySelector("b").style.width = Math.round((p.frac || 0) * 100) + "%";
-    } else if (busy) busy.remove();
   }
   // Flip through this picture's results (← →).
   function cycle(p, d) {
@@ -1426,9 +1429,11 @@
       }
     }
     if (mode === "paint") {
-      var mtag = view.querySelector(":scope > .s-tag"), tt = p.src.live ? '<i class="s-ldot"></i>Live from ' + ((APPS[p.src.app] || APPS.photoshop)[1]) : p.src.frozen ? "Sketch · frozen while making" : "Original";
-      if (mtag && mtag.getAttribute("data-t") !== tt) { mtag.setAttribute("data-t", tt); mtag.innerHTML = tt; mtag.classList.toggle("s-livetag", !!p.src.live); }
-      var bimg = view.querySelector(".sk-base"); if (bimg && bimg.getAttribute("src") !== p.src.preview) bimg.setAttribute("src", p.src.preview);
+      var showLive = p.job && p.liveSrc && p.sel === -1 && p.src.frozen;     // Live tile during a run: the live canvas
+      var mtag = view.querySelector(":scope > .s-tag"), tt = p.src.live || showLive ? '<i class="s-ldot"></i>Live from ' + ((APPS[p.src.app] || APPS.photoshop)[1]) : p.src.frozen ? "Sketch · frozen while making" : "Original";
+      if (mtag && mtag.getAttribute("data-t") !== tt) { mtag.setAttribute("data-t", tt); mtag.innerHTML = tt; mtag.classList.toggle("s-livetag", !!(p.src.live || showLive)); }
+      var bsrc = showLive ? p.liveSrc.preview : p.src.preview;
+      var bimg = view.querySelector(".sk-base"); if (bimg && bimg.getAttribute("src") !== bsrc) bimg.setAttribute("src", bsrc);
       // Photoshop's selection, tinted on the live picture.
       var fitP = view.querySelector(".s-fit"), ov = fitP && fitP.querySelector(".s-selov");
       var want = p.src.live && S.psSel && S.useSel !== false ? S.psSel.preview : "";
@@ -1460,8 +1465,7 @@
       if (fitEl) fitEl.style.setProperty("--blur", Math.max(2, 18 - 2.5 * (p.previewN || 0)) + "px");
     } else if (ring) ring.remove();
     var busy = view.querySelector(".s-busy");
-    if (split) { if (busy) busy.remove(); busy = null; }
-    else if (p.job) {
+    if (p.job) {
       if (!busy) { busy = document.createElement("div"); busy.className = "s-busy"; busy.innerHTML = '<span></span><i><b></b></i>'; view.appendChild(busy); }
       busy.querySelector("span").textContent = ((S.engine.state === "starting" ? S.engine.message : p.stage) || "Working") + clock(p);
       busy.querySelector("b").style.width = Math.round((p.frac || 0) * 100) + "%";
@@ -1500,7 +1504,6 @@
     }
     mine.forEach(function (i) { strip += tile(i); });
     for (var k = 0; k < (p.job ? p.pending : 0); k++) strip += '<span class="s-ph"></span>';
-    if (mine.length && !p.job) strip += '<button type="button" class="s-more">+ Another</button>';
     if (earlier.length) {
       if (mine.length || p.job) strip += '<span class="s-div" aria-hidden="true"></span>';
       strip += '<button type="button" class="s-earlier">' + (p.showEarlier ? "Hide earlier" : "Earlier · " + earlier.length) + "</button>";
@@ -1603,20 +1606,13 @@
       if (v.querySelector(".s-tools")) { top = 64; bottom = 50; }
       var aH = H - top - bottom;
       var pad = /-view$/.test(v.id) ? 28 : 0;          // floating: a margin of canvas round the picture
-      var pane = pad && v.querySelector(".s-pane"), GAP = 28;
-      if (pane) {
-        // Side by side: the picture, then the result a fifth smaller, centred together.
-        var pw = +pane.getAttribute("data-w") || w, ph = +pane.getAttribute("data-h") || h, r2 = 0.8 * h * pw / ph;
-        var k = Math.min((aH - 2 * pad) / h, (W - 2 * pad - GAP) / (w + r2)), fw = Math.round(w * k), fh = Math.round(h * k);
-        var qw = Math.round(r2 * k), qh = Math.round(0.8 * fh), x0 = Math.round((W - fw - GAP - qw) / 2);
-        f.style.width = fw + "px"; f.style.height = fh + "px"; f.style.left = x0 + "px"; f.style.top = Math.round(top + (aH - fh) / 2) + "px";
-        pane.style.left = (x0 + fw + GAP) + "px"; pane.style.top = Math.round(top + (aH - qh) / 2) + "px"; pane.style.width = qw + "px"; pane.style.height = qh + "px";
-      } else {
-        var k = Math.min((W - 2 * pad) / w, (aH - 2 * pad) / h), fw = Math.round(w * k), fh = Math.round(h * k);
-        f.style.width = fw + "px"; f.style.height = fh + "px";
-        f.style.left = Math.round((W - fw) / 2) + "px"; f.style.top = Math.round(top + (aH - fh) / 2) + "px";
-      }
+      var k = Math.min((W - 2 * pad) / w, (aH - 2 * pad) / h), fw = Math.round(w * k), fh = Math.round(h * k);
+      f.style.width = fw + "px"; f.style.height = fh + "px";
+      f.style.left = Math.round((W - fw) / 2) + "px"; f.style.top = Math.round(top + (aH - fh) / 2) + "px";
       if (pad) zoom.apply(v, f, w, h);
+      // A result shown over the picture: same place, same size, same zoom.
+      var pane = pad && v.querySelector(".s-pane");
+      if (pane) { ["left", "top", "width", "height", "transform", "transformOrigin"].forEach(function (q) { pane.style[q] = f.style[q]; }); }
       // The "Variation 1 of 2" pill sits on the picture, near its bottom edge.
       // Add / Export float at the picture's bottom-right corner.
       var ra = pad && v.querySelector(":scope > .s-ra");
