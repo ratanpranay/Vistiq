@@ -627,3 +627,6 @@ body.s-space .s-view,body.s-space .s-view *{cursor:grab!important}
 .s-tools button[disabled]{opacity:.4}
 .s-tools .m-ico{margin-right:5px;vertical-align:-3px}
 body.studio .s-view>.s-tools,body.studio .s-view>.s-tag,body.studio .s-view>.s-paintbtn,body.studio .s-view>.s-maskhint,body.studio .s-view>.s-busy,body.studio .s-view>.s-pring{z-index:5}
+/* the brush ring always shows over the picture, with a small crosshair so the pointer is never lost */
+body.studio .s-view>.s-ring{z-index:6}
+.s-fit canvas{cursor:crosshair}
