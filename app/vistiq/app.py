@@ -280,6 +280,47 @@ class Api:
         grabbed.save(path, "PNG")
         return _image_info(path)
 
+    # -- the board: one infinite canvas of tiles, saved next to the settings --
+
+    def studio_board_get(self):
+        try:
+            with open(os.path.join(data_dir(), "board.json"), encoding="utf-8") as fh:
+                return json.load(fh)
+        except Exception:
+            return None
+
+    def studio_board_save(self, board):
+        path = os.path.join(data_dir(), "board.json")
+        tmp = path + ".tmp"
+        try:
+            with open(tmp, "w", encoding="utf-8") as fh:
+                json.dump(board, fh)
+            os.replace(tmp, path)
+            return True
+        except Exception as exc:
+            log.warning("couldn't save the board: %s", exc)
+            return False
+
+    def studio_thumb(self, path):
+        """A small picture for a board tile (a full preview is too big for many tiles)."""
+        try:
+            path = self._app.studio.real_path(path)
+            if not os.path.isfile(path):
+                return None
+            return imaging.preview_small(path)
+        except Exception:
+            return None
+
+    def studio_save_copy(self, path):
+        """Save a copy of a picture where the user picks (board → Save a copy)."""
+        path = self._app.studio.real_path(path)
+        picked = self._app.window.create_file_dialog(webview.SAVE_DIALOG, save_filename=os.path.basename(path))
+        if not picked:
+            return None
+        dest = picked if isinstance(picked, str) else picked[0]
+        shutil.copyfile(path, dest)
+        return os.path.basename(dest)
+
     def studio_drop_target(self, target):
         self._app.drop_target = target or ""
 

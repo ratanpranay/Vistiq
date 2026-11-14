@@ -51,6 +51,17 @@ def has_alpha(path):
         return False
 
 
+def preview_small(source, side=520):
+    """A small JPEG data URL (board tiles)."""
+    im = Image.open(source)
+    im.draft("RGB", (side * 2, side * 2))
+    im = ImageOps.exif_transpose(im).convert("RGB")
+    im.thumbnail((side, side), Image.LANCZOS)
+    buf = io.BytesIO()
+    im.save(buf, "JPEG", quality=84)
+    return "data:image/jpeg;base64," + base64.b64encode(buf.getvalue()).decode("ascii")
+
+
 def preview(source):
     """A JPEG data URL small enough for the window, from a path or bytes."""
     im = Image.open(io.BytesIO(source) if isinstance(source, (bytes, bytearray)) else source)

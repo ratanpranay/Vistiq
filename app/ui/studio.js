@@ -11,6 +11,7 @@
   function short(n) { return String(n || "").replace(/^Vistiq_/, "").replace(/\.(png|jpe?g|webp)$/i, ""); }
 
   var ICON = {
+    board: '<rect x="3" y="3" width="8" height="6" rx="1.5"/><rect x="13" y="8" width="8" height="6" rx="1.5"/><rect x="3" y="14" width="8" height="7" rx="1.5"/><path d="M11 6h2v5M11 17h4v-3"/>',
     create: '<path d="M4 20l4-1 11-11-3-3L5 16z"/><path d="M14 6l3 3"/>',
     reference: '<rect x="3" y="5" width="8" height="14" rx="2"/><rect x="13" y="5" width="8" height="14" rx="2"/>',
     upscale: '<path d="M12 19V5M5 12l7-7 7 7"/>',
@@ -84,12 +85,14 @@
 
   function stage(id, extra) {
     return '<section class="s-stage" id="' + id + '-stage">' +
+      '<button type="button" class="s-back" id="' + id + '-back">← Board</button>' +
       '<div class="s-ttl" id="' + id + '-ttl"></div>' +
       (extra || "") +
       '<div class="s-view" id="' + id + '-view"></div>' +
       // Under the picture: the results, then what to do with the chosen one.
       '<div class="s-under"><div class="s-vars" id="' + id + '-strip"></div>' +
       '<div class="s-acts2"><button type="button" class="s-btn" id="' + id + '-reveal" disabled>Show in folder</button>' +
+      '<button type="button" class="s-btn" id="' + id + '-toboard" disabled>Add to board</button>' +
       '<button type="button" class="s-btn" id="' + id + '-tops" hidden>' + '<span class="m-ico ps">Ps</span>To Photoshop</button>' +
       '<button type="button" class="s-btn p" id="' + id + '-up" disabled>Upscale this</button>' +
       '<button type="button" class="s-btn s-x" id="' + id + '-clear" title="Clear" aria-label="Clear" hidden>×</button></div></div>' +
@@ -103,7 +106,7 @@
     var nav = document.createElement("nav");
     nav.className = "s-nav";
     nav.innerHTML = '<div class="s-logo" title="Vistiq Studio"><img src="assets/mark.png" alt=""></div>' +
-      ["create", "reference", "upscale", "library"].map(function (p) {
+      ["board", "create", "reference", "upscale", "library"].map(function (p) {
         return '<button type="button" data-page="' + p + '">' + svg(p) + p.charAt(0).toUpperCase() + p.slice(1) + "</button>";
       }).join("") + '<div class="s-sp"></div><button type="button" data-page="settings">' + svg("settings") + "Settings</button>";
     document.body.insertBefore(nav, document.body.firstChild);
@@ -168,23 +171,28 @@
     var gear = $("open-settings"); if (gear) gear.hidden = true;
     var sup = $("support"); if (sup) document.body.appendChild(sup);
 
+    var board = document.createElement("div");
+    board.className = "s-page"; board.id = "p-board";
+    document.body.appendChild(board);
+    if (window.VSBoard) window.VSBoard.build(board);
+
     wire();
     painter.init();
-    go(load("page", "create"));
+    go("board");             // Studio always opens on the board
     refresh();
   }
 
   // ------------------------------------------------------------------ actions
 
   function go(p) {
-    if (["create", "reference", "upscale", "library", "settings"].indexOf(p) < 0) p = "create";
+    if (["board", "create", "reference", "upscale", "library", "settings"].indexOf(p) < 0) p = "board";
     S.page = p; keep("page", p);
     document.body.setAttribute("data-page", p);
     document.querySelectorAll(".s-nav button").forEach(function (b) { b.classList.toggle("on", b.getAttribute("data-page") === p); });
     document.querySelectorAll(".s-page").forEach(function (el) { el.classList.toggle("on", el.id === "p-" + p); });
     if (api()) api().studio_drop_target(p);
     if (p === "library") loadLibrary();
-    if (p === "settings" || p === "create" || p === "reference") refresh();
+    if (p === "settings" || p === "create" || p === "reference" || p === "board") refresh();
     markSizes();
     var eg = $("s-up") && $("s-up").firstElementChild;
     if (eg && S.status && S.status.mac && eg.querySelector("#keep-engine")) eg.hidden = true;
@@ -213,6 +221,8 @@
   function setImage(p, slot, info) {
     if (!info) return;
     p[slot] = info;
+    if (p === S.create && slot === "src" && !info.live) S.boardFrom = null;   // board.js sets it after, when opened from a tile
+    if (p === S.ref && slot === "src") S.boardFromRef = null;
     if (p === S.create && slot === "src") {
       if (info.live) p.liveSrc = info; else { p.imageSrc = info; p.source = "image"; }
       var same = info.live && p.liveSize === info.w + "x" + info.h;
@@ -328,6 +338,12 @@
         render();
       });
       $(id + "-reveal").addEventListener("click", function () { var c = current(p); if (c) api().reveal(c.path); });
+      $(id + "-back").addEventListener("click", function () { go("board"); });
+      $(id + "-toboard").addEventListener("click", function () {
+        var c = current(p); if (!c || !window.VSBoard) return;
+        window.VSBoard.addResult(c, id === "c" ? S.boardFrom : S.boardFromRef);
+        toast("Added to the board");
+      });
       $(id + "-tops").addEventListener("click", function () { var c = current(p); if (c) sendPS(c.path); });
       $(id + "-strip").addEventListener("click", function (e) {
         var t = e.target.closest("[data-i]"); if (t) { p.sel = +t.getAttribute("data-i"); render(); return; }
@@ -767,6 +783,8 @@
     var ttl = esc(name) + "<small>" + sub + "</small>";
     if ($(id + "-ttl").getAttribute("data-h") !== ttl) { $(id + "-ttl").innerHTML = ttl; $(id + "-ttl").setAttribute("data-h", ttl); }
     $(id + "-up").disabled = !c; $(id + "-reveal").disabled = !c;
+    $(id + "-toboard").disabled = !c || !!(window.VSBoard && window.VSBoard.has(c.path));
+    $(id + "-toboard").textContent = c && window.VSBoard && window.VSBoard.has(c.path) ? "On the board" : "Add to board";
     $(id + "-tops").hidden = !(c && S.psOn);
     $(id + "-clear").hidden = !(p.results.length && !p.job);
     $(id + "-refine-go").disabled = !!p.job || !(c || p.src);
@@ -1049,7 +1067,8 @@
   function render() {
     if (!document.body.classList.contains("studio")) return;
     renderValues();
-    if (S.page === "create") renderCreate();
+    if (S.page === "board") { if (window.VSBoard) window.VSBoard.render(); }
+    else if (S.page === "create") renderCreate();
     else if (S.page === "reference") renderReference();
     else if (S.page === "library") renderLibrary();
     else if (S.page === "settings") renderSettings();
@@ -1139,6 +1158,8 @@
         if (data.target === "reference") {
           if (imgs.length > 1) { setImage(S.ref, "src", imgs[0]); setImage(S.ref, "refimg", imgs[1]); }
           else setImage(S.ref, S.dropSlot || (S.ref.src && !S.ref.refimg ? "refimg" : "src"), imgs[0]);
+        } else if (data.target === "board" && window.VSBoard) {
+          window.VSBoard.addImages(imgs);
         } else if (data.target === "create" || data.target === "library") {
           setImage(S.create, "src", imgs[0]); if (data.target === "library") go("create");
         }
@@ -1146,6 +1167,10 @@
       render();
     };
   }
+
+  // For the board (board.js): the shared state and the actions it reuses.
+  window.VS = { S: S, api: api, esc: esc, short: short, go: go, render: render, setImage: setImage, sendPS: sendPS,
+                toast: toast, refresh: refresh, current: current, P: P };
 
   function start() {
     api().init().then(function (s) {

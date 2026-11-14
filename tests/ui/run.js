@@ -13,7 +13,7 @@ function check(name, ok, detail) {
   if (!ok) failed++;
 }
 
-async function open(browser, before) {
+async function open(browser, before, opts) {
   const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
   const errors = [];
   page.on("pageerror", (e) => errors.push(e.message));
@@ -23,6 +23,11 @@ async function open(browser, before) {
   await page.waitForTimeout(400);
   await page.evaluate(() => {
     const api = window.pywebview.api;
+    window.__board = null;
+    api.studio_board_get = () => Promise.resolve(window.__board);
+    api.studio_board_save = (b) => { window.__board = JSON.parse(JSON.stringify(b)); return Promise.resolve(true); };
+    api.studio_thumb = () => Promise.resolve("data:image/gif;base64,R0lGODlhAQABAAAAACw=");
+    api.studio_image = (p) => Promise.resolve({ path: p, name: p.split("/").pop(), w: 1600, h: 900, preview: "data:image/gif;base64,R0lGODlhAQABAAAAACw=" });
     api.studio_run = (j) => { window.__lastJob = j; return Promise.resolve("j1"); };
     api.studio_send = () => Promise.resolve({ ok: true });
     api.js_log = () => Promise.resolve();
@@ -30,6 +35,7 @@ async function open(browser, before) {
   page.ev = (k, d) => page.evaluate(([k, d]) => window.vistiq.event(k, d), [k, d]);
   page.text = (sel) => page.evaluate((s) => { const e = document.querySelector(s); return e ? e.innerText : ""; }, sel);
   page.errors = errors;
+  if (!opts || !opts.board) { await page.click(".s-nav button[data-page=create]"); await page.waitForTimeout(150); }
   return page;
 }
 
@@ -165,11 +171,51 @@ const frame = (n, name) => ({ path: "live://photoshop/" + n, name: name || "flat
   // 9. Every page opens without errors.
   {
     const p = await open(browser);
-    for (const pg of ["create", "reference", "upscale", "library", "settings"]) {
+    for (const pg of ["board", "create", "reference", "upscale", "library", "settings"]) {
       await p.click(".s-nav button[data-page=" + pg + "]");
       await p.waitForTimeout(150);
     }
     check("all pages open without errors", p.errors.length === 0, p.errors.join(" | "));
+    await p.close();
+  }
+
+  // 10. The board: opens first, Live tile with Connect, images become tiles,
+  // double-click opens Focus, results go back on the board, right-click, Organize.
+  {
+    const p = await open(browser, null, { board: true });
+    check("Studio opens on the board", await p.evaluate(() => document.body.getAttribute("data-page")) === "board", await p.evaluate(() => document.body.getAttribute("data-page")));
+    await p.waitForTimeout(200);
+    check("Live tile offers Connect when not connected", /Connect Photoshop/.test(await p.text('.b-tile[data-id="live"]')), await p.text('.b-tile[data-id="live"]'));
+    await p.ev("studio-live", frame(1));
+    await p.waitForTimeout(100);
+    check("Live tile shows the Photoshop file", /flat 2\.psd/.test(await p.text('.b-tile[data-id="live"]')) && !/Connect/.test(await p.text('.b-tile[data-id="live"]')), await p.text('.b-tile[data-id="live"]'));
+    await p.ev("studio-dropped", { target: "board", images: [{ path: "C:/a/sketch.png", name: "sketch.png", w: 1600, h: 900, preview: img }] });
+    await p.waitForTimeout(150);
+    check("a dropped image becomes a tile", await p.evaluate(() => document.querySelectorAll(".b-tile").length) === 2, await p.evaluate(() => document.querySelectorAll(".b-tile").length));
+    await p.dblclick('.b-tile:not([data-id="live"])');
+    await p.waitForTimeout(250);
+    check("double-click opens Focus view with that image", await p.evaluate(() => document.body.getAttribute("data-page")) === "create" && /sketch/.test(await p.text("#c-ttl")), await p.text("#c-ttl"));
+    await p.ev("studio-result", { id: "", index: 0, of: 1, result: { path: "C:/o/r1.png", name: "r1.png", w: 1600, h: 900, preview: img } });
+    await p.evaluate(() => { window.VS.S.create.results = [{ path: "C:/o/r1.png", name: "r1.png", w: 1600, h: 900, preview: "x" }]; window.VS.S.create.sel = 0; window.VS.render(); });
+    await p.click("#c-toboard");
+    await p.waitForTimeout(100);
+    check("Add to board puts the result on the board", await p.evaluate(() => window.VSBoard._state().tiles.some((t) => t.path === "C:/o/r1.png" && t.from)), JSON.stringify(await p.evaluate(() => window.VSBoard._state().tiles)));
+    await p.click("#c-back");
+    await p.waitForTimeout(150);
+    check("Back to board, with a line from the sketch to the result", await p.evaluate(() => document.querySelectorAll("#b-links path").length) === 1, "no link");
+    await p.click('.b-tile[data-id]:last-child', { button: "right" });
+    await p.waitForTimeout(100);
+    check("right-click shows the actions", /Upscale/.test(await p.text("#b-menu")) && /Save a copy/.test(await p.text("#b-menu")), await p.text("#b-menu"));
+    await p.keyboard.press("Escape");
+    check("Escape closes the menu", await p.evaluate(() => document.getElementById("b-menu").hidden), "still open");
+    await p.click(".b-org");
+    await p.waitForTimeout(500);
+    check("Organize lays out in order: Live first, result to the right of its source", await p.evaluate(() => {
+      const t = window.VSBoard._state().tiles, live = t.find((x) => x.id === "live"), s = t.find((x) => x.path === "C:/a/sketch.png"), r = t.find((x) => x.path === "C:/o/r1.png");
+      return live.y < s.y && r.x > s.x && r.y === s.y;
+    }), JSON.stringify(await p.evaluate(() => window.VSBoard._state().tiles.map((x) => [x.id, x.x, x.y]))));
+    check("the board is saved", await p.evaluate(() => !!(window.__board && window.__board.tiles.length === 3)), "not saved");
+    check("no page errors on the board", p.errors.length === 0, p.errors.join(" | "));
     await p.close();
   }
 
