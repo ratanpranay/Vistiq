@@ -598,3 +598,13 @@ body:not(.rail-min) .s-rail-foot{padding-top:18px;gap:14px}
 .s-acts3 .s-btn .m-ico{width:17px;height:17px}
 .s-acts3 .s-btn:disabled{opacity:.38}
 .shell .rail .rail-foot #u-acts{margin-bottom:14px}
+
+/* 0.4.2: the Create / Reference panel fills its height. Spare room is shared out
+   evenly between the sections (each section keeps its label with its controls); short windows scroll. */
+body.studio:not(.rail-min) .s-rail-body{gap:16px;padding-top:18px;padding-bottom:18px}
+body.studio .s-rail-body>*{margin-top:auto}
+body.studio .s-rail-body>:first-child{margin-top:0}
+body.studio .s-rail-body>:empty{margin-top:0}
+body.studio .s-rail-body>.s-label+*{margin-top:-8px}          /* a label sits on its control */
+body.studio .s-rail-body>.s-seg+.s-hint{margin-top:-6px}      /* and a mode's note under its switch */
+body.studio .s-rail-body .s-prompt{min-height:clamp(64px,10vh,150px)}
