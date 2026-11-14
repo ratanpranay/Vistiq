@@ -1,5 +1,17 @@
 # Vistiq Studio (test build)
 
+## 0.4.3
+- Sketch inside Studio. Focus view has a toolbar: + · Move · Transform · Brush ▾ (Sketching, Soft, Hard) · Eraser ▾ (Soft, Hard, Magic) · colour + eyedropper · Selection ▾ (Lasso, Rectangle, Pen, Object, Photoshop) · Deselect · Flip view · Undo/Redo. Size, Opacity, Flow, Smoothing and pen-tablet Pressure.
+- Layers: fold to thumbnails, open on hover. Show/hide, drag to reorder, drag the bar for opacity, double-click to rename; menu with duplicate, merge down, blend mode, lock, flip, clear, delete. Create uses all visible layers, flattened at full size.
+- Magic eraser (AI, LaMa): paint over an object and it's gone, on its own layer. The model (208 MB) downloads on first use.
+- Selections only say what Create may change; brushes paint for real and stay inside a selection.
+- Drawing on the Live picture starts a new sketch from a frozen copy (joined to Live on the board); Photoshop is never touched.
+- Board: + menu (Blank canvas A4 150 DPI · Landscape · 16:9 · Square, Upload, Paste, Upload from phone), Organize and Fit in one toolbar; every tile the same size; Live can't be removed.
+- Upload from phone: scan the QR code on the same Wi-Fi; photos land on the board. Allow Studio on the network once if Windows asks.
+- Create panel: "Working on" card, one prompt, and Keep locks (Design, Materials, Light, Camera). A sketch starts with Design and Camera locked, a render with everything locked; a note appears when your words would change something locked.
+- Machine line under the canvas: GPU load, temperature and memory, CPU and RAM, live. Zoom (− 100% + Fit) on the same line.
+- Pictures truly float: zoomed in, they run under the panels to the window edge.
+
 ## 0.4.2
 - Pictures float on the canvas, no grey block. Mouse wheel or trackpad pinch zooms around the pointer; middle button or Space + drag pans; − 100% + Fit at the bottom right (double-click the empty canvas to fit). Results of the same size keep the zoom for comparing.
 - Paint an area: new Lasso that snaps to edges (L) and Pen with corners and curves (P), next to Brush (B), Erase (E) and Object (S). Click the start or double-click to close; Alt closes as a cut-out; Esc cancels. Deselect (Ctrl D). [ and ] change the brush size.
