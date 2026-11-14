@@ -441,3 +441,70 @@ body.rail-min .s-cancel{height:32px;padding:0 12px}
 body.rail-min .s-rh{order:0}
 body.studio .mdl-btn{height:40px}
 body.studio .chip{height:30px;font-size:12px}
+
+/* ---- 0.4: sizes matched to Vizcom (measured on the same screen) ----
+   controls 28–32 px, text 13 px regular, quiet labels, narrower panels */
+body.studio #p-create .s-rail,body.studio #p-reference .s-rail{width:256px}
+body.studio .shell .rail{width:256px}
+.s-rh h3,.s-rail .s-rh h3{font-size:13.5px;font-weight:600}
+body.studio .s-rail-body{padding:6px 12px 10px;gap:14px}
+.s-label{font-size:12px;font-weight:500;color:var(--dim);text-transform:none;letter-spacing:0;margin-bottom:6px}
+.s-label em{font-style:normal;color:var(--ink-2)}
+body.studio .group legend,body.studio .group .label,body.studio .group>label{font-size:12px;font-weight:500;text-transform:none;letter-spacing:0;margin-bottom:6px}
+body.studio .rail-body::before{font-size:13.5px}
+.s-tiles4{gap:4px}
+.s-tiles4 button{height:30px;border:1px solid transparent;border-radius:8px;padding:0 8px;gap:7px;font-size:12.5px;font-weight:400;background:var(--field);color:var(--ink-2)}
+.s-tiles4 button:hover{border-color:var(--line-2)}
+.s-tiles4 button.on{border-color:var(--ink);background:#fff;color:var(--ink)}
+.s-tiles4 button svg{width:15px;height:15px}
+.m-src button,.s-seg button{height:26px;font-size:12px;font-weight:400;border-radius:7px}
+.s-seg,.m-src{padding:3px;border-radius:10px}
+.s-pbox{border-radius:10px}
+.s-pbox .s-prompt{font-size:13px;padding:9px 10px;min-height:56px}
+.s-pbar{padding:4px 6px}
+.s-impb{height:24px;padding:0 8px;font-size:12px;font-weight:400}
+.s-step{height:28px;border-radius:8px}.s-step button{width:26px;font-size:14px}.s-step b{font-size:12.5px;font-weight:500}
+.s-select{height:30px;font-size:12.5px;border-radius:8px}
+.s-ends2{font-size:10.5px}
+.s-hint{font-size:11.5px;line-height:15px}
+.s-rail-foot{padding:8px 12px 10px;gap:5px}
+.s-go{height:32px;border-radius:9px;font-size:13px;font-weight:600}
+body.rail-min .s-go{height:28px;border-radius:8px;font-size:12.5px}
+.s-cancel{height:28px;border-radius:8px;font-size:12px;font-weight:500}
+.s-meta{font-size:11px}
+.s-slot.empty{height:52px;font-size:12px;font-weight:400}
+.s-ps-on span:nth-child(2){font-size:12px}
+.s-btn,.s-acts2 .s-btn{height:28px;padding:0 10px;font-size:12px;font-weight:400;border-radius:8px}
+.s-refine input{height:32px;font-size:12.5px;border-radius:9px}
+.s-refine button{height:32px;padding:0 12px;font-size:12.5px;font-weight:500;border-radius:9px}
+.s-back{height:26px;padding:0 10px;font-size:12px;font-weight:400;border-radius:8px}
+.s-ttl,.s-stage .s-ttl{font-size:14px;font-weight:600}
+.s-paintbtn{height:28px;padding:0 10px;font-size:12px;font-weight:400;border-radius:8px}
+.s-tag{font-size:10.5px;font-weight:500;padding:3px 8px;border-radius:7px}
+.s-nav button{width:48px;font-size:9.5px;font-weight:400;border-radius:9px}
+.s-nav button svg{width:17px;height:17px}
+body.studio .s-nav{width:58px}
+/* board */
+.b-title{font-size:14px;font-weight:600}
+.b-tools{padding:3px;border-radius:10px}
+.b-tools button{height:26px;padding:0 10px;font-size:12px;font-weight:400;border-radius:7px}
+.b-zoom{font-size:11.5px}
+.b-org{height:30px;padding:0 12px;border-radius:9px;font-size:12px;font-weight:500}
+.b-org svg{width:14px;height:14px}
+.b-connect button{height:28px;padding:0 12px;border-radius:8px;font-size:12px;font-weight:500}
+.b-menu{min-width:180px;padding:4px;border-radius:10px}
+.b-menu button{padding:6px 10px;font-size:12.5px;border-radius:7px}
+/* upscale */
+body.studio .tile{padding:6px 4px;border-radius:10px}
+body.studio .tile b{font-size:14px;line-height:18px}
+body.studio .tile span{font-size:10.5px}
+body.studio .go{height:32px;border-radius:9px;font-size:13px;font-weight:600}
+body.studio .mdl-btn{height:36px;border-radius:9px}
+body.studio .mdl-btn .t b{font-size:12.5px}
+body.studio .chip{height:26px;font-size:12px;font-weight:400}
+body.studio .folder{padding:8px 10px;font-size:12.5px}
+body.studio #p-create .s-rail,body.studio #p-reference .s-rail,body.studio .shell .rail{width:268px}
+.s-tiles4 button span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.s-pbox .s-prompt{min-height:68px}
+.m-apps button{padding:4px 9px;font-size:11.5px;font-weight:500;border-radius:8px}
+.s-ps-on{padding:7px}.s-ps-on img{width:72px;height:auto}
