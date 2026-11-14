@@ -508,3 +508,18 @@ body.studio #p-create .s-rail,body.studio #p-reference .s-rail,body.studio .shel
 .s-pbox .s-prompt{min-height:68px}
 .m-apps button{padding:4px 9px;font-size:11.5px;font-weight:500;border-radius:8px}
 .s-ps-on{padding:7px}.s-ps-on img{width:72px;height:auto}
+/* Upscale: settings on the right, like Create and Reference */
+body.studio .shell .rail{order:2;margin:10px 10px 10px 0}
+body.studio .rail-body::before{display:none}
+body.studio .shell{position:relative}
+body.rail-min .shell .rail{position:absolute;right:0;top:0;height:auto;width:auto;flex-direction:row;align-items:center;z-index:6;padding-right:8px}
+body.rail-min .shell .rail .rail-body{display:none}
+body.rail-min .shell .rail .rail-foot{border:none;padding:6px 0;flex-direction:row;align-items:center}
+body.rail-min .shell .rail .rail-foot .status{display:none}
+body.rail-min .shell .go{height:28px;width:auto;padding:0 18px;font-size:12.5px}
+/* Upscale's empty page in the same calm sizes */
+body.studio .empty h1{font-size:24px;line-height:30px;font-weight:700}
+body.studio .empty>p{font-size:13px}
+body.studio .primary{height:34px;padding:0 16px;border-radius:9px;font-size:13px;font-weight:600;gap:8px;box-shadow:none}
+body.studio .ghost{height:34px;padding:0 14px;border-radius:9px;font-size:13px;font-weight:500}
+body.studio .empty .paste{font-size:12px}

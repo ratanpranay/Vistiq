@@ -178,6 +178,13 @@
     document.body.appendChild(board);
     if (window.VSBoard) window.VSBoard.build(board);
 
+    // Upscale's panel gets the same header (title + fold button) as the others.
+    var urail = document.querySelector(".shell .rail");
+    if (urail && !urail.querySelector(".s-rh")) {
+      var uh = document.createElement("div"); uh.className = "s-rh";
+      uh.innerHTML = '<h3>Upscale</h3><button type="button" class="s-min" data-min="rail" title="Collapse / expand"><svg viewBox="0 0 24 24"><path d="M6 15l6-6 6 6"/></svg></button>';
+      urail.insertBefore(uh, urail.firstChild);
+    }
     // Floating side panels fold away for more room; remembered.
     document.body.classList.toggle("nav-min", !!load("navMin", false));
     document.body.classList.toggle("rail-min", !!load("railMin", false));
