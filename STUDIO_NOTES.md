@@ -1,5 +1,13 @@
 # Vistiq Studio (test build)
 
+## 0.4.1
+- Cleaner, more professional sketch renders: smooth new nappa leather and fine, even alcantara instead of blotchy, worn-looking materials; soft press-photo light even when your prompt names a time of day. Results at about 2400 × 1300 (faster); use Upscale for bigger.
+- Results are never lost: opening another picture or board tile keeps them, and the strip comes back after a restart. Click a kept result to open it from its folder; a moved or deleted file shows as Missing.
+- One calm bar above Create: Refine · To board · Photoshop · Upscale. "Show in folder" sits at the top; the extra Refine bar and "← Board" button are gone.
+- "Live from Photoshop" blinks green; loading shows your picture blurred with a progress ring.
+- When you pick an Image, Photoshop keeps updating quietly in the background (the Live tab brings it back), with no extra box.
+- Library text no longer overlaps the pictures in small windows. Studio opens full screen.
+
 ## 0.4.0
 - New: the Board. Studio opens on an infinite canvas with your Live Photoshop tile (Connect button under it when not connected). Paste, drop or add images to start without Photoshop.
 - Double-click a tile to open the Focus view; "Add to board" puts a result next to what it was made from, joined by a line.
