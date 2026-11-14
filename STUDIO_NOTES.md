@@ -1,5 +1,14 @@
 # Vistiq Studio (test build)
 
+## 0.4.2
+- Pictures float on the canvas, no grey block. Mouse wheel or trackpad pinch zooms around the pointer; middle button or Space + drag pans; − 100% + Fit at the bottom right (double-click the empty canvas to fit). Results of the same size keep the zoom for comparing.
+- Paint an area: new Lasso that snaps to edges (L) and Pen with corners and curves (P), next to Brush (B), Erase (E) and Object (S). Click the start or double-click to close; Alt closes as a cut-out; Esc cancels. Deselect (Ctrl D). [ and ] change the brush size.
+- Live Photoshop sketch: "Ps Selection" in the paint tools takes the selection you made in Photoshop.
+- Fixed: the brush ring (and the pointer) disappeared over the picture in 0.4.1. Now a ring with a small crosshair.
+- The bar above Create works on a picture you opened too (To board, Photoshop, Upscale). Photoshop: a layer in your open file when the panel is connected, otherwise the picture opens in Photoshop.
+- Upscale has the same bar: Refine, To board, Photoshop.
+- Calmer bar tiles with more room; the Create and Reference panels spread over the full height.
+
 ## 0.4.1
 - Cleaner, more professional sketch renders: smooth new nappa leather and fine, even alcantara instead of blotchy, worn-looking materials; soft press-photo light even when your prompt names a time of day. Results at about 2400 × 1300 (faster); use Upscale for bigger.
 - Results are never lost: opening another picture or board tile keeps them, and the strip comes back after a restart. Click a kept result to open it from its folder; a moved or deleted file shows as Missing.
