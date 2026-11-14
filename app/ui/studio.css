@@ -439,5 +439,5 @@ body.rail-min .s-rail-foot .s-meta,body.rail-min .s-rail-foot .s-err{display:non
 body.rail-min .s-go{height:32px;width:auto;padding:0 18px;font-size:12.5px}
 body.rail-min .s-cancel{height:32px;padding:0 12px}
 body.rail-min .s-rh{order:0}
-body.studio .mdl-btn{min-height:0;padding-top:7px;padding-bottom:7px}
+body.studio .mdl-btn{height:40px}
 body.studio .chip{height:30px;font-size:12px}
