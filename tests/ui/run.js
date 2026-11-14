@@ -185,7 +185,7 @@ const frame = (n, name) => ({ path: "live://photoshop/" + n, name: name || "flat
     const p = await open(browser, null, { board: true });
     check("Studio opens on the board", await p.evaluate(() => document.body.getAttribute("data-page")) === "board", await p.evaluate(() => document.body.getAttribute("data-page")));
     await p.waitForTimeout(200);
-    check("Live tile offers Connect when not connected", /Connect Photoshop/.test(await p.text('.b-tile[data-id="live"]')), await p.text('.b-tile[data-id="live"]'));
+    check("Live tile offers Connect when not connected", /Connect/.test(await p.text('.b-tile[data-id="live"]')), await p.text('.b-tile[data-id="live"]'));
     await p.ev("studio-live", frame(1));
     await p.waitForTimeout(100);
     check("Live tile shows the Photoshop file", /flat 2\.psd/.test(await p.text('.b-tile[data-id="live"]')) && !/Connect/.test(await p.text('.b-tile[data-id="live"]')), await p.text('.b-tile[data-id="live"]'));
@@ -208,7 +208,7 @@ const frame = (n, name) => ({ path: "live://photoshop/" + n, name: name || "flat
     check("right-click shows the actions", /Upscale/.test(await p.text("#b-menu")) && /Save a copy/.test(await p.text("#b-menu")), await p.text("#b-menu"));
     await p.keyboard.press("Escape");
     check("Escape closes the menu", await p.evaluate(() => document.getElementById("b-menu").hidden), "still open");
-    await p.click(".b-org");
+    await p.click(".b-bar [data-b=organize]");
     await p.waitForTimeout(500);
     check("Organize lays out in order: Live first, result to the right of its source", await p.evaluate(() => {
       const t = window.VSBoard._state().tiles, live = t.find((x) => x.id === "live"), s = t.find((x) => x.path === "C:/a/sketch.png"), r = t.find((x) => x.path === "C:/o/r1.png");
@@ -217,7 +217,7 @@ const frame = (n, name) => ({ path: "live://photoshop/" + n, name: name || "flat
     check("the board is saved", await p.evaluate(() => !!(window.__board && window.__board.tiles.length === 3)), "not saved");
     // Opening another tile must not lose the results made from the first one.
     await p.evaluate(() => { const S = window.VS.S.create; ["r1", "r2", "r3"].forEach((n, i) => { if (!S.results[i]) S.results[i] = {}; Object.assign(S.results[i], { path: "C:/o/" + n + ".png", name: n + ".png", w: 1600, h: 900, preview: "x", srcKey: "C:/a/sketch.png" }); }); });
-    await p.click(".b-org"); await p.waitForTimeout(400);
+    await p.click(".b-bar [data-b=organize]"); await p.waitForTimeout(400);
     await p.dblclick('.b-tile[data-id="' + await p.evaluate(() => window.VSBoard._state().tiles.find((x) => x.path === "C:/o/r1.png").id) + '"]');
     await p.waitForTimeout(250);
     await p.click(".s-nav button[data-page=board]");
@@ -261,24 +261,122 @@ const frame = (n, name) => ({ path: "live://photoshop/" + n, name: name || "flat
     check("middle button pans", await p.evaluate(() => document.querySelector("#c-view .s-fit").style.transform) !== t0, t0);
     await p.click("#c-view .s-zpill [data-z=fit]"); await p.waitForTimeout(50);
     check("Fit goes back to 100%", (await p.text("#c-view .s-zpill b")) === "100%", await p.text("#c-view .s-zpill b"));
-    await p.click(".s-paintbtn"); await p.waitForTimeout(200);
-    const size0 = await p.evaluate(() => +document.getElementById("c-size").value);
+    const st = () => p.evaluate(() => window.VSSketch._state().T);
+    const size0 = (await st()).sizes.brush;
+    await p.mouse.move(vb.x + vb.width / 2, vb.y + vb.height / 2);
     await p.keyboard.press("]"); await p.waitForTimeout(50);
-    check("] makes the brush bigger", await p.evaluate(() => +document.getElementById("c-size").value) > size0, "same size");
-    await p.click("#c-tools [data-t=pen]");
+    check("] makes the brush bigger", (await st()).sizes.brush > size0, "same size");
     const fb = await p.locator("#c-view .s-fit").boundingBox(), at = (u, v) => [fb.x + fb.width * u, fb.y + fb.height * v];
+    // The brush paints on a layer (not a mask).
+    await p.keyboard.press("b");
+    await p.mouse.move(...at(0.2, 0.5)); await p.mouse.down(); await p.mouse.move(...at(0.7, 0.55), { steps: 12 }); await p.mouse.up(); await p.waitForTimeout(100);
+    check("the brush paints on a layer", await p.evaluate(() => !!window.VSSketch.payload(window.VS.S.create.src)), "nothing painted");
+    check("painting doesn't make a selection", !(await p.evaluate(() => { window.VS.painter.check(); return window.VS.painter.any; })), "a mask appeared");
+    await p.evaluate(() => { window.__job = null; window.pywebview.api.studio_run = (j) => { window.__job = j; return Promise.resolve("j9"); }; window.VS.S.status = Object.assign(window.VS.S.status || {}, { create_ready: true }); });
+    await p.click("#c-go"); await p.waitForTimeout(100);
+    check("Create sends the painted layers", await p.evaluate(() => !!(window.__job && window.__job.layers && window.__job.layers.layers.length === 1)), JSON.stringify(await p.evaluate(() => window.__job && Object.keys(window.__job))));
+    await p.evaluate(() => { const S = window.VS.S.create; S.job = null; S.pending = 0; window.VS.render(); });
+    await p.waitForTimeout(100);
+    // Layers: add one, hide it.
+    await p.hover("#sk-panel"); await p.waitForTimeout(200);
+    const n0 = await p.evaluate(() => window.VSSketch._state().doc.layers.length);
+    await p.click("#sk-panel [data-a=add]"); await p.waitForTimeout(100);
+    check("+ Layer adds a layer", await p.evaluate(() => window.VSSketch._state().doc.layers.length) === n0 + 1, "");
+    await p.click("#sk-panel .row.on [data-a=eye]"); await p.waitForTimeout(100);
+    check("the eye hides a layer", await p.evaluate(() => { const d = window.VSSketch._state().doc; return !d.layers.filter((L) => L.id === d.active)[0].visible; }), "still visible");
+    await p.mouse.move(...at(0.5, 0.5));
+    await p.keyboard.press("p");
     for (const q of [[0.2, 0.2], [0.5, 0.2], [0.5, 0.6], [0.2, 0.6]]) { await p.mouse.click(...at(...q)); await p.waitForTimeout(30); }
     await p.keyboard.press("Enter"); await p.waitForTimeout(100);
     const anyMask = () => p.evaluate(() => { window.VS.painter.check(); return window.VS.painter.any; });
-    check("the pen closes into a painted area", await anyMask(), "no mask");
+    check("the pen closes into a selection", await anyMask(), "no mask");
+    check("Create then changes only the selected area", /selected area/i.test(await p.text("#c-go")), await p.text("#c-go"));
     await p.keyboard.press("Control+d"); await p.waitForTimeout(100);
     check("Ctrl D deselects", !(await anyMask()), "mask still there");
-    await p.click("#c-tools [data-t=lasso]");
+    await p.keyboard.press("l");
     await p.mouse.click(...at(0.3, 0.3));
     for (const q of [[0.6, 0.3], [0.6, 0.7], [0.3, 0.7]]) await p.mouse.move(...at(...q), { steps: 6 });
     await p.mouse.move(...at(0.3, 0.3), { steps: 6 }); await p.mouse.click(...at(0.3, 0.3)); await p.waitForTimeout(100);
-    check("the lasso closes into a painted area", await anyMask(), "no mask");
+    check("the lasso closes into a selection", await anyMask(), "no mask");
+    await p.keyboard.press("Control+d");
+    await p.keyboard.press("m");
+    await p.mouse.move(...at(0.1, 0.1)); await p.mouse.down(); await p.mouse.move(...at(0.4, 0.4), { steps: 5 }); await p.mouse.up(); await p.waitForTimeout(100);
+    check("the rectangle makes a selection", await anyMask(), "no mask");
+    // Colour pick from the picture (white test picture) and the colour pop-up.
+    await p.keyboard.press("i"); await p.mouse.click(...at(0.9, 0.9)); await p.waitForTimeout(50);
+    check("the eyedropper takes the picture's colour", (await st()).color === "#ffffff", (await st()).color);
+    await p.click("#sk-bar .sk-sw"); await p.waitForTimeout(100);
+    check("the colour pop-up opens", await p.evaluate(() => !!document.querySelector(".s-pop .sk-cp")), "no pop-up");
+    await p.keyboard.press("Escape");
+    // Drop-downs.
+    await p.click('#sk-bar [data-dd=erase]'); await p.waitForTimeout(100);
+    check("the eraser menu offers the magic eraser", /Magic eraser/.test(await p.evaluate(() => document.querySelector(".s-pop").innerText)), "");
+    await p.keyboard.press("Escape");
     check("no page errors with zoom and selection tools", p.errors.length === 0, p.errors.join(" | "));
+    await p.close();
+  }
+
+  // Sketching, part 2: magic eraser, undo, transform, merge, branching off Live.
+  {
+    const p = await open(browser, null, {});
+    const W1 = "data:image/gif;base64,R0lGODlhAQABAIAAAP///wAAACH5BAAAAAAALAAAAAABAAEAAAICRAEAOw==";
+    await p.evaluate((w) => { window.VS.S.create.source = "image"; window.VS.setImage(window.VS.S.create, "src", { path: "C:/i/b.jpg", name: "b.jpg", w: 1600, h: 900, preview: w }); }, W1);
+    await p.waitForTimeout(200);
+    const fb = await p.locator("#c-view .s-fit").boundingBox(), at = (u, v) => [fb.x + fb.width * u, fb.y + fb.height * v];
+    const doc = () => p.evaluate(() => { const d = window.VSSketch._state().doc; return d.layers.map((L) => L.name); });
+    await p.mouse.move(...at(0.5, 0.5)); await p.keyboard.press("b");
+    await p.mouse.down(); await p.mouse.move(...at(0.6, 0.6), { steps: 6 }); await p.mouse.up(); await p.waitForTimeout(50);
+    await p.keyboard.press("Control+z"); await p.waitForTimeout(50);
+    check("Ctrl Z undoes a stroke", !(await p.evaluate(() => !!window.VSSketch.payload(window.VS.S.create.src))), "still painted");
+    await p.keyboard.press("Control+Shift+z"); await p.waitForTimeout(50);
+    check("Ctrl Shift Z redoes it", await p.evaluate(() => !!window.VSSketch.payload(window.VS.S.create.src)), "not back");
+    // Transform: move the stroke and apply.
+    await p.keyboard.press("t"); await p.waitForTimeout(50);
+    check("Transform shows its box", await p.evaluate(() => !!document.querySelector(".sk-tf")), "no box");
+    await p.mouse.move(...at(0.55, 0.55)); await p.mouse.down(); await p.mouse.move(...at(0.3, 0.3), { steps: 5 }); await p.mouse.up();
+    await p.keyboard.press("Enter"); await p.waitForTimeout(50);
+    check("Enter applies the transform", await p.evaluate(() => !document.querySelector(".sk-tf") && window.VSSketch.tool() === "brush"), "still transforming");
+    // Magic eraser: paints a red mask, gets a patch back, puts it on its own layer.
+    await p.evaluate(() => { window.pywebview.api.studio_magic_erase = (img, m) => { window.__magic = [img.slice(0, 22), m.slice(0, 22)]; const c = document.createElement("canvas"); c.width = c.height = 8; const g = c.getContext("2d"); g.fillStyle = "#0f0"; g.fillRect(0, 0, 8, 8); return Promise.resolve({ patch: c.toDataURL() }); }; });
+    await p.click("#sk-bar [data-dd=erase]"); await p.waitForTimeout(80);
+    await p.click('.s-pop [data-p=magic]'); await p.waitForTimeout(50);
+    await p.mouse.move(...at(0.4, 0.4)); await p.mouse.down(); await p.mouse.move(...at(0.5, 0.45), { steps: 6 }); await p.mouse.up(); await p.waitForTimeout(300);
+    check("the magic eraser sends the picture and a mask", await p.evaluate(() => !!(window.__magic && /^data:image\/png/.test(window.__magic[0]) && /^data:image\/png/.test(window.__magic[1]))), JSON.stringify(await p.evaluate(() => window.__magic)));
+    check("its result lands on a layer of its own", (await doc()).indexOf("Magic erase") >= 0, JSON.stringify(await doc()));
+    // Merge down.
+    const n0 = (await doc()).length;
+    await p.evaluate(() => { const d = window.VSSketch._state().doc; d.active = d.layers[d.layers.length - 1].id; });
+    await p.hover("#sk-panel"); await p.waitForTimeout(150);
+    await p.click("#sk-panel [data-a=merge]"); await p.waitForTimeout(80);
+    check("Merge down joins two layers", (await doc()).length === n0 - 1, JSON.stringify(await doc()));
+    check("no page errors while sketching", p.errors.length === 0, p.errors.join(" | "));
+    await p.close();
+  }
+  {
+    // Drawing on Live starts a new sketch from a frozen copy; Photoshop's picture is left alone.
+    const p = await open(browser, null, {});
+    await p.ev("studio-live", frame(1));
+    await p.evaluate(() => { window.pywebview.api.studio_freeze = (path, name) => Promise.resolve({ path: "C:/s/flat 2 · sketch 1.png", name: "flat 2 · sketch 1.png", w: 1600, h: 900, preview: "data:image/gif;base64,R0lGODlhAQABAIAAAP///wAAACH5BAAAAAAALAAAAAABAAEAAAICRAEAOw==" }); });
+    await p.waitForTimeout(200);
+    const fb = await p.locator("#c-view .s-fit").boundingBox();
+    await p.mouse.move(fb.x + fb.width / 2, fb.y + fb.height / 2); await p.keyboard.press("b");
+    await p.mouse.down(); await p.mouse.move(fb.x + fb.width / 2 + 30, fb.y + fb.height / 2, { steps: 3 }); await p.mouse.up(); await p.waitForTimeout(200);
+    check("drawing on Live branches off a new sketch", await p.evaluate(() => /sketch 1/.test(window.VS.S.create.src.name) && !window.VS.S.create.src.live), await p.evaluate(() => window.VS.S.create.src.name));
+    check("the sketch is on the board, joined to Live", await p.evaluate(() => window.VSBoard._state().tiles.some((t) => /sketch 1/.test(t.name) && t.from === "live")), "");
+    check("no page errors when branching", p.errors.length === 0, p.errors.join(" | "));
+    await p.close();
+  }
+  {
+    // The + menu: a blank canvas lands on the board.
+    const p = await open(browser, null, { board: true });
+    await p.evaluate(() => { window.pywebview.api.studio_blank = (w, h) => { window.__blank = [w, h]; return Promise.resolve({ path: "C:/s/Sketch 1.png", name: "Sketch 1.png", w, h, preview: "data:image/gif;base64,R0lGODlhAQABAIAAAP///wAAACH5BAAAAAAALAAAAAABAAEAAAICRAEAOw==" }); }; });
+    await p.click(".b-bar .b-plus"); await p.waitForTimeout(100);
+    check("+ opens the add menu", /Blank canvas/.test(await p.evaluate(() => document.querySelector(".s-pop").innerText)), "");
+    await p.click(".s-pop [data-p=blank]"); await p.waitForTimeout(150);
+    check("a blank A4 canvas at 150 DPI", JSON.stringify(await p.evaluate(() => window.__blank)) === "[1240,1754]", JSON.stringify(await p.evaluate(() => window.__blank)));
+    check("it lands on the board", await p.evaluate(() => window.VSBoard._state().tiles.some((t) => t.name === "Sketch 1.png")), "");
+    check("all tiles are the same size", await p.evaluate(() => { const hs = [...document.querySelectorAll(".b-tile")].map((t) => t.offsetHeight); return new Set(hs).size === 1; }), JSON.stringify(await p.evaluate(() => [...document.querySelectorAll(".b-tile")].map((t) => t.offsetHeight))));
+    check("no page errors with the + menu", p.errors.length === 0, p.errors.join(" | "));
     await p.close();
   }
 

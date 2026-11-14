@@ -19,7 +19,8 @@
   function uid() { return "t" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6); }
   function byId(id) { for (var i = 0; i < B.tiles.length; i++) if (B.tiles[i].id === id) return B.tiles[i]; return null; }
   function live() { return byId("live"); }
-  function tileH(t) { return Math.round(W * (t.h || 9) / (t.w || 16)) + 30; }
+  var PH = Math.round(W * 9 / 16);       // every tile's picture box: the same size, whatever the shape
+  function tileH() { return PH + 30; }
 
   function save() {
     clearTimeout(saveT);
@@ -36,12 +37,13 @@
     root = el;
     root.innerHTML =
       '<div class="b-cv" id="b-cv"><div class="b-world" id="b-world"><svg class="b-links" id="b-links"></svg></div></div>' +
-      '<div class="b-top"><div class="b-title">Board</div>' +
-      '<div class="b-tools"><button type="button" data-b="add">+ Add image</button><button type="button" data-b="fit">Fit</button>' +
-      '<span class="b-zoom" id="b-zoom">80%</span></div></div>' +
-      '<div class="b-hint" id="b-hint">Paste with Ctrl V, drop images here, or use + Add image. Double-click a tile to work on it.</div>' +
-      '<button type="button" class="b-org" data-b="organize" title="Lay the board out neatly, in the order things were made">' +
+      '<div class="b-top"><div class="b-title">Board</div></div>' +
+      '<div class="b-bar"><button type="button" class="b-plus" data-b="plus" title="Add: blank canvas, image, paste, phone">' +
+      '<svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></button><span class="b-sep"></span>' +
+      '<button type="button" data-b="organize" title="Lay the board out neatly, in the order things were made">' +
       '<svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="5" rx="1"/><rect x="14" y="3" width="7" height="5" rx="1"/><rect x="3" y="12" width="7" height="5" rx="1"/><rect x="14" y="12" width="7" height="9" rx="1"/></svg>Organize</button>' +
+      '<button type="button" data-b="fit">Fit</button><span class="b-zoom" id="b-zoom">80%</span></div>' +
+      '<div class="b-hint" id="b-hint">Click + for a blank canvas, an image or your phone · paste with Ctrl V or drop images here. Double-click a tile to work on it.</div>' +
       '<div class="b-menu" id="b-menu" hidden></div>';
     world = root.querySelector("#b-world"); svgEl = root.querySelector("#b-links"); menu = root.querySelector("#b-menu");
     wire();
@@ -63,14 +65,15 @@
     var sel = t.id === B.sel ? " sel" : "";
     if (t.kind === "live") {
       var L = liveInfo();
-      var img = L.on ? '<img src="' + L.src.preview + '" alt="">' : '<div class="b-empty">' + (L.state ? esc(L.state) : "Not connected") + "</div>";
+      var img = L.on ? '<div class="b-pic"><img src="' + L.src.preview + '" alt=""></div>' :
+        '<div class="b-empty b-off"><span>' + (L.state ? esc(L.state) : "Photoshop or Affinity, live") + '</span><button type="button" data-b="connect">Connect</button>' + (L.msg ? "<small>" + esc(L.msg) + "</small>" : "") + "</div>";
       return '<div class="b-tile b-live' + (L.on ? " on" : "") + sel + '" data-id="live" style="left:' + t.x + "px;top:" + t.y + "px;width:" + W + 'px">' +
         '<div class="b-h"><span><i class="b-dot"></i>Live' + (L.on && L.doc ? " · " + esc(L.doc) : "") + "</span><small>" + (L.on ? "Photoshop" : "") + "</small></div>" + img +
-        (L.on ? "" : '<div class="b-connect"><button type="button" data-b="connect">Connect Photoshop</button>' + (L.msg ? '<small>' + esc(L.msg) + "</small>" : "") + "</div>") + "</div>";
+        "</div>";
     }
     var th = thumbs[t.path];
     if (th === undefined) { thumbs[t.path] = null; call("studio_thumb", t.path).then(function (d) { thumbs[t.path] = d || "missing"; render(); }); }
-    var pic = th && th !== "missing" ? '<img src="' + th + '" alt="">' : '<div class="b-empty" style="height:' + (tileH(t) - 30) + 'px">' + (th === "missing" ? "File moved or deleted" : "") + "</div>";
+    var pic = th && th !== "missing" ? '<div class="b-pic"><img src="' + th + '" alt=""></div>' : '<div class="b-empty">' + (th === "missing" ? "File moved or deleted" : "") + "</div>";
     return '<div class="b-tile' + sel + '" data-id="' + t.id + '" style="left:' + t.x + "px;top:" + t.y + "px;width:" + W + 'px">' +
       '<div class="b-h"><span>' + esc(VS().short(t.name || "")) + "</span><small>" + (t.w ? t.w + " × " + t.h : "") + "</small></div>" + pic + "</div>";
   }
@@ -228,6 +231,7 @@
       if (b) {
         var a = b.getAttribute("data-b");
         if (a === "add") call("studio_pick").then(function (i) { if (i) add(i, null); });
+        else if (a === "plus") VS().plusMenu(b, function (info) { add(info, null); });
         else if (a === "fit") fit();
         else if (a === "organize") organize();
         else if (a === "connect") {
@@ -299,6 +303,11 @@
     });
   }
 
-  window.VSBoard = { build: build, render: render, addImages: addImages, addResult: addResult, has: has, organize: organize,
+  // A new picture from the + menu in Focus view: on the board, and open it.
+  // A sketch branched off another tile (Live): sits next to it, joined by a line.
+  function addFrom(info, fromId) { return add(info, byId(fromId) ? fromId : null); }
+  function addAndOpen(info) { var t = add(info, null); if (t) open(t); return t; }
+
+  window.VSBoard = { build: build, render: render, addImages: addImages, addResult: addResult, has: has, organize: organize, add: add, addAndOpen: addAndOpen, addFrom: addFrom, open: function (id) { var t = byId(id); if (t) open(t); },
                      _state: function () { return B; } };
 })();

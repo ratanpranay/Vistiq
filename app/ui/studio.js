@@ -25,6 +25,11 @@
     erase: '<path d="M7 20h10M5 15l9-9 5 5-9 9H6z"/>',
     undo: '<path d="M9 14L4 9l5-5"/><path d="M4 9h11a5 5 0 010 10h-3"/>',
     select: '<path d="M4 4l6 16 2.5-6.5L19 11z"/>',
+    page: '<rect x="6" y="3" width="12" height="18" rx="1"/>',
+    image: '<rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 16l5-5 4 4 3-3 6 6"/>',
+    clip: '<rect x="8" y="3" width="8" height="4" rx="1"/><path d="M8 5H6a1 1 0 0 0-1 1v14a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V6a1 1 0 0 0-1-1h-2"/>',
+    phone: '<rect x="7" y="2" width="10" height="20" rx="2"/><path d="M11 18h2"/>',
+    plus: '<path d="M12 5v14M5 12h14"/>',
     lasso: '<path d="M7 18c-2.5-1-4-3-4-5.5C3 8 7.5 5 12 5s9 3 9 7-4 6.5-9 6.5c-1.4 0-2.7-.2-3.8-.6"/><path d="M8.5 17.5c0 2-1.5 3.5-3 3.5"/><circle cx="8.2" cy="17.7" r="1.3"/>',
     pen: '<path d="M12 3l5 9-5 9-5-9z"/><path d="M12 12v9M12 12h.01"/>',
     deselect: '<path d="M4 8V5a1 1 0 0 1 1-1h3M16 4h3a1 1 0 0 1 1 1v3M20 16v3a1 1 0 0 1-1 1h-3M8 20H5a1 1 0 0 1-1-1v-3"/><path d="M9 9l6 6M15 9l-6 6"/>'
@@ -280,6 +285,58 @@
 
   function P(id) { return id === "c" ? S.create : S.ref; }
 
+  // -- pop-up menus (the + menu, tool drop-downs, the layer menu) ----------------------
+  var popEl = null;
+  function closePop() { if (popEl) { popEl.remove(); popEl = null; } }
+  // Opens html under (or beside) an element; clicks on [data-p] go to onPick(value, element).
+  function pop(anchor, html, onPick, side) {
+    closePop();
+    popEl = document.createElement("div"); popEl.className = "s-pop"; popEl.innerHTML = html;
+    document.body.appendChild(popEl);
+    var r = anchor.getBoundingClientRect(), w = popEl.offsetWidth, h = popEl.offsetHeight;
+    var x = side === "right" ? r.right + 8 : r.left, y = side === "right" ? r.top : r.bottom + 8;
+    popEl.style.left = Math.max(8, Math.min(window.innerWidth - w - 8, x)) + "px";
+    popEl.style.top = Math.max(8, Math.min(window.innerHeight - h - 8, y)) + "px";
+    popEl.addEventListener("click", function (e) {
+      var b = e.target.closest("[data-p]"); if (!b || b.disabled) return;
+      var keep = onPick(b.getAttribute("data-p"), b, e);
+      if (keep !== true) closePop();
+    });
+    var me = popEl;
+    setTimeout(function () {
+      var off = function (e) {
+        if (!popEl || popEl !== me) { document.removeEventListener("pointerdown", off, true); return; }
+        if (!popEl.contains(e.target) && !anchor.contains(e.target)) { closePop(); document.removeEventListener("pointerdown", off, true); }
+      };
+      document.addEventListener("pointerdown", off, true);
+    }, 0);
+    return popEl;
+  }
+  document.addEventListener("keydown", function (e) { if (e.key === "Escape" && popEl) { closePop(); e.stopPropagation(); } }, true);
+
+  // The + menu: a blank canvas, a picture from disk, the clipboard or the phone.
+  var FORMATS = { a4p: [1240, 1754, "Portrait"], a4l: [1754, 1240, "Landscape"], wide: [1920, 1080, "16 : 9"], sq: [1600, 1600, "Square"] };
+  function plusMenu(anchor, onAdd) {
+    var fmt = load("blankFmt", "a4p");
+    var html = function () {
+      return '<button type="button" class="it" data-p="blank">' + svg("page") + '<span>Blank canvas<small>' +
+        (fmt.indexOf("a4") === 0 ? "A4 · 150 DPI · " : "") + FORMATS[fmt][0] + " × " + FORMATS[fmt][1] + ' px</small></span><span class="k">N</span></button>' +
+        '<div class="chips">' + Object.keys(FORMATS).map(function (k) { return '<button type="button" data-p="fmt:' + k + '" class="' + (k === fmt ? "on" : "") + '">' + FORMATS[k][2] + "</button>"; }).join("") + "</div>" +
+        '<hr><button type="button" class="it" data-p="pick">' + svg("image") + '<span>Upload an image</span><span class="k">I</span></button>' +
+        '<button type="button" class="it" data-p="paste">' + svg("clip") + '<span>Paste from clipboard</span><span class="k">Ctrl V</span></button>' +
+        '<button type="button" class="it" data-p="phone">' + svg("phone") + '<span>Upload from phone<small>Scan a QR code · same Wi-Fi</small></span><span class="k">/</span></button>';
+    };
+    var el = pop(anchor, html(), function (v) {
+      if (v.indexOf("fmt:") === 0) { fmt = v.slice(4); keep("blankFmt", fmt); el.innerHTML = html(); return true; }
+      if (v === "blank") api().studio_blank(FORMATS[fmt][0], FORMATS[fmt][1]).then(function (i) { if (i) onAdd(i); });
+      else if (v === "pick") api().studio_pick().then(function (i) { if (i) onAdd(i); });
+      else if (v === "paste") api().studio_paste().then(function (i) { if (i) onAdd(i); else toast("Nothing to paste: copy a picture first."); });
+      else if (v === "phone") phoneDialog();
+    });
+    el.classList.add("s-plus");
+  }
+  function phoneDialog() { toast("Upload from phone is coming in this build."); }
+
   // -- the results strips survive a restart -----------------------------------------
   // Only paths are kept (strip.json); thumbnails are made again on start, the full
   // picture is read from its folder when a result is clicked. A file that was moved
@@ -384,13 +441,13 @@
     };
     if (id === "r") j.reference = p.refimg.path;
     if (id === "c") {
-      if (p.area !== "paint" && p.src.live && S.psSel && S.useSel !== false) {
-        j.mask = "ps-selection"; j.blend = p.blend;     // Photoshop's selection: change only that area
-      } else if (p.area === "paint") {
-        var m = painter.export();
-        if (!m) { p.error = "Paint over the part that should change first."; render(); return; }
-        j.mask = m; j.blend = p.blend;
-      }
+      // A selection (lasso, pen, object, Photoshop…) limits the change to that area.
+      var m = painter.export();
+      if (m) { j.mask = m; j.blend = p.blend; }
+      else if (p.src.live && S.psSel && S.useSel !== false) { j.mask = "ps-selection"; j.blend = p.blend; }
+      // Painted layers: Create works on all visible layers, flattened.
+      var lay = window.VSSketch && window.VSSketch.payload(p.src);
+      if (lay) j.layers = lay;
       j.lora = p.lora || null;
     }
     Object.assign(j, extra || {});
@@ -588,7 +645,7 @@
         });
         return;
       }
-      if (pg === "create" && S.create.area === "paint" && !inText) painter.key(e);
+      if (pg === "create" && !inText && window.VSSketch && S.create.src && !current(S.create) && window.VSSketch.key(e)) e.preventDefault();
     });
     new ResizeObserver(function () { layout(); }).observe(document.body);
   }
@@ -597,42 +654,53 @@
 
   var painter = {
     w: 0, h: 0, size: load("brush", 60), erase: false, selecting: false, busy: false, undo: [], canvas: null, ctx: null, ring: null, drawing: false, last: null, any: false,
-    tool: load("tool", "brush"), path: null, cost: null,
+    // The selection: the area Create may change. Drawn by the sketch tools
+    // (lasso, rectangle, pen, object, Photoshop); the brushes paint on layers.
+    tool: "lasso", mode: "new", path: null, cost: null, rect: null,
     init: function () {
-      this.canvas = document.createElement("canvas");
+      this.canvas = document.createElement("canvas"); this.canvas.className = "s-selmask";
       this.ctx = this.canvas.getContext("2d");
       this.ring = document.createElement("div"); this.ring.className = "s-ring"; this.ring.hidden = true;
       this.svg = document.createElementNS("http://www.w3.org/2000/svg", "svg"); this.svg.setAttribute("class", "s-pathov");
       this.svg.setAttribute("preserveAspectRatio", "none");
-      var self = this, c = this.canvas;
-      this.setTool(this.tool);
-      c.style.opacity = ".5";
-      c.addEventListener("pointerdown", function (e) {
-        if (e.button === 1 || zoom.space) return;                 // panning
-        if (self.tool === "object") { e.preventDefault(); self.pick(e); return; }
-        if (self.tool === "lasso" || self.tool === "pen") { e.preventDefault(); self.pathDown(e); return; }
-        if (e.button !== 0) return;
-        c.setPointerCapture(e.pointerId); self.push(); self.drawing = true; self.last = null; self.stroke(e);
-      });
-      c.addEventListener("contextmenu", function (e) { e.preventDefault(); });
-      c.addEventListener("pointermove", function (e) {
-        self.moveRing(e);
-        if (self.drawing) self.stroke(e);
-        else if (self.path) self.pathMove(e);
-      });
-      c.addEventListener("pointerup", function (e) {
-        if (self.drawing) { self.drawing = false; render(); }
-        else if (self.path) self.pathUp(e);
-      });
-      c.addEventListener("dblclick", function (e) { if (self.path) { e.preventDefault(); e.stopPropagation(); self.close(e.altKey); } });
-      c.addEventListener("pointerleave", function () { self.ring.hidden = true; });
-      c.addEventListener("pointerenter", function (e) { self.ring.hidden = !self.brushy(); self.moveRing(e); });
+    },
+    pointerDown: function (e) {
+      if (this.tool === "object") { this.pick(e); return; }
+      if (this.tool === "rect") { if (e.button !== 0) return; var p = this.point(e); this.rect = { a: p, b: p, cut: e.altKey }; this.drawRect(); return; }
+      this.pathDown(e);
+    },
+    pointerMove: function (e) {
+      if (this.rect) { this.rect.b = this.point(e); this.rect.shift = e.shiftKey; this.drawRect(); return; }
+      if (this.path) this.pathMove(e);
+    },
+    pointerUp: function (e) {
+      if (this.rect) {
+        var R = this.rect; this.rect = null; this.svg.innerHTML = "";
+        var x = Math.min(R.a[0], R.b[0]), y = Math.min(R.a[1], R.b[1]), w = Math.abs(R.b[0] - R.a[0]), h = Math.abs(R.b[1] - R.a[1]);
+        if (w < 3 || h < 3) return;
+        this.fillShape("M" + x + " " + y + "h" + w + "v" + h + "h" + -w + "Z", R.cut || e.altKey);
+        return;
+      }
+      if (this.path) this.pathUp(e);
+    },
+    dblclick: function (e) { if (this.path) { e.preventDefault(); e.stopPropagation(); this.close(e.altKey); } },
+    drawRect: function () {
+      var R = this.rect, k = this.scale() || 1, x = Math.min(R.a[0], R.b[0]), y = Math.min(R.a[1], R.b[1]), w = Math.abs(R.b[0] - R.a[0]), h = Math.abs(R.b[1] - R.a[1]);
+      this.svg.innerHTML = '<rect x="' + x + '" y="' + y + '" width="' + w + '" height="' + h + '" fill="none" stroke="#fff" stroke-width="' + 2.6 * k + '"/>' +
+        '<rect x="' + x + '" y="' + y + '" width="' + w + '" height="' + h + '" fill="none" stroke="#14161f" stroke-width="' + 1.6 * k + '" stroke-dasharray="' + 5 * k + " " + 4 * k + '" class="ants"/>';
+    },
+    // Puts a closed shape into the selection: replace, add or cut out (Alt or Subtract).
+    fillShape: function (d, cut) {
+      this.push();
+      var ctx = this.ctx, sub = cut || this.mode === "sub";
+      if (this.mode === "new" && !cut) ctx.clearRect(0, 0, this.w, this.h);
+      ctx.globalCompositeOperation = sub ? "destination-out" : "source-over";
+      ctx.fillStyle = "#8A2BF2"; ctx.fill(new Path2D(d));
+      ctx.globalCompositeOperation = "source-over";
+      this.check(); this.hint(); render();
     },
     brushy: function () { return this.tool === "brush" || this.tool === "erase"; },
-    setTool: function (t) {
-      this.cancelPath(); this.tool = t; keep("tool", t);
-      this.erase = t === "erase"; this.selecting = t === "object";
-    },
+    setTool: function (t) { this.cancelPath(); this.tool = t; this.selecting = t === "object"; },
     refreshRing: function () {},
     reset: function (info) {
       var f = Math.min(1, 2048 / Math.max(info.w, info.h));
@@ -642,7 +710,11 @@
       this.svg.setAttribute("viewBox", "0 0 " + this.w + " " + this.h); this.path = null; this.cost = null; this.drawPath();
     },
     scale: function () { var r = this.canvas.getBoundingClientRect(); return r.width ? this.w / r.width : 1; },
-    point: function (e) { var r = this.canvas.getBoundingClientRect(), k = this.scale(); return [(e.clientX - r.left) * k, (e.clientY - r.top) * k]; },
+    point: function (e) {
+      var r = this.canvas.getBoundingClientRect(), u = (e.clientX - r.left) / r.width, v = (e.clientY - r.top) / r.height, f = window.VSSketch ? window.VSSketch.flip() : {};
+      if (f.h) u = 1 - u; if (f.v) v = 1 - v;
+      return [u * this.w, v * this.h];
+    },
     stroke: function (e) {
       var ctx = this.ctx, pt = this.point(e), rad = this.size * this.scale() / 2;
       ctx.globalCompositeOperation = this.erase ? "destination-out" : "source-over";
@@ -657,8 +729,9 @@
     pick: function (e) {
       if (this.busy || !S.create.src) return;
       var r = this.canvas.getBoundingClientRect(), self = this;
-      var u = (e.clientX - r.left) / r.width, v = (e.clientY - r.top) / r.height;
-      var add = !(e.altKey || e.button === 2);
+      var u = (e.clientX - r.left) / r.width, v = (e.clientY - r.top) / r.height, fl = window.VSSketch ? window.VSSketch.flip() : {};
+      if (fl.h) u = 1 - u; if (fl.v) v = 1 - v;
+      var add = !(e.altKey || e.button === 2 || this.mode === "sub");
       this.busy = true; this.hint("Selecting…"); this.canvas.style.cursor = "progress";
       api().studio_select(S.create.src.path, [[u, v, true]], this.w, this.h).then(function (res) {
         self.busy = false; self.canvas.style.cursor = "";
@@ -667,6 +740,7 @@
         img.onload = function () {
           self.push();
           var ctx = self.ctx;
+          if (add && self.mode === "new" && !e.shiftKey) ctx.clearRect(0, 0, self.w, self.h);
           ctx.globalCompositeOperation = add ? "source-over" : "destination-out";
           ctx.drawImage(img, 0, 0, self.w, self.h);
           ctx.globalCompositeOperation = "source-over";
@@ -711,20 +785,12 @@
       this.any = false;
     },
     export: function () { this.check(); return this.any ? this.canvas.toDataURL("image/png") : null; },
+    // Keys while a selection tool is on; true when the key was used.
     key: function (e) {
-      if (e.key === "[") this.resize(1 / 1.2);
-      else if (e.key === "]") this.resize(1.2);
-      else if (e.ctrlKey && e.key.toLowerCase() === "z") { e.preventDefault(); this.back(); }
-      else if (e.ctrlKey && e.key.toLowerCase() === "d") { e.preventDefault(); this.cancelPath(); this.clear(); }
-      else if (e.key === "Escape" && this.path) { e.preventDefault(); this.cancelPath(); }
-      else if (e.key === "Enter" && this.path) { e.preventDefault(); this.close(e.altKey); }
-      else if (e.key === "Backspace" && this.path) { e.preventDefault(); this.dropPoint(); }
-      else if (e.ctrlKey || e.altKey || e.metaKey) return;
-      else if (e.key.toLowerCase() === "b") { this.setTool("brush"); render(); }
-      else if (e.key.toLowerCase() === "e") { this.setTool("erase"); render(); }
-      else if (e.key.toLowerCase() === "l") { this.setTool("lasso"); render(); }
-      else if (e.key.toLowerCase() === "p") { this.setTool("pen"); render(); }
-      else if (e.key.toLowerCase() === "s") { this.setTool("object"); render(); }
+      if (e.key === "Escape" && (this.path || this.rect)) { e.preventDefault(); this.cancelPath(); this.rect = null; this.svg.innerHTML = ""; return true; }
+      if (e.key === "Enter" && this.path) { e.preventDefault(); this.close(e.altKey); return true; }
+      if (e.key === "Backspace" && this.path) { e.preventDefault(); this.dropPoint(); return true; }
+      return false;
     },
     tools: function () {
       var t = this.tool, b = function (k, icon, label, key) {
@@ -820,12 +886,7 @@
       var P = this.path; if (!P) return;
       var d = this.shape(true); this.path = null; this.drawPath();
       if (!d || (P.kind === "lasso" ? P.pts.length < 3 : P.nodes.length < 3)) return;
-      this.push();
-      var ctx = this.ctx;
-      ctx.globalCompositeOperation = cut ? "destination-out" : "source-over";
-      ctx.fillStyle = "#8A2BF2"; ctx.fill(new Path2D(d));
-      ctx.globalCompositeOperation = "source-over";
-      this.check(); this.hint(); render();
+      this.fillShape(d, cut);
     },
     // Edge strength of the picture, once per picture: where the lasso likes to run.
     costMap: function () {
@@ -970,7 +1031,7 @@
     $(id + "-go").disabled = !can;
     $(id + "-cancel").hidden = !busy;
     $(id + "-fill").style.width = busy ? Math.round((p.frac || 0) * 100) + "%" : "0";
-    var label = id === "c" ? (S.create.area === "paint" ? "Change painted area" : "Create") : "Transfer";
+    var label = id === "c" ? (painter.any ? "Change selected area" : "Create") : "Transfer";
     $(id + "-golabel").textContent = busy ? (p.stage || "Working") : label;
     var meta = "", t = st && st.times;
     if (busy && S.engine.state === "starting") meta = S.engine.message;
@@ -1071,7 +1132,7 @@
     $("c-text").placeholder = pr ? pr[2] : "Describe the image you want";
     $("c-imp").hidden = !(st && st.helper_ready);
     if ($("c-text").value !== p.text && document.activeElement !== $("c-text")) $("c-text").value = p.text;
-    $("c-blend-w").hidden = p.area !== "paint";
+    $("c-blend-w").hidden = !painter.any;
     var looks = st ? st.loras.filter(function (l) { return l.family === "klein9b" && !l.builtin && !/klein-consistency|distill/i.test(l.name); }) : [];
     $("c-look-w").hidden = !looks.length;
     options($("c-lora"), looks, p.lora, "Standard");
@@ -1111,7 +1172,7 @@
     var p = P(id), c = current(p);
     var name = c ? short(c.name) : (p.src ? p.src.name : (id === "c" ? "Create" : "Reference"));
     var sub = c ? c.w + " × " + c.h + (c.meta && c.meta.text ? " · " + esc(c.meta.text).slice(0, 90) : "")
-      : p.src ? (id === "c" && p.area === "paint" ? "Paint over what should change" : p.src.w + " × " + p.src.h) : "";
+      : p.src ? p.src.w + " × " + p.src.h : "";
     var ttl = esc(name) + "<small>" + sub + "</small>";
     if ($(id + "-ttl").getAttribute("data-h") !== ttl) { $(id + "-ttl").innerHTML = ttl; $(id + "-ttl").setAttribute("data-h", ttl); }
     var tg = target(p), onB = !!(tg && window.VSBoard && window.VSBoard.has(tg.path));
@@ -1129,10 +1190,10 @@
     var origOf = p.sel === -2 ? (p.job ? p.jobOrig : (p.results.length ? p.results[p.results.length - 1].orig : null)) : null;
     if (c) { mode = "result"; key = c.path + (c.thin ? ":thin" : ""); }
     else if (origOf) { mode = "orig"; key = origOf.length + ":" + origOf.slice(-40) + (p.job && p.preview ? ":dev" + (p.previewN || 0) : ""); }
-    else if (id === "c" && p.src && p.area === "paint") { mode = "paint"; key = p.src.path; }
+    else if (id === "c" && p.src && !p.job && window.VSSketch) { mode = "paint"; key = p.src.live ? "live" : p.src.path; }
     else if (p.src && id === "c") { mode = "src"; key = (p.job && p.liveSrc ? p.liveSrc.path : p.src.path + (p.src.frozen ? ":frozen" : "")) + (S.psSel && S.useSel !== false ? ":sel" + S.psSel.preview.length + S.psSel.preview.slice(-24) : ""); }
     else { mode = "empty"; key = id + (p.src ? "1" : "0"); }
-    key = mode + ":" + key + (mode === "paint" ? ":" + painter.tool + ":" + !!S.psSel : "");
+    key = mode + ":" + key;
     if (view.getAttribute("data-k") !== key) {
       view.setAttribute("data-k", key);
       if (mode === "empty") {
@@ -1140,23 +1201,14 @@
           ? '<div class="s-empty"><b>Start from a sketch or a render</b>Drop it anywhere on this page, paste it with Ctrl V, or click Start from.</div>'
           : '<div class="s-empty"><b>' + (p.src ? "Now add a reference" : "Add your design and a reference") + "</b>The result appears here.</div>";
       } else if (mode === "paint") {
-        view.innerHTML = '<div class="s-fit" data-w="' + p.src.w + '" data-h="' + p.src.h + '"><img src="' + p.src.preview + '" alt=""></div>' + painter.tools();
+        // Sketching: the picture with its layers, the tools on top, the selection over it.
+        if (window.VSSketch) window.VSSketch.unmount();
+        if (painter.w !== Math.round(p.src.w * Math.min(1, 2048 / Math.max(p.src.w, p.src.h)))) painter.reset(p.src);
+        view.innerHTML = '<div class="s-fit" data-w="' + p.src.w + '" data-h="' + p.src.h + '"><img src="' + p.src.preview + '" alt=""></div>';
         var fit = view.querySelector(".s-fit");
-        fit.appendChild(painter.canvas);
-        view.appendChild(painter.ring);
-        // The ring only shows over the picture, never over the tools.
-        fit.appendChild(painter.svg); painter.drawPath();
-        view.addEventListener("pointermove", function (e) { painter.ring.hidden = !painter.brushy() || e.target !== painter.canvas || zoom.space; });
-        painter.canvas.classList.toggle("sel", !painter.brushy());
-        view.querySelector("#c-tools").addEventListener("click", function (e) {
-          var b = e.target.closest("button[data-t]"); if (!b) return;
-          var t = b.getAttribute("data-t");
-          if (/^(brush|erase|lasso|pen|object)$/.test(t)) { painter.setTool(t); render(); }
-          else if (t === "pssel") painter.psSelection();
-          else if (t === "done") { S.create.area = "whole"; render(); }
-          else if (t === "undo") painter.back(); else if (t === "clear") { painter.cancelPath(); painter.clear(); } else if (t === "invert") painter.invert();
-        });
-        $("c-size").addEventListener("input", function () { painter.size = +this.value; keep("brush", painter.size); });
+        fit.appendChild(painter.canvas); fit.appendChild(painter.svg); painter.drawPath();
+        window.VSSketch.mount(view, fit, p.src);
+        view.insertAdjacentHTML("beforeend", '<span class="s-tag' + (p.src.live ? " s-livetag" : "") + '">' + (p.src.live ? '<i class="s-ldot"></i>Live from ' + ((APPS[p.src.app] || APPS.photoshop)[1]) : "Original") + "</span>");
       } else {
         var info = mode === "result" ? c : mode === "orig" ? { preview: origOf, w: p.src.w, h: p.src.h, frozen: true } :
           (p.job && p.liveSrc ? p.liveSrc : p.src);
@@ -1168,9 +1220,18 @@
           (mode === "result" ? '<span class="s-tag">Result · hold to see the original</span>' : '<span class="s-tag' + (info.live ? " s-livetag" : "") + '">' + (info.live ? '<i class="s-ldot"></i>' : "") + (info.live ? "Live from " + ((APPS[info.app] || APPS.photoshop)[1]) : info.frozen ? (dev ? "Developing · step " + (p.previewN || 1) : mode === "orig" && !p.job ? "Sketch · what these results were made from" : "Sketch · frozen while creating") : "Original") + "</span>");
       }
     }
+    if (mode === "paint") {
+      var bimg = view.querySelector(".sk-base"); if (bimg && bimg.getAttribute("src") !== p.src.preview) bimg.setAttribute("src", p.src.preview);
+      // Photoshop's selection, tinted on the live picture.
+      var fitP = view.querySelector(".s-fit"), ov = fitP && fitP.querySelector(".s-selov");
+      var want = p.src.live && S.psSel && S.useSel !== false ? S.psSel.preview : "";
+      if (want && !ov) { ov = document.createElement("div"); ov.className = "s-selov"; ov.style.zIndex = 40; fitP.appendChild(ov); }
+      if (ov && !want) ov.remove();
+      else if (ov && ov.getAttribute("data-m") !== want.slice(-40)) { ov.setAttribute("data-m", want.slice(-40)); ov.style.webkitMaskImage = ov.style.maskImage = "url(" + want + ")"; }
+    }
     var oldpb = view.querySelector(".s-paintbtn");
     if (oldpb && (p.area === "paint" || c || !p.src || p.job)) oldpb.remove();
-    if (id === "c" && p.src && !c && p.area !== "paint" && !p.job) {
+    if (false) {
       var pb = view.querySelector(".s-paintbtn");
       if (!pb) { pb = document.createElement("button"); pb.type = "button"; pb.className = "s-paintbtn";
         pb.onclick = function () { S.create.area = S.create.area === "paint" ? "whole" : "paint"; S.create.sel = -1; render(); }; view.appendChild(pb); }
@@ -1252,7 +1313,8 @@
       var z = this.of(v), wh = w + "x" + h;
       if (z.wh !== wh) { z.wh = wh; z.z = 1; z.x = 0; z.y = 0; }
       f.style.transformOrigin = "50% 50%";
-      f.style.transform = "translate(" + z.x + "px," + z.y + "px) scale(" + z.z + ")";
+      var fl = window.VSSketch && v.id === "c-view" ? window.VSSketch.flip() : {};
+      f.style.transform = "translate(" + z.x + "px," + z.y + "px) scale(" + z.z * (fl.h ? -1 : 1) + "," + z.z * (fl.v ? -1 : 1) + ")";
       f.classList.toggle("s-zoomed", z.z !== 1);
       var pill = v.querySelector(".s-zpill");
       if (!pill) {
@@ -1285,8 +1347,9 @@
         self.by(v, step, e.clientX - r.left, e.clientY - r.top);
       }, { passive: false });
       v.addEventListener("pointerdown", function (e) {
-        if (!(e.button === 1 || (e.button === 0 && self.space))) return;
-        if (!v.querySelector(".s-fit") || e.target.closest(".s-tools,.s-zpill,.s-paintbtn")) return;
+        var hand = e.button === 0 && window.VSSketch && v.id === "c-view" && window.VSSketch.tool() === "hand" && e.target.closest(".s-fit");
+        if (!(e.button === 1 || (e.button === 0 && self.space) || hand)) return;
+        if (!v.querySelector(".s-fit") || e.target.closest(".s-tools,.s-zpill,.s-paintbtn,.sk-bar,.sk-opts,.sk-panel")) return;
         e.preventDefault(); e.stopPropagation();
         var z = self.of(v);
         self.pan = { v: v, x: e.clientX, y: e.clientY, ox: z.x, oy: z.y };
@@ -1569,6 +1632,8 @@
       } else if (kind === "studio-preview") {
         var pv = byJob(data.id); if (!pv) return;
         pv.preview = data.preview; pv.previewN = (pv.previewN || 0) + 1;
+      } else if (kind === "studio-note") {
+        toast(data.text || "");
       } else if (kind === "studio-result") {
         var q = byJob(data.id); if (!q) return;
         data.result.srcKey = q.jobKey; data.result.orig = q.jobOrig; q.results.push(data.result);
@@ -1602,7 +1667,7 @@
   }
 
   // For the board (board.js): the shared state and the actions it reuses.
-  window.VS = { painter: painter, S: S, api: api, esc: esc, short: short, go: go, render: render, setImage: setImage, sendPS: sendPS,
+  window.VS = { layout: function () { layout(); }, zoomSpace: function () { return zoom.space || !!zoom.pan; }, plusMenu: plusMenu, pop: pop, closePop: closePop, painter: painter, S: S, api: api, esc: esc, short: short, go: go, render: render, setImage: setImage, sendPS: sendPS,
                 toast: toast, refresh: refresh, current: current, P: P };
 
   function start() {

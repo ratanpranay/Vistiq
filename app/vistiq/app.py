@@ -275,6 +275,34 @@ class Api:
     def studio_image(self, path):
         return _image_info(path)
 
+    def studio_freeze(self, path, name=""):
+        """A still copy of the Live picture to sketch on (Photoshop stays as it is)."""
+        try:
+            return _image_info(self._app.studio.freeze(path, name))
+        except Exception as exc:
+            log.warning("couldn't copy the live picture: %s", exc)
+            return None
+
+    def studio_magic_erase(self, image, mask):
+        try:
+            return {"patch": self._app.studio.magic_erase(image, mask)}
+        except Exception as exc:
+            log.exception("magic eraser failed")
+            return {"error": "The magic eraser couldn't run: %s" % exc}
+
+    def studio_blank(self, w=1240, h=1754):
+        """A blank white canvas (default A4 at 150 DPI) saved in Vistiq Studio/Sketches."""
+        from PIL import Image
+        w = max(64, min(8192, int(w))); h = max(64, min(8192, int(h)))
+        folder = os.path.join(self._app.studio.home_dir(), "Sketches")
+        os.makedirs(folder, exist_ok=True)
+        n = 1
+        while os.path.exists(os.path.join(folder, "Sketch %d.png" % n)):
+            n += 1
+        path = os.path.join(folder, "Sketch %d.png" % n)
+        Image.new("RGB", (w, h), (255, 255, 255)).save(path, "PNG", dpi=(150, 150))
+        return _image_info(path)
+
     def studio_paste(self):
         try:
             from PIL import ImageGrab

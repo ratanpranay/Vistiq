@@ -100,6 +100,51 @@ def finish(im, clarity=0.0, sharp=0.35):
     return Image.fromarray((np.clip(a, 0, 1) * 255 + 0.5).astype(np.uint8))
 
 
+def _blend(base, top, mode):
+    """Photoshop-style blend of top over base (float arrays 0..1, RGB)."""
+    import numpy as np
+    if mode == "multiply":
+        return base * top
+    if mode == "screen":
+        return 1 - (1 - base) * (1 - top)
+    if mode == "overlay":
+        return np.where(base < 0.5, 2 * base * top, 1 - 2 * (1 - base) * (1 - top))
+    if mode == "darken":
+        return np.minimum(base, top)
+    if mode == "lighten":
+        return np.maximum(base, top)
+    return top
+
+
+def flatten_layers(original, spec):
+    """The picture with the layers painted in Studio, flattened at the picture's
+    full size: what Create works on. spec = {base: {visible, opacity, blend},
+    layers: [{png, opacity, blend, below_base}]} (bottom first)."""
+    import numpy as np
+    W, H = original.size
+    b = spec.get("base") or {}
+    white = np.ones((H, W, 3), dtype=np.float32)
+    pic = np.asarray(original.convert("RGB"), dtype=np.float32) / 255
+    out = white
+
+    def over(out, rgb, alpha, mode):
+        mixed = _blend(out, rgb, mode)
+        return out * (1 - alpha) + mixed * alpha
+
+    layers = spec.get("layers") or []
+    for L in [x for x in layers if x.get("below_base")]:
+        im = Image.open(io.BytesIO(base64.b64decode(L["png"].split(",", 1)[1]))).convert("RGBA").resize((W, H), Image.LANCZOS)
+        a = np.asarray(im, dtype=np.float32) / 255
+        out = over(out, a[..., :3], a[..., 3:4] * float(L.get("opacity", 1)), L.get("blend") or "normal")
+    if b.get("visible", True):
+        out = over(out, pic, np.full((H, W, 1), float(b.get("opacity", 1)), dtype=np.float32), b.get("blend") or "normal")
+    for L in [x for x in layers if not x.get("below_base")]:
+        im = Image.open(io.BytesIO(base64.b64decode(L["png"].split(",", 1)[1]))).convert("RGBA").resize((W, H), Image.LANCZOS)
+        a = np.asarray(im, dtype=np.float32) / 255
+        out = over(out, a[..., :3], a[..., 3:4] * float(L.get("opacity", 1)), L.get("blend") or "normal")
+    return Image.fromarray((np.clip(out, 0, 1) * 255 + 0.5).astype(np.uint8))
+
+
 def load_rgb(path):
     im = ImageOps.exif_transpose(Image.open(path))
     if im.mode in ("RGBA", "LA", "P"):
@@ -188,6 +233,32 @@ class Studio:
         buf = io.BytesIO()
         m.save(buf, "PNG")
         return "data:image/png;base64," + base64.b64encode(buf.getvalue()).decode()
+
+    def home_dir(self):
+        return studio.home(self.settings)
+
+    def freeze(self, path, name=""):
+        """A still copy of a picture (the Live one) to sketch on, in Vistiq Studio/Sketches."""
+        src = self.real_path(path)
+        folder = os.path.join(studio.home(self.settings), "Sketches")
+        os.makedirs(folder, exist_ok=True)
+        stem = _strip_tags(os.path.splitext(os.path.basename(name or src))[0]) or "Sketch"
+        n = 1
+        while os.path.exists(os.path.join(folder, "%s · sketch %d.png" % (stem, n))):
+            n += 1
+        out = os.path.join(folder, "%s · sketch %d.png" % (stem, n))
+        load_rgb(src).save(out, "PNG")
+        return out
+
+    def magic_erase(self, image_url, mask_url):
+        """The magic eraser (LaMa): downloads its model once, then about a second a stroke."""
+        from . import eraser
+        md = studio.models_dir(self.settings)
+        if not eraser.installed(md):
+            self.emit("studio-note", {"text": "Getting the magic eraser (%d MB, once)…" % eraser.MB})
+            studio.download(eraser.URL, eraser.path(md), lambda label, f: self.emit(
+                "studio-note", {"text": "Getting the magic eraser · %d%%" % round((f or 0) * 100)}), "Magic eraser")
+        return eraser.erase(md, image_url, mask_url)
 
     def real_path(self, path):
         """A file for a picture: the mirrored Photoshop picture lives in memory,
@@ -446,6 +517,8 @@ class Studio:
                     say("Getting the full-size canvas from Affinity", None)
                 src_path = self.affinity.export_full(need, src_path) or src_path
             original = load_rgb(src_path)
+            if job.get("layers"):
+                original = flatten_layers(original, job["layers"])   # painted layers on top, as seen
             mask = box = None
             if job.get("mask"):
                 mask = decode_mask(job["mask"], original.size)
