@@ -1066,8 +1066,37 @@ FINISH_MAT = ("All materials are brand new and showroom-perfect, like a car make
               "blotches, mottling, patches, creases, wear or dust anywhere.")
 # When the prompt names its own time of day, the light still has to look
 # like a press photo, not a flat, hazy snapshot.
-SOFT_LIGHT = ("Soft, diffused daylight with smooth, gradual gradients on every volume and gentle contact "
+SOFT_LIGHT = ("Soft, diffused light with smooth, gradual gradients on every volume and gentle contact "
               "shadows; windows bright but not blown out; balanced, natural exposure.")
+
+
+LOCK_TEXT = {
+    "design": "Keep the design exactly: every shape, part, line and proportion stays as it is.",
+    "materials": "Keep every material, colour and finish exactly as it is.",
+    "light": "Keep the lighting exactly as it is: the same direction, softness, brightness and time of day.",
+    "camera": "Keep the camera exactly: the same viewpoint, angle, lens and framing.",
+}
+SKETCH_LOCK_TEXT = {
+    "materials": "Use the colours and materials exactly as drawn in the sketch.",
+    "light": "Keep the light and shading as drawn in the sketch.",
+}
+
+
+def with_locks(text, locks, sketch):
+    """Rules for what must not change (the Keep toggles), put first: the model
+    weighs the start of the prompt most. Light locked also drops our own light."""
+    locks = locks or {}
+    if locks.get("light"):
+        for part in (LIGHT_INT, LIGHT_NIGHT, LIGHT_EXT, LIGHT, SOFT_LIGHT):
+            text = text.replace("\n\n" + part, "")
+    if sketch:
+        rules = [SKETCH_LOCK_TEXT[k] for k in ("materials", "light") if locks.get(k)]
+    else:
+        rules = [LOCK_TEXT[k] for k in ("design", "materials", "light", "camera") if locks.get(k)]
+        free = [k for k in ("design", "materials", "light", "camera") if not locks.get(k)]
+        if free:
+            rules.append("Change only what the instructions below describe.")
+    return ("\n".join(rules) + "\n\n" + text) if rules else text
 
 
 def _interior(text):

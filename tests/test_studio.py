@@ -162,6 +162,21 @@ class Folders(unittest.TestCase):
         self.assertNotIn(studio.FINISH_MAT, studio.build_text("sketch", "silver sports car, side view"))
         self.assertNotIn(studio.FINISH_MAT, studio.build_text("lighting", "SUV interior, golden hour"))
 
+    def test_locks_lead_the_prompt(self):
+        t = studio.with_locks(studio.build_text("lighting", "SUV interior at golden hour"),
+                              {"design": True, "materials": True, "light": False, "camera": True}, False)
+        self.assertTrue(t.startswith(studio.LOCK_TEXT["design"]))
+        self.assertIn(studio.LOCK_TEXT["materials"], t)
+        self.assertNotIn(studio.LOCK_TEXT["light"], t)
+        # Light locked: our own light text goes, so it can't fight the picture's.
+        t = studio.with_locks(studio.build_text("photo", "SUV interior, red seats"),
+                              {"design": True, "materials": False, "light": True, "camera": True}, False)
+        self.assertNotIn(studio.LIGHT_INT, t)
+        self.assertIn(studio.LOCK_TEXT["light"], t)
+        # A sketch: the design hold comes from elsewhere; only materials/light rules here.
+        t = studio.with_locks(studio.build_text("sketch", "interior, tan seats"), {"design": True, "materials": True}, True)
+        self.assertTrue(t.startswith(studio.SKETCH_LOCK_TEXT["materials"]))
+
     def test_light_follows_prompt(self):
         # No interior/exterior switch: the words in the prompt pick the look.
         self.assertEqual(studio.light_for("SUV interior, tan leather seats"), studio.LIGHT_INT)

@@ -376,7 +376,53 @@ const frame = (n, name) => ({ path: "live://photoshop/" + n, name: name || "flat
     check("a blank A4 canvas at 150 DPI", JSON.stringify(await p.evaluate(() => window.__blank)) === "[1240,1754]", JSON.stringify(await p.evaluate(() => window.__blank)));
     check("it lands on the board", await p.evaluate(() => window.VSBoard._state().tiles.some((t) => t.name === "Sketch 1.png")), "");
     check("all tiles are the same size", await p.evaluate(() => { const hs = [...document.querySelectorAll(".b-tile")].map((t) => t.offsetHeight); return new Set(hs).size === 1; }), JSON.stringify(await p.evaluate(() => [...document.querySelectorAll(".b-tile")].map((t) => t.offsetHeight))));
+    // Upload from phone: a QR code, and what the phone sends lands on the board.
+    await p.evaluate(() => { window.pywebview.api.studio_phone = (on) => { window.__phone = on; return Promise.resolve(on ? { on: true, url: "http://192.168.1.5:8395/drop?k=x", qr: "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg'/%3E" } : { on: false }); }; });
+    await p.click(".b-bar .b-plus"); await p.waitForTimeout(80);
+    await p.click(".s-pop [data-p=phone]"); await p.waitForTimeout(120);
+    check("Upload from phone shows a QR code", await p.evaluate(() => !!document.querySelector("#s-phone .qr img")), "no QR");
+    await p.ev("studio-dropped", { target: "board", from: "phone", images: [{ path: "C:/d/phone_1.jpg", name: "phone_1.jpg", w: 1200, h: 900, preview: "data:image/gif;base64,R0lGODlhAQABAIAAAP///wAAACH5BAAAAAAALAAAAAABAAEAAAICRAEAOw==" }] });
+    await p.waitForTimeout(100);
+    check("a phone picture lands on the board", await p.evaluate(() => window.VSBoard._state().tiles.some((t) => t.name === "phone_1.jpg")) && /on the board/.test(await p.text("#s-phone .st")), await p.text("#s-phone .st"));
+    await p.keyboard.press("Escape"); await p.waitForTimeout(50);
+    check("closing stops the phone link", await p.evaluate(() => !document.getElementById("s-phone") && window.__phone === false), "");
     check("no page errors with the + menu", p.errors.length === 0, p.errors.join(" | "));
+    await p.close();
+  }
+
+  // The Create panel: Working on, prompt, Keep locks (with a warning when words clash).
+  {
+    const p = await open(browser, null, {});
+    const W1 = "data:image/gif;base64,R0lGODlhAQABAIAAAP///wAAACH5BAAAAAAALAAAAAABAAEAAAICRAEAOw==";
+    await p.evaluate((w) => { window.VS.S.create.source = "image"; window.VS.setImage(window.VS.S.create, "src", { path: "C:/s/Sketch 1.png", name: "Sketch 1.png", w: 1240, h: 1754, preview: w }); }, W1);
+    await p.waitForTimeout(150);
+    const locks = () => p.evaluate(() => [...document.querySelectorAll("#c-locks button.on")].map((b) => b.getAttribute("data-v")).join(","));
+    check("Working on shows the open picture", /Sketch 1/.test(await p.text("#c-work")), await p.text("#c-work"));
+    check("a sketch starts with Design and Camera locked", (await locks()) === "design,camera", await locks());
+    await p.evaluate((w) => { window.VS.setImage(window.VS.S.create, "src", { path: "C:/o/flat 2_create_v1.png", name: "flat 2_create_v1.png", w: 2368, h: 1328, preview: w }); }, W1);
+    await p.waitForTimeout(150);
+    check("a render starts with everything locked", (await locks()) === "design,materials,light,camera", await locks());
+    await p.fill("#c-text", "make the seats red leather, at sunset"); await p.waitForTimeout(80);
+    check("words that change locked things show a warning", /locked/.test(await p.text("#c-warn")) && !(await p.evaluate(() => document.getElementById("c-warn").hidden)), await p.text("#c-warn"));
+    await p.click("#c-warn [data-unlock]"); await p.waitForTimeout(80);
+    check("Unlock frees them", (await locks()) === "design,camera", await locks());
+    await p.evaluate(() => { window.__job = null; window.pywebview.api.studio_run = (j) => { window.__job = j; return Promise.resolve("j7"); }; window.VS.S.status = Object.assign(window.VS.S.status || {}, { create_ready: true }); });
+    await p.click("#c-go"); await p.waitForTimeout(80);
+    check("Create sends the locks", await p.evaluate(() => !!(window.__job && window.__job.locks && window.__job.locks.design && !window.__job.locks.materials)), JSON.stringify(await p.evaluate(() => window.__job && window.__job.locks)));
+    check("no page errors in the Create panel", p.errors.length === 0, p.errors.join(" | "));
+    await p.close();
+  }
+
+  // The machine line: graphics card, processor, memory.
+  {
+    const p = await open(browser, (() => { window.__statsMock = 1; }), {});
+    await p.evaluate(() => { window.pywebview.api.studio_stats = () => Promise.resolve({ gpu: { name: "RTX 4090", load: 97, temp: 74, used: 17, total: 24 }, cpu: { name: "i9-13900K", load: 18, temp: null }, ram: { used: 28, total: 64 } }); });
+    await p.waitForTimeout(3300);
+    const t = await p.text("#s-machine");
+    check("the machine line shows GPU, VRAM, CPU and RAM", /RTX 4090/.test(t) && /97%/.test(t) && /17\.0\/24 GB/.test(t) && /i9-13900K/.test(t) && /28\/64 GB/.test(t), t);
+    const a = await p.evaluate(() => { const m = document.getElementById("s-machine").getBoundingClientRect(), z = document.querySelector("#c-view .s-zpill"); const zr = z && z.getBoundingClientRect(); return [Math.round(m.top + m.height / 2), zr ? Math.round(zr.top + zr.height / 2) : -1]; });
+    check("zoom box sits on the same line", Math.abs(a[0] - a[1]) <= 4 || a[1] === -1, JSON.stringify(a));
+    check("no page errors with the machine line", p.errors.length === 0, p.errors.join(" | "));
     await p.close();
   }
 

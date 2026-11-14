@@ -542,6 +542,8 @@ class Studio:
                                          f3=studio.flux3_ready(s))
             else:
                 text = studio.build_text(job.get("preset") or "", job.get("text"))
+                if job.get("locks"):
+                    text = studio.with_locks(text, job["locks"], (job.get("preset") or "") == "sketch")
             seed = int(job.get("seed") or int(time.time()) % 100000 * 7919)
             keep = float(job.get("keep") if job.get("keep") is not None else 0.8)
             if studio.flux3_ready(s) and keep >= 0.6 and studio.F3_KEEP not in text:

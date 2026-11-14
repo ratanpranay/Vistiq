@@ -747,3 +747,49 @@ body.studio .s-stage>.s-top,body.studio .s-stage>.s-under{position:relative;z-in
 .b-empty.b-off{flex-direction:column;gap:8px}
 .b-empty.b-off button{height:28px;padding:0 14px;border:0;border-radius:8px;background:#14161f;color:#fff;font:inherit;font-size:12px;cursor:pointer}
 .b-empty.b-off small{color:var(--dim);font-size:10.5px;max-width:240px}
+
+/* 0.4.3 Create panel: Working on · prompt · Keep locks */
+#p-create .s-old{display:none}
+.s-work{display:flex;align-items:center;gap:10px;padding:8px;border-radius:12px;background:#f6f7fa;cursor:pointer}
+.s-work img{width:62px;height:40px;object-fit:cover;border-radius:7px;flex:none;box-shadow:0 0 0 1px #e6e8ef}
+.s-work span{flex:1;min-width:0}.s-work b{display:block;font-size:12.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.s-work small{color:var(--dim,#80869a);font-size:11px}
+.s-work .s-link{font-size:11.5px;color:#6d5df5;white-space:nowrap}
+.s-work .s-none{color:var(--dim,#80869a);font-size:12px;padding:6px 4px}
+.s-lockl{display:flex;justify-content:space-between;align-items:baseline}.s-lockl em{font-style:normal;color:var(--dim,#80869a);font-size:10.5px}
+.s-locks{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.s-locks button{display:flex;align-items:center;gap:7px;padding:8px 10px;border:1px solid var(--line,#e6e8ef);border-radius:10px;background:#fff;font:inherit;font-size:12.5px;color:var(--dim,#80869a);cursor:pointer;text-align:left}
+.s-locks button.on{border-color:#14161f;color:#14161f;background:#f6f7fa}
+.s-locks button svg{width:15px;height:15px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;flex:none}
+.s-locks button svg:nth-of-type(1){display:none}.s-locks button.on svg:nth-of-type(1){display:block}.s-locks button.on svg:nth-of-type(2){display:none}
+.s-locks button small{margin-left:auto;font-size:10px;color:var(--dim,#80869a)}
+.s-warn{display:flex;gap:8px;align-items:flex-start;margin-top:8px;padding:8px 10px;border-radius:10px;background:#fff6e5;color:#7a5200;font-size:11.5px;line-height:1.4}
+.s-warn svg{width:15px;height:15px;flex:none;fill:none;stroke:currentColor;stroke-width:1.8;margin-top:1px}
+.s-warn b{color:#5c3d00}.s-warn .s-link{color:#7a5200;font-weight:600;text-decoration:underline;padding:0;font-size:inherit}
+.s-warn[hidden]{display:none}
+
+/* the machine line and the zoom box: one line at the bottom, level with the ‹ arrow */
+.s-machine{position:fixed;left:84px;bottom:20px;z-index:30;display:none;gap:10px;align-items:center;padding:4px 10px;border-radius:8px;background:rgba(255,255,255,.92);box-shadow:0 2px 8px rgba(14,16,32,.07);font-size:9.5px;line-height:1.2;color:#8a90a2;white-space:nowrap;pointer-events:none;max-width:calc(100vw - 84px - 470px);overflow:hidden}
+.s-machine:empty{display:none!important}
+body.studio[data-page=create] .s-machine,body.studio[data-page=reference] .s-machine,body.studio[data-page=board] .s-machine,body.studio[data-page=upscale] .s-machine,body.studio[data-page=library] .s-machine{display:flex}
+body.nav-min .s-machine{left:20px}
+.s-machine b{color:#3b4050;font-weight:500}.s-machine b.hot{color:#d97706}
+.s-machine i{display:inline-block;width:22px;height:3px;border-radius:2px;background:#e6e8ef;position:relative;vertical-align:1px;margin:0 3px}
+.s-machine i u{position:absolute;left:0;top:0;bottom:0;border-radius:2px;background:#9aa1b2;text-decoration:none}.s-machine i.g u{background:#6d5df5}
+.s-machine .sep{width:1px;height:10px;background:#e6e8ef}.s-machine .job{color:#6d5df5}
+body.studio #p-create .s-zpill,body.studio #p-reference .s-zpill{position:fixed;right:316px;bottom:16px;left:auto;z-index:30;font-size:10.5px;padding:2px;border-radius:8px}
+body.studio .s-zpill button{height:22px;min-width:22px;padding:0 7px;font-size:10.5px}
+body.studio .s-zpill b{min-width:38px;font-size:10.5px}
+body.rail-min #p-create .s-zpill,body.rail-min #p-reference .s-zpill{right:16px}
+
+.s-phone{position:fixed;inset:0;z-index:300;background:rgba(20,22,31,.28);display:flex;align-items:center;justify-content:center}
+.s-phone .box{position:relative;width:400px;background:#fff;border-radius:18px;box-shadow:0 20px 60px rgba(14,16,32,.28);padding:26px;text-align:center;color:var(--ink,#14161f)}
+.s-phone h3{margin:0 0 6px;font-size:16px}.s-phone p{margin:0 0 16px;color:var(--dim,#80869a);font-size:12px;line-height:1.5}
+.s-phone .qr{width:200px;height:200px;margin:0 auto;border-radius:14px;box-shadow:0 0 0 1px #e6e8ef;display:flex;align-items:center;justify-content:center;overflow:hidden}
+.s-phone .qr img{width:100%;height:100%}.s-phone .wait{color:var(--dim,#80869a);font-size:12px;padding:12px}
+.s-phone .st{display:flex;align-items:center;justify-content:center;gap:8px;margin-top:16px;font-size:12px;color:var(--ink2,#3b4050)}
+.s-phone .st i{width:8px;height:8px;border-radius:50%;background:#f59e0b;box-shadow:0 0 0 4px #f59e0b33;animation:s-blink 1.4s infinite}
+.s-phone .st.ok i{background:#22c55e;box-shadow:0 0 0 4px #22c55e33;animation:none}
+.s-phone .u{display:block;margin-top:8px;color:#b0b4c2;font-size:10.5px}
+.s-phone .x{position:absolute;right:12px;top:10px;border:0;background:transparent;font-size:20px;color:var(--dim,#80869a);cursor:pointer}
+@keyframes s-blink{50%{opacity:.35}}

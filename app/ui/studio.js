@@ -30,6 +30,8 @@
     clip: '<rect x="8" y="3" width="8" height="4" rx="1"/><path d="M8 5H6a1 1 0 0 0-1 1v14a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V6a1 1 0 0 0-1-1h-2"/>',
     phone: '<rect x="7" y="2" width="10" height="20" rx="2"/><path d="M11 18h2"/>',
     plus: '<path d="M12 5v14M5 12h14"/>',
+    lock: '<rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/>',
+    unlock: '<rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 7.5-2"/>',
     lasso: '<path d="M7 18c-2.5-1-4-3-4-5.5C3 8 7.5 5 12 5s9 3 9 7-4 6.5-9 6.5c-1.4 0-2.7-.2-3.8-.6"/><path d="M8.5 17.5c0 2-1.5 3.5-3 3.5"/><circle cx="8.2" cy="17.7" r="1.3"/>',
     pen: '<path d="M12 3l5 9-5 9-5-9z"/><path d="M12 12v9M12 12h.01"/>',
     deselect: '<path d="M4 8V5a1 1 0 0 1 1-1h3M16 4h3a1 1 0 0 1 1 1v3M20 16v3a1 1 0 0 1-1 1h-3M8 20H5a1 1 0 0 1-1-1v-3"/><path d="M9 9l6 6M15 9l-6 6"/>'
@@ -42,6 +44,26 @@
     ["lighting", "Lighting", "Change the lighting to… (e.g. golden hour from the left, soft shadows)", "light"],
     ["photo", "Photoreal", "Make it look like a real photo, with… (e.g. magazine lighting)", "photo"]
   ];
+  // What must not change. A sketch starts with its design and camera locked (it is
+  // rendered); a render starts with everything locked (you unlock what to change).
+  var LOCKS = [["design", "Design", "shapes", "Every shape, part, line and proportion"], ["materials", "Materials", "CMF", "Colours, materials and finishes"],
+               ["light", "Light", "", "Direction, softness and time of day"], ["camera", "Camera", "view", "Viewpoint, angle and framing"]];
+  var LOCK_WORDS = {
+    materials: /\b(leather|nappa|alcantara|suede|fabric|textile|wood|veneer|chrome|metal|aluminium|aluminum|carbon|plastic|matte|glossy|satin|paint|colou?r|red|blue|green|yellow|orange|purple|pink|black|white|grey|gray|beige|tan|brown|burgund\w*|cmf|material|finish)\b/i,
+    light: /\b(light|lighting|lit|sun|sunny|sunset|sunrise|golden hour|blue hour|night|dusk|dawn|evening|morning|noon|overcast|shadow|shadows|studio light|ambient|bright|dark|moody)\b/i,
+    design: /\b(redesign|reshape|new shape|change the (shape|form|design)|add (a|an|the)?\s*\w+|remove|bigger|smaller|wider|narrower|taller|shorter|more aggressive|sportier)\b/i,
+    camera: /\b(angle|view from|side view|front view|rear view|top view|from above|from below|camera|zoom out|zoom in|close-?up|wide shot|perspective)\b/i
+  };
+  function isRender(src) { return !!src && !src.live && !src.frozen && /_(create|refine|paint|camera|cmf|style|reference|variation)/i.test(src.name || src.path || ""); }
+  function defaultLocks(src) { var r = isRender(src); return { design: true, materials: r, light: r, camera: true }; }
+  // The old preset that matches the locks (its wording is tested on the engine).
+  function presetFor(p) {
+    var L = p.locks || defaultLocks(p.src);
+    if (!isRender(p.src)) return "sketch";
+    if (!L.light && L.materials) return "lighting";
+    if (!L.materials && L.light) return "cmf";
+    return "photo";
+  }
   var REF = {
     camera: ["Camera", "Shows your design from the reference's camera position, angle and field of view."],
     cmf: ["CMF", "Puts the reference's colours, materials and finishes on your design."],
@@ -126,13 +148,16 @@
     var create = document.createElement("div");
     create.className = "s-page"; create.id = "p-create";
     create.innerHTML = rail("c", "Create",
-      '<div><div class="s-label">Start from</div><div class="m-src" id="c-source"><button type="button" data-v="live"><span class="m-dot"></span>Live from app</button><button type="button" data-v="image">Image</button></div>' +
-      '<button type="button" class="s-slot s-slim empty" id="c-slot" data-slot="src"></button>' +
+      '<div><div class="s-label">Working on</div><div class="s-work" id="c-work"></div>' +
+      '<div class="s-old"><div class="m-src" id="c-source"><button type="button" data-v="live"><span class="m-dot"></span>Live from app</button><button type="button" data-v="image">Image</button></div>' +
+      '<button type="button" class="s-slot s-slim empty" id="c-slot" data-slot="src"></button></div>' +
       '<div class="s-ps" id="c-ps"></div></div>' +
       '<div class="s-seg" id="c-area" hidden><button type="button" data-v="whole"></button><button type="button" data-v="paint"></button></div>' +
-      '<div><div class="s-label">What to change</div><div class="s-tiles4" id="c-presets">' +
+      '<div class="s-old"><div class="s-tiles4" id="c-presets">' +
       PRESETS.map(function (p) { return '<button type="button" data-v="' + p[0] + '">' + svg(p[3]) + "<span>" + p[1] + "</span></button>"; }).join("") + "</div></div>" +
-      promptBox("c", "Describe the change") +
+      '<div><div class="s-label" id="c-prompt-l">Describe the result</div>' + promptBox("c", "Describe the change") + '<div class="s-warn" id="c-warn" hidden></div></div>' +
+      '<div><div class="s-label s-lockl"><span>Keep</span><em>Studio never changes what is locked</em></div><div class="s-locks" id="c-locks">' +
+      LOCKS.map(function (l) { return '<button type="button" data-v="' + l[0] + '" title="' + l[3] + '">' + svg("lock") + svg("unlock") + "<span>" + l[1] + "</span><small>" + l[2] + "</small></button>"; }).join("") + "</div></div>" +
       '<div id="c-blend-w" hidden><div class="s-label">Blend edges <em id="c-blend-v"></em></div><input class="s-range" type="range" min="0" max="1" step="0.05" id="c-blend"></div>' +
       '<div id="c-look-w" hidden><div class="s-label">Style</div><select class="s-select" id="c-lora"></select></div>' +
       optionsRow("c"), "Create") + stage("c");
@@ -188,6 +213,8 @@
     document.body.appendChild(board);
     if (window.VSBoard) window.VSBoard.build(board);
     loadStrip();
+    var mach = document.createElement("div"); mach.id = "s-machine"; mach.className = "s-machine"; document.body.appendChild(mach);
+    statsLoop();
 
     // Upscale's panel gets the same header (title + fold button) as the others.
     var urail = document.querySelector(".shell .rail");
@@ -312,7 +339,10 @@
     }, 0);
     return popEl;
   }
-  document.addEventListener("keydown", function (e) { if (e.key === "Escape" && popEl) { closePop(); e.stopPropagation(); } }, true);
+  document.addEventListener("keydown", function (e) {
+    if (e.key === "Escape" && popEl) { closePop(); e.stopPropagation(); }
+    else if (e.key === "Escape" && $("s-phone")) { closePhone(); e.stopPropagation(); }
+  }, true);
 
   // The + menu: a blank canvas, a picture from disk, the clipboard or the phone.
   var FORMATS = { a4p: [1240, 1754, "Portrait"], a4l: [1754, 1240, "Landscape"], wide: [1920, 1080, "16 : 9"], sq: [1600, 1600, "Square"] };
@@ -335,7 +365,48 @@
     });
     el.classList.add("s-plus");
   }
-  function phoneDialog() { toast("Upload from phone is coming in this build."); }
+  // Upload from phone: a QR code; whatever the phone sends lands on the board.
+  function phoneDialog() {
+    closePhone();
+    var veil = document.createElement("div"); veil.className = "s-phone"; veil.id = "s-phone";
+    veil.innerHTML = '<div class="box"><button type="button" class="x" data-ph="close" aria-label="Close">×</button><h3>Send a sketch from your phone</h3>' +
+      "<p>Scan with the phone's camera. Phone and PC on the same Wi-Fi.<br>Photos and scans land on the board.</p>" +
+      '<div class="qr"><span class="wait">Starting…</span></div><div class="st"><i></i><span>Waiting for your phone…</span></div><small class="u"></small></div>';
+    document.body.appendChild(veil);
+    veil.addEventListener("click", function (e) { if (e.target === veil || e.target.closest("[data-ph=close]")) closePhone(); });
+    api().studio_phone(true).then(function (r) {
+      if (!$("s-phone")) return;
+      if (!r || r.error) { veil.querySelector(".qr").innerHTML = '<span class="wait">' + esc((r && r.error) || "Couldn't start.") + "</span>"; return; }
+      veil.querySelector(".qr").innerHTML = '<img src="' + r.qr + '" alt="QR code">';
+      veil.querySelector(".u").textContent = r.url.split("?")[0];
+    });
+  }
+  function closePhone() { var v = $("s-phone"); if (v) { v.remove(); if (api() && api().studio_phone) api().studio_phone(false); } }
+  function phoneGot(n) {
+    var v = $("s-phone"); if (!v) return;
+    v.querySelector(".st span").textContent = n + (n > 1 ? " pictures" : " picture") + " on the board ✓ Send more, or close this.";
+    v.querySelector(".st").classList.add("ok");
+  }
+
+  // -- the machine line: graphics card, processor, memory (tiny, live) ------------------
+  var statsT = 0;
+  function bar(p, cls) { return '<i class="' + (cls || "") + '"><u style="width:' + Math.max(0, Math.min(100, p || 0)) + '%"></u></i>'; }
+  function statsLoop() {
+    clearTimeout(statsT);
+    var busy = !!(S.create.job || S.ref.job);
+    statsT = setTimeout(statsLoop, document.hidden ? 6000 : busy ? 1200 : 3000);
+    if (document.hidden || !api() || !api().studio_stats) return;
+    api().studio_stats().then(function (m) {
+      var el = $("s-machine"); if (!el || !m) return;
+      var p = S.page === "reference" ? S.ref : S.create, parts = [];
+      if (p.job) parts.push('<span class="job">● ' + esc(p.stage || "Working") + (p.frac ? " · " + Math.round(p.frac * 100) + "%" : "") + "</span><span class=\"sep\"></span>");
+      if (m.gpu) parts.push("<span>GPU <b>" + esc(m.gpu.name) + "</b>" + bar(m.gpu.load, "g") + "<b>" + m.gpu.load + "%</b> <b class=\"" + (m.gpu.temp >= 80 ? "hot" : "") + "\">" + m.gpu.temp + "°</b></span>" +
+        "<span>VRAM" + bar(100 * m.gpu.used / m.gpu.total, "g") + "<b>" + m.gpu.used.toFixed(1) + "/" + Math.round(m.gpu.total) + " GB</b></span><span class=\"sep\"></span>");
+      if (m.cpu) parts.push("<span>CPU" + (m.cpu.name ? " <b>" + esc(m.cpu.name) + "</b>" : "") + bar(m.cpu.load) + "<b>" + (m.cpu.load == null ? "–" : m.cpu.load + "%") + "</b>" + (m.cpu.temp ? " <b>" + m.cpu.temp + "°</b>" : "") + "</span>");
+      if (m.ram) parts.push("<span>RAM" + bar(100 * m.ram.used / m.ram.total) + "<b>" + m.ram.used.toFixed(0) + "/" + m.ram.total + " GB</b></span>");
+      el.innerHTML = parts.join("");
+    });
+  }
 
   // -- the results strips survive a restart -----------------------------------------
   // Only paths are kept (strip.json); thumbnails are made again on start, the full
@@ -449,6 +520,8 @@
       var lay = window.VSSketch && window.VSSketch.payload(p.src);
       if (lay) j.layers = lay;
       j.lora = p.lora || null;
+      j.locks = Object.assign({}, p.locks || defaultLocks(p.src));
+      if (!j.locks.design) j.keep = Math.min(j.keep, 0.35);        // design unlocked: free to change shapes
     }
     Object.assign(j, extra || {});
     p.error = ""; p.stage = "Starting"; p.frac = 0; p.pending = j.variations; p.started = Date.now(); p.estimate = 0;
@@ -493,11 +566,25 @@
       var b = e.target.closest("button"); if (!b) return;
       S.create.area = b.getAttribute("data-v"); if (S.create.area === "paint") S.create.sel = -1; render();
     });
+    $("c-locks").addEventListener("click", function (e) {
+      var b = e.target.closest("button"); if (!b) return;
+      var p = S.create, k = b.getAttribute("data-v");
+      p.locks = Object.assign({}, p.locks || defaultLocks(p.src)); p.locks[k] = !p.locks[k]; p.locksFor = keyOfSrc(p.src); render();
+    });
+    $("c-warn").addEventListener("click", function (e) {
+      var b = e.target.closest("[data-unlock]"); if (!b) return;
+      var p = S.create; p.locks = Object.assign({}, p.locks || defaultLocks(p.src));
+      b.getAttribute("data-unlock").split(",").forEach(function (k) { p.locks[k] = false; }); p.locksFor = keyOfSrc(p.src); render();
+    });
+    $("c-work").addEventListener("click", function (e) {
+      if (e.target.closest("[data-w=board]")) { go("board"); return; }
+      pick("c", "src");
+    });
     $("c-presets").addEventListener("click", function (e) {
       var b = e.target.closest("button"); if (!b) return;
       var v = b.getAttribute("data-v"); S.create.preset = S.create.preset === v ? "" : v; keep("c.preset", S.create.preset); render();
     });
-    $("c-text").addEventListener("input", function () { S.create.text = this.value; });
+    $("c-text").addEventListener("input", function () { S.create.text = this.value; renderWarn(); });
     $("c-blend").addEventListener("input", function () { S.create.blend = +this.value; keep("c.blend2", S.create.blend); renderValues(); });
     $("c-lora").addEventListener("change", function () { S.create.lora = this.value; keep("c.lora", this.value); });
     // Reference
@@ -1115,6 +1202,20 @@
   }
   window.addEventListener("error", function (ev) { report("page", ev.error || ev.message); });
 
+  function keyOfSrc(src) { return src ? (src.live ? "live" : src.path) : ""; }
+  // A word in the prompt that changes something locked: say so, with one click to unlock.
+  function renderWarn() {
+    var p = S.create, el = $("c-warn"), t = p.text || "", L = p.locks || defaultLocks(p.src), hit = [];
+    Object.keys(LOCK_WORDS).forEach(function (k) { var m = L[k] && t.match(LOCK_WORDS[k]); if (m) hit.push([k, m[0]]); });
+    // A sketch is rendered: describing its materials and light is the point, not a clash.
+    if (!isRender(p.src)) hit = hit.filter(function (h) { return h[0] === "camera"; });
+    var names = { design: "Design", materials: "Materials", light: "Light", camera: "Camera" };
+    var h = hit.length ? svg("lock") + '<span><b>"' + hit.map(function (x) { return esc(x[1]); }).join('", "') + '"</b> would change ' +
+      hit.map(function (x) { return names[x[0]]; }).join(" and ") + ', which ' + (hit.length > 1 ? "are" : "is") + ' locked. <button type="button" class="s-link" data-unlock="' +
+      hit.map(function (x) { return x[0]; }).join(",") + '">Unlock</button> or keep it.</span>' : "";
+    el.hidden = !h; if (el.getAttribute("data-h") !== h) { el.innerHTML = h; el.setAttribute("data-h", h); }
+  }
+
   function renderCreate() {
     var p = S.create, st = S.status;
     $("c-imp").hidden = !(st && st.helper_ready);
@@ -1128,8 +1229,24 @@
     try { setSlot($("c-slot"), p.src, "click to change", "Drop a sketch or render here, or click"); } catch (e) { if (window.console) console.error(e); }
     on($("c-area"), "data-v", p.area);
     on($("c-presets"), "data-v", p.preset);
-    var pr = PRESETS.filter(function (x) { return x[0] === p.preset; })[0];
-    $("c-text").placeholder = pr ? pr[2] : "Describe the image you want";
+    // Working on: what is open, where it came from.
+    var w = p.src, wk = w ? keyOfSrc(w) + (w.preview || "").length : "";
+    if ($("c-work").getAttribute("data-k") !== wk) {
+      $("c-work").setAttribute("data-k", wk);
+      $("c-work").innerHTML = w ? '<img src="' + w.preview + '" alt=""><span><b>' + esc(short(w.name || "")) + "</b><small>" +
+        (w.live ? "Live from " + ((APPS[w.app] || APPS.photoshop)[1]) : isRender(w) ? "Render · " + w.w + " × " + w.h : (/sketch \d/i.test(w.name) ? "Sketch · " : "Picture · ") + w.w + " × " + w.h) +
+        '</small></span><button type="button" class="s-link" data-w="board">← Board</button>' : '<span class="s-none">Open a tile on the board, or click here to pick a picture</span>';
+    }
+    $("c-ps").hidden = !(w && w.live);
+    if (p.locksFor !== keyOfSrc(w)) { p.locks = defaultLocks(w); p.locksFor = keyOfSrc(w); }
+    var LK = p.locks || defaultLocks(w);
+    $("c-locks").querySelectorAll("button").forEach(function (b) { b.classList.toggle("on", !!LK[b.getAttribute("data-v")]); });
+    p.preset = presetFor(p);
+    $("c-prompt-l").textContent = isRender(w) ? "Describe the change" : "Describe the result";
+    $("c-keep-w").hidden = !LK.design;
+    $("c-keep-l").firstChild.textContent = "How strictly · Design ";
+    renderWarn();
+    $("c-text").placeholder = isRender(p.src) ? "What should change? (e.g. make the seats red leather)" : "What should it look like? (e.g. yellow nappa seats, soft morning light)";
     $("c-imp").hidden = !(st && st.helper_ready);
     if ($("c-text").value !== p.text && document.activeElement !== $("c-text")) $("c-text").value = p.text;
     $("c-blend-w").hidden = !painter.any;
@@ -1658,6 +1775,7 @@
           else setImage(S.ref, S.dropSlot || (S.ref.src && !S.ref.refimg ? "refimg" : "src"), imgs[0]);
         } else if (data.target === "board" && window.VSBoard) {
           window.VSBoard.addImages(imgs);
+          if (data.from === "phone") { S.phoneN = (S.phoneN || 0) + imgs.length; phoneGot(S.phoneN); toast("From your phone: on the board"); }
         } else if (data.target === "create" || data.target === "library") {
           setImage(S.create, "src", imgs[0]); if (data.target === "library") go("create");
         }

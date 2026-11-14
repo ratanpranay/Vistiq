@@ -290,6 +290,34 @@ class Api:
             log.exception("magic eraser failed")
             return {"error": "The magic eraser couldn't run: %s" % exc}
 
+    def studio_phone(self, on=True):
+        """Upload from phone: start (or stop) the little page and give its QR code."""
+        from . import phonedrop, segno
+        st = self._app.studio
+        if not hasattr(self, "_phone"):
+            def got(path):
+                info = _image_info(path)
+                if info:
+                    st.emit("studio-dropped", {"target": "board", "images": [info], "from": "phone"})
+            self._phone = phonedrop.PhoneDrop(os.path.join(data_dir(), "pasted"), got)
+        if not on:
+            self._phone.stop()
+            return {"on": False}
+        try:
+            url = self._phone.start()
+        except Exception as exc:
+            return {"error": str(exc)}
+        return {"on": True, "url": url, "qr": segno.make(url, error="m").svg_data_uri(scale=6, border=2)}
+
+    def studio_stats(self):
+        """Graphics card, processor and memory, for the little bar under the canvas."""
+        try:
+            from .sysmon import monitor
+            return monitor.read()
+        except Exception as exc:
+            log.info("stats: %s", exc)
+            return None
+
     def studio_blank(self, w=1240, h=1754):
         """A blank white canvas (default A4 at 150 DPI) saved in Vistiq Studio/Sketches."""
         from PIL import Image
