@@ -796,3 +796,12 @@ body.rail-min #p-create .s-zpill,body.rail-min #p-reference .s-zpill{right:16px}
 /* the machine line has its own row: the results strip (and lists) end above it */
 body.studio #p-create .s-stage,body.studio #p-reference .s-stage{padding-bottom:54px}
 body.studio #p-library{padding-bottom:46px}
+
+/* bigger result thumbnails, closer to the picture; the progress pill sits on the picture */
+body.studio .s-vars{min-height:96px}
+body.studio .s-vars img,body.studio .s-vars .s-ph,body.studio .s-vars .s-fillt,body.studio .s-vars .s-fillt .s-fillc img{width:160px;height:90px}
+body.studio .s-vars .s-miss{width:160px;height:90px}
+body.studio #p-create .s-stage,body.studio #p-reference .s-stage{gap:6px}
+body.studio .s-view>.s-busy{background:rgba(15,18,32,.72);backdrop-filter:blur(6px);font-weight:600;font-size:12px}
+body.studio .s-acts3{gap:6px}
+body.studio .s-acts3 .s-btn{padding:10px 2px 8px;font-size:11px}

@@ -30,6 +30,7 @@
     clip: '<rect x="8" y="3" width="8" height="4" rx="1"/><path d="M8 5H6a1 1 0 0 0-1 1v14a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V6a1 1 0 0 0-1-1h-2"/>',
     phone: '<rect x="7" y="2" width="10" height="20" rx="2"/><path d="M11 18h2"/>',
     plus: '<path d="M12 5v14M5 12h14"/>',
+    layers: '<path d="M12 3l9 5-9 5-9-5z"/><path d="M3 13l9 5 9-5"/>',
     lock: '<rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/>',
     unlock: '<rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 7.5-2"/>',
     lasso: '<path d="M7 18c-2.5-1-4-3-4-5.5C3 8 7.5 5 12 5s9 3 9 7-4 6.5-9 6.5c-1.4 0-2.7-.2-3.8-.6"/><path d="M8.5 17.5c0 2-1.5 3.5-3 3.5"/><circle cx="8.2" cy="17.7" r="1.3"/>',
@@ -93,8 +94,9 @@
       '<div class="s-rail-foot"><div class="s-err" id="' + id + '-err" hidden></div>' +
       // What to do with the chosen result, right above Create.
       '<div class="s-acts3"><button type="button" class="s-btn" id="' + id + '-refine-this" title="Change this result with your words" disabled>' + svg("sketch") + '<span>Refine</span></button>' +
-      '<button type="button" class="s-btn" id="' + id + '-toboard" title="Put this result on the board" disabled>' + svg("board") + '<span>To board</span></button>' +
-      '<button type="button" class="s-btn" id="' + id + '-tops" title="Send this result to Photoshop as a new layer" disabled><span class="m-ico ps">Ps</span><span>Photoshop</span></button>' +
+      (id === "c" ? '<button type="button" class="s-btn" id="c-tolayer" title="Put this result on a layer over your picture" disabled>' + svg("layers") + "<span>Layer</span></button>" : "") +
+      '<button type="button" class="s-btn" id="' + id + '-toboard" title="Put this result on the board" disabled>' + svg("board") + '<span>Board</span></button>' +
+      '<button type="button" class="s-btn" id="' + id + '-tops" title="Send this result to Photoshop as a new layer" disabled><span class="m-ico ps">Ps</span><span>Export</span></button>' +
       '<button type="button" class="s-btn" id="' + id + '-up" title="Upscale this result" disabled>' + svg("upscale") + '<span>Upscale</span></button></div>' +
       '<div class="s-gorow">' +
       '<button type="button" class="s-go" id="' + id + '-go"><span class="s-go-fill" id="' + id + '-fill" style="width:0"></span><span id="' + id + '-golabel">' + goText + "</span></button>" +
@@ -229,7 +231,7 @@
       var ua = document.createElement("div"); ua.className = "s-acts3"; ua.id = "u-acts";
       ua.innerHTML = '<button type="button" class="s-btn" id="u-refine" title="Open the upscaled picture in Create to change it">' + svg("sketch") + "<span>Refine</span></button>" +
         '<button type="button" class="s-btn" id="u-toboard" title="Put the upscaled picture on the board">' + svg("board") + "<span>To board</span></button>" +
-        '<button type="button" class="s-btn" id="u-tops" title="Send the upscaled picture to Photoshop"><span class="m-ico ps">Ps</span><span>Photoshop</span></button>';
+        '<button type="button" class="s-btn" id="u-tops" title="Send the upscaled picture to Photoshop"><span class="m-ico ps">Ps</span><span>Export</span></button>';
       ufoot.insertBefore(ua, ufoot.firstChild);
       var upic = function () {
         var c = window.VUpscale && window.VUpscale.current();
@@ -628,6 +630,11 @@
         toast("Added to the board");
       });
       $(id + "-tops").addEventListener("click", function () { var c = target(p); if (c) sendPS(c.path); });
+      if (id === "c") $("c-tolayer").addEventListener("click", function () {
+        var c = current(p); if (!c || !p.src || !window.VSSketch) return;
+        var put = function () { window.VSSketch.addImageLayer(p.src, c.preview, short(c.name)); p.sel = -1; render(); toast("On a layer over your picture · the board shows it too"); };
+        if (p.src.live || p.src.frozen) window.VSSketch.branch(function () { setTimeout(put, 50); }); else put();
+      });
       $(id + "-strip").addEventListener("click", function (e) {
         var t = e.target.closest("[data-i]"); if (t) { pickResult(p, +t.getAttribute("data-i")); return; }
         if (e.target.closest(".s-more")) job(id, { variations: 1 });
@@ -1202,6 +1209,25 @@
   }
   window.addEventListener("error", function (ev) { report("page", ev.error || ev.message); });
 
+  // Everything ever made from this picture comes back into its strip (from the
+  // output folders), so the strip is complete after a restart too.
+  function loadResultsFor(p, src) {
+    var a = api(); if (!a || !a.studio_results_for) return;
+    a.studio_results_for(src.name || "").then(function (list) {
+      if (!list || !list.length || keyOfSrc(p.src) !== keyOfSrc(src)) return;
+      var have = {}; p.results.forEach(function (r) { have[(r.path || "").toLowerCase()] = 1; });
+      var k = srcKey(src), add = [];
+      list.forEach(function (r) {
+        if (have[r.path.toLowerCase()]) return;
+        add.push({ path: r.path, name: r.name, w: r.w, h: r.h, preview: r.thumb || BLANK, thin: true, srcKey: k, meta: r.meta, made: r.made });
+      });
+      if (!add.length) return;
+      var selPath = p.sel >= 0 && p.results[p.sel] ? p.results[p.sel].path : null;
+      p.results = p.results.concat(add).sort(function (a, b) { return (a.made || 0) - (b.made || 0); });
+      if (selPath) p.sel = p.results.map(function (r) { return r.path; }).indexOf(selPath);
+      render();
+    });
+  }
   function keyOfSrc(src) { return src ? (src.live ? "live" : src.path) : ""; }
   // A word in the prompt that changes something locked: say so, with one click to unlock.
   function renderWarn() {
@@ -1238,6 +1264,7 @@
         '</small></span><button type="button" class="s-link" data-w="board">← Board</button>' : '<span class="s-none">Open a tile on the board, or click here to pick a picture</span>';
     }
     $("c-ps").hidden = !(w && w.live);
+    if (w && p.resultsFor !== keyOfSrc(w)) { p.resultsFor = keyOfSrc(w); loadResultsFor(p, w); }
     if (p.locksFor !== keyOfSrc(w)) { p.locks = defaultLocks(w); p.locksFor = keyOfSrc(w); }
     var LK = p.locks || defaultLocks(w);
     $("c-locks").querySelectorAll("button").forEach(function (b) { b.classList.toggle("on", !!LK[b.getAttribute("data-v")]); });
@@ -1295,11 +1322,12 @@
     var tg = target(p), onB = !!(tg && window.VSBoard && window.VSBoard.has(tg.path));
     $(id + "-up").disabled = !tg || !!p.job; $(id + "-reveal").disabled = !tg;
     $(id + "-toboard").disabled = !tg || onB;
-    $(id + "-toboard").querySelector("span").textContent = onB ? "On board" : "To board";
+    $(id + "-toboard").querySelector("span").textContent = onB ? "On board" : "Board";
+    if (id === "c") $("c-tolayer").disabled = !c || !p.src || !!p.job;
     $(id + "-refine-this").hidden = false; $(id + "-refine-this").disabled = !c || !!p.job;
     $(id + "-tops").hidden = false; $(id + "-tops").disabled = !tg;
     $(id + "-tops").title = S.psOn ? "Put this picture in your open Photoshop file as a new layer" : "Open this picture in Photoshop";
-    $(id + "-clear").hidden = !(p.results.length && !p.job);
+    $(id + "-clear").hidden = true;          // results are never cleared: each picture always shows all it made
     $(id + "-refine-go").disabled = !!p.job || !(c || p.src);
 
     // The big view.
@@ -1512,6 +1540,9 @@
       f.style.width = fw + "px"; f.style.height = fh + "px";
       f.style.left = Math.round((W - fw) / 2) + "px"; f.style.top = Math.round(top + (aH - fh) / 2) + "px";
       if (pad) zoom.apply(v, f, w, h);
+      // The "Variation 1 of 2" pill sits on the picture, near its bottom edge.
+      var busy = pad && v.querySelector(".s-busy");
+      if (busy) { busy.style.bottom = "auto"; busy.style.top = Math.max(8, Math.round(f.offsetTop + fh - 52)) + "px"; }
     });
   }
 
@@ -1753,7 +1784,7 @@
         toast(data.text || "");
       } else if (kind === "studio-result") {
         var q = byJob(data.id); if (!q) return;
-        data.result.srcKey = q.jobKey; data.result.orig = q.jobOrig; q.results.push(data.result);
+        data.result.srcKey = q.jobKey; data.result.orig = q.jobOrig; data.result.made = Date.now(); q.results.push(data.result);
         q.preview = null; q.previewN = 0; q.pending = Math.max(0, q.pending - 1);
         if (data.index === 0) q.sel = q.results.length - 1;
       } else if (kind === "studio-setup") {

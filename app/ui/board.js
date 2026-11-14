@@ -305,9 +305,10 @@
 
   // A new picture from the + menu in Focus view: on the board, and open it.
   // A sketch branched off another tile (Live): sits next to it, joined by a line.
+  function refreshThumb(path) { if (thumbs[path] !== undefined) { delete thumbs[path]; lastHTML = ""; render(); } }
   function addFrom(info, fromId) { return add(info, byId(fromId) ? fromId : null); }
   function addAndOpen(info) { var t = add(info, null); if (t) open(t); return t; }
 
-  window.VSBoard = { build: build, render: render, addImages: addImages, addResult: addResult, has: has, organize: organize, add: add, addAndOpen: addAndOpen, addFrom: addFrom, open: function (id) { var t = byId(id); if (t) open(t); },
+  window.VSBoard = { build: build, render: render, addImages: addImages, addResult: addResult, has: has, organize: organize, add: add, addAndOpen: addAndOpen, addFrom: addFrom, refreshThumb: refreshThumb, open: function (id) { var t = byId(id); if (t) open(t); },
                      _state: function () { return B; } };
 })();

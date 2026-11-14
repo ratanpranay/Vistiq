@@ -389,8 +389,78 @@ class Api:
             log.warning("couldn't save the results strip: %s", exc)
             return False
 
+    # -- the layers of each picture, kept between sessions ----------------------------
+    def _doc_dir(self, path):
+        import hashlib
+        return os.path.join(data_dir(), "docs", hashlib.sha1(os.path.normcase(str(path)).encode("utf-8")).hexdigest()[:20])
+
+    def studio_doc_save(self, path, data):
+        """Layers as PNGs plus a flattened look for the board. An empty picture clears it."""
+        import base64
+        d = self._doc_dir(path)
+        try:
+            layers = data.get("layers") or []
+            if not any(L.get("png") for L in layers) and not data.get("flat"):
+                shutil.rmtree(d, ignore_errors=True)
+                return True
+            os.makedirs(d, exist_ok=True)
+            for f in os.listdir(d):
+                if f.startswith("L_"):
+                    os.remove(os.path.join(d, f))
+            meta = {"path": path, "w": data.get("w"), "h": data.get("h"), "active": data.get("active"), "layers": []}
+            for L in layers:
+                png, item = L.get("png") or "", {k: L.get(k) for k in ("id", "kind", "name", "visible", "opacity", "blend", "locked")}
+                if png:
+                    item["file"] = "L_%s.png" % "".join(c for c in str(L.get("id")) if c.isalnum())
+                    with open(os.path.join(d, item["file"]), "wb") as fh:
+                        fh.write(base64.b64decode(png.split(",", 1)[1]))
+                meta["layers"].append(item)
+            flat = os.path.join(d, "flat.jpg")
+            if data.get("flat"):
+                with open(flat, "wb") as fh:
+                    fh.write(base64.b64decode(data["flat"].split(",", 1)[1]))
+            elif os.path.isfile(flat):
+                os.remove(flat)
+            tmp = os.path.join(d, "doc.json.tmp")
+            with open(tmp, "w", encoding="utf-8") as fh:
+                json.dump(meta, fh)
+            os.replace(tmp, os.path.join(d, "doc.json"))
+            return True
+        except Exception as exc:
+            log.warning("couldn't keep the layers: %s", exc)
+            return False
+
+    def studio_results_for(self, name):
+        try:
+            return self._app.studio.results_for(name)
+        except Exception as exc:
+            log.warning("results for %s: %s", name, exc)
+            return []
+
+    def studio_doc_get(self, path):
+        import base64
+        d = self._doc_dir(path)
+        try:
+            with open(os.path.join(d, "doc.json"), encoding="utf-8") as fh:
+                meta = json.load(fh)
+        except Exception:
+            return None
+        for L in meta.get("layers", []):
+            f = L.pop("file", None)
+            if f and os.path.isfile(os.path.join(d, f)):
+                with open(os.path.join(d, f), "rb") as fh:
+                    L["png"] = "data:image/png;base64," + base64.b64encode(fh.read()).decode("ascii")
+        return meta
+
     def studio_thumb(self, path):
-        """A small picture for a board tile (a full preview is too big for many tiles)."""
+        """A small picture for a board tile (a full preview is too big for many tiles).
+        A picture with Studio layers shows as it looks with them."""
+        flat = os.path.join(self._doc_dir(path), "flat.jpg")
+        if os.path.isfile(flat):
+            try:
+                return imaging.preview_small(flat)
+            except Exception:
+                pass
         try:
             path = self._app.studio.real_path(path)
             if not os.path.isfile(path):

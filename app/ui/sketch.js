@@ -36,6 +36,7 @@
                   layers: [], active: null, hist: [], redo: [] };
       docs[k].layers.push(docs[k].base);
       addLayer(docs[k], "Layer 1", true);
+      if (!src.live) restore(docs[k]);
     }
     var d = docs[k]; d.src = src;
     return d;
@@ -99,6 +100,7 @@
     var sel = V().painter.canvas; if (sel) sel.style.zIndex = top;
     if (catcher) catcher.style.zIndex = top + 2;
     fit.style.background = doc.base.visible ? "" : "#fff";
+    scheduleSave();
   }
 
   // -------------------------------------------------------------------- toolbar
@@ -586,7 +588,7 @@
   }
   // A Live picture is Photoshop's: drawing on it starts a new sketch from a frozen copy.
   var branching = false;
-  function branch() {
+  function branch(then) {
     if (branching) return; branching = true;
     var S = V().S, src = S.create.src;
     V().toast("Starting a sketch from Live…");
@@ -596,6 +598,7 @@
       var t = window.VSBoard && window.VSBoard.addFrom(info, "live");
       S.create.source = "image"; V().setImage(S.create, "src", info); if (t) S.boardFrom = t.id;
       V().toast("New sketch from Live · Photoshop stays as it is");
+      if (then) then(info);
     });
   }
 
@@ -623,6 +626,7 @@
 
   var BLENDS = [["normal", "Normal"], ["multiply", "Multiply"], ["screen", "Screen"], ["overlay", "Overlay"], ["darken", "Darken"], ["lighten", "Lighten"]];
   function thumbs() {
+    scheduleSave();
     if (!view) return;
     view.querySelectorAll("#sk-panel canvas[data-th]").forEach(function (t) {
       var L = byId(doc, t.getAttribute("data-th")); if (!L || !L.canvas) return;
@@ -747,6 +751,68 @@
     delLayer(L); doc.active = U.id; order(); panel(); thumbs(); V().render();
   }
 
+  // -------------------------------------------------------------------- kept on disk
+  // Each picture's layers are saved next to Studio's data, so they come back after a
+  // restart, and the board shows the picture as you left it (all visible layers).
+  var saveT = 0;
+  function scheduleSave() {
+    if (!doc || doc.key === "live" || doc.restoring) return;
+    clearTimeout(saveT);
+    var d = doc;
+    saveT = setTimeout(function () { save(d); }, 1200);
+  }
+  function save(d) {
+    var a = V().api(); if (!a || !a.studio_doc_save || d !== doc || !fit) return;
+    var flat = "", ed = edited(d);
+    if (!ed && !d.saved) return;                 // nothing to keep, nothing kept before
+    d.saved = ed;
+    if (ed) {
+      var full = flatten(), t = document.createElement("canvas"), w = 640, h = Math.round(640 * d.h / d.w);
+      t.width = w; t.height = h; t.getContext("2d").drawImage(full, 0, 0, w, h); flat = t.toDataURL("image/jpeg", 0.88);
+    }
+    var data = { w: d.w, h: d.h, active: d.active, flat: flat,
+      layers: d.layers.map(function (L) {
+        return { id: L.id, kind: L.kind, name: L.name, visible: L.visible, opacity: L.opacity, blend: L.blend, locked: !!L.locked,
+                 png: L.kind === "base" ? "" : (hasPaint(L) ? L.canvas.toDataURL("image/png") : "") };
+      }) };
+    a.studio_doc_save(d.src.path, data).then(function () { if (window.VSBoard && window.VSBoard.refreshThumb) window.VSBoard.refreshThumb(d.src.path); });
+  }
+  function restore(d) {
+    var a = V().api(); if (!a || !a.studio_doc_get) return;
+    d.restoring = true;
+    a.studio_doc_get(d.src.path).then(function (data) {
+      if (!data || !data.layers || d.hist.length) { d.restoring = false; return; }
+      d.saved = true;
+      var left = 0, list = [];
+      data.layers.forEach(function (S) {
+        if (S.kind === "base") { Object.assign(d.base, { visible: S.visible, opacity: S.opacity, blend: S.blend }); list.push(d.base); return; }
+        var c = document.createElement("canvas"); c.width = d.w; c.height = d.h;
+        var L = { id: S.id, kind: "paint", name: S.name, canvas: c, visible: S.visible, opacity: S.opacity, blend: S.blend, locked: S.locked };
+        list.push(L);
+        if (S.png) { left++; var im = new Image(); im.onload = function () { c.getContext("2d").drawImage(im, 0, 0, d.w, d.h); if (--left === 0) done(); }; im.src = S.png; }
+      });
+      var done = function () {
+        d.layers.forEach(function (L) { if (L.canvas && L.canvas.parentNode) L.canvas.remove(); });
+        d.layers = list; d.active = byId(d, data.active) ? data.active : list[list.length - 1].id; d.restoring = false;
+        if (d === doc && fit) { d.layers.forEach(function (L) { if (L.canvas) { L.canvas.className = "sk-layer"; fit.appendChild(L.canvas); } }); order(); panel(); }
+        V().render();
+      };
+      if (!left) done();
+    });
+  }
+  // A result you like, as a layer over the picture it came from.
+  function addImageLayer(src, url, name) {
+    var d = get(src), im = new Image();
+    im.onload = function () {
+      var L = addLayer(d, name || "Render");
+      d.layers.splice(d.layers.indexOf(L), 1); d.layers.push(L); d.active = L.id;
+      L.canvas.getContext("2d").drawImage(im, 0, 0, d.w, d.h);
+      if (d === doc && fit) { L.canvas.className = "sk-layer"; fit.appendChild(L.canvas); order(); panel(); thumbs(); }
+      V().render();
+    };
+    im.src = url;
+  }
+
   // -------------------------------------------------------------------- what Create gets
 
   function payload(src) {
@@ -759,7 +825,7 @@
   }
 
   window.VSSketch = {
-    mount: mount, key: key, payload: payload, edited: function (src) { var d = docs[keyOf(src)]; return !!(d && edited(d)); },
+    mount: mount, key: key, payload: payload, addImageLayer: addImageLayer, branch: branch, edited: function (src) { var d = docs[keyOf(src)]; return !!(d && edited(d)); },
     flip: function () { return { h: T.flipH, v: T.flipV }; }, tool: function () { return T.tool; },
     isSelTool: function () { return isSel(T.tool); }, unmount: function () { if (tf) applyTf(); view = fit = catcher = null; },
     _state: function () { return { T: T, doc: doc, docs: docs }; }, setTool: setTool, undo: undo, redo: redo, sample: function (x, y) { return sample(x, y); }

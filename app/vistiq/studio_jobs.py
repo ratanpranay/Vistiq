@@ -673,7 +673,8 @@ class Studio:
 
     # -- the library ----------------------------------------------------------------
 
-    def library(self, limit=200):
+    def _outputs(self):
+        """(mtime, path) of every picture Studio made, newest first."""
         roots = [studio.outputs_dir(self.settings)]
         up = self.settings.get("out_dir")
         if up and os.path.normcase(up) not in [os.path.normcase(r) for r in roots]:
@@ -693,11 +694,41 @@ class Studio:
                         except OSError:
                             pass
         found.sort(reverse=True)
+        return found
+
+    def library(self, limit=200):
+        found = self._outputs()
         out = []
         for mtime, p in found[:limit]:
             meta = _read_meta(p)
             out.append({"path": p, "name": os.path.basename(p), "kind": meta.get("kind") or kind_of(os.path.basename(p)),
                         "made": mtime * 1000, "text": meta.get("text", ""), "thumb": self.thumb(p, mtime)})
+        return out
+
+    def results_for(self, name):
+        """Everything ever made from a picture (by its name), newest last: the strip
+        under it always shows them all, also after a restart."""
+        from . import imaging
+        stem = _strip_tags(os.path.splitext(os.path.basename(name or ""))[0])
+        if stem.lower().startswith("vistiq_"):
+            stem = _strip_tags(stem[7:])
+        if not stem:
+            return []
+        out = []
+        for mtime, p in self._outputs():
+            nm = os.path.basename(p)
+            s2 = os.path.splitext(nm)[0]
+            s2 = _strip_tags(s2[7:] if s2.lower().startswith("vistiq_") else s2)
+            if s2 != stem or kind_of(nm) not in ("create", "reference"):
+                continue
+            try:
+                w, h = imaging.size_of(p)
+            except Exception:
+                continue
+            meta = _read_meta(p)
+            out.append({"path": p, "name": nm, "w": w, "h": h, "thumb": self.thumb(p, mtime), "made": mtime * 1000,
+                        "meta": {"text": meta.get("text", ""), "preset": meta.get("preset", ""), "source": meta.get("source", "")}})
+        out.sort(key=lambda x: x["made"])
         return out
 
     def thumb(self, path, mtime):

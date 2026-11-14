@@ -413,6 +413,38 @@ const frame = (n, name) => ({ path: "live://photoshop/" + n, name: name || "flat
     await p.close();
   }
 
+  // A result you like goes on a layer over the picture; the layers are kept for the board.
+  {
+    const p = await open(browser, null, {});
+    const W1 = "data:image/gif;base64,R0lGODlhAQABAIAAAP///wAAACH5BAAAAAAALAAAAAABAAEAAAICRAEAOw==";
+    await p.evaluate(() => { window.__docs = {}; const a = window.pywebview.api; a.studio_doc_save = (path, d) => { window.__docs[path] = d; return Promise.resolve(true); }; a.studio_doc_get = (path) => Promise.resolve(window.__docs[path] || null); });
+    await p.evaluate((w) => { window.VS.S.create.source = "image"; window.VS.setImage(window.VS.S.create, "src", { path: "C:/s/k.png", name: "k.png", w: 1600, h: 900, preview: w }); }, W1);
+    await p.waitForTimeout(150);
+    await p.evaluate(() => { const c = document.createElement("canvas"); c.width = 16; c.height = 9; const g = c.getContext("2d"); g.fillStyle = "#c00"; g.fillRect(0, 0, 16, 9);
+      const S = window.VS.S.create; S.results.push({ path: "C:/o/k_create_v1.png", name: "k_create_v1.png", w: 1600, h: 900, preview: c.toDataURL(), srcKey: "C:/s/k.png" }); S.sel = S.results.length - 1; window.VS.render(); });
+    await p.waitForTimeout(100);
+    await p.click("#c-tolayer"); await p.waitForTimeout(300);
+    check("Layer puts the result on a layer over the picture", await p.evaluate(() => window.VS.S.create.sel === -1 && window.VSSketch._state().doc.layers.some((L) => /k_create_v1/.test(L.name))), JSON.stringify(await p.evaluate(() => window.VSSketch._state().doc.layers.map((L) => L.name))));
+    await p.waitForTimeout(1500);
+    check("the layers are kept (with a flattened look for the board)", await p.evaluate(() => { const d = window.__docs["C:/s/k.png"]; return !!(d && d.flat && d.layers.some((L) => L.png)); }), "not saved");
+    check("no page errors with result layers", p.errors.length === 0, p.errors.join(" | "));
+    await p.close();
+  }
+
+  // Each picture always shows everything made from it (from the output folders); no Clear.
+  {
+    const p = await open(browser, null, {});
+    await p.evaluate(() => { window.pywebview.api.studio_results_for = (name) => Promise.resolve(/flat 2/.test(name) ? [
+      { path: "C:/o/Vistiq_flat 2_create_v1.png", name: "Vistiq_flat 2_create_v1.png", w: 2368, h: 1328, thumb: "data:image/gif;base64,R0lGODlhAQABAAAAACw=", made: 1 },
+      { path: "C:/o/Vistiq_flat 2_create_v2.png", name: "Vistiq_flat 2_create_v2.png", w: 2368, h: 1328, thumb: "data:image/gif;base64,R0lGODlhAQABAAAAACw=", made: 2 }] : []); });
+    await p.evaluate(() => { window.VS.S.create.results = []; window.VS.S.create.source = "image"; window.VS.setImage(window.VS.S.create, "src", { path: "C:/i/flat 2.png", name: "flat 2.png", w: 1600, h: 900, preview: "data:image/gif;base64,R0lGODlhAQABAAAAACw=" }); });
+    await p.waitForTimeout(200);
+    check("a picture's strip shows everything made from it", await p.evaluate(() => document.querySelectorAll("#c-strip img[data-i]:not([data-i='-1']):not([data-i='-2'])").length) === 2, await p.evaluate(() => document.getElementById("c-strip").innerHTML.slice(0, 200)));
+    check("there is no Clear button any more", await p.evaluate(() => document.getElementById("c-clear").hidden), "still there");
+    check("no page errors with the full strip", p.errors.length === 0, p.errors.join(" | "));
+    await p.close();
+  }
+
   // The machine line: graphics card, processor, memory.
   {
     const p = await open(browser, (() => { window.__statsMock = 1; }), {});
