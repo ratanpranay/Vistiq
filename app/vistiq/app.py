@@ -479,6 +479,26 @@ class Api:
         shutil.copyfile(path, dest)
         return os.path.basename(dest)
 
+    def studio_export(self, path, fmt="png"):
+        """Save a picture as PNG or JPEG where the user picks."""
+        from PIL import Image
+        path = self._app.studio.real_path(path)
+        fmt = "jpg" if str(fmt).lower() in ("jpg", "jpeg") else "png"
+        stem = os.path.splitext(os.path.basename(path))[0]
+        types = ("JPEG (*.jpg;*.jpeg)",) if fmt == "jpg" else ("PNG (*.png)",)
+        picked = self._app.window.create_file_dialog(webview.SAVE_DIALOG, save_filename=stem + "." + fmt, file_types=types)
+        if not picked:
+            return None
+        dest = picked if isinstance(picked, str) else picked[0]
+        if not os.path.splitext(dest)[1]:
+            dest += "." + fmt
+        im = Image.open(path)
+        if fmt == "jpg":
+            im.convert("RGB").save(dest, "JPEG", quality=95, subsampling=0)
+        else:
+            im.save(dest, "PNG")
+        return os.path.basename(dest)
+
     def studio_drop_target(self, target):
         self._app.drop_target = target or ""
 

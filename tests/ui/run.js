@@ -423,7 +423,12 @@ const frame = (n, name) => ({ path: "live://photoshop/" + n, name: name || "flat
     await p.evaluate(() => { const c = document.createElement("canvas"); c.width = 16; c.height = 9; const g = c.getContext("2d"); g.fillStyle = "#c00"; g.fillRect(0, 0, 16, 9);
       const S = window.VS.S.create; S.results.push({ path: "C:/o/k_create_v1.png", name: "k_create_v1.png", w: 1600, h: 900, preview: c.toDataURL(), srcKey: "C:/s/k.png" }); S.sel = S.results.length - 1; window.VS.render(); });
     await p.waitForTimeout(100);
-    await p.click("#c-tolayer"); await p.waitForTimeout(300);
+    check("a result shows Add and Export on the picture", await p.evaluate(() => !!document.querySelector("#c-view .s-ra [data-ra=add]") && !!document.querySelector("#c-view .s-ra [data-ra=export]")), "missing");
+    await p.evaluate(() => { window.pywebview.api.studio_export = (path, fmt) => { window.__exp = [path, fmt]; return Promise.resolve("x." + fmt); }; });
+    await p.click("#c-view .s-ra [data-ra=export]"); await p.waitForTimeout(80); await p.click(".s-pop [data-p=jpg]"); await p.waitForTimeout(80);
+    check("Export saves the result as JPEG", JSON.stringify(await p.evaluate(() => window.__exp)) === JSON.stringify(["C:/o/k_create_v1.png", "jpg"]), JSON.stringify(await p.evaluate(() => window.__exp)));
+    await p.click("#c-view .s-ra [data-ra=add]"); await p.waitForTimeout(300);
+    await p.evaluate(() => { window.pywebview.api.studio_export = (path, fmt) => { window.__exp = [path, fmt]; return Promise.resolve("x." + fmt); }; });
     check("Layer puts the result on a layer over the picture", await p.evaluate(() => window.VS.S.create.sel === -1 && window.VSSketch._state().doc.layers.some((L) => /k_create_v1/.test(L.name))), JSON.stringify(await p.evaluate(() => window.VSSketch._state().doc.layers.map((L) => L.name))));
     await p.waitForTimeout(1500);
     check("the layers are kept (with a flattened look for the board)", await p.evaluate(() => { const d = window.__docs["C:/s/k.png"]; return !!(d && d.flat && d.layers.some((L) => L.png)); }), "not saved");

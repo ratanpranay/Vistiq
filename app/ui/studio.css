@@ -805,3 +805,10 @@ body.studio #p-create .s-stage,body.studio #p-reference .s-stage{gap:6px}
 body.studio .s-view>.s-busy{background:rgba(15,18,32,.72);backdrop-filter:blur(6px);font-weight:600;font-size:12px}
 body.studio .s-acts3{gap:6px}
 body.studio .s-acts3 .s-btn{padding:10px 2px 8px;font-size:11px}
+
+/* Add / Export on a result, floating at the picture's bottom-right */
+.s-ra{position:absolute;z-index:7;display:flex;gap:6px}
+.s-ra button{display:flex;align-items:center;gap:6px;height:32px;padding:0 12px;border:0;border-radius:10px;background:rgba(255,255,255,.94);box-shadow:0 4px 16px rgba(14,16,32,.18);font:inherit;font-size:12.5px;font-weight:500;color:var(--ink,#14161f);cursor:pointer;backdrop-filter:blur(6px)}
+.s-ra button:hover{background:#fff}
+.s-ra button[data-ra=add]{background:#6d5df5;color:#fff}.s-ra button[data-ra=add]:hover{background:#5b4ce0}
+.s-ra svg{width:15px;height:15px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}

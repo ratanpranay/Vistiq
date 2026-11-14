@@ -30,6 +30,7 @@
     clip: '<rect x="8" y="3" width="8" height="4" rx="1"/><path d="M8 5H6a1 1 0 0 0-1 1v14a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V6a1 1 0 0 0-1-1h-2"/>',
     phone: '<rect x="7" y="2" width="10" height="20" rx="2"/><path d="M11 18h2"/>',
     plus: '<path d="M12 5v14M5 12h14"/>',
+    download: '<path d="M12 4v11M7 10l5 5 5-5M5 20h14"/>',
     layers: '<path d="M12 3l9 5-9 5-9-5z"/><path d="M3 13l9 5 9-5"/>',
     lock: '<rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/>',
     unlock: '<rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 7.5-2"/>',
@@ -94,9 +95,8 @@
       '<div class="s-rail-foot"><div class="s-err" id="' + id + '-err" hidden></div>' +
       // What to do with the chosen result, right above Create.
       '<div class="s-acts3"><button type="button" class="s-btn" id="' + id + '-refine-this" title="Change this result with your words" disabled>' + svg("sketch") + '<span>Refine</span></button>' +
-      (id === "c" ? '<button type="button" class="s-btn" id="c-tolayer" title="Put this result on a layer over your picture" disabled>' + svg("layers") + "<span>Layer</span></button>" : "") +
-      '<button type="button" class="s-btn" id="' + id + '-toboard" title="Put this result on the board" disabled>' + svg("board") + '<span>Board</span></button>' +
-      '<button type="button" class="s-btn" id="' + id + '-tops" title="Send this result to Photoshop as a new layer" disabled><span class="m-ico ps">Ps</span><span>Export</span></button>' +
+      '<button type="button" class="s-btn" id="' + id + '-toboard" title="Put this result on the board" disabled>' + svg("board") + '<span>To board</span></button>' +
+      '<button type="button" class="s-btn" id="' + id + '-tops" title="Send this result to Photoshop as a new layer" disabled><span class="m-ico ps">Ps</span><span>Photoshop</span></button>' +
       '<button type="button" class="s-btn" id="' + id + '-up" title="Upscale this result" disabled>' + svg("upscale") + '<span>Upscale</span></button></div>' +
       '<div class="s-gorow">' +
       '<button type="button" class="s-go" id="' + id + '-go"><span class="s-go-fill" id="' + id + '-fill" style="width:0"></span><span id="' + id + '-golabel">' + goText + "</span></button>" +
@@ -231,7 +231,7 @@
       var ua = document.createElement("div"); ua.className = "s-acts3"; ua.id = "u-acts";
       ua.innerHTML = '<button type="button" class="s-btn" id="u-refine" title="Open the upscaled picture in Create to change it">' + svg("sketch") + "<span>Refine</span></button>" +
         '<button type="button" class="s-btn" id="u-toboard" title="Put the upscaled picture on the board">' + svg("board") + "<span>To board</span></button>" +
-        '<button type="button" class="s-btn" id="u-tops" title="Send the upscaled picture to Photoshop"><span class="m-ico ps">Ps</span><span>Export</span></button>';
+        '<button type="button" class="s-btn" id="u-tops" title="Send the upscaled picture to Photoshop"><span class="m-ico ps">Ps</span><span>Photoshop</span></button>';
       ufoot.insertBefore(ua, ufoot.firstChild);
       var upic = function () {
         var c = window.VUpscale && window.VUpscale.current();
@@ -625,11 +625,21 @@
         toast("Added to the board");
       });
       $(id + "-tops").addEventListener("click", function () { var c = target(p); if (c) sendPS(c.path); });
-      if (id === "c") $("c-tolayer").addEventListener("click", function () {
+      // Floating on a result: Add (as a layer over your picture) and Export (PNG / JPEG).
+      $(id + "-view").addEventListener("click", function (e) {
+        var b = e.target.closest("[data-ra]"); if (!b) return;
+        var c = current(p); if (!c) return;
+        if (b.getAttribute("data-ra") === "add") { if (id === "c") addAsLayer(); return; }
+        pop(b, '<div class="ttl">Export this picture</div><button type="button" class="it" data-p="png">' + svg("image") + '<span>PNG<small>Full quality, larger file</small></span></button>' +
+          '<button type="button" class="it" data-p="jpg">' + svg("image") + '<span>JPEG<small>Smaller file, for sharing</small></span></button>', function (fmt) {
+          api().studio_export(c.path, fmt).then(function (r) { if (r) toast("Saved " + r); });
+        });
+      });
+      var addAsLayer = function () {
         var c = current(p); if (!c || !p.src || !window.VSSketch) return;
         var put = function () { window.VSSketch.addImageLayer(p.src, c.preview, short(c.name)); p.sel = -1; render(); toast("On a layer over your picture · the board shows it too"); };
         if (p.src.live || p.src.frozen) window.VSSketch.branch(function () { setTimeout(put, 50); }); else put();
-      });
+      };
       $(id + "-strip").addEventListener("click", function (e) {
         var t = e.target.closest("[data-i]"); if (t) { pickResult(p, +t.getAttribute("data-i")); return; }
         if (e.target.closest(".s-more")) job(id, { variations: 1 });
@@ -638,7 +648,7 @@
       // Hold on a result to see what it started from.
       var view = $(id + "-view");
       zoom.wire(view);
-      view.addEventListener("pointerdown", function (e) { if (e.button !== 0 || zoom.space || zoom.pan || e.target.closest(".s-zpill,.s-paintbtn")) return; var img = view.querySelector("img.s-res"), c = current(p), o = (c && c.orig) || (p.src && p.src.preview); if (img && o) { img.src = o; view.classList.add("hold"); } });
+      view.addEventListener("pointerdown", function (e) { if (e.button !== 0 || zoom.space || zoom.pan || e.target.closest(".s-zpill,.s-paintbtn,.s-ra")) return; var img = view.querySelector("img.s-res"), c = current(p), o = (c && c.orig) || (p.src && p.src.preview); if (img && o) { img.src = o; view.classList.add("hold"); } });
       var up = function () { var img = view.querySelector("img.s-res"), c = current(p); if (img && c) img.src = c.preview; };
       view.addEventListener("pointerup", up); view.addEventListener("pointerleave", up);
     });
@@ -1317,8 +1327,7 @@
     var tg = target(p), onB = !!(tg && window.VSBoard && window.VSBoard.has(tg.path));
     $(id + "-up").disabled = !tg || !!p.job; $(id + "-reveal").disabled = !tg;
     $(id + "-toboard").disabled = !tg || onB;
-    $(id + "-toboard").querySelector("span").textContent = onB ? "On board" : "Board";
-    if (id === "c") $("c-tolayer").disabled = !c || !p.src || !!p.job;
+    $(id + "-toboard").querySelector("span").textContent = onB ? "On board" : "To board";
     $(id + "-refine-this").hidden = false; $(id + "-refine-this").disabled = !c || !!p.job;
     $(id + "-tops").hidden = false; $(id + "-tops").disabled = !tg;
     $(id + "-tops").title = S.psOn ? "Put this picture in your open Photoshop file as a new layer" : "Open this picture in Photoshop";
@@ -1357,7 +1366,9 @@
         var selOv = mode === "src" && info.live && S.psSel && S.useSel !== false && id === "c"
           ? '<div class="s-selov" style="-webkit-mask-image:url(' + S.psSel.preview + ');mask-image:url(' + S.psSel.preview + ')"></div>' : "";
         view.innerHTML = '<div class="s-fit" data-w="' + info.w + '" data-h="' + info.h + '"><img class="' + (mode === "result" ? "s-res" : "") + '" src="' + info.preview + '" alt="">' + dev + selOv + "</div>" +
-          (mode === "result" ? '<span class="s-tag">Result · hold to see the original</span>' : '<span class="s-tag' + (info.live ? " s-livetag" : "") + '">' + (info.live ? '<i class="s-ldot"></i>' : "") + (info.live ? "Live from " + ((APPS[info.app] || APPS.photoshop)[1]) : info.frozen ? (dev ? "Developing · step " + (p.previewN || 1) : mode === "orig" && !p.job ? "Sketch · what these results were made from" : "Sketch · frozen while creating") : "Original") + "</span>");
+          (mode === "result" ? '<span class="s-tag">Result · hold to see the original</span>' +
+            '<div class="s-ra">' + (id === "c" ? '<button type="button" data-ra="add" title="Put this result on a layer over your picture">' + svg("plus") + "Add</button>" : "") +
+            '<button type="button" data-ra="export" title="Save as PNG or JPEG">' + svg("download") + "Export</button></div>" : '<span class="s-tag' + (info.live ? " s-livetag" : "") + '">' + (info.live ? '<i class="s-ldot"></i>' : "") + (info.live ? "Live from " + ((APPS[info.app] || APPS.photoshop)[1]) : info.frozen ? (dev ? "Developing · step " + (p.previewN || 1) : mode === "orig" && !p.job ? "Sketch · what these results were made from" : "Sketch · frozen while creating") : "Original") + "</span>");
       }
     }
     if (mode === "paint") {
@@ -1536,6 +1547,9 @@
       f.style.left = Math.round((W - fw) / 2) + "px"; f.style.top = Math.round(top + (aH - fh) / 2) + "px";
       if (pad) zoom.apply(v, f, w, h);
       // The "Variation 1 of 2" pill sits on the picture, near its bottom edge.
+      // Add / Export float at the picture's bottom-right corner.
+      var ra = pad && v.querySelector(".s-ra");
+      if (ra) { ra.style.left = "auto"; ra.style.right = Math.max(8, Math.round(W - (f.offsetLeft + fw) + 12)) + "px"; ra.style.top = Math.max(8, Math.round(f.offsetTop + fh - 46)) + "px"; }
       var busy = pad && v.querySelector(".s-busy");
       if (busy) { busy.style.bottom = "auto"; busy.style.top = Math.max(8, Math.round(f.offsetTop + fh - 52)) + "px"; }
     });
