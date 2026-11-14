@@ -1,5 +1,12 @@
 # Vistiq Studio (test build)
 
+## 0.4.4
+- On any result: Add (puts it on a layer over your picture) and Export (PNG or JPEG, where you choose) float at the picture's bottom-right.
+- Layers are kept between sessions, and the board tile shows the picture as it looks with them.
+- Each picture's strip always shows everything made from it (read from your output folders), also after a restart. The Clear (×) button is gone; a moved or deleted file shows as Missing.
+- "Variation 1 of 2" sits on the picture while it's made; result thumbnails are bigger and closer to it.
+- The machine line has its own row (nothing overlaps it); graphics cards show a short name.
+
 ## 0.4.3
 - Sketch inside Studio. Focus view has a toolbar: + · Move · Transform · Brush ▾ (Sketching, Soft, Hard) · Eraser ▾ (Soft, Hard, Magic) · colour + eyedropper · Selection ▾ (Lasso, Rectangle, Pen, Object, Photoshop) · Deselect · Flip view · Undo/Redo. Size, Opacity, Flow, Smoothing and pen-tablet Pressure.
 - Layers: fold to thumbnails, open on hover. Show/hide, drag to reorder, drag the bar for opacity, double-click to rename; menu with duplicate, merge down, blend mode, lock, flip, clear, delete. Create uses all visible layers, flattened at full size.
