@@ -215,6 +215,17 @@ const frame = (n, name) => ({ path: "live://photoshop/" + n, name: name || "flat
       return live.y < s.y && r.x > s.x && r.y === s.y;
     }), JSON.stringify(await p.evaluate(() => window.VSBoard._state().tiles.map((x) => [x.id, x.x, x.y]))));
     check("the board is saved", await p.evaluate(() => !!(window.__board && window.__board.tiles.length === 3)), "not saved");
+    // Opening another tile must not lose the results made from the first one.
+    await p.evaluate(() => { const S = window.VS.S.create; ["r1", "r2", "r3"].forEach((n, i) => { if (!S.results[i]) S.results[i] = {}; Object.assign(S.results[i], { path: "C:/o/" + n + ".png", name: n + ".png", w: 1600, h: 900, preview: "x", srcKey: "C:/a/sketch.png" }); }); });
+    await p.click(".b-org"); await p.waitForTimeout(400);
+    await p.dblclick('.b-tile[data-id="' + await p.evaluate(() => window.VSBoard._state().tiles.find((x) => x.path === "C:/o/r1.png").id) + '"]');
+    await p.waitForTimeout(250);
+    await p.click(".s-nav button[data-page=board]");
+    await p.waitForTimeout(150);
+    await p.dblclick('.b-tile[data-id="' + await p.evaluate(() => window.VSBoard._state().tiles.find((x) => x.path === "C:/a/sketch.png").id) + '"]');
+    await p.waitForTimeout(250);
+    check("results stay after opening another board tile and coming back", await p.evaluate(() => document.querySelectorAll("#c-strip img[data-i]:not([data-i='-1']):not([data-i='-2'])").length) === 3,
+      await p.evaluate(() => document.getElementById("c-strip").innerHTML.slice(0, 300)));
     check("no page errors on the board", p.errors.length === 0, p.errors.join(" | "));
     await p.close();
   }

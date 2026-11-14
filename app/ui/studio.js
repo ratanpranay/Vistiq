@@ -249,7 +249,9 @@
     if (p === S.create && slot === "src") {
       if (info.live) p.liveSrc = info; else { p.imageSrc = info; p.source = "image"; }
       var same = info.live && p.liveSize === info.w + "x" + info.h;
-      if (!info.live) { p.results = []; p.sel = -1; }
+      // Never drop results when the picture changes: the strip shows the ones made
+      // from this picture, the rest stay under "Earlier" (opening a board tile used to lose them).
+      if (!info.live) p.sel = -1;
       if (!same) painter.reset(info);
       p.liveSize = info.live ? info.w + "x" + info.h : "";
     }
