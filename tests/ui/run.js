@@ -230,6 +230,22 @@ const frame = (n, name) => ({ path: "live://photoshop/" + n, name: name || "flat
     await p.close();
   }
 
+  // An opened picture (no result yet) can go to Photoshop, the board or Upscale; Upscale has the bar too.
+  {
+    const p = await open(browser, null, {});
+    await p.evaluate(() => { window.VS.S.create.source = "image"; window.VS.setImage(window.VS.S.create, "src", { path: "C:/i/01_end.jpg", name: "01_end.jpg", w: 1536, h: 652, preview: "x" }); });
+    await p.waitForTimeout(100);
+    check("an opened picture can go to Photoshop, the board and Upscale", await p.evaluate(() => !document.getElementById("c-tops").disabled && !document.getElementById("c-toboard").disabled && !document.getElementById("c-up").disabled && document.getElementById("c-refine-this").disabled),
+      await p.evaluate(() => ["c-tops", "c-toboard", "c-up", "c-refine-this"].map((i) => i + ":" + document.getElementById(i).disabled).join(" ")));
+    await p.evaluate(() => { window.__sent = null; window.pywebview.api.studio_send = (path) => { window.__sent = path; return Promise.resolve({ ok: true }); }; });
+    await p.click("#c-tops"); await p.waitForTimeout(100);
+    check("Photoshop gets the opened picture", await p.evaluate(() => window.__sent) === "C:/i/01_end.jpg", await p.evaluate(() => window.__sent));
+    await p.click(".s-nav button[data-page=upscale]"); await p.waitForTimeout(200);
+    check("Upscale has Refine, To board and Photoshop", await p.evaluate(() => !!(document.getElementById("u-refine") && document.getElementById("u-toboard") && document.getElementById("u-tops"))), "missing");
+    check("no page errors with the action bars", p.errors.length === 0, p.errors.join(" | "));
+    await p.close();
+  }
+
   // The results strip comes back after a restart; a moved file shows as missing.
   {
     const p = await open(browser, null, {});

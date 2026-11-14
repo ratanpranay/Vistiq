@@ -24,6 +24,18 @@ from .settings import Settings, data_dir
 log = logging.getLogger("vistiq")
 
 
+def find_photoshop():
+    """Photoshop.exe, newest version first (Windows)."""
+    import glob
+    roots = [os.environ.get("ProgramFiles", r"C:\Program Files"), os.environ.get("ProgramW6432", r"C:\Program Files")]
+    found = []
+    for r in roots:
+        found += glob.glob(os.path.join(r, "Adobe", "Adobe Photoshop*", "Photoshop.exe"))
+    import re
+    year = lambda f: max([int(y) for y in re.findall(r"(20\d\d)", f)] or [0])
+    return sorted(set(found), key=year)[-1] if found else None
+
+
 class Api:
     def __init__(self, app):
         self._app = app
@@ -388,9 +400,19 @@ class Api:
         if not path or not os.path.isfile(path):
             return {"ok": False, "error": "That picture isn't there any more."}
         name = "Vistiq · " + os.path.splitext(os.path.basename(path))[0].replace("Vistiq_", "")
-        if not st.bridge.send(path, name):
-            return {"ok": False, "error": "Photoshop isn't connected. Open it with the Vistiq Studio panel."}
-        return {"ok": True}
+        if st.bridge.send(path, name):
+            return {"ok": True, "how": "layer"}
+        # Not connected through the panel: open the picture in Photoshop as its own file.
+        exe = find_photoshop()
+        if not exe:
+            return {"ok": False, "error": "Photoshop isn't installed here, or Studio can't find it."}
+        try:
+            import subprocess
+            subprocess.Popen([exe, path], close_fds=True)
+            return {"ok": True, "how": "opened"}
+        except Exception as exc:
+            log.warning("couldn't open Photoshop: %s", exc)
+            return {"ok": False, "error": "Couldn't open Photoshop."}
 
     def studio_install_panel(self):
         from . import bridge

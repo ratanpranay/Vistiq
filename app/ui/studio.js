@@ -188,6 +188,42 @@
       uh.innerHTML = '<h3>Upscale</h3><button type="button" class="s-min" data-min="rail" title="Collapse / expand"><svg viewBox="0 0 24 24"><path d="M6 15l6-6 6 6"/></svg></button>';
       urail.insertBefore(uh, urail.firstChild);
     }
+    // Upscale gets the same bar above its button: Refine · To board · Photoshop.
+    var ufoot = document.querySelector(".shell .rail .rail-foot");
+    if (ufoot && !$("u-acts")) {
+      var ua = document.createElement("div"); ua.className = "s-acts3"; ua.id = "u-acts";
+      ua.innerHTML = '<button type="button" class="s-btn" id="u-refine" title="Open the upscaled picture in Create to change it">' + svg("sketch") + "<span>Refine</span></button>" +
+        '<button type="button" class="s-btn" id="u-toboard" title="Put the upscaled picture on the board">' + svg("board") + "<span>To board</span></button>" +
+        '<button type="button" class="s-btn" id="u-tops" title="Send the upscaled picture to Photoshop"><span class="m-ico ps">Ps</span><span>Photoshop</span></button>';
+      ufoot.insertBefore(ua, ufoot.firstChild);
+      var upic = function () {
+        var c = window.VUpscale && window.VUpscale.current();
+        return c && c.status === "done" && c.out_path ? c.out_path : null;
+      };
+      $("u-refine").addEventListener("click", function () {
+        var path = upic(); if (!path) return;
+        api().studio_image(path).then(function (info) {
+          if (!info) { toast("That picture isn't there any more."); return; }
+          S.create.source = "image"; setImage(S.create, "src", info); go("create");
+          setTimeout(function () { var b = $("c-text"); if (b) b.focus(); }, 250);
+        });
+      });
+      $("u-toboard").addEventListener("click", function () {
+        var path = upic(); if (!path || !window.VSBoard) return;
+        api().studio_image(path).then(function (info) {
+          if (!info) { toast("That picture isn't there any more."); return; }
+          window.VSBoard.addResult(info, null); toast("Added to the board"); uState();
+        });
+      });
+      $("u-tops").addEventListener("click", function () { var path = upic(); if (path) sendPS(path); });
+      var uState = function () {
+        var path = upic(), onB = !!(path && window.VSBoard && window.VSBoard.has(path));
+        $("u-refine").disabled = !path; $("u-tops").disabled = !path; $("u-toboard").disabled = !path || onB;
+        $("u-toboard").querySelector("span").textContent = onB ? "On board" : "To board";
+      };
+      if (window.VUpscale) window.VUpscale.onRender = uState;
+      uState();
+    }
     // Floating side panels fold away for more room; remembered.
     document.body.classList.toggle("nav-min", !!load("navMin", false));
     document.body.classList.toggle("rail-min", !!load("railMin", false));
@@ -305,6 +341,12 @@
     });
   }
   function current(p) { return p.sel >= 0 ? p.results[p.sel] : null; }
+  // What the bar above Create acts on: the chosen result, else the picture you opened
+  // (not the live canvas, which isn't a file of its own).
+  function target(p) {
+    var c = current(p); if (c) return c;
+    var s = p.src; return s && !s.live && !s.frozen && s.path ? s : null;
+  }
 
   function setImage(p, slot, info) {
     if (!info) return;
@@ -418,7 +460,7 @@
       $(id + "-refine-go").addEventListener("click", function () { refine(id); });
       $(id + "-refine").addEventListener("keydown", function (e) { if (e.key === "Enter") refine(id); });
       $(id + "-up").addEventListener("click", function () {
-        var c = current(p); if (!c) return;
+        var c = target(p); if (!c) return;
         api().studio_to_upscale(c.path).then(function () { go("upscale"); });
       });
       $(id + "-clear").addEventListener("click", function () {
@@ -427,18 +469,18 @@
         if (id === "r") { p.src = null; p.refimg = null; }
         render();
       });
-      $(id + "-reveal").addEventListener("click", function () { var c = current(p); if (c) api().reveal(c.path); });
+      $(id + "-reveal").addEventListener("click", function () { var c = target(p); if (c) api().reveal(c.path); });
       $(id + "-refine-this").addEventListener("click", function () {
         var t = (p.text || "").trim();
         if (!t) { var box = $(id + "-text"); if (box) box.focus(); toast("Type what to change in the prompt, then Refine this"); return; }
         $(id + "-refine").value = t; refine(id);
       });
       $(id + "-toboard").addEventListener("click", function () {
-        var c = current(p); if (!c || !window.VSBoard) return;
-        window.VSBoard.addResult(c, id === "c" ? S.boardFrom : S.boardFromRef);
+        var c = target(p); if (!c || !window.VSBoard) return;
+        window.VSBoard.addResult(c, current(p) ? (id === "c" ? S.boardFrom : S.boardFromRef) : null);
         toast("Added to the board");
       });
-      $(id + "-tops").addEventListener("click", function () { var c = current(p); if (c) sendPS(c.path); });
+      $(id + "-tops").addEventListener("click", function () { var c = target(p); if (c) sendPS(c.path); });
       $(id + "-strip").addEventListener("click", function (e) {
         var t = e.target.closest("[data-i]"); if (t) { pickResult(p, +t.getAttribute("data-i")); return; }
         if (e.target.closest(".s-more")) job(id, { variations: 1 });
@@ -698,7 +740,7 @@
 
   // Put a picture into the open Photoshop file as a new layer.
   function sendPS(path) {
-    toast("Sending to Photoshop…");
+    toast(S.psOn ? "Sending to Photoshop…" : "Opening in Photoshop…");
     api().studio_send(path, "photoshop").then(function (r) {
       if (!(r && r.ok)) toast((r && r.error) || "Couldn't send it.");
     });
@@ -873,12 +915,13 @@
       : p.src ? (id === "c" && p.area === "paint" ? "Paint over what should change" : p.src.w + " × " + p.src.h) : "";
     var ttl = esc(name) + "<small>" + sub + "</small>";
     if ($(id + "-ttl").getAttribute("data-h") !== ttl) { $(id + "-ttl").innerHTML = ttl; $(id + "-ttl").setAttribute("data-h", ttl); }
-    $(id + "-up").disabled = !c; $(id + "-reveal").disabled = !c;
-    $(id + "-toboard").disabled = !c || !!(window.VSBoard && window.VSBoard.has(c.path));
-    $(id + "-toboard").querySelector("span").textContent = c && window.VSBoard && window.VSBoard.has(c.path) ? "On board" : "To board";
+    var tg = target(p), onB = !!(tg && window.VSBoard && window.VSBoard.has(tg.path));
+    $(id + "-up").disabled = !tg || !!p.job; $(id + "-reveal").disabled = !tg;
+    $(id + "-toboard").disabled = !tg || onB;
+    $(id + "-toboard").querySelector("span").textContent = onB ? "On board" : "To board";
     $(id + "-refine-this").hidden = false; $(id + "-refine-this").disabled = !c || !!p.job;
-    $(id + "-tops").hidden = false; $(id + "-tops").disabled = !(c && S.psOn);
-    $(id + "-tops").title = S.psOn ? "Send this result to Photoshop as a new layer" : "Connect Photoshop (Live from app) to send results there";
+    $(id + "-tops").hidden = false; $(id + "-tops").disabled = !tg;
+    $(id + "-tops").title = S.psOn ? "Put this picture in your open Photoshop file as a new layer" : "Open this picture in Photoshop";
     $(id + "-clear").hidden = !(p.results.length && !p.job);
     $(id + "-refine-go").disabled = !!p.job || !(c || p.src);
 

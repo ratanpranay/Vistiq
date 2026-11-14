@@ -745,7 +745,9 @@
   function render() {
     state.running = state.batch || state.items.some(function (i) { return i.status === "running" || i.status === "queued"; });
     renderRail(); renderUpdate(); renderBanner(); renderStrip(); renderStage();
-    if (!state.running) refreshEstimates(); }
+    if (!state.running) refreshEstimates();
+    if (window.VUpscale && window.VUpscale.onRender) { try { window.VUpscale.onRender(); } catch (e) {} } }
+  window.VUpscale = { current: function () { return current(); }, onRender: null };
 
   // ---------------------------------------------------------------- actions
   function merge(added) {
