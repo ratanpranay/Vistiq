@@ -58,7 +58,8 @@
   // ------------------------------------------------------------------ build
 
   function rail(id, title, inner, goText) {
-    return '<aside class="s-rail"><div class="s-rail-body"><h3>' + title + "</h3>" + inner + "</div>" +
+    return '<aside class="s-rail"><div class="s-rh"><h3>' + title + '</h3><button type="button" class="s-min" data-min="rail" title="Collapse / expand">' +
+      '<svg viewBox="0 0 24 24"><path d="M6 15l6-6 6 6"/></svg></button></div><div class="s-rail-body">' + inner + "</div>" +
       '<div class="s-rail-foot"><div class="s-err" id="' + id + '-err" hidden></div>' +
       '<button type="button" class="s-go" id="' + id + '-go"><span class="s-go-fill" id="' + id + '-fill" style="width:0"></span><span id="' + id + '-golabel">' + goText + "</span></button>" +
       '<button type="button" class="s-cancel" id="' + id + '-cancel" hidden>Cancel</button>' +
@@ -108,7 +109,8 @@
     nav.innerHTML = '<div class="s-logo" title="Vistiq Studio"><img src="assets/mark.png" alt=""></div>' +
       ["board", "create", "reference", "upscale", "library"].map(function (p) {
         return '<button type="button" data-page="' + p + '">' + svg(p) + p.charAt(0).toUpperCase() + p.slice(1) + "</button>";
-      }).join("") + '<div class="s-sp"></div><button type="button" data-page="settings">' + svg("settings") + "Settings</button>";
+      }).join("") + '<div class="s-sp"></div><button type="button" data-page="settings">' + svg("settings") + "Settings</button>" +
+      '<button type="button" class="s-min s-navmin" data-min="nav" title="Collapse / expand"><svg viewBox="0 0 24 24"><path d="M15 6l-6 6 6 6"/></svg></button>';
     document.body.insertBefore(nav, document.body.firstChild);
 
     var create = document.createElement("div");
@@ -175,6 +177,18 @@
     board.className = "s-page"; board.id = "p-board";
     document.body.appendChild(board);
     if (window.VSBoard) window.VSBoard.build(board);
+
+    // Floating side panels fold away for more room; remembered.
+    document.body.classList.toggle("nav-min", !!load("navMin", false));
+    document.body.classList.toggle("rail-min", !!load("railMin", false));
+    document.addEventListener("click", function (e) {
+      var b = e.target.closest && e.target.closest("[data-min]"); if (!b) return;
+      e.stopPropagation();
+      var k = b.getAttribute("data-min") === "nav" ? "nav-min" : "rail-min";
+      var onNow = document.body.classList.toggle(k);
+      keep(k === "nav-min" ? "navMin" : "railMin", onNow);
+      setTimeout(layout, 220);
+    }, true);
 
     wire();
     painter.init();

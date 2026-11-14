@@ -374,3 +374,70 @@ body.studio #p-create .s-rail,body.studio #p-reference .s-rail{order:2;border-ri
 body.studio #p-create .s-stage,body.studio #p-reference .s-stage{background-color:#f7f8fb;background-image:radial-gradient(#dfe1e8 1px,transparent 1.1px);background-size:22px 22px}
 .s-back{align-self:flex-start;height:30px;padding:0 12px;border-radius:15px;background:#fff;border:1px solid var(--line);font-size:12.5px;font-weight:600;color:var(--ink-2);margin-bottom:-4px}
 .s-back:hover{border-color:var(--line-2)}
+
+/* ---- 0.4: floating, foldable panels and Vizcom-like proportions ---- */
+body.studio{background:#f4f5f8}
+body.studio .s-nav{width:64px;margin:10px 0 10px 10px;height:calc(100% - 20px);border:none;border-radius:16px;box-shadow:0 4px 18px rgba(14,16,32,.09);padding:10px 0;gap:2px}
+.s-nav .s-logo{width:36px;height:36px;margin-bottom:8px}.s-nav .s-logo img{width:32px}
+.s-nav button{width:52px;padding:6px 0;border-radius:10px;font-size:10px;font-weight:500;gap:3px}
+.s-nav button svg{width:18px;height:18px}
+.s-nav .s-heart{width:36px;height:36px}.s-nav .s-heart svg{width:18px;height:18px}
+.s-min{width:26px;height:26px;padding:0!important;border-radius:8px!important;display:flex;align-items:center;justify-content:center;color:var(--dim);flex-shrink:0}
+.s-min:hover{background:var(--field);color:var(--ink)}
+.s-min svg{width:16px!important;height:16px!important;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;transition:transform .2s}
+.s-navmin{margin-top:4px}
+body.nav-min .s-nav{height:auto;align-self:flex-start;width:48px;padding:6px 0}
+body.nav-min .s-nav>*:not(.s-logo):not(.s-navmin){display:none}
+body.nav-min .s-nav .s-logo{margin-bottom:0}
+body.nav-min .s-navmin svg{transform:rotate(180deg)}
+/* The settings panel of Create / Reference floats on the right */
+body.studio #p-create .s-rail,body.studio #p-reference .s-rail{width:292px;margin:10px 10px 10px 0;height:calc(100% - 20px);border:none;border-radius:16px;box-shadow:0 4px 18px rgba(14,16,32,.09);overflow:hidden}
+.s-rh{display:flex;align-items:center;justify-content:space-between;padding:12px 12px 4px 16px}
+.s-rh h3,.s-rail .s-rh h3{margin:0;font-size:14px;font-weight:600}
+body.studio .s-rail-body{padding:10px 16px 10px;gap:16px}
+body.rail-min #p-create .s-rail,body.rail-min #p-reference .s-rail{height:auto;align-self:flex-start}
+body.rail-min .s-rail .s-rail-body{display:none}
+body.rail-min .s-rh svg{transform:rotate(180deg)}
+body.studio #p-create .s-stage,body.studio #p-reference .s-stage{background:none}
+#p-create,#p-reference{background-color:#f7f8fb;background-image:radial-gradient(#dfe1e8 1px,transparent 1.1px);background-size:22px 22px}
+/* proportions */
+.s-label{font-size:10.5px;font-weight:600;margin-bottom:7px}
+.s-rail-foot{padding:10px 14px 12px;gap:6px}
+.s-go{height:38px;border-radius:19px;font-size:13px;font-weight:600}
+.s-cancel{height:30px;font-size:12px}
+.s-meta{font-size:11px}
+.s-tiles4{gap:6px}
+.s-tiles4 button{height:36px;border-radius:10px;padding:0 10px;gap:8px;font-size:12px;font-weight:500;border-width:1px}
+.s-tiles4 button svg{width:16px;height:16px}
+.m-src button,.s-seg button{height:30px;font-size:12px;font-weight:500}
+.s-pbox .s-prompt{font-size:12.5px;padding:10px 12px;min-height:60px}
+.s-impb{height:26px;font-size:12px;font-weight:500}
+.s-step{height:30px}.s-step b{font-size:13px}
+.s-select{height:34px;font-size:12.5px}
+.s-ttl,.s-stage .s-ttl{font-size:15px;font-weight:600;min-height:0}
+.s-ttl small{font-size:11.5px;font-weight:400}
+.s-stage{padding:14px 16px 12px;gap:10px}
+.s-back{height:28px;padding:0 11px;font-size:12px;font-weight:500;margin-bottom:-2px}
+.s-btn,.s-acts2 .s-btn{height:30px;padding:0 12px;font-size:12px;font-weight:500;border-radius:9px}
+.s-refine input{height:34px;padding:0 12px;font-size:12.5px;border-radius:10px}
+.s-refine button{height:34px;padding:0 14px;font-size:12.5px;font-weight:600;border-radius:10px}
+.s-paintbtn{height:30px;font-size:12px;font-weight:500}
+.s-tag{font-size:11px;font-weight:600}
+.s-ps-on span:nth-child(2){font-size:12.5px}
+/* Upscale's panel floats too */
+body.studio .shell .rail{margin:10px 0 10px 10px;height:calc(100% - 20px);border:none;border-radius:16px;box-shadow:0 4px 18px rgba(14,16,32,.09);width:292px}
+body.studio .rail-body::before{font-size:14px;font-weight:600}
+body.studio .tile{height:auto;padding:8px 4px}
+body.studio .tile b{font-size:15px}
+body.studio .go{height:38px;font-size:13px}
+/* Folded settings panel: a small floating bar at the top right, the picture gets the full width */
+#p-create,#p-reference{position:relative}
+body.rail-min #p-create .s-rail,body.rail-min #p-reference .s-rail{position:absolute;right:0;top:0;width:auto;flex-direction:row;align-items:center;z-index:6;padding-right:8px}
+body.rail-min .s-rh{padding:8px 4px 8px 14px;gap:10px}
+body.rail-min .s-rail-foot{border:none;padding:6px 0;flex-direction:row;align-items:center}
+body.rail-min .s-rail-foot .s-meta,body.rail-min .s-rail-foot .s-err{display:none}
+body.rail-min .s-go{height:32px;width:auto;padding:0 18px;font-size:12.5px}
+body.rail-min .s-cancel{height:32px;padding:0 12px}
+body.rail-min .s-rh{order:0}
+body.studio .mdl-btn{min-height:0;padding-top:7px;padding-bottom:7px}
+body.studio .chip{height:30px;font-size:12px}
