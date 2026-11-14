@@ -301,6 +301,26 @@ class Api:
             log.warning("couldn't save the board: %s", exc)
             return False
 
+    def studio_strip_get(self):
+        """The results strips of Create and Reference, as they were when the app closed."""
+        try:
+            with open(os.path.join(data_dir(), "strip.json"), encoding="utf-8") as fh:
+                return json.load(fh)
+        except Exception:
+            return None
+
+    def studio_strip_save(self, strip):
+        path = os.path.join(data_dir(), "strip.json")
+        tmp = path + ".tmp"
+        try:
+            with open(tmp, "w", encoding="utf-8") as fh:
+                json.dump(strip, fh)
+            os.replace(tmp, path)
+            return True
+        except Exception as exc:
+            log.warning("couldn't save the results strip: %s", exc)
+            return False
+
     def studio_thumb(self, path):
         """A small picture for a board tile (a full preview is too big for many tiles)."""
         try:

@@ -179,6 +179,7 @@
     board.className = "s-page"; board.id = "p-board";
     document.body.appendChild(board);
     if (window.VSBoard) window.VSBoard.build(board);
+    loadStrip();
 
     // Upscale's panel gets the same header (title + fold button) as the others.
     var urail = document.querySelector(".shell .rail");
@@ -239,6 +240,70 @@
   }
 
   function P(id) { return id === "c" ? S.create : S.ref; }
+
+  // -- the results strips survive a restart -----------------------------------------
+  // Only paths are kept (strip.json); thumbnails are made again on start, the full
+  // picture is read from its folder when a result is clicked. A file that was moved
+  // or deleted shows as missing.
+  var stripSig = null;
+  window.VSStrip = { load: function () { stripSig = null; loadStrip(); } };   // for the screen tests
+  function stripData() {
+    function one(p) {
+      return p.results.slice(-80).map(function (r) {
+        return { path: r.path, name: r.name, w: r.w, h: r.h, srcKey: r.srcKey || "",
+                 source: (r.meta && r.meta.source) || r.source || "", meta: r.meta ? { text: r.meta.text || "", preset: r.meta.preset || "" } : null };
+      });
+    }
+    return { v: 1, create: one(S.create), ref: one(S.ref),
+             imageSrc: S.create.imageSrc && !S.create.imageSrc.live ? S.create.imageSrc.path : "",
+             source: S.create.source || "" };
+  }
+  function saveStrip() {
+    if (stripSig === null) return;                 // not loaded yet: don't overwrite with an empty strip
+    var d = stripData(), sig = JSON.stringify(d);
+    if (sig === stripSig) return;
+    stripSig = sig;
+    if (api() && api().studio_strip_save) api().studio_strip_save(d);
+  }
+  function loadStrip() {
+    var a = api(); if (!a || !a.studio_strip_get) { stripSig = ""; return; }
+    a.studio_strip_get().then(function (d) {
+      d = d || {};
+      [[S.create, d.create], [S.ref, d.ref]].forEach(function (pair) {
+        var p = pair[0], list = pair[1] || [];
+        var back = list.map(function (r) {
+          return { path: r.path, name: r.name, w: r.w, h: r.h, srcKey: r.srcKey, source: r.source, meta: r.meta,
+                   preview: BLANK, thin: true };
+        });
+        p.results = back.concat(p.results);         // anything made already this session stays after
+        if (p.sel >= 0) p.sel += back.length;
+        back.forEach(function (r) {
+          a.studio_thumb(r.path).then(function (t) { if (t) r.preview = t; else r.missing = true; render(); });
+          if (r.source) a.studio_thumb(r.source).then(function (t) { if (t) { r.orig = t; render(); } });
+        });
+      });
+      stripSig = JSON.stringify(stripData());
+      if (d.imageSrc && !S.create.src && d.source === "image") {
+        a.studio_image(d.imageSrc).then(function (info) { if (info && !S.create.src) setImage(S.create, "src", info); });
+      }
+      render();
+    });
+  }
+  var BLANK = "data:image/gif;base64,R0lGODlhAQABAIAAAO7v8wAAACH5BAAAAAAALAAAAAABAAEAAAICRAEAOw==";
+  // Clicking a result kept from an earlier session reads the full picture from its folder.
+  function pickResult(p, i) {
+    var r = i >= 0 ? p.results[i] : null;
+    if (!r || !r.thin) { p.sel = i; render(); return; }
+    api().studio_image(r.path).then(function (info) {
+      if (!info) {
+        r.missing = true; render();
+        toast("This image is missing from its original location: " + r.path);
+        return;
+      }
+      r.preview = info.preview; r.w = info.w; r.h = info.h; r.thin = false; r.missing = false;
+      p.sel = i; render();
+    });
+  }
   function current(p) { return p.sel >= 0 ? p.results[p.sel] : null; }
 
   function setImage(p, slot, info) {
@@ -375,7 +440,7 @@
       });
       $(id + "-tops").addEventListener("click", function () { var c = current(p); if (c) sendPS(c.path); });
       $(id + "-strip").addEventListener("click", function (e) {
-        var t = e.target.closest("[data-i]"); if (t) { p.sel = +t.getAttribute("data-i"); render(); return; }
+        var t = e.target.closest("[data-i]"); if (t) { pickResult(p, +t.getAttribute("data-i")); return; }
         if (e.target.closest(".s-more")) job(id, { variations: 1 });
         if (e.target.closest(".s-earlier")) { p.showEarlier = !p.showEarlier; render(); }
       });
@@ -820,7 +885,7 @@
     // The big view.
     var view = $(id + "-view"), mode, key;
     var origOf = p.sel === -2 ? (p.job ? p.jobOrig : (p.results.length ? p.results[p.results.length - 1].orig : null)) : null;
-    if (c) { mode = "result"; key = c.path; }
+    if (c) { mode = "result"; key = c.path + (c.thin ? ":thin" : ""); }
     else if (origOf) { mode = "orig"; key = origOf.length + ":" + origOf.slice(-40) + (p.job && p.preview ? ":dev" + (p.previewN || 0) : ""); }
     else if (id === "c" && p.src && p.area === "paint") { mode = "paint"; key = p.src.path; }
     else if (p.src && id === "c") { mode = "src"; key = (p.job && p.liveSrc ? p.liveSrc.path : p.src.path + (p.src.frozen ? ":frozen" : "")) + (S.psSel && S.useSel !== false ? ":sel" + S.psSel.preview.length + S.psSel.preview.slice(-24) : ""); }
@@ -894,7 +959,11 @@
     // pictures fold into "Earlier" (and are all in the Library).
     var key = srcKey(p.src), mine = [], earlier = [];
     p.results.forEach(function (r, i) { (r.srcKey === key ? mine : earlier).push(i); });
-    var tile = function (i) { var r = p.results[i]; return '<img data-i="' + i + '" class="' + (i === p.sel ? "sel" : "") + '" src="' + r.preview + '" title="' + esc(short(r.name)) + '" alt="">'; };
+    var tile = function (i) {
+      var r = p.results[i];
+      if (r.missing) return '<span class="s-miss' + (i === p.sel ? " sel" : "") + '" data-i="' + i + '" title="Missing from its original location: ' + esc(r.path) + '">Missing</span>';
+      return '<img data-i="' + i + '" class="' + (i === p.sel ? "sel" : "") + '" src="' + r.preview + '" title="' + esc(short(r.name)) + '" alt="">';
+    };
     var strip = "";
     // Live: first tile, always the current canvas (it keeps updating, even during a run).
     // Then a divider, then the sketch these results were made from (frozen at Create), then the results.
@@ -1113,6 +1182,7 @@
     else if (S.page === "reference") renderReference();
     else if (S.page === "library") renderLibrary();
     else if (S.page === "settings") renderSettings();
+    saveStrip();
   }
 
   // ------------------------------------------------------------------ from Python

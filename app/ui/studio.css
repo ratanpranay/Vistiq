@@ -584,3 +584,7 @@ body.rail-min .s-top{padding-right:250px}
 .s-acts3 .s-btn .m-ico{width:16px;height:16px;font-size:8.5px;border-radius:4px}
 .s-acts3 .s-btn span:last-child{overflow:visible;text-overflow:clip;line-height:1}
 .s-acts3 .s-btn:disabled{opacity:.35}
+
+/* results kept from an earlier session whose file is gone */
+.s-miss{display:inline-flex;align-items:center;justify-content:center;flex:none;width:108px;height:62px;border-radius:10px;border:1.5px dashed #d6d8e0;color:var(--dim,#80869a);font-size:11px;cursor:pointer;background:#fafbfc}
+.s-miss.sel{border-color:#e05a5a;color:#c94444}
