@@ -1,5 +1,14 @@
 # Vistiq Studio (test build)
 
+## 0.4.0
+- New: the Board. Studio opens on an infinite canvas with your Live Photoshop tile (Connect button under it when not connected). Paste, drop or add images to start without Photoshop.
+- Double-click a tile to open the Focus view; "Add to board" puts a result next to what it was made from, joined by a line.
+- Right-click a tile: Open, Refine, More like this, Upscale, Send to Photoshop, Use as reference, Show in folder, Save a copy, Remove.
+- Organize (bottom right) lays the board out neatly in the order things were made. The board saves by itself.
+- Floating side panels that fold away for more room; settings on the right on every page (Create, Reference, Upscale).
+- Calmer sizes matched to Vizcom: smaller buttons, regular-weight text, quiet labels.
+- Long pasted prompts are boiled down first, the design leads and nothing is added; a prompt's own light wins (fixes dark, over-rendered results).
+
 ## 0.3.10
 - FLUX 3 Klein, the newest image model, is used automatically when its two files are in Models (the earlier model stays as fallback). Results at about 2736 × 1536 with clean, refined lines and textures, about a minute a picture.
 - Reference: colours and materials (CMF) or the whole look (Style) come over from a reference picture while your design stays.
