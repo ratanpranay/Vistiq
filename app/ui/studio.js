@@ -319,8 +319,9 @@
   function closePop() { if (popEl) { popEl.remove(); popEl = null; } }
   // Opens html under (or beside) an element; clicks on [data-p] go to onPick(value, element).
   function pop(anchor, html, onPick, side) {
+    if (popEl && popEl._anchor === anchor) { closePop(); return null; }      // same button again: close
     closePop();
-    popEl = document.createElement("div"); popEl.className = "s-pop"; popEl.innerHTML = html;
+    popEl = document.createElement("div"); popEl.className = "s-pop"; popEl.innerHTML = html; popEl._anchor = anchor;
     document.body.appendChild(popEl);
     var r = anchor.getBoundingClientRect(), w = popEl.offsetWidth, h = popEl.offsetHeight;
     var x = side === "right" ? r.right + 8 : r.left, y = side === "right" ? r.top : r.bottom + 8;
@@ -365,7 +366,7 @@
       else if (v === "paste") api().studio_paste().then(function (i) { if (i) onAdd(i); else toast("Nothing to paste: copy a picture first."); });
       else if (v === "phone") phoneDialog();
     });
-    el.classList.add("s-plus");
+    if (el) el.classList.add("s-plus");
   }
   // Upload from phone: a QR code; whatever the phone sends lands on the board.
   function phoneDialog() {
@@ -480,6 +481,19 @@
   function target(p) {
     var c = current(p); if (c) return c;
     var s = p.src; return s && !s.live && !s.frozen && s.path ? s : null;
+  }
+
+  // What the bar acts on, as a file: the chosen result; else the open picture,
+  // flattened with its visible Studio layers (at full size) when it has any.
+  function withTarget(p, cb) {
+    var c = target(p); if (!c) return;
+    var lay = !current(p) && p === S.create && window.VSSketch && window.VSSketch.payload(p.src);
+    if (!lay) { cb(c, false); return; }
+    toast("Flattening your layers…");
+    api().studio_flatten(p.src.path, lay).then(function (info) {
+      if (!info) { toast("Couldn't flatten the layers."); return; }
+      cb(info, true);
+    });
   }
 
   function setImage(p, slot, info) {
@@ -611,22 +625,23 @@
       $(id + "-refine-go").addEventListener("click", function () { refine(id); });
       $(id + "-refine").addEventListener("keydown", function (e) { if (e.key === "Enter") refine(id); });
       $(id + "-up").addEventListener("click", function () {
-        var c = target(p); if (!c) return;
-        api().studio_to_upscale(c.path).then(function () { go("upscale"); });
+        withTarget(p, function (c) { api().studio_to_upscale(c.path).then(function () { go("upscale"); }); });
       });
       // (No Clear: each picture always keeps everything made from it.)
-      $(id + "-reveal").addEventListener("click", function () { var c = target(p); if (c) api().reveal(c.path); });
+      $(id + "-reveal").addEventListener("click", function () { withTarget(p, function (c) { api().reveal(c.path); }); });
       $(id + "-refine-this").addEventListener("click", function () {
         var t = (p.text || "").trim();
         if (!t) { var box = $(id + "-text"); if (box) box.focus(); toast("Type what to change in the prompt, then Refine this"); return; }
         $(id + "-refine").value = t; refine(id);
       });
       $(id + "-toboard").addEventListener("click", function () {
-        var c = target(p); if (!c || !window.VSBoard) return;
-        window.VSBoard.addResult(c, current(p) ? (id === "c" ? S.boardFrom : S.boardFromRef) : null);
-        toast("Added to the board");
+        if (!window.VSBoard) return;
+        withTarget(p, function (c, flat) {
+          window.VSBoard.addResult(c, current(p) || flat ? (id === "c" ? S.boardFrom : S.boardFromRef) : null);
+          toast("Added to the board");
+        });
       });
-      $(id + "-tops").addEventListener("click", function () { var c = target(p); if (c) sendPS(c.path); });
+      $(id + "-tops").addEventListener("click", function () { withTarget(p, function (c) { sendPS(c.path); }); });
       // Floating on a result: Add (as a layer over your picture) and Export (PNG / JPEG).
       $(id + "-view").addEventListener("click", function (e) {
         var b = e.target.closest("[data-ra]"); if (!b) return;
@@ -639,9 +654,20 @@
       });
       var addAsLayer = function () {
         var c = current(p); if (!c || !p.src || !window.VSSketch) return;
-        var put = function () { window.VSSketch.addImageLayer(p.src, c.preview, short(c.name)); p.sel = -1; render(); toast("On a layer over your picture · the board shows it too"); };
+        // The layer gets the result at full preview size, never the small strip thumbnail.
+        var put = function () {
+          api().studio_image(c.path).then(function (info) {
+            if (!info) { toast("That result isn't in its folder any more."); return; }
+            window.VSSketch.addImageLayer(p.src, info.preview, short(c.name)); p.sel = -1; render(); toast("On a layer over your picture · the board shows it too");
+          });
+        };
         if (p.src.live || p.src.frozen) window.VSSketch.branch(function () { setTimeout(put, 50); }); else put();
       };
+      // The mouse wheel slides the results sideways.
+      $(id + "-strip").addEventListener("wheel", function (e) {
+        var el = this; if (el.scrollWidth <= el.clientWidth || Math.abs(e.deltaX) > Math.abs(e.deltaY)) return;
+        e.preventDefault(); el.scrollLeft += e.deltaY;
+      }, { passive: false });
       $(id + "-strip").addEventListener("click", function (e) {
         var t = e.target.closest("[data-i]"); if (t) { pickResult(p, +t.getAttribute("data-i")); return; }
         if (e.target.closest(".s-more")) job(id, { variations: 1 });
@@ -1265,12 +1291,7 @@
     // While making: the sketch blurred, the steps coming through, a progress ring and the stage.
     var pf = pane.querySelector(".s-pfit");
     pf.classList.toggle("s-loading", !!what.job);
-    var dev = pf.querySelector(".s-dev");
-    if (what.job && p.preview) {
-      if (!dev) { dev = document.createElement("img"); dev.className = "s-dev"; pf.appendChild(dev); }
-      if (dev.getAttribute("src") !== p.preview) dev.setAttribute("src", p.preview);
-      dev.style.opacity = Math.min(1, 0.35 + 0.13 * (p.previewN || 1));
-    } else if (dev) dev.remove();
+    // Only the blurred sketch and the ring while it's made: the in-between steps look messy.
     var ring = pane.querySelector(".s-pring");
     if (what.job) {
       if (!ring) { ring = document.createElement("div"); ring.className = "s-pring";
@@ -1278,7 +1299,7 @@
       var fr = Math.max(0.02, p.frac || 0);
       ring.querySelector(".fg").style.strokeDashoffset = String(125.7 * (1 - fr));
       ring.querySelector("b").textContent = Math.round(fr * 100) + "%";
-      pf.style.setProperty("--blur", Math.max(2, 18 - 2.5 * (p.previewN || 0)) + "px");
+      pf.style.setProperty("--blur", "16px");
     } else if (ring) ring.remove();
   }
   // Flip through this picture's results (← →).
@@ -1287,6 +1308,12 @@
     if (!mine.length) return;
     var at = mine.indexOf(p.sel), next = at < 0 ? (d > 0 ? mine[0] : mine[mine.length - 1]) : mine[Math.max(0, Math.min(mine.length - 1, at + d))];
     pickResult(p, next);
+  }
+  // Which Create a result came from: the job, or the _vN in its file name.
+  function runOf(r) {
+    if (r.run) return r.run;
+    var m = /_(create|refine|paint|reference|camera|cmf|style)_v(\d+)/i.exec(r.name || r.path || "");
+    return m ? m[1].toLowerCase() + m[2] : r.path;
   }
   function keyOfSrc(src) { return src ? (src.live ? "live" : src.path) : ""; }
   // A word in the prompt that changes something locked: say so, with one click to unlock.
@@ -1487,22 +1514,31 @@
     var live = id === "c" && p.source === "live" ? (p.liveSrc || (p.src && (p.src.live || p.src.frozen) ? p.src : null)) : null;
     var origPrev = p.job ? p.jobOrig : (mine.length ? p.results[mine[mine.length - 1]].orig : null);
     if (p.src && (mine.length || earlier.length || p.job)) {
+      strip += '<span class="s-pin">';
       if (live) {
         strip += '<span class="s-tilewrap"><img data-i="-1" class="' + (p.sel === -1 ? "sel" : "") + '" src="' + live.preview + '" alt="">' +
           '<em class="live"><i class="ld"></i>Live</em></span><span class="s-div" aria-hidden="true"></span>';
         if (origPrev && p.job) {
           var pct = Math.max(2, Math.round((p.frac || 0) * 100));
           strip += '<span class="s-tilewrap s-fillt' + (p.sel === -2 ? " sel" : "") + '" data-i="-2" title="Creating from this sketch"><img src="' + origPrev + '" alt="">' +
-            '<span class="s-fillc" style="width:' + pct + '%"><img src="' + (p.preview || origPrev) + '" alt=""></span>' +
+            '<span class="s-fillc" style="width:' + pct + '%"><img src="' + origPrev + '" alt=""></span>' +
             '<span class="s-fillb"><i style="width:' + pct + '%"></i></span><em>Creating · ' + pct + "%</em></span>";
         } else if (origPrev && mine.length) strip += '<span class="s-tilewrap"><img data-i="-2" class="' + (p.sel === -2 ? "sel" : "") + '" src="' + origPrev + '" alt="" title="The sketch these were made from">' +
           "<em>Sketch</em></span>";
       } else {
         strip += '<span class="s-tilewrap"><img data-i="-1" class="' + (p.sel < 0 ? "sel" : "") + '" src="' + p.src.preview + '" alt="">' +
-          "<em>Original</em></span><span class=\"s-div\" aria-hidden=\"true\"></span>";
+          "<em>Original</em></span>";
       }
+      strip += '<span class="s-div" aria-hidden="true"></span></span>';
     }
-    mine.forEach(function (i) { strip += tile(i); });
+    // Results in their runs: a divider after each Create (2 made, then 4 made: | 1 2 | 1 2 3 4 |).
+    var lastRun = null;
+    mine.forEach(function (i) {
+      var run = runOf(p.results[i]);
+      if (lastRun !== null && run !== lastRun) strip += '<span class="s-div s-rundiv" aria-hidden="true"></span>';
+      lastRun = run; strip += tile(i);
+    });
+    if (mine.length) strip += '<span class="s-div s-rundiv" aria-hidden="true"></span>';
     for (var k = 0; k < (p.job ? p.pending : 0); k++) strip += '<span class="s-ph"></span>';
     if (earlier.length) {
       if (mine.length || p.job) strip += '<span class="s-div" aria-hidden="true"></span>';
@@ -1860,7 +1896,7 @@
         toast(data.text || "");
       } else if (kind === "studio-result") {
         var q = byJob(data.id); if (!q) return;
-        data.result.srcKey = q.jobKey; data.result.orig = q.jobOrig; data.result.made = Date.now(); q.results.push(data.result);
+        data.result.srcKey = q.jobKey; data.result.orig = q.jobOrig; data.result.made = Date.now(); data.result.run = data.result.run || runOf(data.result); q.results.push(data.result);
         q.preview = null; q.previewN = 0; q.pending = Math.max(0, q.pending - 1);
         if (data.index === 0) q.sel = q.results.length - 1;
       } else if (kind === "studio-setup") {

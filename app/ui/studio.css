@@ -826,3 +826,27 @@ body.studio .s-acts3 .s-btn{padding:10px 2px 8px;font-size:11px}
 body.studio #c-view>.s-fit{z-index:1}
 body.studio #c-view>.s-pane{z-index:9}
 .s-pane .s-pfit{box-shadow:none}
+
+/* results strip: the picture stays pinned on the left, results (a fifth smaller) slide under it; a divider after each Create */
+body.studio .s-vars{scrollbar-width:none;position:relative}
+body.studio .s-vars::-webkit-scrollbar{display:none}
+body.studio .s-vars .s-pin{position:sticky;left:0;z-index:3;display:flex;align-items:center;gap:10px;flex-shrink:0;padding-right:4px;background:linear-gradient(90deg,#f7f8fb 88%,rgba(247,248,251,0))}
+body.studio .s-vars>img,body.studio .s-vars>.s-ph,body.studio .s-vars>.s-miss,body.studio .s-vars .s-old img{width:128px;height:72px}
+body.studio .s-vars .s-rundiv{margin:10px 2px}
+
+/* Upscale in Studio: the picture floats like in Create; the strip ends above the machine line */
+body.studio[data-page=upscale] .stage{padding-bottom:58px}
+body.studio[data-page=upscale] .view{background:transparent;box-shadow:none;border-radius:0;overflow:visible}
+body.studio[data-page=upscale] .view img{filter:drop-shadow(0 12px 30px rgba(14,16,32,.14))}
+/* Upscale running: bar and a small × side by side, the timer line below it, never covered */
+body.studio .shell .rail-foot .go-wrap{display:flex;align-items:center;gap:8px}
+body.studio .shell .rail-foot .go-wrap .go{flex:1;min-width:0}
+body.studio .shell .rail-foot .go-x{position:static;flex:none;width:32px;height:32px;border-radius:10px;box-shadow:none;margin:0}
+body.studio .shell .rail-foot .go-x[hidden]{display:none}
+body.studio .shell .rail-foot .go-x svg{width:14px;height:14px}
+body.studio .shell .rail-foot .go-meta{margin:2px 0 0;padding:0;justify-content:center;gap:8px;font-size:11.5px;color:var(--dim,#80869a)}
+body.studio .shell .rail-foot .go-meta[hidden]{display:none}
+body.studio .shell .rail-foot .go-meta span:empty{display:none}
+body.studio .shell .rail-foot .go-meta span+span:before{content:"· ";}
+body.studio #c-view>.s-busy{z-index:11}
+body.studio #c-view .s-pane .s-tag{left:auto;right:10px}

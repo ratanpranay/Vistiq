@@ -275,6 +275,24 @@ class Api:
     def studio_image(self, path):
         return _image_info(path)
 
+    def studio_flatten(self, path, spec):
+        """The picture as it looks with its Studio layers, flattened at full size
+        (for Upscale, Photoshop, the board…). Saved next to the sketches."""
+        try:
+            from .studio_jobs import flatten_layers, load_rgb
+            st = self._app.studio
+            src = st.real_path(path)
+            out = flatten_layers(load_rgb(src), spec or {})
+            folder = os.path.join(st.home_dir(), "Sketches")
+            os.makedirs(folder, exist_ok=True)
+            stem = os.path.splitext(os.path.basename(src))[0]
+            dest = os.path.join(folder, "%s · flat.png" % stem)
+            out.save(dest, "PNG")
+            return _image_info(dest)
+        except Exception as exc:
+            log.warning("couldn't flatten the layers: %s", exc)
+            return None
+
     def studio_freeze(self, path, name=""):
         """A still copy of the Live picture to sketch on (Photoshop stays as it is)."""
         try:
@@ -961,7 +979,12 @@ class App:
         per_mp = [hist.get(p) for p in ("encode", "upscale", "decode", "post")]
         if all(v is not None for v in per_mp):
             return round(sum(hist.get("load", 0) + mp * sum(per_mp) for mp in mps))
-        rate = (s.get("speeds") or {}).get(model)
+        speeds = s.get("speeds") or {}
+        rate = speeds.get(model)
+        if not rate and speeds:
+            # A model not used on this PC yet: go by the slowest one that was (a safe guess,
+            # replaced by the real speed after its first run).
+            rate = max(v for v in speeds.values() if v) if any(speeds.values()) else 0
         return round(rate * sum(mps)) if rate else 0
 
     def estimates(self):

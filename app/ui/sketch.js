@@ -285,6 +285,7 @@
       if (v.charAt(0) === "c") { setColor(v.slice(1), true); return true; }
       return true;
     });
+    if (!el) return;
     var sq = el.querySelector(".sq"), hue = el.querySelector(".hue"), hex = el.querySelector(".hex");
     var upd = function (remember) {
       var c = hsvToHex(hsv[0], hsv[1], hsv[2]); setColor(c, remember);

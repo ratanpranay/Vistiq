@@ -74,8 +74,8 @@ const frame = (n, name) => ({ path: "live://photoshop/" + n, name: name || "flat
     await p.ev("studio-preview", { id: "j1", index: 0, preview: img });
     await p.ev("studio-preview", { id: "j1", index: 0, preview: img });
     await p.waitForTimeout(100);
-    check("the picture develops in the main view", /Making/.test(await p.text("#c-view .s-pane .s-tag")) &&
-      await p.evaluate(() => !!document.querySelector("#c-view .s-pane .s-dev")), await p.text("#c-view .s-pane .s-tag"));
+    check("while making: only the blurred sketch and the ring, no step pictures", /Making/.test(await p.text("#c-view .s-pane .s-tag")) &&
+      await p.evaluate(() => !document.querySelector("#c-view .s-pane .s-dev") && !!document.querySelector("#c-view .s-pane .s-pring")), await p.text("#c-view .s-pane .s-tag"));
     check("developing happens on the Sketch copy, which is selected", await p.evaluate(() => {
       const t = document.querySelector("#c-strip .s-fillt"); return !!t && t.classList.contains("sel"); }), "Sketch tile not selected");
     await p.click('#c-strip img[data-i="-1"]');
@@ -95,10 +95,10 @@ const frame = (n, name) => ({ path: "live://photoshop/" + n, name: name || "flat
     check("result is shown after the run", /Result/.test(await p.text("#c-view .s-pane .s-tag")) && !!(await p.evaluate(() => document.querySelector("#c-view > .s-fit .sk-base"))), await p.text("#c-view .s-pane .s-tag"));
     check("Live is back after the run", /Live/.test(await p.text("#c-strip")), await p.text("#c-strip"));
     check("card stays on the file after the run", /flat 2\.psd/.test(await p.text("#c-ps")) && /updates as you draw/.test(await p.text("#c-ps")), await p.text("#c-ps"));
-    check("strip order: Live | Sketch, results", await p.evaluate(() => {
-      const kids = [...document.getElementById("c-strip").children].map((e) => e.classList.contains("s-div") ? "|" : (e.innerText || "").trim() || e.tagName);
-      return kids.slice(0, 4).join(",");
-    }) === "Live,|,Sketch,IMG", await p.evaluate(() => [...document.getElementById("c-strip").children].map((e) => e.className + ":" + (e.innerText || "").trim()).join(" ")));
+    check("strip order: Live | Sketch | results, the first part pinned", await p.evaluate(() => {
+      const pin = document.querySelector("#c-strip .s-pin"), kids = [...pin.children].map((e) => e.classList.contains("s-div") ? "|" : (e.innerText || "").trim() || e.tagName);
+      return kids.join(",") + "/" + getComputedStyle(pin).position + "/" + (pin.nextElementSibling && pin.nextElementSibling.tagName);
+    }) === "Live,|,Sketch,|/sticky/IMG", await p.evaluate(() => [...document.getElementById("c-strip").children].map((e) => e.className + ":" + (e.innerText || "").trim()).join(" ")));
     await p.click('#c-strip img[data-i="-2"]');
     check("clicking Sketch shows the frozen sketch", /made from/.test(await p.text("#c-view .s-pane .s-tag")), await p.text("#c-view .s-pane .s-tag"));
     check("strip has a divider after Live", await p.evaluate(() => {
@@ -311,7 +311,8 @@ const frame = (n, name) => ({ path: "live://photoshop/" + n, name: name || "flat
     // Drop-downs.
     await p.click('#sk-bar [data-dd=erase]'); await p.waitForTimeout(100);
     check("the eraser menu offers the magic eraser", /Magic eraser/.test(await p.evaluate(() => document.querySelector(".s-pop").innerText)), "");
-    await p.keyboard.press("Escape");
+    await p.click('#sk-bar [data-dd=erase]'); await p.waitForTimeout(100);
+    check("clicking the same tool again closes its menu", await p.evaluate(() => !document.querySelector(".s-pop")), "still open");
     check("no page errors with zoom and selection tools", p.errors.length === 0, p.errors.join(" | "));
     await p.close();
   }
@@ -427,10 +428,19 @@ const frame = (n, name) => ({ path: "live://photoshop/" + n, name: name || "flat
     await p.evaluate(() => { window.pywebview.api.studio_export = (path, fmt) => { window.__exp = [path, fmt]; return Promise.resolve("x." + fmt); }; });
     await p.click("#c-view .s-ra [data-ra=export]"); await p.waitForTimeout(80); await p.click(".s-pop [data-p=jpg]"); await p.waitForTimeout(80);
     check("Export saves the result as JPEG", JSON.stringify(await p.evaluate(() => window.__exp)) === JSON.stringify(["C:/o/k_create_v1.png", "jpg"]), JSON.stringify(await p.evaluate(() => window.__exp)));
+    await p.evaluate(() => { const c = document.createElement("canvas"); c.width = 16; c.height = 9; c.getContext("2d").fillRect(0, 0, 16, 9); const u = c.toDataURL();
+      window.pywebview.api.studio_image = (path) => { window.__imgFor = path; return Promise.resolve({ path, name: "k_create_v1.png", w: 1600, h: 900, preview: u }); }; });
     await p.click("#c-view .s-ra [data-ra=add]"); await p.waitForTimeout(300);
+    check("Add uses the full picture, not the strip thumbnail", await p.evaluate(() => window.__imgFor) === "C:/o/k_create_v1.png", "");
     await p.evaluate(() => { window.pywebview.api.studio_export = (path, fmt) => { window.__exp = [path, fmt]; return Promise.resolve("x." + fmt); }; });
     check("Layer puts the result on a layer over the picture", await p.evaluate(() => window.VS.S.create.sel === -1 && window.VSSketch._state().doc.layers.some((L) => /k_create_v1/.test(L.name))), JSON.stringify(await p.evaluate(() => window.VSSketch._state().doc.layers.map((L) => L.name))));
     await p.waitForTimeout(1500);
+    // Upscale (and the rest of the bar) gets the picture flattened with its layers.
+    await p.evaluate(() => { const a = window.pywebview.api; a.studio_flatten = (path, spec) => { window.__flat = [path, spec.layers.length]; return Promise.resolve({ path: "C:/s/k · flat.png", name: "k · flat.png", w: 1600, h: 900, preview: "x" }); };
+      a.studio_to_upscale = (path) => { window.__up = path; return Promise.resolve(true); }; });
+    await p.click("#c-up"); await p.waitForTimeout(150);
+    check("Upscale gets the flattened picture when there are layers", await p.evaluate(() => window.__up) === "C:/s/k · flat.png" && (await p.evaluate(() => window.__flat[0])) === "C:/s/k.png", JSON.stringify(await p.evaluate(() => [window.__up, window.__flat])));
+    await p.click(".s-nav button[data-page=create]"); await p.waitForTimeout(100);
     check("the layers are kept (with a flattened look for the board)", await p.evaluate(() => { const d = window.__docs["C:/s/k.png"]; return !!(d && d.flat && d.layers.some((L) => L.png)); }), "not saved");
     check("no page errors with result layers", p.errors.length === 0, p.errors.join(" | "));
     await p.close();
@@ -452,6 +462,11 @@ const frame = (n, name) => ({ path: "live://photoshop/" + n, name: name || "flat
     await p.click("#c-strip [data-i='1']"); await p.waitForTimeout(80);
     check("clicking the chosen thumbnail again shows your picture", await p.evaluate(() => window.VS.S.create.sel === -1 && !document.querySelector("#c-view .s-pane")), "");
     check("no + Another", await p.evaluate(() => !document.querySelector("#c-strip .s-more")), "");
+    await p.evaluate(() => { const S = window.VS.S.create; ["Vistiq_flat 2_create_v3.png", "Vistiq_flat 2_create_v3_2.png"].forEach((n, i) => S.results.push({ path: "C:/o/" + n, name: n, w: 2368, h: 1328, preview: "x", srcKey: S.results[0].srcKey, made: 10 + i })); window.VS.render(); });
+    await p.waitForTimeout(80);
+    check("a divider after each Create's results", await p.evaluate(() => [...document.getElementById("c-strip").children].filter((e) => !e.classList.contains("s-pin")).map((e) => e.classList.contains("s-div") ? "|" : "i").join("")) === "i|i|ii|", await p.evaluate(() => [...document.getElementById("c-strip").children].filter((e) => !e.classList.contains("s-pin")).map((e) => e.classList.contains("s-div") ? "|" : "i").join("")));
+    await p.evaluate(() => { const S = window.VS.S.create; S.results = S.results.filter((r) => !/v3/.test(r.name)); window.VS.render(); });
+    check("results are a fifth smaller than the picture's tile", await p.evaluate(() => { const a = document.querySelector("#c-strip .s-pin img").offsetWidth, b = document.querySelector("#c-strip > img").offsetWidth; return Math.abs(b / a - 0.8) < 0.03; }), "");
     check("results run oldest first", await p.evaluate(() => window.VS.S.create.results.map((r) => r.made).join(",")) === "1,2", "");
     check("a picture's strip shows everything made from it", await p.evaluate(() => document.querySelectorAll("#c-strip img[data-i]:not([data-i='-1']):not([data-i='-2'])").length) === 2, await p.evaluate(() => document.getElementById("c-strip").innerHTML.slice(0, 200)));
     check("there is no Clear button any more", await p.evaluate(() => document.getElementById("c-clear").hidden), "still there");
@@ -469,6 +484,24 @@ const frame = (n, name) => ({ path: "live://photoshop/" + n, name: name || "flat
     const a = await p.evaluate(() => { const m = document.getElementById("s-machine").getBoundingClientRect(), z = document.querySelector("#c-view .s-zpill"); const zr = z && z.getBoundingClientRect(); return [Math.round(m.top + m.height / 2), zr ? Math.round(zr.top + zr.height / 2) : -1]; });
     check("zoom box sits on the same line", Math.abs(a[0] - a[1]) <= 4 || a[1] === -1, JSON.stringify(a));
     check("no page errors with the machine line", p.errors.length === 0, p.errors.join(" | "));
+    await p.close();
+  }
+
+  // Upscale: the time estimate shows; while running, bar and × side by side with the timer visible below.
+  {
+    const p = await open(browser, null, {});
+    await p.evaluate(() => { window.pywebview.api.estimates = () => Promise.resolve({ a: 70 }); });
+    await p.click(".s-nav button[data-page=upscale]"); await p.waitForTimeout(200);
+    const it = { id: "a", path: "C:/x/a.png", name: "a.png", w: 2368, h: 1328, preview: "data:image/gif;base64,R0lGODlhAQABAAAAACw=", status: "ready" };
+    await p.evaluate((it) => window.vistiq.event("added", [it]), it); await p.waitForTimeout(400);
+    check("Upscale shows the time estimate", /About 1:10/.test(await p.text("#go-meta")), await p.text("#go-meta"));
+    await p.evaluate((it) => window.vistiq.event("item", Object.assign({}, it, { status: "running", stage: "Loading model", fraction: 0.04, started: Date.now() - 5000, estimate: 70 })), it);
+    await p.waitForTimeout(300);
+    check("while upscaling, × sits beside the bar and the timer is visible", await p.evaluate(() => {
+      const g = document.getElementById("go").getBoundingClientRect(), x = document.getElementById("go-x").getBoundingClientRect(), m = document.getElementById("go-meta").getBoundingClientRect();
+      return x.left >= g.right && Math.abs((x.top + x.height / 2) - (g.top + g.height / 2)) < 3 && m.top >= g.bottom && m.height > 0; }), "");
+    check("the Upscale strip ends above the machine line", await p.evaluate(() => { const s = document.querySelector(".strip").getBoundingClientRect(), m = document.getElementById("s-machine").getBoundingClientRect(); return !m.height || s.bottom <= m.top + 2; }), "");
+    check("no page errors on Upscale", p.errors.length === 0, p.errors.join(" | "));
     await p.close();
   }
 

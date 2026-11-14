@@ -282,11 +282,11 @@
       // What it will cost, before it starts: from this PC's earlier runs.
       var secs = 0, known = true;
       pending().forEach(function (i) { var e = state.estimates[i.id]; if (e) secs += e; else known = false; });
-      var show = n && secs > 0 && !go.disabled;
+      var show = n && !go.disabled;
       $("go-meta").hidden = !show;
       if (show) {
         $("go-count").textContent = n > 1 ? n + " images" : "";
-        $("go-clock").textContent = (known ? "About " : "At least ") + clock(secs);
+        $("go-clock").textContent = secs > 0 ? (known ? "About " : "At least ") + clock(secs) : "Time shows after the first run";
       }
     }
   }
