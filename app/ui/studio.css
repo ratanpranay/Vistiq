@@ -793,3 +793,6 @@ body.rail-min #p-create .s-zpill,body.rail-min #p-reference .s-zpill{right:16px}
 .s-phone .u{display:block;margin-top:8px;color:#b0b4c2;font-size:10.5px}
 .s-phone .x{position:absolute;right:12px;top:10px;border:0;background:transparent;font-size:20px;color:var(--dim,#80869a);cursor:pointer}
 @keyframes s-blink{50%{opacity:.35}}
+/* the machine line has its own row: the results strip (and lists) end above it */
+body.studio #p-create .s-stage,body.studio #p-reference .s-stage{padding-bottom:54px}
+body.studio #p-library{padding-bottom:46px}

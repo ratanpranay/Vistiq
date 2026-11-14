@@ -14,6 +14,14 @@ log = logging.getLogger("vistiq")
 _NOWIN = 0x08000000 if sys.platform == "win32" else 0      # no console window flashing up
 
 
+def _short_gpu(name):
+    """"NVIDIA RTX PRO 4000 Blackwell Generation Laptop GPU" -> "RTX PRO 4000"; "NVIDIA GeForce RTX 4090" -> "RTX 4090"."""
+    n = name.replace("NVIDIA", "").replace("GeForce", "")
+    for cut in (" Blackwell", " Ada", " Generation", " Laptop", " GPU", " with "):
+        n = n.split(cut)[0]
+    return " ".join(n.split()) or name
+
+
 class Monitor:
     def __init__(self):
         self._gpu = None
@@ -45,7 +53,7 @@ class Monitor:
                 continue
             try:
                 with self._lock:
-                    self._gpu = {"name": parts[0].replace("NVIDIA ", "").replace("GeForce ", ""),
+                    self._gpu = {"name": _short_gpu(parts[0]),
                                  "load": int(float(parts[1])), "temp": int(float(parts[2])),
                                  "used": float(parts[3]) / 1024, "total": float(parts[4]) / 1024, "at": time.time()}
             except ValueError:
