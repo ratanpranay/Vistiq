@@ -78,12 +78,14 @@ def composite(original, result, mask, box, blend_px):
     return out
 
 
-def finish(im, clarity=0.25, sharp=0.5):
+def finish(im, clarity=0.0, sharp=0.35):
     """A clean finish, the way a retoucher cleans a render, without burning it:
     highlights roll off softly instead of clipping to white, the deepest
     blacks lift a touch (no crushed shadows), then local contrast (clarity)
     and a fine sharpen. No colour boost: colours stay true to the CMF. Checked
-    against Pranay's reference interiors (clipping, black level, colour)."""
+    against Pranay's reference interiors (clipping, black level, colour).
+    Clarity is off by default: on leather and alcantara it turned faint
+    unevenness into stains (Nov 2026); only a fine, small-radius sharpen."""
     import numpy as np
     out = im.convert("RGB")
     if clarity:

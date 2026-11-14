@@ -815,7 +815,7 @@ def _klein_base(settings, keep):
 F3_STEPS = 16          # the distilled FLUX 3 Klein's own setting (BFL's templates)
 # Results at 4 megapixels (about 2736x1536), references read at 2: cleaner
 # lines and textures for about a minute a picture (tested on the user's PC).
-F3_MP = 4.0
+F3_MP = 3.0      # 4 MP mottled leather and alcantara (Nov 2026 test); 3 MP renders clean nappa
 F3_REF_MP = 2.0
 
 
@@ -1056,6 +1056,25 @@ F3_REF_PRESETS = {
 }
 
 
+# Sketch renders came out with stained, mottled leather and crushed-velvet
+# alcantara (Nov 2026, Pranay's yellow/burgundy cabin): the model reads "nappa"
+# and "alcantara" as worn, patterned materials unless told they are new.
+FINISH_MAT = ("All materials are brand new and showroom-perfect, like a car maker's press photo: leather is "
+              "smooth, fine-grain nappa (not suede or nubuck), evenly coloured, with a soft satin sheen and fine, "
+              "even stitching; alcantara has a fine, short, uniform matte nap, like microsuede, never shiny or "
+              "crushed velvet; no stains, "
+              "blotches, mottling, patches, creases, wear or dust anywhere.")
+# When the prompt names its own time of day, the light still has to look
+# like a press photo, not a flat, hazy snapshot.
+SOFT_LIGHT = ("Soft, diffused daylight with smooth, gradual gradients on every volume and gentle contact "
+              "shadows; windows bright but not blown out; balanced, natural exposure.")
+
+
+def _interior(text):
+    low = " " + (text or "").lower() + " "
+    return any(w in low for w in INTERIOR)
+
+
 def build_text(preset, text, presets=PRESETS, f3=False):
     # Any subject: interiors, exteriors, boats, furniture, lamps… The button
     # only says what kind of change; the prompt says what it is.
@@ -1074,7 +1093,12 @@ def build_text(preset, text, presets=PRESETS, f3=False):
     out = (base + "\n\n" + text) if base and text else (base or text or "Photorealistic photograph.")
     # A style reference brings its own light; ours would fight it.
     light = "" if (presets is GENERIC_REF_PRESETS and preset == "style") else light_for(text)
+    inside = _interior(text) or preset in ("sketch", "cmf", "photo") and _interior(base)
     if light:
         out += "\n\n" + light
-    return out + "\n\n" + (CLEAN if light in (LIGHT_INT, LIGHT_NIGHT) else CRISP)
+    elif inside and not (presets is GENERIC_REF_PRESETS and preset == "style"):
+        out += "\n\n" + SOFT_LIGHT          # the prompt's own time of day, press-photo quality
+    if inside and preset != "lighting":
+        out += "\n\n" + FINISH_MAT
+    return out + "\n\n" + (CLEAN if inside or light in (LIGHT_INT, LIGHT_NIGHT) else CRISP)
 

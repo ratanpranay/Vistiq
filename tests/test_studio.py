@@ -153,6 +153,15 @@ class Folders(unittest.TestCase):
         self.assertNotIn(studio.LIGHT, studio.build_text("photo", "the same car at night"))
         self.assertNotIn(studio.LIGHT, studio.build_text("photo", "Golden hour sunset"))
 
+    def test_interior_materials_stay_clean(self):
+        # Pranay's own light wording still gets press-photo light, new materials, no "rich contrast".
+        t = studio.build_text("sketch", "yellow nappa seats, burgundy alcantara lower door. lighting is morning 11am")
+        self.assertIn(studio.FINISH_MAT, t)
+        self.assertIn(studio.SOFT_LIGHT, t)
+        self.assertNotIn("rich contrast", t)
+        self.assertNotIn(studio.FINISH_MAT, studio.build_text("sketch", "silver sports car, side view"))
+        self.assertNotIn(studio.FINISH_MAT, studio.build_text("lighting", "SUV interior, golden hour"))
+
     def test_light_follows_prompt(self):
         # No interior/exterior switch: the words in the prompt pick the look.
         self.assertEqual(studio.light_for("SUV interior, tan leather seats"), studio.LIGHT_INT)
@@ -624,9 +633,9 @@ class Flux3(unittest.TestCase):
             self.assertEqual(r["30"]["inputs"]["image"], ["11", 0])   # the result takes the design's frame
             cam = studio.reference_prompt(s, "a.png", "b.png", "x", "camera")
             self.assertEqual(cam["30"]["inputs"]["image"], ["13", 0])  # camera: the reference's frame
-            self.assertEqual(p["11"]["inputs"]["megapixels"], 4.0)    # results at 4 MP
+            self.assertEqual(p["11"]["inputs"]["megapixels"], 3.0)    # results at 3 MP
             self.assertEqual(r["13"]["inputs"]["megapixels"], 2.0)    # references read at 2
-            self.assertEqual(cam["13"]["inputs"]["megapixels"], 4.0)
+            self.assertEqual(cam["13"]["inputs"]["megapixels"], 3.0)
             held = studio.create_prompt(s, "a.png", "x", keep=1.0)    # design hold: the sketch twice
             self.assertEqual(held["24"]["inputs"]["images.image1"], ["13", 0])
             self.assertEqual(held["12"]["inputs"]["image"], "a.png")

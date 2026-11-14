@@ -712,10 +712,7 @@
         '</b></span><button type="button" class="s-link" data-ps="sel">' + (S.useSel !== false ? "Use whole picture" : "Use selection") + "</button></div>";
       if (cur === "photoshop") h += '<p class="s-hint" style="margin-top:6px">' + (L.msg || L.note ? esc(L.msg || L.note) : 'First time? <button type="button" class="s-link" data-ps="install">Install the Photoshop plugin</button>') + "</p>";
       else if (L.msg) h += '<p class="s-hint" style="margin-top:6px">' + esc(L.msg) + "</p>";
-    } else if (L.on && L.frames) {
-      h += '<div class="m-back"><span class="m-dot"></span><span><b>' + (APPS[L.app] || APPS.photoshop)[1] + " is still live</b><br>" + esc(L.doc) +
-        ' keeps updating</span><button type="button" data-ps="back">Bring back</button></div>';
-    }
+    }   // When an image is chosen, the live app keeps running quietly: the Live tab brings it back.
     var el = $("c-ps");
     if (el.getAttribute("data-h") !== h) { el.innerHTML = h; el.setAttribute("data-h", h); }
   }
