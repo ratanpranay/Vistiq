@@ -557,13 +557,13 @@ body.rail-min .s-top{padding-right:250px}
 /* Loading: the picture is blurred and clears as the steps come in; a ring shows progress */
 .s-fit.s-loading img{filter:blur(var(--blur,16px)) saturate(1.05);transform:scale(1.03);transition:filter .6s}
 .s-fit.s-loading{overflow:hidden}
-.s-ring{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:76px;height:76px;border-radius:50%;background:rgba(255,255,255,.82);box-shadow:0 6px 24px rgba(14,16,32,.18);display:flex;align-items:center;justify-content:center;z-index:3}
-.s-ring svg{position:absolute;inset:8px;width:60px;height:60px;transform:rotate(-90deg)}
-.s-ring circle{fill:none;stroke-width:4}
-.s-ring .bg{stroke:rgba(14,16,32,.1)}
-.s-ring .fg{stroke:#6d5df5;stroke-linecap:round;stroke-dasharray:125.7;transition:stroke-dashoffset .5s}
-.s-ring b{font-size:13px;font-weight:600;color:var(--ink)}
-.s-ring::after{content:"";position:absolute;inset:4px;border-radius:50%;border:2px solid transparent;border-top-color:rgba(109,93,245,.35);animation:s-spin 1.2s linear infinite}
+.s-pring{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:76px;height:76px;border-radius:50%;background:rgba(255,255,255,.82);box-shadow:0 6px 24px rgba(14,16,32,.18);display:flex;align-items:center;justify-content:center;z-index:3}
+.s-pring svg{position:absolute;inset:8px;width:60px;height:60px;transform:rotate(-90deg)}
+.s-pring circle{fill:none;stroke-width:4}
+.s-pring .bg{stroke:rgba(14,16,32,.1)}
+.s-pring .fg{stroke:#6d5df5;stroke-linecap:round;stroke-dasharray:125.7;transition:stroke-dashoffset .5s}
+.s-pring b{font-size:13px;font-weight:600;color:var(--ink)}
+.s-pring::after{content:"";position:absolute;inset:4px;border-radius:50%;border:2px solid transparent;border-top-color:rgba(109,93,245,.35);animation:s-spin 1.2s linear infinite}
 /* Library header: title, then the path, then the filters, then the pictures (any window size) */
 #p-library .s-scroll{gap:12px}
 #p-library .s-ttl{font-size:18px;font-weight:600;padding-right:140px;min-height:0;display:flex;flex-direction:column;gap:2px}
@@ -608,3 +608,22 @@ body.studio .s-rail-body>:empty{margin-top:0}
 body.studio .s-rail-body>.s-label+*{margin-top:-8px}          /* a label sits on its control */
 body.studio .s-rail-body>.s-seg+.s-hint{margin-top:-6px}      /* and a mode's note under its switch */
 body.studio .s-rail-body .s-prompt{min-height:clamp(64px,10vh,150px)}
+
+/* 0.4.2: pictures float on the canvas — no grey block; zoom and pan */
+body.studio .s-view{background:transparent;border-radius:0;overflow:hidden}
+body.studio .s-view>.s-fit{will-change:transform}
+body.studio .s-view>.s-fit>img:first-child{border-radius:6px;box-shadow:0 1px 2px rgba(14,16,32,.06),0 12px 40px rgba(14,16,32,.14);background:#fff}
+body.studio .s-view>.s-fit canvas{border-radius:6px}
+body.studio .s-view .s-empty{border:1.5px dashed #d6d9e2;border-radius:18px;inset:28px;position:absolute;display:flex;flex-direction:column;align-items:center;justify-content:center}
+.s-zpill{position:absolute;right:14px;bottom:14px;z-index:6;display:flex;align-items:center;gap:2px;background:#fff;border-radius:10px;padding:3px;box-shadow:0 2px 10px rgba(14,16,32,.12);font-size:12px}
+.s-zpill button{border:0;background:transparent;height:26px;min-width:26px;padding:0 8px;border-radius:7px;font:inherit;color:var(--ink,#14161f);cursor:pointer}
+.s-zpill button:hover{background:var(--field,#f3f4f8)}
+.s-zpill b{font-weight:500;min-width:44px;text-align:center;color:var(--ink2,#3b4050)}
+body.s-space .s-view,body.s-space .s-view *{cursor:grab!important}
+.s-view.s-panning,.s-view.s-panning *{cursor:grabbing!important}
+.s-pathov{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;overflow:visible;z-index:2}
+.s-pathov .ants{animation:s-ants .6s linear infinite}
+@keyframes s-ants{to{stroke-dashoffset:-18}}
+.s-tools button[disabled]{opacity:.4}
+.s-tools .m-ico{margin-right:5px;vertical-align:-3px}
+body.studio .s-view>.s-tools,body.studio .s-view>.s-tag,body.studio .s-view>.s-paintbtn,body.studio .s-view>.s-maskhint,body.studio .s-view>.s-busy,body.studio .s-view>.s-pring{z-index:5}

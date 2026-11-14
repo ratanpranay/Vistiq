@@ -24,7 +24,10 @@
     brush: '<path d="M4 20c2 0 4-1 4-3s2-3 3-3l7-7-3-3-7 7c0 1-1 3-3 3s-3 2-3 4z"/>',
     erase: '<path d="M7 20h10M5 15l9-9 5 5-9 9H6z"/>',
     undo: '<path d="M9 14L4 9l5-5"/><path d="M4 9h11a5 5 0 010 10h-3"/>',
-    select: '<path d="M4 4l6 16 2.5-6.5L19 11z"/>'
+    select: '<path d="M4 4l6 16 2.5-6.5L19 11z"/>',
+    lasso: '<path d="M7 18c-2.5-1-4-3-4-5.5C3 8 7.5 5 12 5s9 3 9 7-4 6.5-9 6.5c-1.4 0-2.7-.2-3.8-.6"/><path d="M8.5 17.5c0 2-1.5 3.5-3 3.5"/><circle cx="8.2" cy="17.7" r="1.3"/>',
+    pen: '<path d="M12 3l5 9-5 9-5-9z"/><path d="M12 12v9M12 12h.01"/>',
+    deselect: '<path d="M4 8V5a1 1 0 0 1 1-1h3M16 4h3a1 1 0 0 1 1 1v3M20 16v3a1 1 0 0 1-1 1h-3M8 20H5a1 1 0 0 1-1-1v-3"/><path d="M9 9l6 6M15 9l-6 6"/>'
   };
   function svg(name) { return '<svg viewBox="0 0 24 24" aria-hidden="true">' + ICON[name] + "</svg>"; }
 
@@ -488,7 +491,8 @@
       });
       // Hold on a result to see what it started from.
       var view = $(id + "-view");
-      view.addEventListener("pointerdown", function () { var img = view.querySelector("img.s-res"), c = current(p), o = (c && c.orig) || (p.src && p.src.preview); if (img && o) { img.src = o; view.classList.add("hold"); } });
+      zoom.wire(view);
+      view.addEventListener("pointerdown", function (e) { if (e.button !== 0 || zoom.space || zoom.pan || e.target.closest(".s-zpill,.s-paintbtn")) return; var img = view.querySelector("img.s-res"), c = current(p), o = (c && c.orig) || (p.src && p.src.preview); if (img && o) { img.src = o; view.classList.add("hold"); } });
       var up = function () { var img = view.querySelector("img.s-res"), c = current(p); if (img && c) img.src = c.preview; };
       view.addEventListener("pointerup", up); view.addEventListener("pointerleave", up);
     });
@@ -593,28 +597,49 @@
 
   var painter = {
     w: 0, h: 0, size: load("brush", 60), erase: false, selecting: false, busy: false, undo: [], canvas: null, ctx: null, ring: null, drawing: false, last: null, any: false,
+    tool: load("tool", "brush"), path: null, cost: null,
     init: function () {
       this.canvas = document.createElement("canvas");
       this.ctx = this.canvas.getContext("2d");
       this.ring = document.createElement("div"); this.ring.className = "s-ring"; this.ring.hidden = true;
+      this.svg = document.createElementNS("http://www.w3.org/2000/svg", "svg"); this.svg.setAttribute("class", "s-pathov");
+      this.svg.setAttribute("preserveAspectRatio", "none");
       var self = this, c = this.canvas;
+      this.setTool(this.tool);
       c.style.opacity = ".5";
       c.addEventListener("pointerdown", function (e) {
-        if (self.selecting) { e.preventDefault(); self.pick(e); return; }
+        if (e.button === 1 || zoom.space) return;                 // panning
+        if (self.tool === "object") { e.preventDefault(); self.pick(e); return; }
+        if (self.tool === "lasso" || self.tool === "pen") { e.preventDefault(); self.pathDown(e); return; }
+        if (e.button !== 0) return;
         c.setPointerCapture(e.pointerId); self.push(); self.drawing = true; self.last = null; self.stroke(e);
       });
-      c.addEventListener("contextmenu", function (e) { if (self.selecting) e.preventDefault(); });
-      c.addEventListener("pointermove", function (e) { self.moveRing(e); if (self.drawing) self.stroke(e); });
-      c.addEventListener("pointerup", function () { self.drawing = false; render(); });
+      c.addEventListener("contextmenu", function (e) { e.preventDefault(); });
+      c.addEventListener("pointermove", function (e) {
+        self.moveRing(e);
+        if (self.drawing) self.stroke(e);
+        else if (self.path) self.pathMove(e);
+      });
+      c.addEventListener("pointerup", function (e) {
+        if (self.drawing) { self.drawing = false; render(); }
+        else if (self.path) self.pathUp(e);
+      });
+      c.addEventListener("dblclick", function (e) { if (self.path) { e.preventDefault(); e.stopPropagation(); self.close(e.altKey); } });
       c.addEventListener("pointerleave", function () { self.ring.hidden = true; });
-      c.addEventListener("pointerenter", function (e) { self.ring.hidden = self.selecting; self.moveRing(e); });
-      c.addEventListener("wheel", function (e) { e.preventDefault(); self.resize(e.deltaY < 0 ? 1.15 : 1 / 1.15); self.moveRing(e); }, { passive: false });
+      c.addEventListener("pointerenter", function (e) { self.ring.hidden = !self.brushy(); self.moveRing(e); });
     },
+    brushy: function () { return this.tool === "brush" || this.tool === "erase"; },
+    setTool: function (t) {
+      this.cancelPath(); this.tool = t; keep("tool", t);
+      this.erase = t === "erase"; this.selecting = t === "object";
+    },
+    refreshRing: function () {},
     reset: function (info) {
       var f = Math.min(1, 2048 / Math.max(info.w, info.h));
       this.w = Math.max(1, Math.round(info.w * f)); this.h = Math.max(1, Math.round(info.h * f));
       this.canvas.width = this.w; this.canvas.height = this.h;
       this.ctx.clearRect(0, 0, this.w, this.h); this.undo = []; this.any = false;
+      this.svg.setAttribute("viewBox", "0 0 " + this.w + " " + this.h); this.path = null; this.cost = null; this.drawPath();
     },
     scale: function () { var r = this.canvas.getBoundingClientRect(); return r.width ? this.w / r.width : 1; },
     point: function (e) { var r = this.canvas.getBoundingClientRect(), k = this.scale(); return [(e.clientX - r.left) * k, (e.clientY - r.top) * k]; },
@@ -655,8 +680,11 @@
       if (el) el.textContent = text || this.hintText();
     },
     hintText: function () {
-      return this.selecting ? "Click a part to select it · Alt+click or right click removes · fix edges with the brush"
-        : "Paint what should change · [ ] or mouse wheel: brush size";
+      var t = this.tool;
+      if (t === "object") return "Click a part to select it · Alt+click or right click removes · fix edges with the brush";
+      if (t === "lasso") return "Click, then follow an edge: it snaps · click the start or double-click to close · Alt: cut out · Esc cancels";
+      if (t === "pen") return "Click: corner · drag: curve · click the start or Enter to close · Alt: cut out · Backspace: undo point";
+      return "Paint what should change · [ ] brush size · wheel zooms · middle button or Space pans";
     },
     moveRing: function (e) {
       // The ring lives in the view, not in the picture's box: measure from there.
@@ -687,20 +715,191 @@
       if (e.key === "[") this.resize(1 / 1.2);
       else if (e.key === "]") this.resize(1.2);
       else if (e.ctrlKey && e.key.toLowerCase() === "z") { e.preventDefault(); this.back(); }
-      else if (e.key.toLowerCase() === "b") { this.erase = false; this.selecting = false; render(); }
-      else if (e.key.toLowerCase() === "e") { this.erase = true; this.selecting = false; render(); }
-      else if (e.key.toLowerCase() === "s") { this.selecting = true; render(); }
+      else if (e.ctrlKey && e.key.toLowerCase() === "d") { e.preventDefault(); this.cancelPath(); this.clear(); }
+      else if (e.key === "Escape" && this.path) { e.preventDefault(); this.cancelPath(); }
+      else if (e.key === "Enter" && this.path) { e.preventDefault(); this.close(e.altKey); }
+      else if (e.key === "Backspace" && this.path) { e.preventDefault(); this.dropPoint(); }
+      else if (e.ctrlKey || e.altKey || e.metaKey) return;
+      else if (e.key.toLowerCase() === "b") { this.setTool("brush"); render(); }
+      else if (e.key.toLowerCase() === "e") { this.setTool("erase"); render(); }
+      else if (e.key.toLowerCase() === "l") { this.setTool("lasso"); render(); }
+      else if (e.key.toLowerCase() === "p") { this.setTool("pen"); render(); }
+      else if (e.key.toLowerCase() === "s") { this.setTool("object"); render(); }
     },
     tools: function () {
+      var t = this.tool, b = function (k, icon, label, key) {
+        return '<button type="button" data-t="' + k + '" class="' + (t === k ? "on" : "") + '" title="' + label + " (" + key + ')">' + svg(icon) + label + "</button>";
+      };
+      var live = S.create.src && (S.create.src.live || S.create.src.frozen);
       return '<div class="s-tools" id="c-tools">' +
-        '<button type="button" data-t="select" class="' + (this.selecting ? "on" : "") + '">' + svg("select") + "Select</button>" +
-        '<button type="button" data-t="brush" class="' + (!this.selecting && !this.erase ? "on" : "") + '">' + svg("brush") + "Brush</button>" +
-        '<button type="button" data-t="erase" class="' + (!this.selecting && this.erase ? "on" : "") + '">' + svg("erase") + "Erase</button>" +
-        '<span class="sep"></span><label>Size <input type="range" id="c-size" min="6" max="400" value="' + this.size + '"></label><span class="sep"></span>' +
-        '<button type="button" data-t="undo">' + svg("undo") + "Undo</button>" +
-        '<button type="button" data-t="clear">Clear</button><button type="button" data-t="invert">Invert</button>' +
+        b("brush", "brush", "Brush", "B") + b("erase", "erase", "Erase", "E") + b("lasso", "lasso", "Lasso", "L") + b("pen", "pen", "Pen", "P") + b("object", "select", "Object", "S") +
+        '<span class="sep"></span><label title="[ and ]">Size <input type="range" id="c-size" min="6" max="400" value="' + this.size + '"></label><span class="sep"></span>' +
+        (live ? '<button type="button" data-t="pssel" title="Use the selection you made in Photoshop"' + (S.psSel ? "" : " disabled") + '><span class="m-ico ps">Ps</span>Selection</button>' : "") +
+        '<button type="button" data-t="undo" title="Ctrl Z">' + svg("undo") + "Undo</button>" +
+        '<button type="button" data-t="clear" title="Ctrl D">' + svg("deselect") + "Deselect</button><button type=\"button\" data-t=\"invert\">Invert</button>" +
         '<span class="sep"></span><button type="button" data-t="done" class="done">Done</button></div>' +
         '<div class="s-maskhint">' + this.hintText() + "</div>";
+    },
+
+    // -- lasso (snaps to edges) and pen (corners and curves) ------------------------
+    near: function (a, b) { var k = this.scale(); return Math.hypot(a[0] - b[0], a[1] - b[1]) < 9 * k; },
+    pathDown: function (e) {
+      var pt = this.point(e);
+      if (e.button === 2) { this.dropPoint(); return; }
+      if (!this.path) {
+        this.path = { kind: this.tool, pts: [pt], live: [], nodes: [{ x: pt[0], y: pt[1], hx: pt[0], hy: pt[1] }], down: null };
+        if (this.tool === "lasso") this.costMap();
+        this.drawPath(); this.hint(); return;
+      }
+      var P = this.path, first = P.kind === "pen" ? [P.nodes[0].x, P.nodes[0].y] : P.pts[0];
+      if ((P.kind === "pen" ? P.nodes.length > 2 : P.pts.length > 3) && this.near(pt, first)) { this.close(e.altKey); return; }
+      if (P.kind === "lasso") { P.pts = P.pts.concat(P.live.length ? P.live.slice(1) : [pt]); P.live = []; }
+      else { P.nodes.push({ x: pt[0], y: pt[1], hx: pt[0], hy: pt[1] }); P.down = pt; this.canvas.setPointerCapture(e.pointerId); }
+      this.drawPath();
+    },
+    pathMove: function (e) {
+      var P = this.path, pt = this.point(e);
+      if (P.kind === "pen") {
+        if (P.down) { var n = P.nodes[P.nodes.length - 1]; n.hx = pt[0]; n.hy = pt[1]; }   // dragging out a curve
+        P.hover = pt; this.drawPath(); return;
+      }
+      // Lasso: the live part runs along the edges from the last point to the pointer;
+      // a long run pins itself, so you can just follow an edge.
+      var a = P.pts[P.pts.length - 1];
+      P.live = this.snap(a, pt);
+      if (P.live.length > 1) {
+        var run = 0; for (var i = 1; i < P.live.length; i++) run += Math.hypot(P.live[i][0] - P.live[i - 1][0], P.live[i][1] - P.live[i - 1][1]);
+        if (run > 70 * this.scale()) { P.pts = P.pts.concat(P.live.slice(1)); P.live = []; }
+      }
+      this.drawPath();
+    },
+    pathUp: function () { if (this.path && this.path.kind === "pen") this.path.down = null; },
+    dropPoint: function () {
+      var P = this.path; if (!P) return;
+      if (P.kind === "pen") { P.nodes.pop(); if (!P.nodes.length) this.path = null; }
+      else { P.pts.splice(Math.max(1, P.pts.length - 12)); P.live = []; if (P.pts.length < 2) this.path = null; }
+      this.drawPath();
+    },
+    cancelPath: function () { this.path = null; if (this.svg) this.drawPath(); },
+    shape: function (closed) {
+      var P = this.path, d = "";
+      if (!P) return "";
+      if (P.kind === "lasso") {
+        var pts = P.pts.concat(P.live.slice(1));
+        d = pts.map(function (q, i) { return (i ? "L" : "M") + q[0].toFixed(1) + " " + q[1].toFixed(1); }).join("");
+      } else {
+        var N = P.nodes;
+        d = "M" + N[0].x + " " + N[0].y;
+        var seg = function (a, b) {
+          var ox = a.hx, oy = a.hy, ix = 2 * b.x - b.hx, iy = 2 * b.y - b.hy;     // a's handle out, b's handle in (mirrored)
+          return "C" + ox + " " + oy + " " + ix + " " + iy + " " + b.x + " " + b.y;
+        };
+        for (var i = 1; i < N.length; i++) d += seg(N[i - 1], N[i]);
+        if (closed) d += seg(N[N.length - 1], N[0]);
+        else if (P.hover && !P.down) d += "L" + P.hover[0] + " " + P.hover[1];
+      }
+      return d + (closed ? "Z" : "");
+    },
+    drawPath: function () {
+      if (!this.svg) return;
+      var P = this.path, k = this.scale() || 1;
+      if (!P) { this.svg.innerHTML = ""; return; }
+      var d = this.shape(false), sw = 1.6 * k;
+      var marks = (P.kind === "pen" ? P.nodes.map(function (n) { return [n.x, n.y]; }) : [P.pts[0]]).map(function (q, i) {
+        var r = (i ? 3.2 : 4.5) * k;
+        return '<rect x="' + (q[0] - r) + '" y="' + (q[1] - r) + '" width="' + 2 * r + '" height="' + 2 * r + '" fill="' + (i ? "#fff" : "#6d5df5") + '" stroke="#14161f" stroke-width="' + k + '"/>';
+      }).join("");
+      var handles = P.kind === "pen" ? P.nodes.filter(function (n) { return n.hx !== n.x || n.hy !== n.y; }).map(function (n) {
+        return '<line x1="' + (2 * n.x - n.hx) + '" y1="' + (2 * n.y - n.hy) + '" x2="' + n.hx + '" y2="' + n.hy + '" stroke="#6d5df5" stroke-width="' + k + '"/>' +
+          '<circle cx="' + n.hx + '" cy="' + n.hy + '" r="' + 3 * k + '" fill="#6d5df5"/>';
+      }).join("") : "";
+      this.svg.innerHTML = '<path d="' + d + '" fill="none" stroke="#fff" stroke-width="' + 2.6 * k + '"/>' +
+        '<path d="' + d + '" fill="none" stroke="#14161f" stroke-width="' + sw + '" stroke-dasharray="' + 5 * k + " " + 4 * k + '" class="ants"/>' + handles + marks;
+    },
+    close: function (cut) {
+      var P = this.path; if (!P) return;
+      var d = this.shape(true); this.path = null; this.drawPath();
+      if (!d || (P.kind === "lasso" ? P.pts.length < 3 : P.nodes.length < 3)) return;
+      this.push();
+      var ctx = this.ctx;
+      ctx.globalCompositeOperation = cut ? "destination-out" : "source-over";
+      ctx.fillStyle = "#8A2BF2"; ctx.fill(new Path2D(d));
+      ctx.globalCompositeOperation = "source-over";
+      this.check(); this.hint(); render();
+    },
+    // Edge strength of the picture, once per picture: where the lasso likes to run.
+    costMap: function () {
+      if (this.cost) return;
+      var img = document.querySelector("#c-view .s-fit img"); if (!img || !img.naturalWidth) return;
+      var ds = Math.min(1, 900 / Math.max(this.w, this.h)), cw = Math.max(2, Math.round(this.w * ds)), ch = Math.max(2, Math.round(this.h * ds));
+      var t = document.createElement("canvas"); t.width = cw; t.height = ch;
+      var tc = t.getContext("2d"); tc.drawImage(img, 0, 0, cw, ch);
+      var px = tc.getImageData(0, 0, cw, ch).data, g = new Float32Array(cw * ch), L = new Float32Array(cw * ch), i, x, y, mx = 1e-6;
+      for (i = 0; i < cw * ch; i++) L[i] = 0.3 * px[4 * i] + 0.59 * px[4 * i + 1] + 0.11 * px[4 * i + 2];
+      for (y = 1; y < ch - 1; y++) for (x = 1; x < cw - 1; x++) {
+        i = y * cw + x;
+        var gx = L[i - cw + 1] + 2 * L[i + 1] + L[i + cw + 1] - L[i - cw - 1] - 2 * L[i - 1] - L[i + cw - 1];
+        var gy = L[i + cw - 1] + 2 * L[i + cw] + L[i + cw + 1] - L[i - cw - 1] - 2 * L[i - cw] - L[i - cw + 1];
+        g[i] = Math.sqrt(gx * gx + gy * gy); if (g[i] > mx) mx = g[i];
+      }
+      var cost = new Float32Array(cw * ch);
+      for (i = 0; i < cw * ch; i++) cost[i] = 0.04 + Math.pow(1 - Math.min(1, g[i] / (mx * 0.6)), 2);
+      this.cost = { cw: cw, ch: ch, ds: ds, c: cost };
+    },
+    // The cheapest way along edges from a to b (Dijkstra in a box round both).
+    snap: function (a, b) {
+      var C = this.cost; if (!C) return [a, b];
+      var ds = C.ds, ax = Math.round(a[0] * ds), ay = Math.round(a[1] * ds), bx = Math.round(b[0] * ds), by = Math.round(b[1] * ds);
+      var m = 24, x0 = Math.max(0, Math.min(ax, bx) - m), y0 = Math.max(0, Math.min(ay, by) - m);
+      var x1 = Math.min(C.cw - 1, Math.max(ax, bx) + m), y1 = Math.min(C.ch - 1, Math.max(ay, by) + m);
+      var W = x1 - x0 + 1, H = y1 - y0 + 1;
+      if (W * H > 160000 || (ax === bx && ay === by)) return [a, b];
+      var dist = new Float32Array(W * H).fill(Infinity), from = new Int32Array(W * H).fill(-1), done = new Uint8Array(W * H);
+      var heap = [], push = function (n, d) {
+        heap.push([d, n]); var i = heap.length - 1;
+        while (i > 0) { var p = (i - 1) >> 1; if (heap[p][0] <= heap[i][0]) break; var t = heap[p]; heap[p] = heap[i]; heap[i] = t; i = p; }
+      }, pop = function () {
+        var top = heap[0], last = heap.pop();
+        if (heap.length) { heap[0] = last; var i = 0;
+          for (;;) { var l = 2 * i + 1, r = l + 1, s = i;
+            if (l < heap.length && heap[l][0] < heap[s][0]) s = l; if (r < heap.length && heap[r][0] < heap[s][0]) s = r;
+            if (s === i) break; var t = heap[s]; heap[s] = heap[i]; heap[i] = t; i = s; } }
+        return top;
+      };
+      var start = (ay - y0) * W + (ax - x0), goal = (by - y0) * W + (bx - x0);
+      dist[start] = 0; push(start, 0);
+      var dx = [1, -1, 0, 0, 1, 1, -1, -1], dy = [0, 0, 1, -1, 1, -1, 1, -1], dw = [1, 1, 1, 1, 1.414, 1.414, 1.414, 1.414];
+      while (heap.length) {
+        var it = pop(), n = it[1]; if (done[n]) continue; done[n] = 1; if (n === goal) break;
+        var nx = n % W, ny = (n - nx) / W;
+        for (var k = 0; k < 8; k++) {
+          var qx = nx + dx[k], qy = ny + dy[k]; if (qx < 0 || qy < 0 || qx >= W || qy >= H) continue;
+          var q = qy * W + qx; if (done[q]) continue;
+          var nd = it[0] + dw[k] * C.c[(qy + y0) * C.cw + qx + x0];
+          if (nd < dist[q]) { dist[q] = nd; from[q] = n; push(q, nd); }
+        }
+      }
+      if (from[goal] < 0) return [a, b];
+      var out = [], cur = goal;
+      while (cur >= 0) { out.push([(cur % W + x0) / ds, (Math.floor(cur / W) + y0) / ds]); if (cur === start) break; cur = from[cur]; }
+      out.reverse(); out[0] = a;
+      return out;
+    },
+    psSelection: function () {
+      if (!S.psSel) return;
+      var self = this, img = new Image();
+      img.onload = function () {
+        self.push();
+        // Photoshop's mask: white = selected. Turn it into brush colour where white.
+        var t = document.createElement("canvas"); t.width = self.w; t.height = self.h;
+        var tc = t.getContext("2d"); tc.drawImage(img, 0, 0, self.w, self.h);
+        var d = tc.getImageData(0, 0, self.w, self.h), a = d.data;
+        for (var i = 0; i < a.length; i += 4) { var v = a[i]; a[i] = 138; a[i + 1] = 43; a[i + 2] = 242; a[i + 3] = v; }
+        tc.putImageData(d, 0, 0);
+        self.ctx.globalCompositeOperation = "source-over"; self.ctx.drawImage(t, 0, 0);
+        self.check(); render();
+      };
+      img.src = S.psSel.preview;
     }
   };
 
@@ -933,7 +1132,7 @@
     else if (id === "c" && p.src && p.area === "paint") { mode = "paint"; key = p.src.path; }
     else if (p.src && id === "c") { mode = "src"; key = (p.job && p.liveSrc ? p.liveSrc.path : p.src.path + (p.src.frozen ? ":frozen" : "")) + (S.psSel && S.useSel !== false ? ":sel" + S.psSel.preview.length + S.psSel.preview.slice(-24) : ""); }
     else { mode = "empty"; key = id + (p.src ? "1" : "0"); }
-    key = mode + ":" + key + (mode === "paint" ? ":" + painter.erase + ":" + painter.selecting : "");
+    key = mode + ":" + key + (mode === "paint" ? ":" + painter.tool + ":" + !!S.psSel : "");
     if (view.getAttribute("data-k") !== key) {
       view.setAttribute("data-k", key);
       if (mode === "empty") {
@@ -946,15 +1145,16 @@
         fit.appendChild(painter.canvas);
         view.appendChild(painter.ring);
         // The ring only shows over the picture, never over the tools.
-        view.addEventListener("pointermove", function (e) { painter.ring.hidden = painter.selecting || e.target !== painter.canvas; });
-        painter.canvas.classList.toggle("sel", painter.selecting);
+        fit.appendChild(painter.svg); painter.drawPath();
+        view.addEventListener("pointermove", function (e) { painter.ring.hidden = !painter.brushy() || e.target !== painter.canvas || zoom.space; });
+        painter.canvas.classList.toggle("sel", !painter.brushy());
         view.querySelector("#c-tools").addEventListener("click", function (e) {
           var b = e.target.closest("button[data-t]"); if (!b) return;
           var t = b.getAttribute("data-t");
-          if (t === "brush" || t === "erase") { painter.erase = t === "erase"; painter.selecting = false; render(); }
-          else if (t === "select") { painter.selecting = true; render(); }
+          if (/^(brush|erase|lasso|pen|object)$/.test(t)) { painter.setTool(t); render(); }
+          else if (t === "pssel") painter.psSelection();
           else if (t === "done") { S.create.area = "whole"; render(); }
-          else if (t === "undo") painter.back(); else if (t === "clear") painter.clear(); else if (t === "invert") painter.invert();
+          else if (t === "undo") painter.back(); else if (t === "clear") { painter.cancelPath(); painter.clear(); } else if (t === "invert") painter.invert();
         });
         $("c-size").addEventListener("input", function () { painter.size = +this.value; keep("brush", painter.size); });
       } else {
@@ -981,9 +1181,9 @@
     // with a progress ring in the middle that clears as the steps come in.
     var fitEl = view.querySelector(".s-fit"), loading = !!(p.job && fitEl && mode === "orig");
     if (fitEl) fitEl.classList.toggle("s-loading", loading);
-    var ring = view.querySelector(".s-ring");
+    var ring = view.querySelector(".s-pring");
     if (loading) {
-      if (!ring) { ring = document.createElement("div"); ring.className = "s-ring";
+      if (!ring) { ring = document.createElement("div"); ring.className = "s-pring";
         ring.innerHTML = '<svg viewBox="0 0 48 48"><circle cx="24" cy="24" r="20" class="bg"/><circle cx="24" cy="24" r="20" class="fg"/></svg><b></b>'; view.appendChild(ring); }
       var fr = Math.max(0.02, p.frac || 0);
       ring.querySelector(".fg").style.strokeDashoffset = String(125.7 * (1 - fr));
@@ -1041,6 +1241,83 @@
     layout();
   }
 
+  // -- zoom and pan: every picture floats on the canvas --------------------------------
+  // Mouse wheel or trackpad pinch zooms around the pointer, middle button (or Space +
+  // drag) pans, the pill bottom-left shows the zoom and Fit. Results of the same size
+  // keep the zoom, so they can be compared at the same spot.
+  var zoom = {
+    st: {},
+    of: function (v) { var id = v.id; return this.st[id] || (this.st[id] = { z: 1, x: 0, y: 0, wh: "" }); },
+    apply: function (v, f, w, h) {
+      var z = this.of(v), wh = w + "x" + h;
+      if (z.wh !== wh) { z.wh = wh; z.z = 1; z.x = 0; z.y = 0; }
+      f.style.transformOrigin = "50% 50%";
+      f.style.transform = "translate(" + z.x + "px," + z.y + "px) scale(" + z.z + ")";
+      f.classList.toggle("s-zoomed", z.z !== 1);
+      var pill = v.querySelector(".s-zpill");
+      if (!pill) {
+        pill = document.createElement("div"); pill.className = "s-zpill";
+        pill.innerHTML = '<button type="button" data-z="out" title="Zoom out">−</button><b></b><button type="button" data-z="in" title="Zoom in">+</button><button type="button" data-z="fit" title="Fit the picture (double-click the canvas)">Fit</button>';
+        v.appendChild(pill);
+      }
+      pill.querySelector("b").textContent = Math.round(z.z * 100) + "%";
+    },
+    // Zoom by f around a point given in the view's coordinates.
+    by: function (v, f, px, py) {
+      var fit = v.querySelector(".s-fit"); if (!fit) return;
+      var z = this.of(v), nz = Math.max(0.2, Math.min(16, z.z * f));
+      var cx = fit.offsetLeft + fit.offsetWidth / 2, cy = fit.offsetTop + fit.offsetHeight / 2;
+      if (px === undefined) { px = v.clientWidth / 2; py = v.clientHeight / 2; }
+      var qx = (px - cx - z.x) / z.z, qy = (py - cy - z.y) / z.z;
+      z.x = px - cx - nz * qx; z.y = py - cy - nz * qy; z.z = nz;
+      if (Math.abs(z.z - 1) < 0.02 && Math.abs(z.x) < 4 && Math.abs(z.y) < 4) { z.z = 1; z.x = 0; z.y = 0; }
+      layout(); painter.refreshRing();
+    },
+    fit: function (v) { var z = this.of(v); z.z = 1; z.x = 0; z.y = 0; layout(); },
+    pan: null, space: false,
+    wire: function (v) {
+      var self = this;
+      v.addEventListener("wheel", function (e) {
+        if (!v.querySelector(".s-fit")) return;
+        e.preventDefault();
+        var r = v.getBoundingClientRect();
+        var step = e.ctrlKey ? Math.exp(-e.deltaY * 0.01) : (e.deltaY < 0 ? 1.15 : 1 / 1.15);   // pinch arrives as Ctrl+wheel
+        self.by(v, step, e.clientX - r.left, e.clientY - r.top);
+      }, { passive: false });
+      v.addEventListener("pointerdown", function (e) {
+        if (!(e.button === 1 || (e.button === 0 && self.space))) return;
+        if (!v.querySelector(".s-fit") || e.target.closest(".s-tools,.s-zpill,.s-paintbtn")) return;
+        e.preventDefault(); e.stopPropagation();
+        var z = self.of(v);
+        self.pan = { v: v, x: e.clientX, y: e.clientY, ox: z.x, oy: z.y };
+        v.setPointerCapture(e.pointerId); v.classList.add("s-panning");
+      }, true);
+      v.addEventListener("pointermove", function (e) {
+        if (!self.pan || self.pan.v !== v) return;
+        var z = self.of(v); z.x = self.pan.ox + e.clientX - self.pan.x; z.y = self.pan.oy + e.clientY - self.pan.y; layout();
+      });
+      var end = function () { if (self.pan && self.pan.v === v) { self.pan = null; v.classList.remove("s-panning"); } };
+      v.addEventListener("pointerup", end); v.addEventListener("pointercancel", end);
+      v.addEventListener("auxclick", function (e) { if (e.button === 1) e.preventDefault(); });
+      v.addEventListener("mousedown", function (e) { if (e.button === 1) e.preventDefault(); });   // no autoscroll arrows
+      v.addEventListener("dblclick", function (e) { if (e.target === v) self.fit(v); });
+      v.addEventListener("click", function (e) {
+        var b = e.target.closest(".s-zpill [data-z]"); if (!b) return;
+        var a = b.getAttribute("data-z");
+        if (a === "fit") self.fit(v); else self.by(v, a === "in" ? 1.25 : 0.8);
+      });
+    }
+  };
+  document.addEventListener("keydown", function (e) {
+    if (e.code === "Space" && !/^(TEXTAREA|INPUT|SELECT)$/.test((document.activeElement || {}).tagName || "")) {
+      if (!zoom.space) { zoom.space = true; document.body.classList.add("s-space"); }
+      // Space would also press the last clicked button (Deselect, Done…): never while panning.
+      var ae = document.activeElement; if (ae && ae.tagName === "BUTTON" && document.querySelector(".s-page.on .s-view .s-fit")) ae.blur();
+      if (document.querySelector(".s-page.on .s-view .s-fit")) e.preventDefault();
+    }
+  });
+  document.addEventListener("keyup", function (e) { if (e.code === "Space") { zoom.space = false; document.body.classList.remove("s-space"); } });
+
   function layout() {
     document.querySelectorAll(".s-page.on .s-fit").forEach(function (f) {
       var v = f.parentNode, W = v.clientWidth, H = v.clientHeight, w = +f.getAttribute("data-w"), h = +f.getAttribute("data-h");
@@ -1050,9 +1327,11 @@
       var top = 0, bottom = 0;
       if (v.querySelector(".s-tools")) { top = 64; bottom = 50; }
       var aH = H - top - bottom;
-      var k = Math.min(W / w, aH / h), fw = Math.round(w * k), fh = Math.round(h * k);
+      var pad = /-view$/.test(v.id) ? 28 : 0;          // floating: a margin of canvas round the picture
+      var k = Math.min((W - 2 * pad) / w, (aH - 2 * pad) / h), fw = Math.round(w * k), fh = Math.round(h * k);
       f.style.width = fw + "px"; f.style.height = fh + "px";
       f.style.left = Math.round((W - fw) / 2) + "px"; f.style.top = Math.round(top + (aH - fh) / 2) + "px";
+      if (pad) zoom.apply(v, f, w, h);
     });
   }
 
@@ -1323,7 +1602,7 @@
   }
 
   // For the board (board.js): the shared state and the actions it reuses.
-  window.VS = { S: S, api: api, esc: esc, short: short, go: go, render: render, setImage: setImage, sendPS: sendPS,
+  window.VS = { painter: painter, S: S, api: api, esc: esc, short: short, go: go, render: render, setImage: setImage, sendPS: sendPS,
                 toast: toast, refresh: refresh, current: current, P: P };
 
   function start() {

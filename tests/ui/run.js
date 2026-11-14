@@ -246,6 +246,42 @@ const frame = (n, name) => ({ path: "live://photoshop/" + n, name: name || "flat
     await p.close();
   }
 
+  // Pictures float: wheel zooms, middle button pans, Fit resets; lasso, pen and Deselect make and clear a mask.
+  {
+    const p = await open(browser, null, {});
+    await p.evaluate(() => { window.VS.S.create.source = "image"; window.VS.setImage(window.VS.S.create, "src", { path: "C:/i/a.jpg", name: "a.jpg", w: 1600, h: 900, preview: "data:image/gif;base64,R0lGODlhAQABAIAAAP///wAAACH5BAAAAAAALAAAAAABAAEAAAICRAEAOw==" }); });
+    await p.waitForTimeout(200);
+    const vb = await p.locator("#c-view").boundingBox();
+    await p.mouse.move(vb.x + vb.width / 2, vb.y + vb.height / 2);
+    await p.mouse.wheel(0, -100); await p.mouse.wheel(0, -100); await p.waitForTimeout(100);
+    const z1 = await p.text("#c-view .s-zpill b");
+    check("mouse wheel zooms the picture", z1 !== "100%" && /%/.test(z1), z1);
+    const t0 = await p.evaluate(() => document.querySelector("#c-view .s-fit").style.transform);
+    await p.mouse.down({ button: "middle" }); await p.mouse.move(vb.x + vb.width / 2 - 80, vb.y + vb.height / 2 - 40, { steps: 4 }); await p.mouse.up({ button: "middle" });
+    check("middle button pans", await p.evaluate(() => document.querySelector("#c-view .s-fit").style.transform) !== t0, t0);
+    await p.click("#c-view .s-zpill [data-z=fit]"); await p.waitForTimeout(50);
+    check("Fit goes back to 100%", (await p.text("#c-view .s-zpill b")) === "100%", await p.text("#c-view .s-zpill b"));
+    await p.click(".s-paintbtn"); await p.waitForTimeout(200);
+    const size0 = await p.evaluate(() => +document.getElementById("c-size").value);
+    await p.keyboard.press("]"); await p.waitForTimeout(50);
+    check("] makes the brush bigger", await p.evaluate(() => +document.getElementById("c-size").value) > size0, "same size");
+    await p.click("#c-tools [data-t=pen]");
+    const fb = await p.locator("#c-view .s-fit").boundingBox(), at = (u, v) => [fb.x + fb.width * u, fb.y + fb.height * v];
+    for (const q of [[0.2, 0.2], [0.5, 0.2], [0.5, 0.6], [0.2, 0.6]]) { await p.mouse.click(...at(...q)); await p.waitForTimeout(30); }
+    await p.keyboard.press("Enter"); await p.waitForTimeout(100);
+    const anyMask = () => p.evaluate(() => { window.VS.painter.check(); return window.VS.painter.any; });
+    check("the pen closes into a painted area", await anyMask(), "no mask");
+    await p.keyboard.press("Control+d"); await p.waitForTimeout(100);
+    check("Ctrl D deselects", !(await anyMask()), "mask still there");
+    await p.click("#c-tools [data-t=lasso]");
+    await p.mouse.click(...at(0.3, 0.3));
+    for (const q of [[0.6, 0.3], [0.6, 0.7], [0.3, 0.7]]) await p.mouse.move(...at(...q), { steps: 6 });
+    await p.mouse.move(...at(0.3, 0.3), { steps: 6 }); await p.mouse.click(...at(0.3, 0.3)); await p.waitForTimeout(100);
+    check("the lasso closes into a painted area", await anyMask(), "no mask");
+    check("no page errors with zoom and selection tools", p.errors.length === 0, p.errors.join(" | "));
+    await p.close();
+  }
+
   // The results strip comes back after a restart; a moved file shows as missing.
   {
     const p = await open(browser, null, {});
