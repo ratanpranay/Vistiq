@@ -1005,8 +1005,24 @@ EXTERIOR = ("exterior", "side view", "front view", "rear view", "3/4", "three-qu
 NIGHT = ("night", "evening", "after dark", "dark mode", "night mode")
 
 
+# Words that mean the prompt already says how the light should be.
+_OWN_LIGHT_RE = re.compile(r"\b(sun ?light|sunlit|afternoon|morning|daylight|lighting:|directional light|"
+                           r"cinematic light|rim light|shadows?)\b", re.I)
+
+
+def clean_prompt(text):
+    """Prompts pasted from chat tools come with **bold**, # headings and bullets;
+    the image model reads those as noise. Plain sentences only."""
+    t = re.sub(r"\*\*|__|`", "", text or "")
+    t = re.sub(r"(?m)^\s{0,3}(#{1,6}\s*|[-*•]\s+|\d+[.)]\s+)", "", t)
+    t = re.sub(r"\n{3,}", "\n\n", t)
+    return t.strip()
+
+
 def light_for(text):
     low = " " + (text or "").lower() + " "
+    if _OWN_LIGHT_RE.search(low) and not any(w in low for w in NIGHT):
+        return ""                          # the prompt sets its own light: ours would fight it
     if any(w in low for w in NIGHT) and any(w in low for w in INTERIOR):
         return LIGHT_NIGHT                 # an interior at night: the car's own lights lead
     if any(w in low for w in OWN_LIGHT):
@@ -1020,6 +1036,10 @@ def light_for(text):
 
 F3_KEEP = ("Keep every line, part, opening, proportion and the camera view exactly as in the first image; "
            "change nothing in the design, only make it real.")
+# Long prompts made FLUX 3 invent trims and light strips the sketch doesn't have
+# (Nov 2026): the design comes first, and nothing gets added.
+F3_HOLD = (F3_KEEP + " Do not add any parts, trims, light strips, panels or details that are not drawn "
+           "in the first image.")
 # Worded for FLUX 3, which reads "the first image", "the second image". Tested
 # on the user's PC (Nov 2026): colours and materials, or the whole look, come
 # over from the reference while the design stays.
@@ -1039,9 +1059,9 @@ F3_REF_PRESETS = {
 def build_text(preset, text, presets=PRESETS, f3=False):
     # Any subject: interiors, exteriors, boats, furniture, lamps… The button
     # only says what kind of change; the prompt says what it is.
+    text = clean_prompt(text)
     if f3 and presets is REF_PRESETS:
         out = F3_REF_PRESETS.get(preset, F3_REF_PRESETS["camera"])
-        text = (text or "").strip()
         if text:
             out += "\n\n" + text
         light = light_for(text) if preset == "camera" else ""   # a reference brings its own light

@@ -328,6 +328,19 @@ class Studio:
         self._setup.start()
         return True
 
+    def _condense(self, preset, text):
+        """Very long prompts (pasted from chat tools) made FLUX 3 dark and
+        dramatic and it invented parts. Over 80 words, the prompt helper boils
+        it down to the essentials first, when it's installed."""
+        if len(text.split()) <= 80 or not studio.helper_installed(self.settings):
+            return text
+        try:
+            short = self.improve(preset, studio.clean_prompt(text))
+            return short if short and len(short.split()) >= 8 else text
+        except Exception as e:                     # never block a run over this
+            log.warning("prompt helper couldn't shorten the prompt: %s", e)
+            return text
+
     def improve(self, preset, text):
         from . import helper
         if not hasattr(self, "_helper"):
@@ -445,6 +458,7 @@ class Studio:
             image = self.engine.upload(work_path)
             ref_image = None
             mode = job.get("mode") or "create"
+            job = dict(job, text=self._condense(job.get("preset") or "", job.get("text") or ""))
             if mode == "reference":
                 ref_path = os.path.join(tmp_dir, "ref_%s.png" % job_id)
                 load_rgb(job["reference"]).save(ref_path, "PNG", compress_level=1)
@@ -455,7 +469,10 @@ class Studio:
                 text = studio.build_text(job.get("preset") or "", job.get("text"))
             seed = int(job.get("seed") or int(time.time()) % 100000 * 7919)
             keep = float(job.get("keep") if job.get("keep") is not None else 0.8)
-            if not _has_lock(s) and studio.F3_KEEP not in text:
+            if studio.flux3_ready(s) and keep >= 0.6 and studio.F3_KEEP not in text:
+                # FLUX 3 weighs what comes first: the design leads, nothing is added.
+                text = studio.F3_HOLD + "\n\n" + text
+            elif not _has_lock(s) and studio.F3_KEEP not in text:
                 # Without the design lock, the slider works through the wording.
                 text = text + "\n\n" + follow_words(keep, studio.flux3_ready(s))
             stem = os.path.splitext(os.path.basename(job.get("name") or src_path))[0]

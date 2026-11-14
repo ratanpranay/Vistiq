@@ -311,3 +311,25 @@ body.studio .s-page.on{display:flex;flex:1;min-width:0;height:100%}
 .s-vars .s-fillt .s-fillb{position:absolute;left:0;right:0;bottom:0;height:3px;background:rgba(255,255,255,.6)}
 .s-vars .s-fillt .s-fillb i{display:block;height:100%;background:linear-gradient(90deg,#4FA3F7,#7B3FF2,#E0517E,#F2A15A);transition:width .4s}
 .s-vars .s-fillt.sel{box-shadow:0 0 0 2px var(--ink)}
+
+/* 0.3.11 — calmer, consistent type across Create, Reference and Upscale */
+.s-rail-body>*{flex:0 0 auto}                       /* tall windows: nothing stretches */
+.s-slot.empty{height:64px}
+.s-rail h3{font-size:17px;font-weight:700}
+.s-go{height:46px;border-radius:23px;font-size:14px;font-weight:600;letter-spacing:.01em}
+.s-cancel{height:34px;font-size:12.5px;font-weight:600}
+.s-tiles4 button{height:44px;font-size:12.5px;font-weight:600}
+.s-tiles4 button svg{width:18px;height:18px}
+.s-seg button{font-weight:600}
+.s-impb{font-weight:600}
+/* Upscale page in Studio: same title, labels and spacing as the other pages */
+body.studio .shell .rail{width:320px;background:#fff}
+body.studio .rail-body{padding:22px 22px 10px;gap:22px}
+body.studio .rail-body::before{content:"Upscale";font-size:17px;font-weight:700;color:var(--ink);margin-bottom:-8px}
+body.studio .group legend,body.studio .group .label,body.studio .group>label{font-size:11.5px;font-weight:750;color:var(--dim);text-transform:uppercase;letter-spacing:.06em;margin-bottom:9px}
+body.studio .tile b{font-size:17px;line-height:22px;font-weight:700}
+body.studio .go{height:46px;border-radius:23px;font-size:14px;font-weight:600;box-shadow:none}
+body.studio .mdl-btn .t b{font-size:13px;font-weight:600}
+body.studio .chip{font-weight:600}
+body.studio .rail-foot{padding:14px 22px 18px;gap:8px}
+.s-rail-body>.s-label+.s-slot,.s-rail-body>.s-label+.s-seg{margin-top:-14px}

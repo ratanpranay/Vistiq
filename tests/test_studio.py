@@ -638,3 +638,19 @@ class Flux3(unittest.TestCase):
         self.assertIn(studio.F3_KEEP, t)
         self.assertNotIn(studio.LIGHT, t)
         self.assertIn("first image", sj.follow_words(0.8, True))
+
+
+class Condense(unittest.TestCase):
+    def test_long_prompts_are_boiled_down(self):
+        from unittest import mock
+        st = sj.Studio.__new__(sj.Studio)
+        st.settings = {}
+        st.improve = lambda preset, text: "tan leather seats, light grey dashboard, soft desert daylight, purple strips"
+        long = "**Lighting:** " + "warm golden directional sunlight " * 30
+        with mock.patch.object(studio, "helper_installed", lambda s: True):
+            self.assertTrue(st._condense("sketch", long).startswith("tan leather"))
+            self.assertEqual(st._condense("sketch", "red seats"), "red seats")      # short: untouched
+        with mock.patch.object(studio, "helper_installed", lambda s: False):
+            self.assertEqual(st._condense("sketch", long), long)                    # no helper: untouched
+        self.assertNotIn("**", studio.clean_prompt(long))
+        self.assertEqual(studio.light_for("interior, warm afternoon sunlight"), "")  # its own light wins
