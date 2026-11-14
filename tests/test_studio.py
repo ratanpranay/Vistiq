@@ -177,6 +177,12 @@ class Folders(unittest.TestCase):
         t = studio.with_locks(studio.build_text("sketch", "interior, tan seats"), {"design": True, "materials": True}, True)
         self.assertTrue(t.startswith(studio.SKETCH_LOCK_TEXT["materials"]))
 
+    def test_sketch_colours_are_placeholders(self):
+        t = studio.with_locks(studio.build_text("sketch", "interior, all white nappa leather"), {"design": True, "materials": False}, True)
+        self.assertTrue(t.startswith(studio.SKETCH_RECOLOUR))
+        t = studio.with_locks(studio.build_text("sketch", "interior, all white nappa leather"), {"design": True, "materials": True}, True)
+        self.assertNotIn(studio.SKETCH_RECOLOUR, t)
+
     def test_light_follows_prompt(self):
         # No interior/exterior switch: the words in the prompt pick the look.
         self.assertEqual(studio.light_for("SUV interior, tan leather seats"), studio.LIGHT_INT)

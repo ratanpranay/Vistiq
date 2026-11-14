@@ -1,5 +1,10 @@
 # Vistiq Studio (test build)
 
+## 0.4.5
+- Results show in the main view: click thumbnails (or ← →) to flip through them; click the chosen one again to go back to your picture with all its layers. Layers and sketch tools are always there.
+- Results run oldest first; "+ Another" is gone (use Create).
+- Colours from a coloured sketch no longer leak into the render when you describe new ones (with Materials unlocked): "all white" now means all white.
+
 ## 0.4.4
 - On any result: Add (puts it on a layer over your picture) and Export (PNG or JPEG, where you choose) float at the picture's bottom-right.
 - Layers are kept between sessions, and the board tile shows the picture as it looks with them.

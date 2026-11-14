@@ -1082,6 +1082,14 @@ SKETCH_LOCK_TEXT = {
 }
 
 
+COLOUR_WORDS = re.compile(r"\b(white|black|grey|gray|beige|cream|ivory|tan|brown|red|burgund\w*|blue|green|yellow|orange|purple|pink|silver|chrome|leather|nappa|alcantara|suede|fabric|wood|cmf|colou?rs?|materials?)\b", re.I)
+# A coloured sketch: the model copies its colours unless told they are only placeholders.
+SKETCH_RECOLOUR = ("The colours and fills in the sketch are only placeholders, not the design: ignore them and use "
+                   "only the colours and materials described here, on every part. Where a colour is described for "
+                   "everything (e.g. all white), every trim, panel and seat takes it, apart from glass, screens, "
+                   "rubber and metal details.")
+
+
 def with_locks(text, locks, sketch):
     """Rules for what must not change (the Keep toggles), put first: the model
     weighs the start of the prompt most. Light locked also drops our own light."""
@@ -1091,6 +1099,8 @@ def with_locks(text, locks, sketch):
             text = text.replace("\n\n" + part, "")
     if sketch:
         rules = [SKETCH_LOCK_TEXT[k] for k in ("materials", "light") if locks.get(k)]
+        if not locks.get("materials") and COLOUR_WORDS.search(text.split("\n\n", 1)[-1] or ""):
+            rules.append(SKETCH_RECOLOUR)
     else:
         rules = [LOCK_TEXT[k] for k in ("design", "materials", "light", "camera") if locks.get(k)]
         free = [k for k in ("design", "materials", "light", "camera") if not locks.get(k)]
