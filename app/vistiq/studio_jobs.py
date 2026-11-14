@@ -449,14 +449,15 @@ class Studio:
                 ref_path = os.path.join(tmp_dir, "ref_%s.png" % job_id)
                 load_rgb(job["reference"]).save(ref_path, "PNG", compress_level=1)
                 ref_image = self.engine.upload(ref_path)
-                text = studio.build_text(job.get("preset") or "camera", job.get("text"), studio.REF_PRESETS)
+                text = studio.build_text(job.get("preset") or "camera", job.get("text"), studio.REF_PRESETS,
+                                         f3=studio.flux3_ready(s))
             else:
                 text = studio.build_text(job.get("preset") or "", job.get("text"))
             seed = int(job.get("seed") or int(time.time()) % 100000 * 7919)
             keep = float(job.get("keep") if job.get("keep") is not None else 0.8)
-            if not _has_lock(s):
+            if not _has_lock(s) and studio.F3_KEEP not in text:
                 # Without the design lock, the slider works through the wording.
-                text = text + "\n\n" + follow_words(keep)
+                text = text + "\n\n" + follow_words(keep, studio.flux3_ready(s))
             stem = os.path.splitext(os.path.basename(job.get("name") or src_path))[0]
             if stem.lower().startswith("vistiq_"):
                 stem = stem[7:]
@@ -642,11 +643,19 @@ def _is_blank(data):
 
 
 def _has_lock(settings):
-    return sys.platform != "darwin" and studio.tier(settings) != "good" and bool(studio.find("consistency", settings))
+    # The design lock is a Klein 9B add-on; FLUX 3 follows the picture through the wording.
+    return (sys.platform != "darwin" and not studio.flux3_ready(settings) and studio.tier(settings) != "good"
+            and bool(studio.find("consistency", settings)))
 
 
-def follow_words(keep):
+def follow_words(keep, f3=False):
     """How closely to follow the picture, in words the model understands."""
+    if f3:
+        if keep >= 0.6:
+            return studio.F3_KEEP
+        if keep >= 0.3:
+            return "Use the first image as the base, but feel free to refine shapes and details."
+        return "Use the first image only as loose inspiration; reinterpret it creatively."
     if keep >= 0.9:
         return "Follow the input image exactly: every line, shape, proportion and the camera view stay identical."
     if keep >= 0.6:
@@ -658,6 +667,8 @@ def follow_words(keep):
 
 def _add_lora(prompt, lora, strength):
     """An extra Klein LoRA (a look), after Klein-consistency."""
+    if prompt.get("1", {}).get("inputs", {}).get("unet_name", "").startswith("flux3"):
+        return          # Klein 9B looks don't fit FLUX 3
     if not lora or lora in studio.RETIRED or any(lora in f["names"] for f in studio.FILES if f["folder"] == "loras"):
         return          # Studio's own helpers are already in the job
     model = prompt["40"]["inputs"]["model"]

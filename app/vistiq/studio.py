@@ -14,6 +14,7 @@ Files that need a Hugging Face login (FLUX.2 Klein 9B) or come from elsewhere
 not copied, when it is on the same drive.
 """
 import json
+import math
 import logging
 import os
 import random
@@ -120,6 +121,17 @@ FILES = [
      "names": ["qwen_3_4b.safetensors", "qwen_3_4b_fp8_mixed.safetensors"], "gb": 8.0,
      "url": HF % ("Comfy-Org/flux2-klein-4B", "split_files/text_encoders/qwen_3_4b.safetensors"),
      "page": "https://huggingface.co/Comfy-Org/flux2-klein-4B", "about": "Understands what you type."},
+    # FLUX 3 Image Klein (Oct 2026): used instead of Klein 9B whenever both
+    # files are here. Gated on Hugging Face: a free sign-in and "agree" first.
+    {"key": "flux3", "part": "flux3", "folder": "diffusion_models", "label": "FLUX 3 image model",
+     "names": ["flux3-image-klein-int8-convrot.safetensors", "flux3-image-klein-nvfp4.safetensors",
+               "flux3-image-klein-bf16.safetensors"], "gb": 5.8, "url": None, "optional": True,
+     "page": "https://huggingface.co/black-forest-labs/flux-3-image-klein-comfy",
+     "about": "The newest image model: more real light, materials and detail."},
+    {"key": "qwen3vl", "part": "flux3", "folder": "text_encoders", "label": "FLUX 3 prompt reader",
+     "names": ["qwen3vl_4b_int8_convrot.safetensors", "qwen3vl_4b_bf16.safetensors"], "gb": 4.9, "url": None,
+     "optional": True, "page": "https://huggingface.co/black-forest-labs/flux-3-image-klein-comfy",
+     "about": "Understands what you type and sees your reference pictures."},
     {"key": "flux1", "part": "juice", "folder": "diffusion_models", "label": "Finishing model",
      "names": ["flux1-dev-fp8.safetensors", "flux1-dev.safetensors"], "gb": 23.8, "url": None,
      "page": "https://huggingface.co/black-forest-labs/FLUX.1-dev",
@@ -244,6 +256,11 @@ def in_tier(f, t):
     return ft is None or ft == t or (isinstance(ft, (tuple, list)) and t in ft)
 
 
+def flux3_ready(settings=None):
+    """FLUX 3 Image Klein is used when its two files and the shared decoder are here."""
+    return sys.platform != "darwin" and all(_have(k, settings) for k in ("flux3", "qwen3vl", "vae2"))
+
+
 def _have(key, settings):
     return bool(find(key, settings))
 
@@ -304,7 +321,8 @@ def status(settings=None):
             "tiers": {k: {"label": v, "ready": ready(k)} for k, v in TIERS.items()},
             "engine_installed": engine_installed(), "loras": loras(settings),
             "select_ready": select_installed(settings), "helper_ready": helper_installed(settings),
-            "home": home(settings), "comfy_models": guess_comfy_models(settings)}
+            "home": home(settings), "comfy_models": guess_comfy_models(settings),
+            "flux3": flux3_ready(settings)}
 
 
 def helper_installed(settings=None):
@@ -794,8 +812,56 @@ def _klein_base(settings, keep):
     return p, model
 
 
+F3_STEPS = 16          # the distilled FLUX 3 Klein's own setting (BFL's templates)
+
+
+def flux3_prompt(settings, images, text, megapixels=2.0, seed=None, steps=F3_STEPS, frame=0):
+    """FLUX 3 Image Klein: an edit of image 1, with any further images as
+    references (colours, materials, style). Built like BFL's own template,
+    minus the prompt upsampler. `frame` is the image whose size the result takes."""
+    s = settings
+    mp = float(megapixels)
+    p = {
+        "1": {"class_type": "UNETLoader", "inputs": {"unet_name": os.path.basename(find("flux3", s)),
+                                                       "weight_dtype": "default"}},
+        "2": {"class_type": "CLIPLoader", "inputs": {"clip_name": os.path.basename(find("qwen3vl", s)),
+                                                       "type": "flux3", "device": "default"}},
+        "3": {"class_type": "VAELoader", "inputs": {"vae_name": os.path.basename(find("vae2", s))}},
+        "20": {"class_type": "CLIPTextEncode", "inputs": {"text": text, "clip": ["2", 0]}},
+        "21": {"class_type": "CLIPTextEncode", "inputs": {"text": "", "clip": ["2", 0]}},
+        "24": {"class_type": "ReferenceMultiLatent",
+               "inputs": {"positive": ["20", 0], "negative": ["21", 0], "vae": ["3", 0],
+                          "resolution": "resize", "resolution.megapixels": mp}},
+    }
+    for i, im in enumerate(images):
+        load, scale = str(10 + 2 * i), str(11 + 2 * i)
+        p[load] = {"class_type": "LoadImage", "inputs": {"image": im}}
+        p[scale] = {"class_type": "ImageScaleToTotalPixels",
+                    "inputs": {"image": [load, 0], "upscale_method": "lanczos", "megapixels": mp,
+                               "resolution_steps": 16}}
+        p["24"]["inputs"]["images.image%d" % i] = [scale, 0]
+    p.update({
+        "30": {"class_type": "GetImageSize", "inputs": {"image": [str(11 + 2 * frame), 0]}},
+        "5": {"class_type": "ModelSamplingFlux",
+              "inputs": {"model": ["1", 0], "max_shift": round(math.log(steps), 5), "base_shift": round(math.log(steps), 5),
+                         "width": ["30", 0], "height": ["30", 1]}},
+        "31": {"class_type": "EmptyFlux2LatentImage", "inputs": {"width": ["30", 0], "height": ["30", 1],
+                                                                  "batch_size": 1}},
+        "40": {"class_type": "KSampler",
+               "inputs": {"model": ["5", 0], "positive": ["24", 0], "negative": ["24", 1], "latent_image": ["31", 0],
+                          "seed": int(seed if seed is not None else random.randint(1, 2**48)),
+                          "steps": int(steps), "cfg": 1.0, "sampler_name": "euler", "scheduler": "simple",
+                          "denoise": 1.0}},
+        "41": {"class_type": "VAEDecode", "inputs": {"samples": ["40", 0], "vae": ["3", 0]}},
+        "42": {"class_type": "SaveImage", "inputs": {"images": ["41", 0], "filename_prefix": "VistiqStudio"}},
+    })
+    return p
+
+
 def create_prompt(settings, image, text, keep=0.8, megapixels=2.0, seed=None, steps=STEPS):
     """Klein edit of one image (render or sketch)."""
+    if flux3_ready(settings):
+        return flux3_prompt(settings, [image], text, megapixels, seed)
     p, model = _klein_base(settings, keep)
     p.update({
         "10": {"class_type": "LoadImage", "inputs": {"image": image}},
@@ -824,6 +890,10 @@ def create_prompt(settings, image, text, keep=0.8, megapixels=2.0, seed=None, st
 def reference_prompt(settings, design, reference, text, mode="camera", keep=0.8, megapixels=2.0,
                      seed=None, steps=STEPS):
     """Klein with two reference images: image 1 your design, image 2 the reference."""
+    if flux3_ready(settings):
+        # FLUX 3 reads both pictures as they are (no line extraction needed).
+        return flux3_prompt(settings, [design, reference], text, megapixels, seed,
+                            frame=1 if mode == "camera" else 0)
     # For CMF and style the design goes in as its lines only (edges of the
     # picture): the model then has to colour the lines from the reference,
     # instead of copying the design's own colours back, which the design
@@ -942,9 +1012,36 @@ def light_for(text):
     return LIGHT
 
 
-def build_text(preset, text, presets=PRESETS):
+F3_KEEP = ("Keep every line, part, opening, proportion and the camera view exactly as in the first image; "
+           "change nothing in the design, only make it real.")
+# Worded for FLUX 3, which reads "the first image", "the second image". Tested
+# on the user's PC (Nov 2026): colours and materials, or the whole look, come
+# over from the reference while the design stays.
+F3_REF_PRESETS = {
+    "camera": ("Show the design of the first image from exactly the camera position, angle and field of view "
+               "of the second image. Keep the design, materials and colours of the first image."),
+    "cmf": ("Render the design in the first image as a photorealistic photograph. " + F3_KEEP + " Apply the "
+            "colours, materials and finishes of the second image: the same colours and materials on the same "
+            "kinds of parts, the same trim materials and the same ambient light colour. Do not copy the shapes "
+            "or the camera view of the second image."),
+    "style": ("Render the design in the first image as a photorealistic photograph. " + F3_KEEP + " Give it "
+              "the lighting, colours, materials, mood and photographic look of the second image. Do not copy "
+              "the shapes or the camera view of the second image."),
+}
+
+
+def build_text(preset, text, presets=PRESETS, f3=False):
     # Any subject: interiors, exteriors, boats, furniture, lamps… The button
     # only says what kind of change; the prompt says what it is.
+    if f3 and presets is REF_PRESETS:
+        out = F3_REF_PRESETS.get(preset, F3_REF_PRESETS["camera"])
+        text = (text or "").strip()
+        if text:
+            out += "\n\n" + text
+        light = light_for(text) if preset == "camera" else ""   # a reference brings its own light
+        if light:
+            out += "\n\n" + light
+        return out + "\n\n" + (CLEAN if light in (LIGHT_INT, LIGHT_NIGHT, "") else CRISP)
     presets = GENERIC_REF_PRESETS if presets is REF_PRESETS else GENERIC_PRESETS
     base = presets.get(preset, "")
     text = (text or "").strip()

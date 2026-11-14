@@ -444,6 +444,7 @@ class PromptGraph(unittest.TestCase):
     def test_no_cycles_any_tier(self):
         for tier_name, keys in (("best", ("klein", "qwen", "vae2", "consistency")),
                                 ("good", ("klein4b", "qwen4b", "vae2")),
+                                ("best", ("klein", "qwen", "vae2", "consistency", "flux3", "qwen3vl")),
                                 ):
             with tempfile.TemporaryDirectory() as t:
                 s = Settings(studio_home=t, studio_tier=tier_name)
@@ -585,3 +586,48 @@ class Finish(unittest.TestCase):
         self.assertLessEqual(sat(out), sat(im) * 1.03)  # colour not boosted
         edges = lambda x: np.asarray(x.convert("L").filter(ImageFilter.FIND_EDGES)).mean()
         self.assertGreater(edges(out), edges(im) * 0.95)
+
+
+class Flux3(unittest.TestCase):
+    """FLUX 3 Klein takes over when its files are here; Klein 9B otherwise."""
+
+    def _settings(self, t, keys):
+        s = Settings(studio_home=t, studio_tier="best")
+        md = studio.models_dir(s)
+        for key in keys:
+            spec = next(f for f in studio.FILES if f["key"] == key)
+            os.makedirs(os.path.join(md, spec["folder"]), exist_ok=True)
+            open(os.path.join(md, spec["folder"], spec["names"][0]), "wb").close()
+        return s
+
+    @unittest.skipIf(sys.platform == "darwin", "the Mac has its own image engine")
+    def test_used_when_present(self):
+        with tempfile.TemporaryDirectory() as t:
+            s = self._settings(t, ("klein", "qwen", "vae2", "consistency"))
+            self.assertFalse(studio.flux3_ready(s))
+            self.assertEqual(studio.create_prompt(s, "a.png", "x")["1"]["inputs"]["unet_name"],
+                             "flux-2-klein-9b-fp8mixed.safetensors")
+        with tempfile.TemporaryDirectory() as t:
+            s = self._settings(t, ("klein", "qwen", "vae2", "consistency", "flux3", "qwen3vl"))
+            self.assertTrue(studio.flux3_ready(s))
+            p = studio.create_prompt(s, "a.png", "x")
+            self.assertTrue(p["1"]["inputs"]["unet_name"].startswith("flux3"))
+            self.assertEqual(p["2"]["inputs"]["type"], "flux3")
+            self.assertEqual(p["40"]["inputs"]["steps"], 16)
+            self.assertNotIn("4", p)                                  # no Klein design lock
+            self.assertFalse(sj._has_lock(s))
+            sj._add_lora(p, "style.safetensors", 0.8)
+            self.assertNotIn("7", p)                                  # Klein looks don't fit
+            r = studio.reference_prompt(s, "a.png", "b.png", "x", "cmf")
+            self.assertEqual(r["24"]["inputs"]["images.image0"], ["11", 0])
+            self.assertEqual(r["24"]["inputs"]["images.image1"], ["13", 0])
+            self.assertEqual(r["30"]["inputs"]["image"], ["11", 0])   # the result takes the design's frame
+            cam = studio.reference_prompt(s, "a.png", "b.png", "x", "camera")
+            self.assertEqual(cam["30"]["inputs"]["image"], ["13", 0])  # camera: the reference's frame
+
+    def test_reference_words(self):
+        t = studio.build_text("cmf", "", studio.REF_PRESETS, f3=True)
+        self.assertIn("second image", t)
+        self.assertIn(studio.F3_KEEP, t)
+        self.assertNotIn(studio.LIGHT, t)
+        self.assertIn("first image", sj.follow_words(0.8, True))
