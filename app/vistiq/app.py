@@ -876,9 +876,15 @@ def run(app_dir, version, notice=""):
     log.info("%s %s starting from %s", flavor.NAME, version, app_dir)
     app = App(app_dir, version, notice)
     index = os.path.join(app_dir, "ui", "index.html")
-    app.window = webview.create_window(
-        flavor.NAME, url=index, js_api=Api(app), width=1280 if flavor.STUDIO else 1200, height=800 if flavor.STUDIO else 780,
-        min_size=(980, 640), background_color="#FFFFFF", text_select=False)
+    win_args = dict(url=index, js_api=Api(app), width=1280 if flavor.STUDIO else 1200, height=800 if flavor.STUDIO else 780,
+                    min_size=(980, 640), background_color="#FFFFFF", text_select=False)
+    if flavor.STUDIO:
+        win_args["maximized"] = True        # Studio opens full screen
+    try:
+        app.window = webview.create_window(flavor.NAME, **win_args)
+    except TypeError:                        # an older pywebview without "maximized"
+        win_args.pop("maximized", None)
+        app.window = webview.create_window(flavor.NAME, **win_args)
 
     def on_loaded():
         try:

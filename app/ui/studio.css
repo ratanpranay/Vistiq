@@ -523,3 +523,64 @@ body.studio .empty>p{font-size:13px}
 body.studio .primary{height:34px;padding:0 16px;border-radius:9px;font-size:13px;font-weight:600;gap:8px;box-shadow:none}
 body.studio .ghost{height:34px;padding:0 14px;border-radius:9px;font-size:13px;font-weight:500}
 body.studio .empty .paste{font-size:12px}
+
+/* ---- 0.4.1: roomier panel, actions above Create, title row, loading, live tag ---- */
+body.studio #p-create .s-rail,body.studio #p-reference .s-rail,body.studio .shell .rail{width:304px}
+body.studio .s-rail-body{padding:8px 16px 14px;gap:20px}
+.s-rh{padding:14px 14px 4px 18px}
+.s-label{margin-bottom:8px}
+.s-tiles4{gap:6px}.s-tiles4 button{height:32px}
+.s-rail-foot{padding:12px 16px 14px;gap:8px}
+.s-acts3{display:grid;grid-auto-flow:column;grid-auto-columns:1fr;gap:6px}
+.s-acts3 .s-btn{display:flex;align-items:center;justify-content:center;gap:5px;padding:0 6px;height:30px;border:1px solid var(--line);background:#fff;white-space:nowrap;overflow:hidden}
+.s-acts3 .s-btn span{overflow:hidden;text-overflow:ellipsis}
+.s-acts3 .s-btn svg{width:14px;height:14px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0}
+.s-acts3 .s-btn .m-ico{margin:0}
+.s-acts3 .s-btn:disabled{opacity:.4}
+.s-acts3 .s-btn[hidden]{display:none}
+.s-gorow{display:flex;gap:6px}
+.s-gorow .s-go{flex:1}
+.s-refbtn{height:32px!important;padding:0 12px!important;border:1px solid var(--line)!important;background:#fff;font-weight:500!important}
+.s-refbtn[hidden]{display:none}
+body.rail-min .s-acts3,body.rail-min .s-refbtn{display:none}
+.s-top{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
+.s-top .s-ttl{flex:1;min-width:0;padding-right:0}
+.s-top .s-acts2{display:flex;gap:6px}
+.s-top .s-x{width:28px;padding:0!important}
+body.rail-min .s-top{padding-right:250px}
+.s-under{min-height:0}
+.s-refine[hidden]{display:none}
+/* Live from Photoshop: a green, gently blinking tag */
+.s-livetag{display:flex;align-items:center;gap:6px;background:rgba(15,18,32,.78)}
+.s-ldot{display:inline-block;width:7px;height:7px;border-radius:50%;background:#22c55e;box-shadow:0 0 0 0 rgba(34,197,94,.6);animation:sblink 1.6s infinite}
+@keyframes sblink{0%{box-shadow:0 0 0 0 rgba(34,197,94,.65);opacity:1}60%{box-shadow:0 0 0 7px rgba(34,197,94,0);opacity:.55}100%{box-shadow:0 0 0 0 rgba(34,197,94,0);opacity:1}}
+/* Loading: the picture is blurred and clears as the steps come in; a ring shows progress */
+.s-fit.s-loading img{filter:blur(var(--blur,16px)) saturate(1.05);transform:scale(1.03);transition:filter .6s}
+.s-fit.s-loading{overflow:hidden}
+.s-ring{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:76px;height:76px;border-radius:50%;background:rgba(255,255,255,.82);box-shadow:0 6px 24px rgba(14,16,32,.18);display:flex;align-items:center;justify-content:center;z-index:3}
+.s-ring svg{position:absolute;inset:8px;width:60px;height:60px;transform:rotate(-90deg)}
+.s-ring circle{fill:none;stroke-width:4}
+.s-ring .bg{stroke:rgba(14,16,32,.1)}
+.s-ring .fg{stroke:#6d5df5;stroke-linecap:round;stroke-dasharray:125.7;transition:stroke-dashoffset .5s}
+.s-ring b{font-size:13px;font-weight:600;color:var(--ink)}
+.s-ring::after{content:"";position:absolute;inset:4px;border-radius:50%;border:2px solid transparent;border-top-color:rgba(109,93,245,.35);animation:s-spin 1.2s linear infinite}
+/* Library header: title, then the path, then the filters, then the pictures (any window size) */
+#p-library .s-scroll{gap:12px}
+#p-library .s-ttl{font-size:18px;font-weight:600;padding-right:140px;min-height:0;display:flex;flex-direction:column;gap:2px}
+#p-library .s-ttl small{font-size:12px;font-weight:400;color:var(--dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#p-library .s-acts{top:26px}
+#p-library .s-acts button{height:30px;padding:0 12px;font-size:12px;font-weight:500;border-radius:8px}
+#p-library .s-filters{position:static;margin:2px 0 4px}
+#p-library .s-filters button{height:28px;padding:0 12px;font-size:12px;font-weight:400;border-radius:8px}
+#p-library .s-filters button.on{font-weight:500}
+#p-library .s-card .s-cap{font-size:12px;font-weight:500}
+#p-library .s-card .s-pill{font-weight:500}
+
+/* 0.4.1b: quiet result toolbar above Create (icon over label) */
+.s-acts3{display:flex;gap:0;background:var(--field,#f3f4f8);border-radius:12px;padding:4px}
+.s-acts3 .s-btn{flex:1;min-width:0;flex-direction:column;gap:4px;height:auto;padding:8px 2px 6px;border:0;background:transparent;border-radius:9px;font-size:11px;font-weight:500;color:var(--ink2,#3b4050)}
+.s-acts3 .s-btn:hover:not(:disabled){background:#fff;box-shadow:0 1px 3px #0e10201a;color:var(--ink,#14161f)}
+.s-acts3 .s-btn svg{width:16px;height:16px}
+.s-acts3 .s-btn .m-ico{width:16px;height:16px;font-size:8.5px;border-radius:4px}
+.s-acts3 .s-btn span:last-child{overflow:visible;text-overflow:clip;line-height:1}
+.s-acts3 .s-btn:disabled{opacity:.35}

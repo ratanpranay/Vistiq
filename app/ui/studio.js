@@ -61,8 +61,14 @@
     return '<aside class="s-rail"><div class="s-rh"><h3>' + title + '</h3><button type="button" class="s-min" data-min="rail" title="Collapse / expand">' +
       '<svg viewBox="0 0 24 24"><path d="M6 15l6-6 6 6"/></svg></button></div><div class="s-rail-body">' + inner + "</div>" +
       '<div class="s-rail-foot"><div class="s-err" id="' + id + '-err" hidden></div>' +
+      // What to do with the chosen result, right above Create.
+      '<div class="s-acts3"><button type="button" class="s-btn" id="' + id + '-refine-this" title="Change this result with your words" disabled>' + svg("sketch") + '<span>Refine</span></button>' +
+      '<button type="button" class="s-btn" id="' + id + '-toboard" title="Put this result on the board" disabled>' + svg("board") + '<span>To board</span></button>' +
+      '<button type="button" class="s-btn" id="' + id + '-tops" title="Send this result to Photoshop as a new layer" disabled><span class="m-ico ps">Ps</span><span>Photoshop</span></button>' +
+      '<button type="button" class="s-btn" id="' + id + '-up" title="Upscale this result" disabled>' + svg("upscale") + '<span>Upscale</span></button></div>' +
+      '<div class="s-gorow">' +
       '<button type="button" class="s-go" id="' + id + '-go"><span class="s-go-fill" id="' + id + '-fill" style="width:0"></span><span id="' + id + '-golabel">' + goText + "</span></button>" +
-      '<button type="button" class="s-cancel" id="' + id + '-cancel" hidden>Cancel</button>' +
+      '</div><button type="button" class="s-cancel" id="' + id + '-cancel" hidden>Cancel</button>' +
       '<div class="s-meta" id="' + id + '-meta"></div></div></aside>';
   }
 
@@ -86,18 +92,14 @@
 
   function stage(id, extra) {
     return '<section class="s-stage" id="' + id + '-stage">' +
-      '<button type="button" class="s-back" id="' + id + '-back">← Board</button>' +
-      '<div class="s-ttl" id="' + id + '-ttl"></div>' +
+      '<div class="s-top"><div class="s-ttl" id="' + id + '-ttl"></div><div class="s-acts2">' +
+      '<button type="button" class="s-btn" id="' + id + '-reveal" disabled>Show in folder</button>' +
+      '<button type="button" class="s-btn s-x" id="' + id + '-clear" title="Clear the results" aria-label="Clear" hidden>×</button></div></div>' +
       (extra || "") +
       '<div class="s-view" id="' + id + '-view"></div>' +
-      // Under the picture: the results, then what to do with the chosen one.
-      '<div class="s-under"><div class="s-vars" id="' + id + '-strip"></div>' +
-      '<div class="s-acts2"><button type="button" class="s-btn" id="' + id + '-reveal" disabled>Show in folder</button>' +
-      '<button type="button" class="s-btn" id="' + id + '-toboard" disabled>Add to board</button>' +
-      '<button type="button" class="s-btn" id="' + id + '-tops" hidden>' + '<span class="m-ico ps">Ps</span>To Photoshop</button>' +
-      '<button type="button" class="s-btn p" id="' + id + '-up" disabled>Upscale this</button>' +
-      '<button type="button" class="s-btn s-x" id="' + id + '-clear" title="Clear" aria-label="Clear" hidden>×</button></div></div>' +
-      '<div class="s-refine"><input type="text" id="' + id + '-refine" placeholder="Refine: e.g. make the seats lighter, keep everything else"><button type="button" id="' + id + '-refine-go">Refine</button></div>' +
+      '<div class="s-under"><div class="s-vars" id="' + id + '-strip"></div></div>' +
+      // Refine runs from the panel (the prompt + "Refine this"); the input stays as its carrier.
+      '<div class="s-refine" hidden><input type="text" id="' + id + '-refine"><button type="button" id="' + id + '-refine-go">Refine</button></div>' +
       "</section>" +
       '<div class="s-center" id="' + id + '-gate" hidden></div>';
   }
@@ -359,7 +361,11 @@
         render();
       });
       $(id + "-reveal").addEventListener("click", function () { var c = current(p); if (c) api().reveal(c.path); });
-      $(id + "-back").addEventListener("click", function () { go("board"); });
+      $(id + "-refine-this").addEventListener("click", function () {
+        var t = (p.text || "").trim();
+        if (!t) { var box = $(id + "-text"); if (box) box.focus(); toast("Type what to change in the prompt, then Refine this"); return; }
+        $(id + "-refine").value = t; refine(id);
+      });
       $(id + "-toboard").addEventListener("click", function () {
         var c = current(p); if (!c || !window.VSBoard) return;
         window.VSBoard.addResult(c, id === "c" ? S.boardFrom : S.boardFromRef);
@@ -805,8 +811,10 @@
     if ($(id + "-ttl").getAttribute("data-h") !== ttl) { $(id + "-ttl").innerHTML = ttl; $(id + "-ttl").setAttribute("data-h", ttl); }
     $(id + "-up").disabled = !c; $(id + "-reveal").disabled = !c;
     $(id + "-toboard").disabled = !c || !!(window.VSBoard && window.VSBoard.has(c.path));
-    $(id + "-toboard").textContent = c && window.VSBoard && window.VSBoard.has(c.path) ? "On the board" : "Add to board";
-    $(id + "-tops").hidden = !(c && S.psOn);
+    $(id + "-toboard").querySelector("span").textContent = c && window.VSBoard && window.VSBoard.has(c.path) ? "On board" : "To board";
+    $(id + "-refine-this").hidden = false; $(id + "-refine-this").disabled = !c || !!p.job;
+    $(id + "-tops").hidden = false; $(id + "-tops").disabled = !(c && S.psOn);
+    $(id + "-tops").title = S.psOn ? "Send this result to Photoshop as a new layer" : "Connect Photoshop (Live from app) to send results there";
     $(id + "-clear").hidden = !(p.results.length && !p.job);
     $(id + "-refine-go").disabled = !!p.job || !(c || p.src);
 
@@ -850,7 +858,7 @@
         var selOv = mode === "src" && info.live && S.psSel && S.useSel !== false && id === "c"
           ? '<div class="s-selov" style="-webkit-mask-image:url(' + S.psSel.preview + ');mask-image:url(' + S.psSel.preview + ')"></div>' : "";
         view.innerHTML = '<div class="s-fit" data-w="' + info.w + '" data-h="' + info.h + '"><img class="' + (mode === "result" ? "s-res" : "") + '" src="' + info.preview + '" alt="">' + dev + selOv + "</div>" +
-          (mode === "result" ? '<span class="s-tag">Result · hold to see the original</span>' : '<span class="s-tag">' + (info.live ? "Live from " + ((APPS[info.app] || APPS.photoshop)[1]) : info.frozen ? (dev ? "Developing · step " + (p.previewN || 1) : mode === "orig" && !p.job ? "Sketch · what these results were made from" : "Sketch · frozen while creating") : "Original") + "</span>");
+          (mode === "result" ? '<span class="s-tag">Result · hold to see the original</span>' : '<span class="s-tag' + (info.live ? " s-livetag" : "") + '">' + (info.live ? '<i class="s-ldot"></i>' : "") + (info.live ? "Live from " + ((APPS[info.app] || APPS.photoshop)[1]) : info.frozen ? (dev ? "Developing · step " + (p.previewN || 1) : mode === "orig" && !p.job ? "Sketch · what these results were made from" : "Sketch · frozen while creating") : "Original") + "</span>");
       }
     }
     var oldpb = view.querySelector(".s-paintbtn");
@@ -862,6 +870,19 @@
       pb.innerHTML = p.area === "paint" ? "Stop painting" : svg("brush") + "Paint an area";
       pb.classList.toggle("on", p.area === "paint");
     }
+    // While a picture is being made from the frozen sketch: it shows blurred,
+    // with a progress ring in the middle that clears as the steps come in.
+    var fitEl = view.querySelector(".s-fit"), loading = !!(p.job && fitEl && mode === "orig");
+    if (fitEl) fitEl.classList.toggle("s-loading", loading);
+    var ring = view.querySelector(".s-ring");
+    if (loading) {
+      if (!ring) { ring = document.createElement("div"); ring.className = "s-ring";
+        ring.innerHTML = '<svg viewBox="0 0 48 48"><circle cx="24" cy="24" r="20" class="bg"/><circle cx="24" cy="24" r="20" class="fg"/></svg><b></b>'; view.appendChild(ring); }
+      var fr = Math.max(0.02, p.frac || 0);
+      ring.querySelector(".fg").style.strokeDashoffset = String(125.7 * (1 - fr));
+      ring.querySelector("b").textContent = Math.round(fr * 100) + "%";
+      if (fitEl) fitEl.style.setProperty("--blur", Math.max(2, 18 - 2.5 * (p.previewN || 0)) + "px");
+    } else if (ring) ring.remove();
     var busy = view.querySelector(".s-busy");
     if (p.job) {
       if (!busy) { busy = document.createElement("div"); busy.className = "s-busy"; busy.innerHTML = '<span></span><i><b></b></i>'; view.appendChild(busy); }

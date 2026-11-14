@@ -200,7 +200,7 @@ const frame = (n, name) => ({ path: "live://photoshop/" + n, name: name || "flat
     await p.click("#c-toboard");
     await p.waitForTimeout(100);
     check("Add to board puts the result on the board", await p.evaluate(() => window.VSBoard._state().tiles.some((t) => t.path === "C:/o/r1.png" && t.from)), JSON.stringify(await p.evaluate(() => window.VSBoard._state().tiles)));
-    await p.click("#c-back");
+    await p.click(".s-nav button[data-page=board]");
     await p.waitForTimeout(150);
     check("Back to board, with a line from the sketch to the result", await p.evaluate(() => document.querySelectorAll("#b-links path").length) === 1, "no link");
     await p.click('.b-tile[data-id]:last-child', { button: "right" });
