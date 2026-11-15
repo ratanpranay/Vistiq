@@ -665,6 +665,13 @@ class Studio:
                 ref_image = self.engine.upload(ref_path)
                 text = studio.build_text(job.get("preset") or "camera", job.get("text"), studio.REF_PRESETS,
                                          f3=studio.flux3_ready(s))
+            elif refs and sys.platform != "darwin" and studio.use_qwenedit(s):
+                text, sent = studio.qwen_refs(job.get("text"), refs, job.get("locks"),
+                                              (job.get("preset") or "") == "sketch")
+                user_text = job.get("text") or ""
+                cam_i = (sent.index(cam_i - 1) + 1) if cam_i and (cam_i - 1) in sent else 0
+                ref_images = [ref_images[i] for i in sent]
+                job = dict(job, qwen_refs=True)
             elif refs:
                 text, sent = studio.ref_plan(job.get("text"), refs, job.get("locks"), (job.get("preset") or "") == "sketch",
                                              float(job.get("keep") if job.get("keep") is not None else 0.8))
@@ -711,7 +718,7 @@ class Studio:
             elif not _has_lock(s) and studio.F3_KEEP not in text:
                 # Without the design lock, the slider works through the wording.
                 text = text + "\n\n" + follow_words(keep, studio.flux3_ready(s))
-            if studio.use_qwenedit(s) and mode == "create":
+            if studio.use_qwenedit(s) and mode == "create" and not job.get("qwen_refs"):
                 # Qwen Image Edit reads short, direct instructions best (the long
                 # FLUX wording made it muddy and stopped camera moves).
                 text = studio.qwen_text(job.get("text") or "", instant=bool(job.get("instant")),

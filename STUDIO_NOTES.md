@@ -1,5 +1,8 @@
 # Vistiq Studio (test build)
 
+## 0.4.20
+- Qwen Image Edit: materials, light, camera and style from a reference go in as the picture reader's words, so your design stays exactly yours (a reference picture pulled its whole dashboard in).
+
 ## 0.4.19
 - Night reworked: an evening press photo with a softly lit cabin, true colours and blurred city lights outside; no starry skies.
 

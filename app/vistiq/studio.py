@@ -1263,6 +1263,59 @@ REF_CLAUSE = {
                      "windows changes to match."),
     "describe": "{n} is a reference: use it only as the instructions below say.",
 }
+# Qwen Image Edit with references (tested Nov 2026): a reference sent as a picture pulls its
+# whole design in (dashboard, console), so what the reader put into words goes in as words.
+QE_REF = {
+    "camera": "Show this same design from a different camera: {desc}",
+    "materials": "Change the colours and materials, keeping every shape and part: {desc}",
+    "light": "Change the lighting: {desc}",
+    "style": "Render it in this style: {desc}",
+}
+QE_REF_PIC = {
+    "camera": "Show the design of Picture 1 from the camera position, angle and framing of {n}.",
+    "materials": "Apply the colours and materials of {n} to the matching parts of Picture 1.",
+    "light": "Light Picture 1 exactly like {n}.",
+    "style": "Render Picture 1 in the rendering style of {n}.",
+    "describe": "{n} is a reference: use it only as the words below say.",
+}
+
+
+def qwen_refs(text, refs, locks=None, sketch=False):
+    """Qwen's words for Create with references. Returns (text, sent)."""
+    locks = dict(locks or {})
+    refs = [dict(r, use=r.get("use") if r.get("use") in REF_USES else "describe",
+                 desc=" ".join((r.get("desc") or "").split())) for r in refs]
+    uses = [r["use"] for r in refs]
+    parts, sent, numbers = [], [], {}
+    if sketch:
+        parts.append("Turn this sketch into a photorealistic render." +
+                     (" The colours in the sketch are only placeholders." if "materials" in uses else ""))
+    for i, r in enumerate(refs):
+        u, d = r["use"], r["desc"]
+        if d and u in QE_REF:
+            parts.append(QE_REF[u].format(desc=d.rstrip(".") + "."))
+        else:
+            sent.append(i)
+            numbers[i + 1] = len(sent) + 1
+            parts.append(QE_REF_PIC[u].format(n="Picture %d" % (len(sent) + 1)))
+    words = map_refs(clean_prompt(text), numbers)
+    words = re.sub(r"\bimage (\d)\b", r"Picture \1", words)
+    if words:
+        parts.append(words if words[-1] in ".!?" else words + ".")
+    keep = ["the design, every shape and part"]
+    if not sketch and "materials" not in uses and locks.get("materials"):
+        keep.append("the materials and colours")
+    if "light" not in uses and "style" not in uses and locks.get("light"):
+        keep.append("the lighting")
+    if "camera" not in uses and locks.get("camera", True):
+        keep.append("the camera view")
+    parts.append("Keep " + ", ".join(keep[:-1]) + (" and " if len(keep) > 1 else "") + keep[-1] +
+                 (" of Picture 1" if sent else "") + " exactly as they are." +
+                 (" Take no shapes or parts from the other pictures." if sent else ""))
+    parts.append(QE_CLEAN)
+    return " ".join(parts), sent
+
+
 _REF_RE = re.compile(r"\b(?:ref(?:erence)?)\s*#?\s*([1-3])\b", re.I)
 
 

@@ -641,6 +641,17 @@ class Flux3(unittest.TestCase):
                 size_of = p["30"]["inputs"]["image"][0]
                 self.assertEqual(p[p[size_of]["inputs"]["image"][0]]["inputs"]["image"], "cam.png")   # camera ref's frame
 
+    def test_qwen_refs_in_words(self):
+        t, sent = studio.qwen_refs("", [{"use": "materials", "desc": "Yellow nappa seats."}], {"camera": True})
+        self.assertEqual(sent, [])
+        self.assertIn("Yellow nappa seats.", t)
+        self.assertIn("the camera view", t)
+        t, sent = studio.qwen_refs("like ref 1", [{"use": "materials", "desc": ""}], {})
+        self.assertEqual(sent, [0])
+        self.assertIn("Picture 2", t)
+        t, sent = studio.qwen_refs("", [{"use": "camera", "desc": "Low, from the rear."}], {"camera": True})
+        self.assertNotIn("the camera view", t)
+
     def test_qwen_night(self):
         t = studio.qwen_text("Night time.", locks={})
         self.assertIn("press photo", t)
