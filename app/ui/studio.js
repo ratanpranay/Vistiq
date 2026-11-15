@@ -1452,7 +1452,7 @@
         view.innerHTML = '<div class="s-fit" data-w="' + info.w + '" data-h="' + info.h + '"><img class="' + (mode === "result" ? "s-res" : "") + '" src="' + info.preview + '" alt="">' + dev + selOv + "</div>" +
           (mode === "result" ? '<span class="s-tag">Result · hold to see the original</span>' +
             '<div class="s-ra">' + (id === "c" ? '<button type="button" data-ra="add" title="Put this result on a layer over your picture">' + svg("plus") + "Add</button>" : "") +
-            '<button type="button" data-ra="export" title="Save as PNG or JPEG">' + svg("download") + "Export</button></div>" : '<span class="s-tag' + (info.live ? " s-livetag" : "") + '">' + (info.live ? '<i class="s-ldot"></i>' : "") + (info.live ? "Live from " + ((APPS[info.app] || APPS.photoshop)[1]) : info.frozen ? (dev ? "Developing · step " + (p.previewN || 1) : mode === "orig" && !p.job ? "Sketch · what these results were made from" : "Sketch · frozen while creating") : "Original") + "</span>");
+            '<button type="button" data-ra="export" title="Save as PNG or JPEG">' + svg("download") + "Export</button></div>" : '<span class="s-tag' + (info.live ? " s-livetag" : "") + '">' + (info.live ? '<i class="s-ldot"></i>' : "") + (info.live ? "Live from " + ((APPS[info.app] || APPS.photoshop)[1]) : info.frozen ? (mode === "orig" && p.job ? "Making…" : mode === "orig" && !p.job ? "Sketch · what these results were made from" : "Sketch · frozen while creating") : "Original") + "</span>");
       }
     }
     if (mode === "paint") {
@@ -1924,7 +1924,8 @@
         }
       } else if (kind === "studio-preview") {
         var pv = byJob(data.id); if (!pv) return;
-        pv.preview = data.preview; pv.previewN = (pv.previewN || 0) + 1;
+        // In-between steps look messy: only the blurred picture and the ring show while making.
+        return;
       } else if (kind === "studio-note") {
         toast(data.text || "");
       } else if (kind === "studio-result") {
