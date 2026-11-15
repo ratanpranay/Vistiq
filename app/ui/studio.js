@@ -58,36 +58,20 @@
     camera: /\b(angle|view from|side view|front view|rear view|top view|from above|from below|camera|zoom out|zoom in|close-?up|wide shot|perspective)\b/i
   };
   function isRender(src) { return !!src && !src.live && !src.frozen && /_(create|refine|paint|camera|cmf|style|reference|variation)/i.test(src.name || src.path || ""); }
-  function PROMPTBTN() { return '<button type="button" data-ra="prompt" title="The words this was made with">' + svg("words") + "Prompt</button>"; }
-  // The words a result was made with: copy them, or use them again.
-  function copyText(t) {
-    var ok = false;
-    try { var ta = document.createElement("textarea"); ta.value = t; ta.style.cssText = "position:fixed;left:-9999px"; document.body.appendChild(ta); ta.select(); ok = document.execCommand("copy"); ta.remove(); } catch (e) {}
-    if (!ok && navigator.clipboard) navigator.clipboard.writeText(t).then(function () {}, function () {});
-    toast("Copied");
-  }
-  function promptPop(anchor, c, p) {
-    var show = function (m) {
-      m = m || {};
-      var words = m.text || "", full = m.prompt || "";
-      var refs = (m.refs || []).filter(function (r) { return r.desc; });
-      var h = '<div class="s-ppop"><div class="ttl">Made with</div>' +
-        '<label>Your words</label><div class="s-pw">' + (words ? esc(words) : "<em>none</em>") + "</div>" +
-        refs.map(function (r, i) { return "<label>Ref " + (i + 1) + " · " + ((RUSE[r.use] || ["Reference"])[0]) + '</label><div class="s-pw">' + esc(r.desc) + "</div>"; }).join("") +
-        (full ? '<details><summary>Full prompt sent to the model</summary><pre class="s-pf">' + esc(full) + "</pre></details>" : "") +
-        '<div class="s-pb">' + (words ? '<button type="button" class="s-btn p" data-p="use">Use these words</button><button type="button" class="s-btn" data-p="copy">Copy</button>' : "") +
-        (full ? '<button type="button" class="s-btn" data-p="copyall">Copy full prompt</button>' : "") + "</div></div>";
-      // The row may have been redrawn while the words were fetched: anchor on the live button.
-      if (!anchor.isConnected) anchor = document.querySelector("#c-view [data-ra=prompt]") || anchor;
-      var el = pop(anchor, h, function (v) {
-        if (v === "copy") copyText(words);
-        else if (v === "copyall") copyText(full);
-        else if (v === "use") { p.text = words; $("c-text").value = words; p.sel = -1; render(); toast("In Describe: change what you like and Create"); }
-      });
-      if (el) el.classList.add("s-promptpop");
-    };
-    if (c.meta && (c.meta.prompt || c.meta.text)) show(c.meta);
-    else api().studio_meta(c.path).then(function (m) { c.meta = Object.assign({}, c.meta || {}, m || {}); show(c.meta); });
+  // A result in view: Describe shows the words it was made with (edit them and
+  // Create again); back on your picture, what you had typed comes back.
+  function showWords(p) {
+    var c = current(p), key = c ? c.path : "";
+    if (p.wordsFor === key) return;
+    p.wordsFor = key;
+    if (c) {
+      if (!p.viewing) { p.draft = p.text; p.viewing = true; }
+      var put = function (m) { if (p.wordsFor !== key || !p.viewing) return; p.text = (m && m.text) || ""; $("c-text").value = p.text; renderWarn(); };
+      if (c.meta && c.meta.text !== undefined) put(c.meta);
+      else if (api() && api().studio_meta) api().studio_meta(c.path).then(function (m) { c.meta = Object.assign({}, c.meta || {}, m || {}); put(c.meta); });
+    } else if (p.viewing) {
+      p.viewing = false; p.text = p.draft || ""; $("c-text").value = p.text; renderWarn();
+    }
   }
   function defaultLocks(src) { var r = isRender(src); return { design: true, materials: r, light: r, camera: true }; }
   // Reference images in Create: each gives exactly one thing.
@@ -733,7 +717,7 @@
       var b = e.target.closest("button"); if (!b) return;
       var v = b.getAttribute("data-v"); S.create.preset = S.create.preset === v ? "" : v; keep("c.preset", S.create.preset); render();
     });
-    $("c-text").addEventListener("input", function () { S.create.text = this.value; renderWarn(); });
+    $("c-text").addEventListener("input", function () { S.create.text = this.value; S.create.viewing = false; renderWarn(); });
     $("c-blend").addEventListener("input", function () { S.create.blend = +this.value; keep("c.blend2", S.create.blend); renderValues(); });
     $("c-lora").addEventListener("change", function () { S.create.lora = this.value; keep("c.lora", this.value); });
     // Reference
@@ -778,7 +762,6 @@
         var b = e.target.closest("[data-ra]"); if (!b) return;
         var c = current(p); if (!c) return;
         if (b.getAttribute("data-ra") === "add") { if (id === "c") addAsLayer(); return; }
-        if (b.getAttribute("data-ra") === "prompt") { promptPop(b, c, p); return; }
         pop(b, '<div class="ttl">Export this picture</div><button type="button" class="it" data-p="png">' + svg("image") + '<span>PNG<small>Full quality, larger file</small></span></button>' +
           '<button type="button" class="it" data-p="jpg">' + svg("image") + '<span>JPEG<small>Smaller file, for sharing</small></span></button>', function (fmt) {
           api().studio_export(c.path, fmt).then(function (r) { if (r) toast("Saved " + r); });
@@ -1418,7 +1401,7 @@
       pane.innerHTML = '<div class="s-pfit"><img class="' + (what.res ? "s-res" : "") + '" src="' + what.img + '" alt=""></div>' +
         '<span class="s-tag">' + (what.res ? "Result" + (n ? " " + n + " of " + mine.length : "") + " · click it again for your picture" : what.job ? "Making…" : "Sketch these were made from") + "</span>" +
         (what.res ? '<div class="s-ra">' + '<button type="button" data-ra="add" title="Put this result on a layer over your picture">' + svg("plus") + "Add</button>" +
-          '<button type="button" data-ra="export" title="Save as PNG or JPEG">' + svg("download") + "Export</button>" + PROMPTBTN() + "</div>" : "");
+          '<button type="button" data-ra="export" title="Save as PNG or JPEG">' + svg("download") + "Export</button></div>" : "");
       layout();
     }
     // While making: the sketch blurred, the steps coming through, a progress ring and the stage.
@@ -1529,6 +1512,7 @@
     });
     renderRefs();
     p.preset = presetFor(p);
+    showWords(p);
     $("c-prompt-l").textContent = isRender(w) ? "Describe the change" : "Describe the result";
     $("c-keep-w").hidden = !LK.design;
     $("c-keep-l").firstChild.textContent = "How strictly · Design ";
@@ -1625,7 +1609,7 @@
         view.innerHTML = '<div class="s-fit" data-w="' + info.w + '" data-h="' + info.h + '"><img class="' + (mode === "result" ? "s-res" : "") + '" src="' + info.preview + '" alt="">' + dev + selOv + "</div>" +
           (mode === "result" ? '<span class="s-tag">Result · hold to see the original</span>' +
             '<div class="s-ra">' + (id === "c" ? '<button type="button" data-ra="add" title="Put this result on a layer over your picture">' + svg("plus") + "Add</button>" : "") +
-            '<button type="button" data-ra="export" title="Save as PNG or JPEG">' + svg("download") + "Export</button>" + PROMPTBTN() + "</div>" : '<span class="s-tag' + (info.live ? " s-livetag" : "") + '">' + (info.live ? '<i class="s-ldot"></i>' : "") + (info.live ? "Live from " + ((APPS[info.app] || APPS.photoshop)[1]) : info.frozen ? (mode === "orig" && p.job ? "Making…" : mode === "orig" && !p.job ? "Sketch · what these results were made from" : "Sketch · frozen while creating") : "Original") + "</span>");
+            '<button type="button" data-ra="export" title="Save as PNG or JPEG">' + svg("download") + "Export</button></div>" : '<span class="s-tag' + (info.live ? " s-livetag" : "") + '">' + (info.live ? '<i class="s-ldot"></i>' : "") + (info.live ? "Live from " + ((APPS[info.app] || APPS.photoshop)[1]) : info.frozen ? (mode === "orig" && p.job ? "Making…" : mode === "orig" && !p.job ? "Sketch · what these results were made from" : "Sketch · frozen while creating") : "Original") + "</span>");
       }
     }
     if (mode === "paint") {

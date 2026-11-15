@@ -892,13 +892,3 @@ body.studio #p-create .s-rail-body>.s-grow .s-prompt{flex:1;min-height:110px;max
 .s-rd .s-link{font-size:11.5px}
 .s-rdt{width:100%;box-sizing:border-box;resize:vertical;min-height:44px;padding:7px 9px;border:1px solid var(--line,#e6e8ef);border-radius:9px;background:var(--field,#f3f4f8);font:12px/17px var(--font);color:var(--ink,#14161f)}
 .s-rdt:disabled{opacity:.6}
-/* the words a result was made with */
-.s-promptpop{width:380px;max-width:calc(100vw - 32px)}
-.s-ppop{padding:6px 8px 8px}
-.s-ppop .ttl{font-weight:700;margin-bottom:6px}
-.s-ppop label{display:block;font-size:11px;color:var(--dim,#80869a);margin:8px 0 3px}
-.s-ppop .s-pw{font-size:12.5px;line-height:18px;max-height:140px;overflow:auto;user-select:text;white-space:pre-wrap}
-.s-ppop details{margin-top:8px;font-size:11.5px}
-.s-ppop summary{cursor:pointer;color:var(--ink2,#3b4050)}
-.s-ppop .s-pf{white-space:pre-wrap;font:11px/16px var(--font);max-height:200px;overflow:auto;background:var(--field,#f3f4f8);border-radius:8px;padding:8px;user-select:text}
-.s-ppop .s-pb{display:flex;gap:6px;margin-top:10px;flex-wrap:wrap}

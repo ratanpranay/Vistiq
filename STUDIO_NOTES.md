@@ -1,12 +1,13 @@
 # Vistiq Studio (test build)
 
+## 0.4.11
+- Click a result: Describe shows the words it was made with; edit them and Create again. Back on your picture, your own words return. (The Prompt pop-up is gone.)
+
 ## 0.4.10
 - Camera, Lighting and Style references go in as words only (read by the Picture reader or typed): the reference's own design no longer leaks in.
-- The Prompt panel opens next to its button.
 
 ## 0.4.9
 - References follow their camera, lighting and style: the new Picture reader (optional, 2.6 GB, Settings) reads each reference into words, shown under it to check or edit. Without it, type the words yourself. Materials come over strongly.
-- Click Prompt on any result to see the words it was made with: copy them, or Use these words to start a new Create.
 - Board button at the end of the sketch toolbar.
 - The Earlier fold is gone from the results row (everything is in the Library).
 

@@ -578,14 +578,9 @@ const frame = (n, name) => ({ path: "live://photoshop/" + n, name: name || "flat
     await p.evaluate(() => { const S = window.VS.S.create; S.results.push({ path: "C:/o/w.png", name: "w.png", w: 160, h: 90, preview: "data:image/gif;base64,R0lGODlhAQABAAAAACw=", srcKey: window.VS.S.create.results.length ? window.VS.S.create.results[0].srcKey : "", meta: { text: "white seats", prompt: "FULL PROMPT" } }); });
     await p.evaluate(() => { const S = window.VS.S.create; S.results[S.results.length - 1].srcKey = S.results[0] ? S.results[0].srcKey : ""; S.sel = S.results.length - 1; window.VS.render(); });
     await p.waitForTimeout(150);
-    const pb = await p.$("#c-view [data-ra=prompt]");
-    check("a result has a Prompt button", !!pb, await p.evaluate(() => (document.querySelector("#c-view .s-ra") || {}).innerHTML));
-    if (pb) {
-      await pb.click(); await p.waitForTimeout(100);
-      check("Prompt shows the words and the full prompt", await p.evaluate(() => /white seats/.test(document.querySelector(".s-pop").textContent) && /FULL PROMPT/.test(document.querySelector(".s-pop").textContent)), "");
-      await p.click(".s-pop [data-p=use]"); await p.waitForTimeout(100);
-      check("Use these words puts them in Describe", await p.evaluate(() => document.getElementById("c-text").value) === "white seats", "");
-    }
+    check("a result shows its words in Describe", await p.evaluate(() => document.getElementById("c-text").value) === "white seats", await p.evaluate(() => document.getElementById("c-text").value));
+    await p.evaluate(() => { window.VS.S.create.sel = -1; window.VS.render(); }); await p.waitForTimeout(50);
+    check("back on the picture, your own words return", await p.evaluate(() => document.getElementById("c-text").value) !== "white seats", "");
     check("the toolbar has a Board button", await p.evaluate(() => !!document.querySelector("#c-view [data-k=board], .sk-bar [data-k=board]")), "");
     check("no page errors with references", p.errors.length === 0, p.errors.join(" | "));
     await p.close();
