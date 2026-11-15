@@ -77,6 +77,8 @@
         (full ? '<details><summary>Full prompt sent to the model</summary><pre class="s-pf">' + esc(full) + "</pre></details>" : "") +
         '<div class="s-pb">' + (words ? '<button type="button" class="s-btn p" data-p="use">Use these words</button><button type="button" class="s-btn" data-p="copy">Copy</button>' : "") +
         (full ? '<button type="button" class="s-btn" data-p="copyall">Copy full prompt</button>' : "") + "</div></div>";
+      // The row may have been redrawn while the words were fetched: anchor on the live button.
+      if (!anchor.isConnected) anchor = document.querySelector("#c-view [data-ra=prompt]") || anchor;
       var el = pop(anchor, h, function (v) {
         if (v === "copy") copyText(words);
         else if (v === "copyall") copyText(full);
@@ -409,6 +411,7 @@
     document.body.appendChild(popEl);
     var r = anchor.getBoundingClientRect(), w = popEl.offsetWidth, h = popEl.offsetHeight;
     var x = side === "right" ? r.right + 8 : r.left, y = side === "right" ? r.top : r.bottom + 8;
+    if (side !== "right" && y + h > window.innerHeight - 8 && r.top - h - 8 > 8) y = r.top - h - 8;   // no room below: open above
     popEl.style.left = Math.max(8, Math.min(window.innerWidth - w - 8, x)) + "px";
     popEl.style.top = Math.max(8, Math.min(window.innerHeight - h - 8, y)) + "px";
     popEl.addEventListener("click", function (e) {

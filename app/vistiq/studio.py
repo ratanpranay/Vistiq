@@ -1110,10 +1110,10 @@ REF_CLAUSE = {
                   "material of the matching surface in {n} (seats, dashboard, door panels, console and trims "
                   "alike): the same leather or fabric, colour, finish and stitching. The colour change must be "
                   "clearly visible.{desc}{sk}"),
-    "style": "Redraw image 1 in the rendering style of {n}: {desc}",
+    "style": "Redraw image 1 in this rendering style: {desc}",
     "style_nodesc": ("Redraw image 1 in exactly the rendering style of {n}: the same medium, line work, shading "
                      "technique, colour palette and finish."),
-    "light": "Change the lighting of image 1 to match {n}: {desc}",
+    "light": "Change the lighting of image 1: {desc}",
     "light_nodesc": ("Light image 1 exactly like {n}: the same time of day, sky, light direction, colour "
                      "temperature, brightness, contrast, ambient light strips and mood. The view through the "
                      "windows changes to match."),
@@ -1128,7 +1128,7 @@ def map_refs(text, numbers=None):
     numbers = numbers or {1: 2, 2: 3, 3: 4}
     def sub(m):
         k = int(m.group(1))
-        return ("image %d" % numbers[k]) if numbers.get(k) else "the camera described above"
+        return ("image %d" % numbers[k]) if numbers.get(k) else "the reference described above"
     return _REF_RE.sub(sub, text or "")
 
 
@@ -1141,8 +1141,8 @@ def ref_plan(text, refs, locks=None, sketch=False, keep=0.8):
                  desc=" ".join((r.get("desc") or "").split())) for r in refs]
     sent, numbers = [], {}
     for i, r in enumerate(refs):
-        if r["use"] == "camera" and r["desc"]:
-            continue                      # the camera goes in as words only (tested: the picture pulls the design)
+        if r["use"] in ("camera", "light", "style") and r["desc"]:
+            continue                      # in words only (tested: the picture pulls its design in too)
         sent.append(i)
         numbers[i + 1] = len(sent) + 1
     uses = [r["use"] for r in refs]

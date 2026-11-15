@@ -650,16 +650,16 @@ class Flux3(unittest.TestCase):
         self.assertIn("High overhead view looking down.", t)
         self.assertIn("colours and materials of image 2", t)
         self.assertIn("seats like image 2", t)                   # ref 2 is picture 2 now
-        self.assertIn("the camera described above", t)
+        self.assertIn("the reference described above", t)
         self.assertNotIn("Keep the camera", t)
         self.assertNotIn("every material and colour", t)          # materials come from the reference
         self.assertIn("the lighting of image 1", t)               # still locked
         t, sent = studio.ref_plan("", [{"use": "light", "desc": "Night, amber light strips."}], {"materials": True}, False, 0.8)
-        self.assertEqual(sent, [0])
-        self.assertIn("Change the lighting of image 1 to match image 2: Night, amber light strips.", t)
+        self.assertEqual(sent, [])
+        self.assertIn("Change the lighting of image 1: Night, amber light strips.", t)
         self.assertIn("every material and colour", t)
         t, _ = studio.ref_plan("", [{"use": "style", "desc": "Grey marker sketch."}], {}, True, 0.8)
-        self.assertIn("rendering style of image 2: Grey marker sketch.", t)
+        self.assertIn("rendering style: Grey marker sketch.", t)
         self.assertNotIn("photorealistic", t)
         self.assertNotIn(studio.CRISP, t)
         t, sent = studio.ref_plan("", [{"use": "camera"}], {}, False, 0.8)       # no words: the picture goes in
