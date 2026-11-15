@@ -1,5 +1,8 @@
 # Vistiq Studio (test build)
 
+## 0.4.22
+- Detail pass (Qwen Image Edit, on by default): every result is redrawn at twice the size in overlapping parts, so logos, text, stitching and edges come out crisp; when the view is kept, each part also sees the same spot of your full-resolution original.
+
 ## 0.4.21
 - New views from words work together with material changes (Camera unlocked: your own words go to the model, so the view isn't dropped).
 

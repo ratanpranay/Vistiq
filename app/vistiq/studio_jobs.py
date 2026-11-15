@@ -251,6 +251,68 @@ class Studio:
         load_rgb(src).save(out, "PNG")
         return out
 
+    def _detail(self, result, original, s, seed, tmp_dir, job_id, on_progress, lab=None):
+        """Redraw the result at twice the size in overlapping parts (Qwen), so logos, text,
+        stitching and edges come out crisp. Each part keeps the result's colours and shapes
+        (its broad tones are put back after); `original`, when given, shows each part's spot
+        in the original at high resolution."""
+        import numpy as np
+        from PIL import ImageFilter
+        lab = lab or {}
+        scale = float(lab.get("detail_scale", studio.DETAIL_SCALE))
+        if original is not None:
+            scale = min(scale, max(1.0, (original.size[0] * original.size[1] / (result.size[0] * result.size[1])) ** 0.5))
+        if scale < 1.3:
+            return result
+        W, H = int(result.size[0] * scale) // 16 * 16, int(result.size[1] * scale) // 16 * 16
+        big = result.resize((W, H), Image.LANCZOS)
+        src = original.resize((W, H), Image.LANCZOS) if original is not None else None
+        boxes = studio.detail_boxes(W, H, float(lab.get("detail_mp", studio.DETAIL_TILE_MP)))
+        acc = np.zeros((H, W, 3), np.float64)
+        wsum = np.zeros((H, W, 1), np.float64)
+        text = studio.QE_DETAIL + (studio.QE_DETAIL_SRC if src is not None else "")
+        sigma = max(2.0, scale * 1.5)
+        for i, (x0, y0, x1, y1) in enumerate(boxes):
+            if self._cancel.is_set():
+                raise RuntimeError("Cancelled")
+            on_progress(i / len(boxes))
+            part = big.crop((x0, y0, x1, y1))
+            pp = os.path.join(tmp_dir, "dt_%s_%d.png" % (job_id, i))
+            part.save(pp, "PNG", compress_level=1)
+            imgs = [self.engine.upload(pp)]
+            if src is not None:
+                sp = os.path.join(tmp_dir, "ds_%s_%d.png" % (job_id, i))
+                src.crop((x0, y0, x1, y1)).save(sp, "PNG", compress_level=1)
+                imgs.append(self.engine.upload(sp))
+            mp = (x1 - x0) * (y1 - y0) / 1e6
+            prompt = studio.qwenedit_prompt(s, imgs, text, seed + 101 * (i + 1), frame=0, megapixels=mp,
+                                            steps=int(lab.get("detail_steps", studio.QE_STEPS)))
+            try:
+                out = Image.open(io.BytesIO(self.engine.run(prompt, None, self._cancel.is_set))).convert("RGB")
+            except Exception:
+                if self._cancel.is_set():
+                    raise
+                log.exception("detail pass part %d failed; keeping it as it was", i)
+                out = part
+            out = out.resize(part.size, Image.LANCZOS)
+            # Only the fine detail is new: the broad tones stay the result's, so no part drifts.
+            a = np.asarray(out, np.float64)
+            a = a - np.asarray(out.filter(ImageFilter.GaussianBlur(sigma)), np.float64) \
+                + np.asarray(part.filter(ImageFilter.GaussianBlur(sigma)), np.float64)
+            tw, th = x1 - x0, y1 - y0
+            fx = np.minimum(1, np.minimum(np.arange(tw) + 1, tw - np.arange(tw)) / max(1, tw * 0.09))
+            fy = np.minimum(1, np.minimum(np.arange(th) + 1, th - np.arange(th)) / max(1, th * 0.09))
+            if x0 == 0: fx[: tw // 2] = 1
+            if x1 == W: fx[tw // 2:] = 1
+            if y0 == 0: fy[: th // 2] = 1
+            if y1 == H: fy[th // 2:] = 1
+            wgt = (fy[:, None] * fx[None, :])[..., None]
+            acc[y0:y1, x0:x1] += a * wgt
+            wsum[y0:y1, x0:x1] += wgt
+        on_progress(1.0)
+        res = np.clip(acc / np.maximum(wsum, 1e-6), 0, 255).astype(np.uint8)
+        return Image.fromarray(res)
+
     def _read(self, path, use, say, req=""):
         """The picture reader's words for this picture, or "" (not installed, or it failed)."""
         if sys.platform == "darwin" or not studio.reader_installed(self.settings):
@@ -697,7 +759,7 @@ class Studio:
                     text = studio.with_locks(text, job["locks"], (job.get("preset") or "") == "sketch")
             # Lab (testing only): %APPDATA%\VistiqStudio\lab.json tries other wordings
             # and image orders for references without a new build.
-            lab = _lab() if refs else {}
+            lab = _lab() if refs or studio.use_qwenedit(s) else {}
             if lab.get("text"):
                 text = lab["text"].replace("{auto}", text).replace("{user}", user_text)
             seed = int(job.get("seed") or int(time.time()) % 100000 * 7919)
@@ -745,6 +807,14 @@ class Studio:
                 est = per * n + ((load or 0) if first else 0)
                 self.emit("studio-job", {"id": job_id, "state": "running", "stage": "Starting", "fraction": 0,
                                          "estimate": round(est)})
+            # The detail pass: on by default with Qwen; the original's crisp detail joins in when
+            # the view and the design are kept and it isn't a sketch or a style change.
+            locks_ = job.get("locks") or {}
+            detail_on = (sys.platform != "darwin" and studio.use_qwenedit(s) and mode == "create"
+                         and bool(lab.get("detail", s.get("studio_detail", True))))
+            detail_src = (locks_.get("camera", True) and locks_.get("design", True) and not cam_i
+                          and (job.get("preset") or "") != "sketch" and not job.get("instant")
+                          and "style" not in uses)
             t_start = time.time()
             for v in range(n):
                 if self._cancel.is_set():
@@ -756,7 +826,9 @@ class Studio:
                 if sys.platform != "darwin" and studio.use_qwenedit(s):
                     imgs = [image] + list(ref_images or ([ref_image] if ref_image else []))
                     fr = cam_i if refs else (1 if mode == "reference" and (job.get("preset") or "camera") == "camera" else 0)
-                    prompt = studio.qwenedit_prompt(s, imgs, text, seed + v, frame=fr)
+                    prompt = studio.qwenedit_prompt(s, imgs, text, seed + v, frame=fr,
+                                                    megapixels=float(lab.get("qe_mp", studio.QE_MP)),
+                                                    steps=int(lab.get("qe_steps", studio.QE_STEPS)))
                 elif sys.platform == "darwin":
                     prompt = {"image": image, "ref": ref_image or (ref_images[0] if ref_images else None), "text": text,
                               "seed": seed + v, "keep": keep,
@@ -811,6 +883,10 @@ class Studio:
                     else:
                         data = juiced
                 result = Image.open(io.BytesIO(data)).convert("RGB")
+                if detail_on and mask is None:
+                    result = self._detail(result, work if detail_src else None, s, seed + v, tmp_dir, job_id,
+                                          lambda f, v=v: say("Adding detail · " + label.lower(), (v + 0.6 + 0.4 * f) / n),
+                                          lab)
                 if not (mode == "reference" and job.get("preset") == "style") and "style" not in uses \
                         and s.get("studio_finish", True):
                     result = finish(result)        # a style reference keeps its own look

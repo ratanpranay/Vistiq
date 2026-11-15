@@ -330,6 +330,42 @@ def qwenedit_prompt(settings, images, text, seed=None, frame=0, megapixels=QE_MP
     return p
 
 
+# The detail pass (on by default): Qwen draws at about 1.4 MP, so small parts (logos,
+# text, stitching) come out soft. The result is redrawn at twice the size in
+# overlapping parts, each with the same spot of the original when the view is kept.
+QE_DETAIL = ("This is one part of a larger photograph. Redraw Picture 1 as a sharp, high-resolution photo: "
+             "crisp edges and panel gaps, clean legible logos, text, icons and screen graphics, fine stitching, "
+             "perforation and material texture. Change nothing else: exactly the same colours, materials, "
+             "lighting, shapes, positions and framing.")
+QE_DETAIL_SRC = (" Picture 2 is the same spot of the original design at high resolution: take its logos, text, "
+                 "screen graphics, edges and small parts from it, but keep the colours and materials of Picture 1.")
+DETAIL_TILE_MP = 1.2
+DETAIL_SCALE = 2.0
+
+
+def detail_boxes(w, h, tile_mp=DETAIL_TILE_MP, overlap=0.18):
+    """Overlapping parts covering a w x h picture, each about tile_mp megapixels."""
+    import math
+    best = None
+    for cols in range(1, 9):
+        for rows in range(1, 9):
+            tw, th = w / cols * (1 + overlap), h / rows * (1 + overlap)
+            if tw * th > tile_mp * 1e6 or not (0.45 <= tw / th <= 2.2):
+                continue
+            if best is None or cols * rows < best[0] * best[1]:
+                best = (cols, rows)
+    cols, rows = best or (max(1, math.ceil(w / 1100)), max(1, math.ceil(h / 1100)))
+    tw = min(w, int(math.ceil(w / cols * (1 + overlap) / 16) * 16))
+    th = min(h, int(math.ceil(h / rows * (1 + overlap) / 16) * 16))
+    boxes = []
+    for r in range(rows):
+        for c in range(cols):
+            x = 0 if cols == 1 else round(c * (w - tw) / (cols - 1))
+            y = 0 if rows == 1 else round(r * (h - th) / (rows - 1))
+            boxes.append((x, y, x + tw, y + th))
+    return boxes
+
+
 QE_INSTANT = ("Turn this design sketch into a finished, photorealistic CGI render, like a car maker's studio "
               "visualization: every drawn shape becomes the real part it stands for, built with real materials, glass, "
               "panel gaps and stitching; parts the sketch only hints at are completed. Keep the design, proportions, "

@@ -224,6 +224,25 @@ class WholeRun(unittest.TestCase):
             self.assertNotIn("camera view exactly as in the first image", t)
             self.assertNotIn("camera view stay identical", t)
 
+    @unittest.skipIf(sys.platform == "darwin", "the Mac has its own image engine")
+    def test_qwen_detail_pass(self):
+        src = os.path.join(self.tmp.name, "big.png")
+        Image.new("RGB", (2400, 1350), "white").save(src)
+        self.engine.runs.clear()
+        with mock.patch.object(studio, "use_qwenedit", lambda s=None: True), \
+                mock.patch.object(self.st, "_read", lambda *a, **k: ""):
+            r = self.go({"mode": "create", "image": src, "text": "red seats", "variations": 1})
+            prompts = [n["inputs"]["prompt"] for p in self.engine.runs for n in p.values()
+                       if isinstance(n, dict) and n.get("class_type") == "TextEncodeQwenImageEditPlus"]
+            self.assertGreater(len(prompts), 2)
+            self.assertTrue(all(studio.QE_DETAIL_SRC in t for t in prompts[1:]), prompts[1:])
+            self.assertEqual(Image.open(r[0]["path"]).size, (1280, 720), r[0])
+            # Off in Settings: one run, the model's own size.
+            self.settings.set("studio_detail", False)
+            self.engine.runs.clear()
+            r = self.go({"mode": "create", "image": src, "text": "red seats", "variations": 1})
+            self.assertEqual(len(self.engine.runs), 1)
+
 
 if __name__ == "__main__":
     unittest.main()
