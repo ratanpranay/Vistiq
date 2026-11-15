@@ -665,6 +665,16 @@ class Flux3(unittest.TestCase):
         self.assertEqual(p["12"]["class_type"], "MetaViewSigmas")
         self.assertEqual(p["4"]["inputs"]["prompt"], studio.MV_TRIGGER)
 
+    def test_qwen_style_reference_is_a_picture(self):
+        t, sent = studio.qwen_refs("", [{"use": "style", "desc": "A designer's digital illustration painted in Photoshop."}],
+                                   {"camera": True}, sketch=True)
+        self.assertEqual(sent, [0])
+        self.assertIn("look and feel of Picture 2", t)
+        self.assertNotIn("photorealistic render", t)
+        self.assertIn(studio.QE_NOT_PHOTO, t)
+        t, _ = studio.qwen_refs("", [{"use": "style", "desc": "A photorealistic CGI render."}], {}, sketch=True)
+        self.assertNotIn(studio.QE_NOT_PHOTO, t)
+
     def test_qwen_night(self):
         t = studio.qwen_text("Night time.", locks={})
         self.assertIn("press photo", t)

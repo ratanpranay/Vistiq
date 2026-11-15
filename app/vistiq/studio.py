@@ -1380,6 +1380,16 @@ QE_REF_PIC = {
 }
 
 
+# A style reference goes in as the picture (tested Nov 2026: put into words, "a stylized
+# render" came back photoreal); the sketch's own lines stay crisp under the new look.
+QE_STYLE_PIC = ("Paint over Picture 1 the way a car designer renders a sketch: keep every line and its exact "
+                "position, the same crisp, sharp edges, corners, creases and proportions; do not round, soften "
+                "or reshape any form. Give it the look and feel of {n}, as close to it as possible: its rendering "
+                "technique, colour palette, gradients, light, mood and flow. Take none of {n}'s shapes or parts.")
+QE_NOT_PHOTO = "Not photorealistic, not a 3D render; a plain background with no text or patterns."
+PHOTO_LOOK = re.compile(r"\b(photo|photograph|photographic|photoreal\w*|realistic render|cgi)\b", re.I)
+
+
 def qwen_refs(text, refs, locks=None, sketch=False):
     """Qwen's words for Create with references. Returns (text, sent)."""
     locks = dict(locks or {})
@@ -1387,12 +1397,19 @@ def qwen_refs(text, refs, locks=None, sketch=False):
                  desc=" ".join((r.get("desc") or "").split())) for r in refs]
     uses = [r["use"] for r in refs]
     parts, sent, numbers = [], [], {}
-    if sketch:
+    styled = "style" in uses
+    if sketch and not styled:
         parts.append("Turn this sketch into a photorealistic render." +
                      (" The colours in the sketch are only placeholders." if "materials" in uses else ""))
+    illustrated = False
     for i, r in enumerate(refs):
         u, d = r["use"], r["desc"]
-        if d and u in QE_REF:
+        if u == "style":
+            sent.append(i)
+            numbers[i + 1] = len(sent) + 1
+            parts.append(QE_STYLE_PIC.format(n="Picture %d" % (len(sent) + 1)))
+            illustrated = illustrated or not PHOTO_LOOK.search(d or "")
+        elif d and u in QE_REF:
             parts.append(QE_REF[u].format(desc=d.rstrip(".") + "."))
         else:
             sent.append(i)
@@ -1412,7 +1429,10 @@ def qwen_refs(text, refs, locks=None, sketch=False):
     parts.append("Keep " + ", ".join(keep[:-1]) + (" and " if len(keep) > 1 else "") + keep[-1] +
                  (" of Picture 1" if sent else "") + " exactly as they are." +
                  (" Take no shapes or parts from the other pictures." if sent else ""))
-    parts.append(QE_CLEAN)
+    if illustrated:
+        parts.append(QE_NOT_PHOTO)          # a drawn style stays drawn: no "clean leather" realism
+    else:
+        parts.append(QE_CLEAN)
     return " ".join(parts), sent
 
 

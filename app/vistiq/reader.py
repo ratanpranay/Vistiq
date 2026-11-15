@@ -59,10 +59,11 @@ ASK = {
               "outside the windows, every light source, the light's direction, colour temperature, brightness "
               "and contrast, shadows, any glowing ambient light strips or screens, and the mood. Do not "
               "describe shapes, design, materials or the camera. One paragraph, at most 70 words."),
-    "style": ("Describe only how this picture is made, its rendering style: photograph, 3D render, marker "
-              "sketch, pencil drawing, watercolour or other; the line work, the shading technique, the colour "
-              "palette, how the background is treated and how realistic it is. Do not describe what is "
-              "shown. One paragraph, at most 60 words."),
+    "style": ("Describe only how this picture is made. First say which it is: a real photograph; a "
+              "photorealistic CGI render; a designer's digital illustration painted in Photoshop (gradient fills, "
+              "airbrushed shading, crisp outlines, simplified surfaces); a marker sketch; a pencil sketch; a "
+              "watercolour; or other. Then the line work, the shading, the colour palette and gradients, the light "
+              "and mood, and the background. Do not describe what is shown. One paragraph, at most 60 words."),
     "scene": ("This is a designer's sketch or render for a car (interior or exterior) or a product. Explain it "
               "to a 3D visualizer who will build a finished, photoreal CGI render from it. 1) What it is and the "
               "view. 2) What each drawn part IS and how it works, reading the designer's intent (for example: the "

@@ -1,5 +1,8 @@
 # Vistiq Studio (test build)
 
+## 0.4.26
+- Rendering style from a reference: the reference picture itself now guides the look (designer Photoshop renderings stay drawn, not photoreal), and the sketch keeps its crisp lines and sharp edges.
+
 ## 0.4.25
 - Experimental: MetaView download (Settings, under Qwen Image Edit): moves the camera in a picture by turn and tilt. For testing; its depth models are non-commercial.
 
