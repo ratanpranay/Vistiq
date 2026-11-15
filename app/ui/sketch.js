@@ -181,7 +181,7 @@
         '<button type="button" class="tg" data-o="tf:reset">Reset</button><button type="button" class="tg dark" data-o="tf:apply">Apply · Enter</button>';
     } else if (T.tool === "pick") h = '<span class="note">Click the picture to take its colour</span>';
     else if (T.tool === "hand") h = '<span class="note">Drag to move the view · wheel zooms</span>';
-    return '<div class="sk-opts" id="sk-opts">' + h + "</div>";
+    return '<div class="sk-opts" id="sk-opts"' + (T.optsOff ? " hidden" : "") + ">" + h + "</div>";
   }
   // Size changes show at once: the ring and the Size slider, without rebuilding the bars.
   function updateSizeUI() {
@@ -196,7 +196,9 @@
     if (o) o.outerHTML = optsHTML();
     wireToolbar(); cursor();
   }
-  function setTool(t) {
+  function setTool(t, fromBar) {
+    // Clicking the same tool again folds its options row away; any other choice opens it.
+    T.optsOff = fromBar && t === T.tool ? !T.optsOff : false;
     if (tf && t !== "tr") applyTf();
     T.tool = t; keep("tool", t);
     if (isSel(t)) { T.selTool = t; keep("selTool", t); V().painter.setTool(t === "object" ? "object" : t); }
@@ -215,8 +217,8 @@
       else if (k === "deselect") deselect();
       else if (k === "undo") undo(); else if (k === "redo") redo();
       else if (k === "board") V().go("board");
-      else if (k === "sel") setTool(T.selTool);
-      else setTool(k);
+      else if (k === "sel") setTool(T.selTool, true);
+      else setTool(k, true);
     });
     var o = view.querySelector("#sk-opts");
     o.addEventListener("click", function (e) {
@@ -263,7 +265,7 @@
       '<div class="ttl" style="padding-bottom:6px">Only the view: checks proportions, the picture is not flipped</div>';
     V().pop(anchor, html, function (v) {
       if (k === "brush") { T.brush = v; keep("brush", v); setTool("brush"); }
-      else if (k === "erase") { T.eraser = v; keep("eraser", v); setTool("erase"); }
+      else if (k === "erase") { T.eraser = v; keep("eraser", v); setTool("erase"); if (v === "magic" && V().api().studio_magic_warm) V().api().studio_magic_warm(); }
       else if (k === "sel") { if (v === "pssel") { setTool(T.selTool); V().painter.psSelection(); } else setTool(v); }
       else if (k === "flip") flipView(v);
     });
@@ -877,7 +879,15 @@
     };
   }
 
-  window.VSSketch = {
+  // The picture as it looks with its layers (for the blurred view while Create runs).
+  function look(src) {
+    if (!doc || !src || keyOf(src) !== doc.key || !fit || !edited(doc)) return "";
+    try {
+      var full = flatten(), t = document.createElement("canvas"), w = Math.min(1600, doc.w), h = Math.round(w * doc.h / doc.w);
+      t.width = w; t.height = h; t.getContext("2d").drawImage(full, 0, 0, w, h); return t.toDataURL("image/jpeg", 0.85);
+    } catch (e) { return ""; }
+  }
+  window.VSSketch = { look: look,
     mount: mount, key: key, payload: payload, addImageLayer: addImageLayer, branch: branch, edited: function (src) { var d = docs[keyOf(src)]; return !!(d && edited(d)); },
     flip: function () { return { h: T.flipH, v: T.flipV }; }, tool: function () { return T.tool; },
     isSelTool: function () { return isSel(T.tool); }, unmount: function () { if (tf) applyTf(); view = fit = catcher = null; },

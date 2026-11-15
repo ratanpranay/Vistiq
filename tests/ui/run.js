@@ -98,7 +98,7 @@ const frame = (n, name) => ({ path: "live://photoshop/" + n, name: name || "flat
     check("strip order: Live | Sketch | results, the first part pinned", await p.evaluate(() => {
       const pin = document.querySelector("#c-strip .s-pin"), kids = [...pin.children].map((e) => e.classList.contains("s-div") ? "|" : (e.innerText || "").trim() || e.tagName);
       return kids.join(",") + "/" + getComputedStyle(pin).position + "/" + (pin.nextElementSibling && pin.nextElementSibling.tagName);
-    }) === "Live,|,Sketch,|/sticky/IMG", await p.evaluate(() => [...document.getElementById("c-strip").children].map((e) => e.className + ":" + (e.innerText || "").trim()).join(" ")));
+    }) === "Live,|,Sketch,|/sticky/SPAN", await p.evaluate(() => [...document.getElementById("c-strip").children].map((e) => e.className + ":" + (e.innerText || "").trim()).join(" ")));
     await p.click('#c-strip img[data-i="-2"]');
     check("clicking Sketch shows the frozen sketch", /made from/.test(await p.text("#c-view .s-pane .s-tag")), await p.text("#c-view .s-pane .s-tag"));
     check("strip has a divider after Live", await p.evaluate(() => {
@@ -372,8 +372,9 @@ const frame = (n, name) => ({ path: "live://photoshop/" + n, name: name || "flat
     const p = await open(browser, null, { board: true });
     await p.evaluate(() => { window.pywebview.api.studio_blank = (w, h) => { window.__blank = [w, h]; return Promise.resolve({ path: "C:/s/Sketch 1.png", name: "Sketch 1.png", w, h, preview: "data:image/gif;base64,R0lGODlhAQABAIAAAP///wAAACH5BAAAAAAALAAAAAABAAEAAAICRAEAOw==" }); }; });
     await p.click(".b-bar .b-plus"); await p.waitForTimeout(100);
-    check("+ opens the add menu", /Blank canvas/.test(await p.evaluate(() => document.querySelector(".s-pop").innerText)), "");
-    await p.click(".s-pop [data-p=blank]"); await p.waitForTimeout(150);
+    check("+ opens the add menu", /New blank canvas/.test(await p.evaluate(() => document.querySelector(".s-pop").innerText)), "");
+    check("each canvas size is its own button", await p.evaluate(() => document.querySelectorAll(".s-pop .s-sizes button").length) === 4, "");
+    await p.click(".s-pop [data-p='fmt:a4p']"); await p.waitForTimeout(150);
     check("a blank A4 canvas at 150 DPI", JSON.stringify(await p.evaluate(() => window.__blank)) === "[1240,1754]", JSON.stringify(await p.evaluate(() => window.__blank)));
     check("it lands on the board", await p.evaluate(() => window.VSBoard._state().tiles.some((t) => t.name === "Sketch 1.png")), "");
     check("all tiles are the same size", await p.evaluate(() => { const hs = [...document.querySelectorAll(".b-tile")].map((t) => t.offsetHeight); return new Set(hs).size === 1; }), JSON.stringify(await p.evaluate(() => [...document.querySelectorAll(".b-tile")].map((t) => t.offsetHeight))));
@@ -466,7 +467,8 @@ const frame = (n, name) => ({ path: "live://photoshop/" + n, name: name || "flat
     await p.waitForTimeout(80);
     check("a divider after each Create's results", await p.evaluate(() => [...document.getElementById("c-strip").children].filter((e) => !e.classList.contains("s-pin")).map((e) => e.classList.contains("s-div") ? "|" : "i").join("")) === "i|i|ii|", await p.evaluate(() => [...document.getElementById("c-strip").children].filter((e) => !e.classList.contains("s-pin")).map((e) => e.classList.contains("s-div") ? "|" : "i").join("")));
     await p.evaluate(() => { const S = window.VS.S.create; S.results = S.results.filter((r) => !/v3/.test(r.name)); window.VS.render(); });
-    check("results are a fifth smaller than the picture's tile", await p.evaluate(() => { const a = document.querySelector("#c-strip .s-pin img").offsetWidth, b = document.querySelector("#c-strip > img").offsetWidth; return Math.abs(b / a - 0.8) < 0.03; }), "");
+    check("results are a fifth smaller than the picture's tile", await p.evaluate(() => { const a = document.querySelector("#c-strip .s-pin img").offsetWidth, b = document.querySelector("#c-strip > .s-rt > img").offsetWidth; return Math.abs(b / a - 0.8) < 0.03; }), "");
+    check("results carry small numbers", await p.evaluate(() => [...document.querySelectorAll("#c-strip .s-rt > b")].map((b) => b.textContent).join(",")) === "1,2", "");
     check("results run oldest first", await p.evaluate(() => window.VS.S.create.results.map((r) => r.made).join(",")) === "1,2", "");
     check("a picture's strip shows everything made from it", await p.evaluate(() => document.querySelectorAll("#c-strip img[data-i]:not([data-i='-1']):not([data-i='-2'])").length) === 2, await p.evaluate(() => document.getElementById("c-strip").innerHTML.slice(0, 200)));
     check("there is no Clear button any more", await p.evaluate(() => document.getElementById("c-clear").hidden), "still there");
@@ -607,6 +609,33 @@ const frame = (n, name) => ({ path: "live://photoshop/" + n, name: name || "flat
     const w1 = await p.evaluate(() => parseFloat(document.querySelector("#c-view .sk-ring").style.width));
     check("[ ] resize the brush ring straight away", w1 > w0, w0 + " -> " + w1);
     check("no crosshair inside the brush ring", await p.evaluate(() => getComputedStyle(document.querySelector("#c-view .sk-catch")).cursor) === "none", "");
+    // Clicking the active tool again folds its options row; again opens it.
+    await p.click("#c-view .sk-bar [data-k=brush]"); await p.waitForTimeout(50);
+    const off1 = await p.evaluate(() => document.querySelector("#c-view #sk-opts").hidden);
+    await p.click("#c-view .sk-bar [data-k=brush]"); await p.waitForTimeout(50);
+    check("clicking the tool again folds and opens its options", off1 === true && await p.evaluate(() => !document.querySelector("#c-view #sk-opts").hidden), String(off1));
+    // Two fingers on a touchpad pan; Ctrl (pinch) zooms.
+    await p.evaluate(() => { const v = document.getElementById("c-view"); v.dispatchEvent(new WheelEvent("wheel", { deltaX: 30, deltaY: 12.5, bubbles: true, cancelable: true, clientX: 600, clientY: 400 })); });
+    await p.waitForTimeout(50);
+    check("two fingers pan the canvas", /translate\(-30px, -12\.5px\)/.test(await p.evaluate(() => document.querySelector("#c-view .s-fit").style.transform)), await p.evaluate(() => document.querySelector("#c-view .s-fit").style.transform));
+    // Nothing written, no references: Create becomes Instant render.
+    await p.evaluate(() => { const S = window.VS.S.create; S.text = ""; S.refs = []; document.getElementById("c-text").value = ""; S.status = 0; window.VS.S.status = Object.assign(window.VS.S.status || {}, { create_ready: true }); window.VS.render(); });
+    check("empty: the button says Instant render", /Instant render/.test(await p.text("#c-go")), await p.text("#c-go"));
+    await p.evaluate(() => { window.__job = null; window.pywebview.api.studio_run = (j) => { window.__job = j; return Promise.resolve("j5"); }; });
+    await p.click("#c-go"); await p.waitForTimeout(80);
+    check("Instant render asks for an instant job", await p.evaluate(() => !!(window.__job && window.__job.instant)), JSON.stringify(await p.evaluate(() => window.__job)));
+    await p.ev("studio-job", { id: "j5", state: "running", stage: "Variation 1 of 2", fraction: 0.25 });
+    await p.waitForTimeout(80);
+    check("the coming result shows its progress", /50%/.test(await p.evaluate(() => (document.querySelector("#c-strip .s-ph") || {}).textContent || "")), await p.evaluate(() => document.getElementById("c-strip").innerHTML.slice(-400)));
+    await p.ev("studio-result", { id: "j5", index: 0, of: 2, result: { path: "C:/o/i1.png", name: "i1.png", w: 160, h: 90, preview: "data:image/gif;base64,R0lGODlhAQABAAAAACw=", meta: { text: "" } } });
+    await p.waitForTimeout(80);
+    check("a new result comes into view", await p.evaluate(() => window.VS.S.create.results[window.VS.S.create.sel].path) === "C:/o/i1.png", "");
+    await p.click("#c-strip .s-ph"); await p.waitForTimeout(80);
+    check("clicking the coming result shows it being made", await p.evaluate(() => window.VS.S.create.sel === -2), String(await p.evaluate(() => window.VS.S.create.sel)));
+    await p.ev("studio-result", { id: "j5", index: 1, of: 2, result: { path: "C:/o/i2.png", name: "i2.png", w: 160, h: 90, preview: "data:image/gif;base64,R0lGODlhAQABAAAAACw=", meta: { text: "" } } });
+    await p.ev("studio-job", { id: "j5", state: "done", count: 2 });
+    await p.waitForTimeout(80);
+    check("the newest result is selected at the end", await p.evaluate(() => window.VS.S.create.results[window.VS.S.create.sel].path) === "C:/o/i2.png", "");
     check("no page errors when turning the view", p.errors.length === 0, p.errors.join(" | "));
     await p.close();
   }

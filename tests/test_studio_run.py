@@ -13,6 +13,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(ROOT, "app"))
 
 from PIL import Image, ImageDraw  # noqa: E402
+from vistiq import studio  # noqa: E402
 
 
 class FakeEngine:
@@ -202,6 +203,15 @@ class WholeRun(unittest.TestCase):
                      "refs": [{"path": ref, "use": "camera", "desc": "Overhead view."}, {"path": ref, "use": "materials"}]})
         texts = _texts(self.engine.runs)
         self.assertTrue(any("Overhead view." in x and "materials of image 2" in x for x in texts), texts)
+
+    def test_instant_render(self):
+        src = os.path.join(self.tmp.name, "src.png")
+        Image.new("RGB", (1200, 800), "white").save(src)
+        self.engine.runs.clear()
+        r = self.go({"mode": "create", "image": src, "text": "parked in a desert", "variations": 1, "instant": True, "preset": "sketch"})
+        self.assertTrue(r[0]["meta"]["instant"])
+        texts = _texts(self.engine.runs)
+        self.assertTrue(any(studio.INSTANT in x and "The scene: parked in a desert" in x for x in texts), texts)
 
     def test_camera_reference_does_not_hold_the_first_view(self):
         src = os.path.join(self.tmp.name, "src.png")

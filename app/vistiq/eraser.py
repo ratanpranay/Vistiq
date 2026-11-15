@@ -97,6 +97,14 @@ class Eraser:
 _eraser = Eraser()
 
 
+def warm(models_dir):
+    try:
+        with _eraser._lock:
+            _eraser._load(path(models_dir))
+    except Exception as exc:
+        log.warning("magic eraser warm-up: %s", exc)
+
+
 def erase(models_dir, image_url, mask_url):
     """Data URLs in, an RGBA patch data URL out."""
     model = path(models_dir)

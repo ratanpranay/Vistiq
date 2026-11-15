@@ -73,6 +73,9 @@
       p.viewing = false; p.text = p.draft || ""; $("c-text").value = p.text; renderWarn();
     }
   }
+  // No words and no references: Create becomes Instant render (a studio CGI render
+  // that follows the sketch as it is; words then only set the scene).
+  function instantMode(p) { return !(p.text || "").trim() && !(p.refs || []).length && !p.viewing; }
   function defaultLocks(src) { var r = isRender(src); return { design: true, materials: r, light: r, camera: true }; }
   // Reference images in Create: each gives exactly one thing.
   var RUSE = {
@@ -423,15 +426,18 @@
   function plusMenu(anchor, onAdd) {
     var fmt = load("blankFmt", "a4p");
     var html = function () {
-      return '<button type="button" class="it" data-p="blank">' + svg("page") + '<span>Blank canvas<small>' +
-        (fmt.indexOf("a4") === 0 ? "A4 · 150 DPI · " : "") + FORMATS[fmt][0] + " × " + FORMATS[fmt][1] + ' px</small></span><span class="k">N</span></button>' +
-        '<div class="chips">' + Object.keys(FORMATS).map(function (k) { return '<button type="button" data-p="fmt:' + k + '" class="' + (k === fmt ? "on" : "") + '">' + FORMATS[k][2] + "</button>"; }).join("") + "</div>" +
+      // One click per size: each is its own button, drawn in its shape.
+      return '<div class="ttl s-blankt">New blank canvas<span class="k">N</span></div><div class="s-sizes">' + Object.keys(FORMATS).map(function (k) {
+          var f = FORMATS[k], r = f[0] / f[1], w = r >= 1 ? 30 : Math.round(30 * r), hh = r >= 1 ? Math.round(30 / r) : 30;
+          return '<button type="button" data-p="fmt:' + k + '" class="' + (k === fmt ? "on" : "") + '"><i style="width:' + w + "px;height:" + hh + 'px"></i><b>' +
+            (k.indexOf("a4") === 0 ? "A4 " : "") + f[2] + "</b><small>" + f[0] + " × " + f[1] + "</small></button>";
+        }).join("") + "</div>" +
         '<hr><button type="button" class="it" data-p="pick">' + svg("image") + '<span>Upload an image</span><span class="k">I</span></button>' +
         '<button type="button" class="it" data-p="paste">' + svg("clip") + '<span>Paste from clipboard</span><span class="k">Ctrl V</span></button>' +
         '<button type="button" class="it" data-p="phone">' + svg("phone") + '<span>Upload from phone<small>Scan a QR code · same Wi-Fi</small></span><span class="k">/</span></button>';
     };
     var el = pop(anchor, html(), function (v) {
-      if (v.indexOf("fmt:") === 0) { fmt = v.slice(4); keep("blankFmt", fmt); el.innerHTML = html(); return true; }
+      if (v.indexOf("fmt:") === 0) { fmt = v.slice(4); keep("blankFmt", fmt); v = "blank"; }
       if (v === "blank") api().studio_blank(FORMATS[fmt][0], FORMATS[fmt][1]).then(function (i) { if (i) onAdd(i); });
       else if (v === "pick") api().studio_pick().then(function (i) { if (i) onAdd(i); });
       else if (v === "paste") api().studio_paste().then(function (i) { if (i) onAdd(i); else toast("Nothing to paste: copy a picture first."); });
@@ -540,6 +546,7 @@
   var BLANK = "data:image/gif;base64,R0lGODlhAQABAIAAAO7v8wAAACH5BAAAAAAALAAAAAABAAEAAAICRAEAOw==";
   // Clicking a result kept from an earlier session reads the full picture from its folder.
   function pickResult(p, i) {
+    if (p.job) p.follow = i === -2;           // looking elsewhere during a run: stay there
     if (i >= 0 && i === p.sel && p === S.create) { p.sel = -1; render(); return; }
     var r = i >= 0 ? p.results[i] : null;
     if (!r || !r.thin) { p.sel = i; render(); return; }
@@ -607,6 +614,7 @@
       preset: p.improved && p.text === p.improved ? "" : p.preset, text: p.text, keep: p.keep, variations: p.vars
     };
     if (id === "r") j.reference = p.refimg.path;
+    if (id === "c" && !extra && instantMode(p)) j.instant = true;
     if (id === "c") {
       // A selection (lasso, pen, object, Photoshop…) limits the change to that area.
       var m = painter.export();
@@ -625,7 +633,8 @@
     p.jobKey = srcKey(p.src);
     // Create works on the sketch as it is now: freeze a copy. Live keeps
     // updating in the background and comes back when the run is done.
-    p.jobOrig = p.src.preview; p.preview = null; p.previewN = 0;
+    p.jobOrig = (id === "c" && window.VSSketch && window.VSSketch.look && window.VSSketch.look(p.src)) || p.src.preview; p.preview = null; p.previewN = 0;
+    p.follow = true; p.jobDone = 0;
     if (p.src.live) p.src = Object.assign({}, p.src, { live: false, frozen: true });
     p.sel = -2;
     api().studio_run(j).then(function (jid) {
@@ -1279,8 +1288,12 @@
     $(id + "-go").disabled = !can;
     $(id + "-cancel").hidden = !busy;
     $(id + "-fill").style.width = busy ? Math.round((p.frac || 0) * 100) + "%" : "0";
-    var label = id === "c" ? (painter.any ? "Change selected area" : "Create") : "Transfer";
-    $(id + "-golabel").textContent = busy ? (p.stage || "Working") : label;
+    var inst = id === "c" && !painter.any && instantMode(p);
+    var label = id === "c" ? (painter.any ? "Change selected area" : inst ? "Instant render" : "Create") : "Transfer";
+    var gl = $(id + "-golabel"), gh = busy ? esc(p.stage || "Working") : esc(label);
+    $(id + "-go").title = inst ? "A studio-quality CGI render that follows your sketch as it is. Words, if you add them, set the scene." : "";
+    if (gl.getAttribute("data-h") !== gh) { gl.innerHTML = gh; gl.setAttribute("data-h", gh); }
+    if (id === "c") $("c-go").classList.toggle("s-inst", inst && !busy);
     var meta = "", t = st && st.times;
     if (busy && S.engine.state === "starting") meta = S.engine.message;
     else if (!ready) meta = st ? "Set up image generation first" : "";
@@ -1517,7 +1530,8 @@
     $("c-keep-w").hidden = !LK.design;
     $("c-keep-l").firstChild.textContent = "How strictly · Design ";
     renderWarn();
-    $("c-text").placeholder = isRender(p.src) ? "What should change? (e.g. make the seats red leather)" : "What should it look like? (e.g. yellow nappa seats, soft morning light)";
+    $("c-text").placeholder = isRender(p.src) ? "What should change? (e.g. make the seats red leather). Leave empty for an Instant render."
+      : "What should it look like? (e.g. yellow nappa seats, soft morning light). Leave empty for an Instant render.";
     $("c-imp").hidden = !(st && st.helper_ready);
     if ($("c-text").value !== p.text && document.activeElement !== $("c-text")) $("c-text").value = p.text;
     $("c-blend-w").hidden = !painter.any;
@@ -1663,7 +1677,9 @@
     var tile = function (i) {
       var r = p.results[i];
       if (r.missing) return '<span class="s-miss' + (i === p.sel ? " sel" : "") + '" data-i="' + i + '" title="Missing from its original location: ' + esc(r.path) + '">Missing</span>';
-      return '<img data-i="' + i + '" class="' + (i === p.sel ? "sel" : "") + '" src="' + r.preview + '" title="' + esc(short(r.name)) + '" alt="">';
+      var no = mine.indexOf(i) + 1;
+      return '<span class="s-rt"><img data-i="' + i + '" class="' + (i === p.sel ? "sel" : "") + '" src="' + r.preview + '" title="' + esc(short(r.name)) + '" alt="">' +
+        (no ? "<b>" + no + "</b>" : "") + "</span>";
     };
     var strip = "";
     // Live: first tile, always the current canvas (it keeps updating, even during a run).
@@ -1696,12 +1712,22 @@
       lastRun = run; strip += tile(i);
     });
     if (mine.length) strip += '<span class="s-div s-rundiv" aria-hidden="true"></span>';
-    for (var k = 0; k < (p.job ? p.pending : 0); k++) strip += '<span class="s-ph"></span>';
+    // Still to come: the first shows the progress; click any to watch it being made.
+    for (var k = 0; k < (p.job ? p.pending : 0); k++) {
+      var tot = (p.pending || 0) + (p.jobDone || 0) || 1;
+      var pc = k === 0 ? Math.max(2, Math.min(99, Math.round((((p.frac || 0) * tot) % 1) * 100))) : 0;
+      strip += '<span class="s-ph' + (p.sel === -2 && k === 0 ? " sel" : "") + '" data-i="-2" title="Being made · click to watch">' +
+        (k === 0 ? '<i class="s-phbar" style="width:' + pc + '%"></i><em>' + pc + "%</em>" : '<em class="w">Next</em>') + "</span>";
+    }
     // Results of other pictures stay in the Library (no "Earlier" fold here).
     var sk = $(id + "-strip");
     if (sk.getAttribute("data-h") !== strip) {
       sk.innerHTML = strip; sk.setAttribute("data-h", strip);
-      var on = sk.querySelector("img.sel,.s-miss.sel"); if (on && on.scrollIntoView) on.scrollIntoView({ block: "nearest", inline: "nearest" });
+      var on = sk.querySelector("img.sel,.s-miss.sel,.s-ph.sel"); if (on && on.scrollIntoView) on.scrollIntoView({ block: "nearest", inline: "nearest" });
+      // A run in progress: bring its tiles into view.
+      var rk = p.job ? (p.jobKey || "") + ":" + (p.jobDone || 0) + ":" + (p.pending || 0) : "";
+      if (rk && sk.getAttribute("data-run") !== rk) { var lastPh = sk.querySelector(".s-ph:last-of-type") || sk.lastElementChild; if (lastPh && lastPh.scrollIntoView) lastPh.scrollIntoView({ block: "nearest", inline: "end" }); }
+      sk.setAttribute("data-run", rk);
     }
     layout();
   }
@@ -1755,6 +1781,9 @@
         if (!v.querySelector(".s-fit")) return;
         e.preventDefault();
         var r = v.getBoundingClientRect();
+        // Touchpad: two fingers sliding pan, a pinch (Ctrl+wheel) zooms. A mouse wheel zooms.
+        var pad = !e.ctrlKey && (e.deltaX !== 0 || (e.wheelDeltaY !== undefined && e.wheelDeltaY % 120 !== 0) || (e.deltaMode === 0 && Math.abs(e.deltaY) < 40 && e.deltaY % 1 !== 0));
+        if (pad) { var zz = self.of(v); zz.x -= e.deltaX; zz.y -= e.deltaY; layout(); painter.refreshRing && painter.refreshRing(); return; }
         var step = e.ctrlKey ? Math.exp(-e.deltaY * 0.01) : (e.deltaY < 0 ? 1.15 : 1 / 1.15);   // pinch arrives as Ctrl+wheel
         self.by(v, step, e.clientX - r.left, e.clientY - r.top);
       }, { passive: false });
@@ -2086,8 +2115,9 @@
       } else if (kind === "studio-result") {
         var q = byJob(data.id); if (!q) return;
         data.result.srcKey = q.jobKey; data.result.orig = q.jobOrig; data.result.made = Date.now(); data.result.run = data.result.run || runOf(data.result); q.results.push(data.result);
-        q.preview = null; q.previewN = 0; q.pending = Math.max(0, q.pending - 1);
-        if (data.index === 0) q.sel = q.results.length - 1;
+        q.preview = null; q.previewN = 0; q.pending = Math.max(0, q.pending - 1); q.jobDone = (q.jobDone || 0) + 1;
+        // Watching the run: each new result comes into view as it lands.
+        if (q.follow !== false) q.sel = q.results.length - 1;
       } else if (kind === "studio-setup") {
         if (data.state === "running") { S.setup.run = { label: data.label, fraction: data.fraction }; S.setup.error = ""; S.setup.done = ""; }
         else {

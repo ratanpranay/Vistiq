@@ -250,6 +250,16 @@ class Studio:
         load_rgb(src).save(out, "PNG")
         return out
 
+    def magic_warm(self):
+        """Load the magic eraser in the background when its tool is picked, so
+        the first stroke doesn't wait for it."""
+        from . import eraser
+        md = studio.models_dir(self.settings)
+        if not eraser.installed(md):
+            return False
+        threading.Thread(target=lambda: eraser.warm(md), daemon=True).start()
+        return True
+
     def magic_erase(self, image_url, mask_url):
         """The magic eraser (LaMa): downloads its model once, then about a second a stroke."""
         from . import eraser
@@ -529,7 +539,7 @@ class Studio:
         say = lambda stage, frac: self.emit("studio-job", {"id": job_id, "state": "running", "stage": stage,
                                                             "fraction": frac})
         try:
-            say("Making room on the graphics card", None)
+            say("Getting ready", None)
             self.app.free_upscaler()
             if not studio.engine_installed() and sys.platform != "darwin":
                 # First Create on this PC: set up the image engine on the way
@@ -590,6 +600,8 @@ class Studio:
                 # or a camera reference's when its camera couldn't be put into words.
                 cam_i = (sent.index(cam_i - 1) + 1) if cam_i and (cam_i - 1) in sent else 0
                 ref_images = [ref_images[i] for i in sent]
+            elif job.get("instant"):
+                text = studio.instant_text(job.get("text") or "")
             else:
                 text = studio.build_text(job.get("preset") or "", job.get("text"))
                 if job.get("locks"):
@@ -602,8 +614,8 @@ class Studio:
             seed = int(job.get("seed") or int(time.time()) % 100000 * 7919)
             keep = float(job.get("keep") if job.get("keep") is not None else 0.8)
             camera = mode == "reference" and (job.get("preset") or "camera") == "camera"
-            if refs:
-                pass                    # the reference wording already says what to keep
+            if refs or job.get("instant"):
+                pass                    # the wording already says what to keep
             elif camera:
                 # "Follow my sketch" here means the design; the view comes from the reference.
                 if keep >= 0.3:
@@ -702,7 +714,7 @@ class Studio:
                                           "%s_v%d" % (tag, v + 1), limit=16384)
                 meta = {"mode": mode, "preset": job.get("preset"), "text": job.get("text") or "",
                         "keep": keep, "seed": seed + v, "source": src_path, "reference": job.get("reference"),
-                        "painted": mask is not None,
+                        "painted": mask is not None, "instant": bool(job.get("instant")),
                         "refs": [{"path": r["path"], "use": u, "desc": r.get("desc") or ""} for r, u in zip(refs, uses)],
                         "prompt": text, "lab": lab or None, "juice": job.get("juice") or 0, "lora": job.get("lora"),
                         "kind": "reference" if mode == "reference" else "create",

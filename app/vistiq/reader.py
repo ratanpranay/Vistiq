@@ -165,7 +165,8 @@ class Reader:
             body = {"messages": [{"role": "user", "content": [
                         {"type": "image_url", "image_url": {"url": _jpeg(path)}},
                         {"type": "text", "text": ask}]}],
-                    "max_tokens": 200, "temperature": 0.2}
+                    "max_tokens": 200, "temperature": 0.2,
+                    "cache_prompt": False}           # every picture read fresh (a cached one answered for the last)
             s = requests.Session()
             s.trust_env = False
             r = s.post("http://127.0.0.1:%d/v1/chat/completions" % PORT, json=body, timeout=300)

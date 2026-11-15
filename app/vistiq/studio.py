@@ -1253,6 +1253,29 @@ def _interior(text):
     return any(w in low for w in INTERIOR)
 
 
+# Instant render (Nov 2026): Create with no words and no references makes a
+# studio-quality CGI picture that follows the sketch or render as it is.
+INSTANT = ("Render this as a high-end CGI automotive visualization, like a car maker's design-studio render: "
+           "photorealistic materials with true textures (paint, leather, fabric, glass, chrome, plastics), "
+           "physically accurate lighting with soft reflections and clean shadows, and a fitting, realistic "
+           "setting. Follow every line, proportion, part and the camera view exactly as drawn; add nothing that "
+           "is not there.")
+
+
+def instant_text(text=""):
+    text = clean_prompt(text)
+    out = [INSTANT]
+    if text:
+        out.append("The scene: " + text)
+    light = light_for(text)
+    inside = _interior(text)
+    out.append(light or SOFT_LIGHT)
+    if inside:
+        out.append(FINISH_MAT)
+    out.append(CRISP)
+    return "\n\n".join(out)
+
+
 def build_text(preset, text, presets=PRESETS, f3=False):
     # Any subject: interiors, exteriors, boats, furniture, lamps… The button
     # only says what kind of change; the prompt says what it is.

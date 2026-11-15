@@ -892,3 +892,35 @@ body.studio #p-create .s-rail-body>.s-grow .s-prompt{flex:1;min-height:110px;max
 .s-rd .s-link{font-size:11.5px}
 .s-rdt{width:100%;box-sizing:border-box;resize:vertical;min-height:44px;padding:7px 9px;border:1px solid var(--line,#e6e8ef);border-radius:9px;background:var(--field,#f3f4f8);font:12px/17px var(--font);color:var(--ink,#14161f)}
 .s-rdt:disabled{opacity:.6}
+
+/* results: numbered, and the ones still being made */
+.s-rt{position:relative;display:inline-flex;flex-shrink:0}
+.s-rt>b{position:absolute;left:7px;bottom:6px;min-width:18px;height:18px;padding:0 5px;box-sizing:border-box;border-radius:9px;background:rgba(20,22,31,.72);color:#fff;font:700 10.5px/18px var(--font);text-align:center;pointer-events:none}
+body.studio .s-vars .s-rt>img{width:128px;height:72px}
+body.studio .s-vars>.s-ph{position:relative;cursor:pointer;overflow:hidden;border:2px solid transparent;box-sizing:border-box}
+body.studio .s-vars>.s-ph.sel{border-color:var(--ink)}
+.s-ph .s-phbar{position:absolute;left:0;bottom:0;height:4px;background:linear-gradient(90deg,#3b82f6,#a855f7,#f97316);transition:width .4s}
+.s-ph em{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font:700 13px/1 var(--font);font-style:normal;color:#3b4050}
+.s-ph em.w{font-weight:600;font-size:11.5px;color:#80869a}
+/* the new-canvas sizes, each its own button */
+.s-blankt{display:flex;justify-content:space-between;align-items:center;padding:6px 8px 4px;font-weight:700}
+.s-blankt .k{font-weight:500;color:var(--dim,#80869a);font-size:11.5px}
+.s-sizes{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;padding:4px 6px 8px}
+.s-sizes button{display:flex;flex-direction:column;align-items:center;gap:5px;padding:10px 4px 8px;border:1px solid var(--line,#e6e8ef);border-radius:10px;background:#fff;font:inherit;cursor:pointer;color:inherit}
+.s-sizes button:hover{border-color:#5b4ce0;background:#f7f6ff}
+.s-sizes button.on{border-color:#14161f}
+.s-sizes i{display:block;border:1.6px solid currentColor;border-radius:3px;margin:auto 0}
+.s-sizes span,.s-sizes i{flex:none}
+.s-sizes button>i{height:30px}
+.s-sizes b{font-size:11.5px;font-weight:600;white-space:nowrap}
+.s-sizes small{font-size:10px;color:var(--dim,#80869a)}
+.s-plus{min-width:340px}
+/* reading a reference: a gentle pulse */
+.s-rd .l em.busy{display:inline-flex;align-items:center;gap:6px}
+.s-rd .l em.busy:before{content:"";width:7px;height:7px;border-radius:50%;background:#5b4ce0;animation:s-rpulse 1.1s ease-in-out infinite}
+.s-rdt:disabled{opacity:1;color:transparent;background:linear-gradient(90deg,#eceefb 0%,#f6f5ff 40%,#eceefb 80%);background-size:250% 100%;animation:s-rshim 1.4s linear infinite;border-color:#d9d4ff}
+.s-rdt:disabled::placeholder{color:transparent}
+@keyframes s-rpulse{0%,100%{transform:scale(.7);opacity:.45}50%{transform:scale(1.15);opacity:1}}
+@keyframes s-rshim{0%{background-position:100% 0}100%{background-position:-150% 0}}
+/* Instant render */
+.s-go small.s-gosub{display:block;font-size:10.5px;font-weight:500;opacity:.85;margin-top:1px}

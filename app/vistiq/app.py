@@ -301,6 +301,12 @@ class Api:
             log.warning("couldn't copy the live picture: %s", exc)
             return None
 
+    def studio_magic_warm(self):
+        try:
+            return self._app.studio.magic_warm()
+        except Exception:
+            return False
+
     def studio_magic_erase(self, image, mask):
         try:
             return {"patch": self._app.studio.magic_erase(image, mask)}

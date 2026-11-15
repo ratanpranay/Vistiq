@@ -1,5 +1,16 @@
 # Vistiq Studio (test build)
 
+## 0.4.12
+- Instant render: with nothing written and no references, Create becomes Instant render, a studio-quality CGI render that follows your sketch as it is. Words, if you add them, set the scene.
+- New canvas: each size (A4 portrait, A4 landscape, 16:9, square) is its own button in the + menu.
+- Clicking the active tool again folds its options row away.
+- Touchpad: two fingers slide to pan the canvas, pinch to zoom.
+- Results carry small numbers; the ones still being made show their progress and can be clicked to watch; the row slides to them and each new result comes into view.
+- While making, the blurred picture shows your layers as they look.
+- The picture reader reads every new reference fresh, with a pulse while it reads.
+- The magic eraser gets ready as soon as you pick it.
+- "Getting ready" instead of "Making room on the graphics card".
+
 ## 0.4.11
 - Click a result: Describe shows the words it was made with; edit them and Create again. Back on your picture, your own words return. (The Prompt pop-up is gone.)
 
