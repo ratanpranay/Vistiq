@@ -1,5 +1,13 @@
 # Vistiq Studio (test build)
 
+## 0.4.6
+- Results open at full size (no more blurry thumbnails); Add puts the full picture on a layer.
+- Clicking a tool again closes its menu.
+- Results row: your picture stays pinned on the left while results (a fifth smaller) slide under it; a divider after each Create; no scroll bar (the wheel scrolls sideways).
+- While making: only the blurred sketch with the progress ring, no in-between pictures.
+- Upscale, Photoshop, To board and Show in folder use your picture with all its visible layers, flattened at full size.
+- Upscale page: the picture floats, the thumbnails end above the machine line, the time estimate is back (a new model borrows a safe guess until its first run), and while running the bar and × sit side by side with the timer visible.
+
 ## 0.4.5
 - Results show in the main view: click thumbnails (or ← →) to flip through them; click the chosen one again to go back to your picture with all its layers. Layers and sketch tools are always there.
 - Results run oldest first; "+ Another" is gone (use Create).
