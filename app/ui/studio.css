@@ -924,3 +924,20 @@ body.studio .s-vars>.s-ph.sel{border-color:var(--ink)}
 @keyframes s-rshim{0%{background-position:100% 0}100%{background-position:-150% 0}}
 /* Instant render */
 .s-go small.s-gosub{display:block;font-size:10.5px;font-weight:500;opacity:.85;margin-top:1px}
+
+/* board: several tiles together */
+.b-tile.msel{outline:2.5px solid #5b4ce0;outline-offset:2px}
+.b-no{position:absolute;left:10px;top:42px;min-width:22px;height:22px;border-radius:11px;background:#5b4ce0;color:#fff;font:700 12px/22px var(--font);text-align:center;padding:0 6px;box-sizing:border-box}
+.b-tile{position:absolute}
+.b-group{position:absolute;left:50%;bottom:28px;transform:translateX(-50%);display:flex;align-items:center;gap:6px;background:#fff;border-radius:14px;box-shadow:0 8px 30px rgba(14,16,32,.16);padding:6px;z-index:30;font-size:13px}
+.b-group>b{background:#5b4ce0;color:#fff;border-radius:9px;padding:8px 11px;font-weight:600}
+.b-group button{border:0;background:#f3f4f8;border-radius:9px;padding:7px 12px;font:inherit;cursor:pointer;color:#14161f;text-align:left}
+.b-group button small{display:block;font-size:10.5px;color:#80869a}
+.b-group button:hover{background:#ecebff}
+.b-compare{position:fixed;inset:0;z-index:300;background:rgba(14,16,32,.86);display:flex;align-items:center;justify-content:center;padding:40px}
+.b-compare .row{display:flex;gap:14px;width:100%;height:100%;align-items:center}
+.b-compare figure{flex:1;margin:0;min-width:0;display:flex;flex-direction:column;gap:8px;align-items:center}
+.b-compare img{max-width:100%;max-height:calc(100vh - 140px);object-fit:contain;border-radius:10px;background:#222}
+.b-compare figcaption{color:#fff;font-size:12.5px;display:flex;gap:8px;align-items:center}
+.b-compare figcaption b{background:#5b4ce0;border-radius:10px;min-width:20px;text-align:center;font-size:11px;padding:1px 6px}
+.b-compare .x{position:absolute;right:18px;top:14px;width:36px;height:36px;border-radius:18px;border:0;background:#fff;font-size:20px;cursor:pointer}

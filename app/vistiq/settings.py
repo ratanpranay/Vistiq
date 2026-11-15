@@ -51,6 +51,7 @@ DEFAULTS = {
     "comfy_models": "",           # a ComfyUI models folder to take files from
     "studio_tier": "",            # "best" (Klein 9B) or "good" (Klein 4B)
     "studio_times": {},           # learned creation times, for the timer
+    "studio_seq": 0,              # the last run number (results are named 0001_, 0002_…)
     "studio_finish": True,        # the finishing grade (colour, contrast, sharpness) on results
     "keep_design": 0.8,
     "variations": 2,

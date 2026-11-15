@@ -1,5 +1,15 @@
 # Vistiq Studio (test build)
 
+## 0.4.13
+- Board: Ctrl or Shift click up to 4 tiles (numbered). The bar offers Compare side by side and Mix into one (1 is the base, the others become references; pick what each gives).
+- Touchpad: two-finger pans no longer turn into a zoom when you let go.
+- Results are named with a run number first (0001_, 0002_…), so they sort in the order they were made.
+- Each picture keeps its own words; a new picture starts empty.
+- A result made without words says what it was made with (Instant render, or your picture + its references).
+- Esc goes from a result back to your picture.
+- Instant render: the picture reader first describes your sketch (part colours, setting) so the render keeps them; no sketch lines left, light colours stay clean, no worn or blotchy materials.
+- Changes in words (e.g. "snowy camp"): the picture reader spells out everything that change means in this picture (snow on the ground and the truck, winter clothes…).
+
 ## 0.4.12
 - Instant render: with nothing written and no references, Create becomes Instant render, a studio-quality CGI render that follows your sketch as it is. Words, if you add them, set the scene.
 - New canvas: each size (A4 portrait, A4 landscape, 16:9, square) is its own button in the + menu.

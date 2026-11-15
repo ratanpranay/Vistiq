@@ -1255,23 +1255,27 @@ def _interior(text):
 
 # Instant render (Nov 2026): Create with no words and no references makes a
 # studio-quality CGI picture that follows the sketch or render as it is.
-INSTANT = ("Render this as a high-end CGI automotive visualization, like a car maker's design-studio render: "
-           "photorealistic materials with true textures (paint, leather, fabric, glass, chrome, plastics), "
-           "physically accurate lighting with soft reflections and clean shadows, and a fitting, realistic "
-           "setting. Follow every line, proportion, part and the camera view exactly as drawn; add nothing that "
-           "is not there.")
+INSTANT = ("Render this as a high-end photorealistic CGI automotive visualization, like a car maker's "
+           "design-studio render. Follow every line, proportion, part and the camera view exactly as drawn and add "
+           "nothing that is not there. The colours in the drawing are the real colours: keep every part's colour "
+           "exactly (a yellow seat stays yellow, a purple panel stays purple), only make them real materials "
+           "(paint, smooth leather, fabric, glass, chrome, plastics) with true textures. Physically accurate light, "
+           "soft reflections, clean shadows; what is drawn outside or behind becomes a real, photographic setting. "
+           "No pencil or ink lines remain: every drawn line becomes a real edge, seam or panel gap. Light colours "
+           "stay light, bright and clean; surfaces are smooth and brand new, never suede-like, stained, dusty, "
+           "blotchy or worn.")
 
 
-def instant_text(text=""):
+def instant_text(text="", scene=""):
     text = clean_prompt(text)
     out = [INSTANT]
+    if scene:
+        out.append("In the picture: " + scene)
     if text:
         out.append("The scene: " + text)
-    light = light_for(text)
-    inside = _interior(text)
+    light = light_for(text + " " + scene)
     out.append(light or SOFT_LIGHT)
-    if inside:
-        out.append(FINISH_MAT)
+    out.append(FINISH_MAT)
     out.append(CRISP)
     return "\n\n".join(out)
 

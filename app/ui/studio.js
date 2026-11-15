@@ -60,14 +60,21 @@
   function isRender(src) { return !!src && !src.live && !src.frozen && /_(create|refine|paint|camera|cmf|style|reference|variation)/i.test(src.name || src.path || ""); }
   // A result in view: Describe shows the words it was made with (edit them and
   // Create again); back on your picture, what you had typed comes back.
+  // What a result was made with, when it had no words of its own.
+  function madeWith(m) {
+    if (m.instant) return "Made as an Instant render (no words).";
+    var refs = (m.refs || []).map(function (r, i) { return "Ref " + (i + 1) + " " + ((RUSE[r.use] || ["reference"])[0]).toLowerCase(); });
+    if (refs.length) return "Made from your picture + " + refs.join(" + ") + ".";
+    return "Made without words.";
+  }
   function showWords(p) {
     var c = current(p), key = c ? c.path : "";
     if (p.wordsFor === key) return;
     p.wordsFor = key;
     if (c) {
       if (!p.viewing) { p.draft = p.text; p.viewing = true; }
-      var put = function (m) { if (p.wordsFor !== key || !p.viewing) return; p.text = (m && m.text) || ""; $("c-text").value = p.text; renderWarn(); };
-      if (c.meta && c.meta.text !== undefined) put(c.meta);
+      var put = function (m) { if (p.wordsFor !== key || !p.viewing) return; p.text = (m && m.text) || ""; $("c-text").value = p.text; renderWarn(); setTimeout(render, 0); };
+      if (c.meta && c.meta.text !== undefined && (c.meta.text || c.meta.instant !== undefined || c.meta.refs)) put(c.meta);
       else if (api() && api().studio_meta) api().studio_meta(c.path).then(function (m) { c.meta = Object.assign({}, c.meta || {}, m || {}); put(c.meta); });
     } else if (p.viewing) {
       p.viewing = false; p.text = p.draft || ""; $("c-text").value = p.text; renderWarn();
@@ -901,6 +908,8 @@
         });
         return;
       }
+      // Esc: from a result (or the run being made) back to your picture.
+      if (pg === "create" && !inText && e.key === "Escape" && S.create.sel !== -1 && !popEl) { e.preventDefault(); if (S.create.job) S.create.follow = false; S.create.sel = -1; render(); return; }
       if (pg === "create" && !inText && (e.key === "ArrowLeft" || e.key === "ArrowRight") && !e.ctrlKey && !e.altKey) { e.preventDefault(); cycle(S.create, e.key === "ArrowRight" ? 1 : -1); return; }
       if (pg === "create" && !inText && window.VSSketch && S.create.src && window.VSSketch.key(e)) e.preventDefault();
     });
@@ -1441,6 +1450,8 @@
   // Which Create a result came from: the job, or the _vN in its file name.
   function runOf(r) {
     if (r.run) return r.run;
+    var n = /Vistiq_(\d{4,})_/i.exec(r.name || r.path || "");
+    if (n) return "n" + n[1];                       // numbered runs: one number per Create
     var m = /_(create|refine|paint|reference|camera|cmf|style)_v(\d+)/i.exec(r.name || r.path || "");
     return m ? m[1].toLowerCase() + m[2] : r.path;
   }
@@ -1516,6 +1527,13 @@
     $("c-ps").hidden = !(w && w.live);
     if (w && p.resultsFor !== keyOfSrc(w)) { p.resultsFor = keyOfSrc(w); loadResultsFor(p, w); }
     if (p.locksFor !== keyOfSrc(w)) { p.locks = defaultLocks(w); p.locksFor = keyOfSrc(w); }
+    // Each picture keeps its own words: another picture starts with its own (empty when new).
+    var tk = w && (w.live || w.frozen) ? "live" : keyOfSrc(w);
+    if (p.textFor !== tk) {
+      p.texts = p.texts || {};
+      if (p.textFor) p.texts[p.textFor] = p.viewing ? (p.draft || "") : (p.text || "");
+      p.text = p.texts[tk] || ""; p.viewing = false; p.wordsFor = null; p.textFor = tk; $("c-text").value = p.text;
+    }
     var LK = p.locks || defaultLocks(w), BY = refLocks(p);
     $("c-locks").querySelectorAll("button").forEach(function (b) {
       var k = b.getAttribute("data-v");
@@ -1530,7 +1548,9 @@
     $("c-keep-w").hidden = !LK.design;
     $("c-keep-l").firstChild.textContent = "How strictly · Design ";
     renderWarn();
-    $("c-text").placeholder = isRender(p.src) ? "What should change? (e.g. make the seats red leather). Leave empty for an Instant render."
+    var cur = p.viewing && current(p), cm = cur && cur.meta;
+    if (cur && cm && !(cm.text || "").trim()) $("c-text").placeholder = madeWith(cm);
+    else $("c-text").placeholder = isRender(p.src) ? "What should change? (e.g. make the seats red leather). Leave empty for an Instant render."
       : "What should it look like? (e.g. yellow nappa seats, soft morning light). Leave empty for an Instant render.";
     $("c-imp").hidden = !(st && st.helper_ready);
     if ($("c-text").value !== p.text && document.activeElement !== $("c-text")) $("c-text").value = p.text;
@@ -1782,7 +1802,10 @@
         e.preventDefault();
         var r = v.getBoundingClientRect();
         // Touchpad: two fingers sliding pan, a pinch (Ctrl+wheel) zooms. A mouse wheel zooms.
-        var pad = !e.ctrlKey && (e.deltaX !== 0 || (e.wheelDeltaY !== undefined && e.wheelDeltaY % 120 !== 0) || (e.deltaMode === 0 && Math.abs(e.deltaY) < 40 && e.deltaY % 1 !== 0));
+        var now = Date.now();
+        var pad = !e.ctrlKey && (now < (self.padUntil || 0) || e.deltaX !== 0 || (e.wheelDeltaY !== undefined && e.wheelDeltaY % 120 !== 0) || (e.deltaMode === 0 && Math.abs(e.deltaY) < 40 && e.deltaY % 1 !== 0));
+        // Once two fingers are sliding, the whole gesture (and its glide at the end) stays a pan.
+        if (pad) self.padUntil = now + 350;
         if (pad) { var zz = self.of(v); zz.x -= e.deltaX; zz.y -= e.deltaY; layout(); painter.refreshRing && painter.refreshRing(); return; }
         var step = e.ctrlKey ? Math.exp(-e.deltaY * 0.01) : (e.deltaY < 0 ? 1.15 : 1 / 1.15);   // pinch arrives as Ctrl+wheel
         self.by(v, step, e.clientX - r.left, e.clientY - r.top);

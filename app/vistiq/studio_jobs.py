@@ -7,6 +7,7 @@ import base64
 import glob
 import io
 import json
+import re
 import logging
 import os
 import sys
@@ -249,6 +250,32 @@ class Studio:
         out = os.path.join(folder, "%s · sketch %d.png" % (stem, n))
         load_rgb(src).save(out, "PNG")
         return out
+
+    def _read(self, path, use, say, req=""):
+        """The picture reader's words for this picture, or "" (not installed, or it failed)."""
+        if sys.platform == "darwin" or not studio.reader_installed(self.settings):
+            return ""
+        try:
+            say("Reading your picture", None)
+            from . import reader
+            if not hasattr(self, "_reader"):
+                self._reader = reader.Reader(lambda: studio.models_dir(self.settings))
+            return self._reader.describe(path, use, req)
+        except Exception as e:                       # never block a run over this
+            log.warning("picture reader: %s", e)
+            return ""
+
+    def _next_seq(self):
+        s = self.settings
+        n = s.get("studio_seq")
+        if not n:
+            n = len(self._outputs())          # first time: carry on after what's already there
+        n = int(n) + 1
+        try:
+            s.set("studio_seq", n)
+        except Exception:
+            log.exception("couldn't save the run number")
+        return n
 
     def magic_warm(self):
         """Load the magic eraser in the background when its tool is picked, so
@@ -601,8 +628,14 @@ class Studio:
                 cam_i = (sent.index(cam_i - 1) + 1) if cam_i and (cam_i - 1) in sent else 0
                 ref_images = [ref_images[i] for i in sent]
             elif job.get("instant"):
-                text = studio.instant_text(job.get("text") or "")
+                text = studio.instant_text(job.get("text") or "", self._read(work_path, "scene", say))
             else:
+                # Words: the picture reader spells out everything the change means in this picture
+                # (snow on the ground and on the truck, winter clothes…), the way a person would.
+                if (job.get("text") or "").strip() and not job.get("refine_of"):
+                    more = self._read(work_path, "edit", say, job.get("text"))
+                    if more:
+                        job = dict(job, text=(job.get("text") or "").strip() + "\n\n" + more)
                 text = studio.build_text(job.get("preset") or "", job.get("text"))
                 if job.get("locks"):
                     text = studio.with_locks(text, job["locks"], (job.get("preset") or "") == "sketch")
@@ -629,7 +662,10 @@ class Studio:
             stem = os.path.splitext(os.path.basename(job.get("name") or src_path))[0]
             if stem.lower().startswith("vistiq_"):
                 stem = stem[7:]
-            stem = _strip_tags(stem)
+            stem = _strip_tags(re.sub(r"^\d{4,}_", "", stem))
+            # Every run gets the next number first, so the files sort in the order they were made.
+            seq = self._next_seq()
+            stem = "%04d_%s" % (seq, stem)
             tag = ("refine" if job.get("refine_of") else
                    ("paint" if mask is not None else ("create" if mode == "create" else (job.get("preset") or "reference"))))
             out_dir = os.path.join(studio.outputs_dir(s), time.strftime("%Y-%m-%d"))
@@ -819,7 +855,9 @@ class Studio:
                 continue
             meta = _read_meta(p)
             out.append({"path": p, "name": nm, "w": w, "h": h, "thumb": self.thumb(p, mtime), "made": mtime * 1000,
-                        "meta": {"text": meta.get("text", ""), "preset": meta.get("preset", ""), "source": meta.get("source", "")}})
+                        "meta": {"text": meta.get("text", ""), "preset": meta.get("preset", ""), "source": meta.get("source", ""),
+                                 "instant": bool(meta.get("instant")),
+                                 "refs": [{"use": r.get("use")} for r in (meta.get("refs") or [])]}})
         out.sort(key=lambda x: x["made"])
         return out
 
@@ -912,6 +950,7 @@ def _add_lora(prompt, lora, strength):
 
 def _strip_tags(stem):
     import re
+    stem = re.sub(r"^\d{4,}_", "", stem)            # the run number in front
     return re.sub(r"_(create|refine|paint|reference|camera|cmf|style)_v\d+(_\d+)?$", "", stem) or stem
 
 

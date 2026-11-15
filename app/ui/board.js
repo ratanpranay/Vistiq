@@ -33,6 +33,7 @@
 
   // ---------------------------------------------------------------- build
 
+  var padUntil = 0;
   function build(el) {
     root = el;
     root.innerHTML =
@@ -44,7 +45,7 @@
       '<svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="5" rx="1"/><rect x="14" y="3" width="7" height="5" rx="1"/><rect x="3" y="12" width="7" height="5" rx="1"/><rect x="14" y="12" width="7" height="9" rx="1"/></svg>Organize</button>' +
       '<button type="button" data-b="fit">Fit</button><span class="b-zoom" id="b-zoom">80%</span></div>' +
       '<div class="b-hint" id="b-hint">Click + for a blank canvas, an image or your phone · paste with Ctrl V or drop images here. Double-click a tile to work on it.</div>' +
-      '<div class="b-menu" id="b-menu" hidden></div>';
+      '<div class="b-menu" id="b-menu" hidden></div><div class="b-group" id="b-group" hidden></div>';
     world = root.querySelector("#b-world"); svgEl = root.querySelector("#b-links"); menu = root.querySelector("#b-menu");
     wire();
     call("studio_board_get").then(function (b) {
@@ -61,8 +62,11 @@
     return { on: !!(S.live && S.live.on && src), src: src, doc: S.live && S.live.doc, state: S.live && S.live.state, msg: S.live && S.live.msg };
   }
 
+  // Several tiles picked together (Ctrl or Shift click, up to 4): numbered in the order picked.
+  var multi = [];
   function tileHTML(t) {
-    var sel = t.id === B.sel ? " sel" : "";
+    var mi = multi.indexOf(t.id), sel = (t.id === B.sel && !multi.length ? " sel" : "") + (mi >= 0 ? " msel" : "");
+    var badge = mi >= 0 ? '<b class="b-no">' + (mi + 1) + "</b>" : "";
     if (t.kind === "live") {
       var L = liveInfo();
       var img = L.on ? '<div class="b-pic"><img src="' + L.src.preview + '" alt=""></div>' :
@@ -75,7 +79,7 @@
     if (th === undefined) { thumbs[t.path] = null; call("studio_thumb", t.path).then(function (d) { thumbs[t.path] = d || "missing"; render(); }); }
     var pic = th && th !== "missing" ? '<div class="b-pic"><img src="' + th + '" alt=""></div>' : '<div class="b-empty">' + (th === "missing" ? "File moved or deleted" : "") + "</div>";
     return '<div class="b-tile' + sel + '" data-id="' + t.id + '" style="left:' + t.x + "px;top:" + t.y + "px;width:" + W + 'px">' +
-      '<div class="b-h"><span>' + esc(VS().short(t.name || "")) + "</span><small>" + (t.w ? t.w + " × " + t.h : "") + "</small></div>" + pic + "</div>";
+      '<div class="b-h"><span>' + esc(VS().short(t.name || "")) + "</span><small>" + (t.w ? t.w + " × " + t.h : "") + "</small></div>" + pic + badge + "</div>";
   }
 
   function linksSVG() {
@@ -99,10 +103,47 @@
       world.insertAdjacentHTML("beforeend", h);
     }
     svgEl.innerHTML = linksSVG();
+    groupBar();
     applyView();
     root.querySelector("#b-hint").hidden = B.tiles.length > 1;
   }
 
+  function groupBar() {
+    var g = root.querySelector("#b-group");
+    if (multi.length < 2) { g.hidden = true; return; }
+    g.hidden = false;
+    var h = "<b>" + multi.length + ' selected</b><button type="button" data-g="compare">⇆ Compare side by side</button>' +
+      '<button type="button" data-g="create" title="Opens in Create: 1 is the base, then pick what each other one gives">✦ Mix into one<small>1 = base · pick what each gives</small></button><button type="button" data-g="clear" title="Deselect (Esc)">×</button>';
+    if (g.getAttribute("data-h") !== h) { g.innerHTML = h; g.setAttribute("data-h", h); }
+  }
+  function clearMulti() { if (multi.length) { multi = []; lastHTML = ""; render(); } }
+  function groupAction(a) {
+    var tiles = multi.map(byId).filter(Boolean), V = VS();
+    if (a === "clear") { clearMulti(); return; }
+    if (a === "compare") { compare(tiles); return; }
+    if (a === "create") {
+      // The first picked is what gets worked on; the rest go in as references (pick what each gives in Create).
+      Promise.all(tiles.map(function (t) { return call("studio_image", t.path); })).then(function (infos) {
+        if (!infos[0]) return;
+        V.S.create.refs = [];
+        V.setImage(V.S.create, "src", infos[0]);
+        infos.slice(1).forEach(function (i) { if (i) V.addRef(i); });
+        clearMulti(); V.go("create");
+      });
+    }
+  }
+  function compare(tiles) {
+    var old = document.getElementById("b-compare"); if (old) old.remove();
+    var el = document.createElement("div"); el.id = "b-compare"; el.className = "b-compare";
+    el.innerHTML = '<button type="button" class="x" title="Close (Esc)">×</button><div class="row">' + tiles.map(function (t, i) {
+      var th = thumbs[t.path];
+      return '<figure><img alt="" data-p="' + esc(t.path) + '" src="' + (th && th !== "missing" ? th : "") + '"><figcaption><b>' + (i + 1) + "</b>" + esc(VS().short(t.name || "")) + "</figcaption></figure>";
+    }).join("") + "</div>";
+    document.body.appendChild(el);
+    // Full pictures, not the board's small ones.
+    tiles.forEach(function (t) { call("studio_image", t.path).then(function (info) { var im = el.querySelector('img[data-p="' + CSS.escape(t.path) + '"]'); if (im && info && info.preview) im.src = info.preview; }); });
+    el.addEventListener("click", function (e) { if (e.target === el || e.target.closest(".x")) el.remove(); });
+  }
   function applyView() {
     var v = B.view;
     world.style.transform = "translate(" + v.x + "px," + v.y + "px) scale(" + v.z + ")";
@@ -240,6 +281,8 @@
         }
         return;
       }
+      var g = e.target.closest("[data-g]");
+      if (g) { groupAction(g.getAttribute("data-g")); return; }
       var m = e.target.closest("[data-m]");
       if (m) { var t = byId(menu.getAttribute("data-id")); if (t) menuAction(m.getAttribute("data-m"), t); return; }
       if (!e.target.closest("#b-menu")) menu.hidden = true;
@@ -260,6 +303,15 @@
       menu.hidden = true;
       var el = e.button === 0 && e.target.closest(".b-tile");
       var t = el && byId(el.getAttribute("data-id"));
+      if (t && (e.ctrlKey || e.shiftKey || e.metaKey) && t.kind !== "live") {
+        // Ctrl or Shift click: add to (or take out of) the group, up to 4.
+        if (!multi.length && B.sel && B.sel !== t.id && B.sel !== "live" && byId(B.sel)) multi.push(B.sel);
+        var k = multi.indexOf(t.id);
+        if (k >= 0) multi.splice(k, 1); else if (multi.length < 4) multi.push(t.id); else VS().toast && VS().toast("Up to 4 at a time");
+        lastHTML = ""; render(); return;
+      }
+      if (t && multi.length && multi.indexOf(t.id) < 0) { multi = []; lastHTML = ""; }
+      if (!t && multi.length && e.button === 0) { multi = []; lastHTML = ""; render(); }
       if (t) { B.sel = t.id; el.parentNode && world.querySelectorAll(".b-tile.sel").forEach(function (n) { n.classList.remove("sel"); }); el.classList.add("sel"); }
       drag = { t: t, sx: e.clientX, sy: e.clientY, x: t ? t.x : B.view.x, y: t ? t.y : B.view.y, moved: false };
       cv.setPointerCapture(e.pointerId);
@@ -285,7 +337,10 @@
     cv.addEventListener("wheel", function (e) {
       e.preventDefault();
       var r = cv.getBoundingClientRect(), v = B.view;
-      if (e.ctrlKey || Math.abs(e.deltaY) >= 40 && !e.shiftKey && Math.abs(e.deltaX) < 1) {
+      var now = Date.now(), mouse = !e.ctrlKey && now >= (padUntil || 0) && Math.abs(e.deltaX) < 1 &&
+        (e.wheelDeltaY !== undefined ? e.wheelDeltaY % 120 === 0 : Math.abs(e.deltaY) >= 40) && !e.shiftKey;
+      if (!e.ctrlKey && !mouse) padUntil = now + 350;      // a touchpad slide, glide included, stays a pan
+      if (e.ctrlKey || mouse) {
         var z = Math.max(0.1, Math.min(3, v.z * Math.exp(-e.deltaY * (e.ctrlKey ? 0.01 : 0.0015))));
         var mx = e.clientX - r.left, my = e.clientY - r.top;
         v.x = mx - (mx - v.x) * z / v.z; v.y = my - (my - v.y) * z / v.z; v.z = z;
@@ -294,7 +349,7 @@
     }, { passive: false });
     document.addEventListener("keydown", function (e) {
       if (VS().S.page !== "board") return;
-      if (e.key === "Escape") { menu.hidden = true; return; }
+      if (e.key === "Escape") { menu.hidden = true; var cmp = document.getElementById("b-compare"); if (cmp) cmp.remove(); else clearMulti(); return; }
       var inText = /^(TEXTAREA|INPUT)$/.test((document.activeElement || {}).tagName || "");
       if (inText) return;
       if (e.ctrlKey && e.key.toLowerCase() === "v") { e.preventDefault(); call("studio_paste").then(function (i) { if (i) add(i, null); }); }
@@ -309,6 +364,6 @@
   function addFrom(info, fromId) { return add(info, byId(fromId) ? fromId : null); }
   function addAndOpen(info) { var t = add(info, null); if (t) open(t); return t; }
 
-  window.VSBoard = { build: build, render: render, addImages: addImages, addResult: addResult, has: has, organize: organize, add: add, addAndOpen: addAndOpen, addFrom: addFrom, refreshThumb: refreshThumb, open: function (id) { var t = byId(id); if (t) open(t); },
+  window.VSBoard = { multi: function () { return multi.slice(); }, build: build, render: render, addImages: addImages, addResult: addResult, has: has, organize: organize, add: add, addAndOpen: addAndOpen, addFrom: addFrom, refreshThumb: refreshThumb, open: function (id) { var t = byId(id); if (t) open(t); },
                      _state: function () { return B; } };
 })();

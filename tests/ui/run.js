@@ -461,6 +461,11 @@ const frame = (n, name) => ({ path: "live://photoshop/" + n, name: name || "flat
     await p.keyboard.press("ArrowRight"); await p.waitForTimeout(80);
     check("→ flips to the next result", await p.evaluate(() => window.VS.S.create.sel === 1), String(await p.evaluate(() => window.VS.S.create.sel)));
     await p.click("#c-strip [data-i='1']"); await p.waitForTimeout(80);
+    await p.click("#c-strip [data-i='0']"); await p.waitForTimeout(60);
+    await p.keyboard.press("Escape"); await p.waitForTimeout(60);
+    check("Esc goes back to your picture", await p.evaluate(() => window.VS.S.create.sel === -1), "");
+    await p.click("#c-strip [data-i='1']"); await p.waitForTimeout(60);
+    await p.click("#c-strip [data-i='1']"); await p.waitForTimeout(60);
     check("clicking the chosen thumbnail again shows your picture", await p.evaluate(() => window.VS.S.create.sel === -1 && !document.querySelector("#c-view .s-pane")), "");
     check("no + Another", await p.evaluate(() => !document.querySelector("#c-strip .s-more")), "");
     await p.evaluate(() => { const S = window.VS.S.create; ["Vistiq_flat 2_create_v3.png", "Vistiq_flat 2_create_v3_2.png"].forEach((n, i) => S.results.push({ path: "C:/o/" + n, name: n, w: 2368, h: 1328, preview: "x", srcKey: S.results[0].srcKey, made: 10 + i })); window.VS.render(); });
@@ -585,6 +590,46 @@ const frame = (n, name) => ({ path: "live://photoshop/" + n, name: name || "flat
     check("back on the picture, your own words return", await p.evaluate(() => document.getElementById("c-text").value) !== "white seats", "");
     check("the toolbar has a Board button", await p.evaluate(() => !!document.querySelector("#c-view [data-k=board], .sk-bar [data-k=board]")), "");
     check("no page errors with references", p.errors.length === 0, p.errors.join(" | "));
+    await p.close();
+  }
+
+  // Board: Ctrl-click up to 4 tiles; one bar sends them to Create (1 = design, others references) or compares them.
+  {
+    const p = await open(browser, null, { board: true });
+    const G = "data:image/gif;base64,R0lGODlhAQABAAAAACw=";
+    await p.evaluate((g) => { window.pywebview.api.studio_image = (path) => Promise.resolve({ path, name: path.split("/").pop(), w: 160, h: 90, preview: g });
+      window.VSBoard.addImages([1, 2, 3].map((i) => ({ path: "C:/t/" + i + ".png", name: i + ".png", w: 160, h: 90, preview: g }))); }, G);
+    await p.waitForTimeout(150);
+    const ids = await p.evaluate(() => window.VSBoard._state().tiles.filter((t) => t.kind !== "live").map((t) => t.id));
+    await p.click('.b-tile[data-id="' + ids[0] + '"] .b-h');
+    await p.click('.b-tile[data-id="' + ids[1] + '"] .b-h', { modifiers: ["Control"] });
+    await p.click('.b-tile[data-id="' + ids[2] + '"] .b-h', { modifiers: ["Control"] });
+    await p.waitForTimeout(80);
+    check("Ctrl-click picks several tiles, numbered", await p.evaluate(() => [...document.querySelectorAll(".b-tile.msel .b-no")].map((b) => b.textContent).sort().join(",")) === "1,2,3", await p.evaluate(() => JSON.stringify(window.VSBoard.multi())));
+    check("a bar for the group shows", await p.evaluate(() => !document.getElementById("b-group").hidden), "");
+    await p.click("#b-group [data-g=compare]"); await p.waitForTimeout(100);
+    check("Compare shows them side by side", await p.evaluate(() => document.querySelectorAll("#b-compare figure").length) === 3, "");
+    await p.keyboard.press("Escape"); await p.waitForTimeout(50);
+    await p.click("#b-group [data-g=create]"); await p.waitForTimeout(200);
+    check("Mix into one: 1 is the base, the rest references", await p.evaluate(() => window.VS.S.page === "create" && window.VS.S.create.src.path === "C:/t/1.png" && window.VS.S.create.refs.length === 2), await p.evaluate(() => JSON.stringify([window.VS.S.page, window.VS.S.create.src && window.VS.S.create.src.path, (window.VS.S.create.refs || []).length])));
+    check("no page errors on the board group", p.errors.length === 0, p.errors.join(" | "));
+    await p.close();
+  }
+
+  // Each picture keeps its own words.
+  {
+    const p = await open(browser, null, {});
+    await p.click(".s-nav button[data-page=create]");
+    const G = "data:image/gif;base64,R0lGODlhAQABAAAAACw=";
+    await p.evaluate((g) => window.VS.setImage(window.VS.S.create, "src", { path: "C:/a.png", name: "a.png", w: 160, h: 90, preview: g }), G);
+    await p.waitForTimeout(100);
+    await p.fill("#c-text", "snowy camp");
+    await p.evaluate((g) => window.VS.setImage(window.VS.S.create, "src", { path: "C:/b.png", name: "b.png", w: 160, h: 90, preview: g }), G);
+    await p.waitForTimeout(100);
+    check("a new picture starts with empty words", await p.evaluate(() => document.getElementById("c-text").value) === "", await p.evaluate(() => document.getElementById("c-text").value));
+    await p.evaluate((g) => window.VS.setImage(window.VS.S.create, "src", { path: "C:/a.png", name: "a.png", w: 160, h: 90, preview: g }), G);
+    await p.waitForTimeout(100);
+    check("back on a picture, its words return", await p.evaluate(() => document.getElementById("c-text").value) === "snowy camp", "");
     await p.close();
   }
 

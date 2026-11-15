@@ -44,6 +44,16 @@ ASK = {
               "sketch, pencil drawing, watercolour or other; the line work, the shading technique, the colour "
               "palette, how the background is treated and how realistic it is. Do not describe what is "
               "shown. One paragraph, at most 60 words."),
+    "scene": ("Describe this picture for a photographer who will recreate it as a real photograph. Say what it "
+              "is (for example a car interior, a car exterior, a product), then the colour and material look of "
+              "each main part exactly as drawn (for example yellow seats, aubergine door panels, black dashboard, "
+              "metal pedals), and the setting outside or behind it. Precise colour names. At most 80 words, "
+              "plain sentences, no opinions."),
+    "edit": ("Here is a picture and a change someone wants: \"{req}\". Write one clear instruction for an "
+             "image-editing AI that carries out this change completely and believably in this picture: name "
+             "everything the change implies here (for example ground, surfaces and objects covered in snow, what "
+             "people wear, light and weather, fires lit, reflections), and say that the main subject's design and "
+             "the camera stay the same. Plain sentences, at most 90 words, the instruction only."),
     "materials": ("Describe only the colours, materials and finishes in this picture, part by part (for "
                   "example the seats, dashboard, door panels, console, trims, floor), with precise words: the "
                   "colour, the material (leather, fabric, wood, metal, plastic…), its finish (matte, satin, "
@@ -156,8 +166,10 @@ class Reader:
             time.sleep(0.5)
         raise RuntimeError("The picture reader took too long to start.")
 
-    def describe(self, path, use):
+    def describe(self, path, use, req=""):
         ask = ASK.get(use)
+        if ask and "{req}" in ask:
+            ask = ask.replace("{req}", " ".join((req or "").split())[:400].replace('"', "'"))
         if not ask:
             return ""
         with self._lock:
