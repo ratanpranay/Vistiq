@@ -336,9 +336,23 @@ QE_INSTANT = ("Turn this design sketch into a finished, photorealistic CGI rende
               "colour scheme and camera view. No sketch lines remain.")
 QE_CLEAN = ("Clean, brand-new surfaces: leather and fabric smooth and evenly coloured, no stains, smudges, "
             "fingerprints, blotches or mottled texture; crisp, sharp detail.")
+# Plain "night" made a starry, blue-washed, neon look (tested Nov 2026). This reads like a real press photo.
+QE_NIGHT = ("Make it a real night photograph, like a premium car maker's press photo: calm and elegant, "
+            "natural low light; every material keeps its true colour and stays readable, with no blue colour "
+            "cast; ambient lighting is only a thin, understated line with a warm white glow, never neon; screens "
+            "are on; outside is a deep night sky with a few distant city lights low on the horizon, no stars, "
+            "no starry headliner; soft, gentle contrast and clean reflections.")
+NIGHT_WORDS = re.compile(r"\b(night|nighttime|night-time|evening|dusk|after dark|midnight)\b", re.I)
+NIGHT_OWN = re.compile(r"\b(neon|stars?|starry|starlight|cyberpunk)\b", re.I)
 
 
-def qwen_text(words, instant=False, scene="", locks=None, ref_head="", sketch=False):
+def night_clause(words):
+    """The calm press-photo night, when the words ask for night and don't describe their own look."""
+    w = words or ""
+    return QE_NIGHT if NIGHT_WORDS.search(w) and not NIGHT_OWN.search(w) else ""
+
+
+def qwen_text(words, instant=False, scene="", locks=None, ref_head="", sketch=False, said=None):
     """Short, direct instructions for Qwen Image Edit."""
     words = " ".join(clean_prompt(words).split())
     if words and words[-1] not in ".!?":
@@ -358,6 +372,10 @@ def qwen_text(words, instant=False, scene="", locks=None, ref_head="", sketch=Fa
             parts.append("Turn this sketch into a photorealistic render.")
         if words:
             parts.append(words)
+        night = night_clause(said if said is not None else words)
+        if night:
+            parts.append(night)
+            locks["light"] = False
         keep = []
         if locks.get("design", True):
             keep.append("the design and every part")

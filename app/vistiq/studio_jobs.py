@@ -717,7 +717,7 @@ class Studio:
                 text = studio.qwen_text(job.get("text") or "", instant=bool(job.get("instant")),
                                         scene=locals().get("scene") or "", locks=job.get("locks"),
                                         ref_head=(text.split("\n\n")[0] if refs else ""),
-                                        sketch=(job.get("preset") or "") == "sketch")
+                                        sketch=(job.get("preset") or "") == "sketch", said=job.get("said"))
             stem = os.path.splitext(os.path.basename(job.get("name") or src_path))[0]
             if stem.lower().startswith("vistiq_"):
                 stem = stem[7:]

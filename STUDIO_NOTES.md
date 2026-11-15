@@ -1,5 +1,8 @@
 # Vistiq Studio (test build)
 
+## 0.4.18
+- Night looks like a real press photo: calm low light, true material colours, thin warm ambient lines, no stars or neon (unless you ask for them).
+
 ## 0.4.17
 - Qwen Image Edit gets short, direct instructions (cleaner materials, camera moves follow your words).
 
