@@ -905,7 +905,8 @@ def reference_prompt(settings, design, reference, text, mode="camera", keep=0.8,
     # instead of copying the design's own colours back, which the design
     # lock (trained to keep image 1) would otherwise do. The lock is off.
     lines = mode in ("cmf", "style")
-    p = create_prompt(settings, design, text, 0 if lines else keep, megapixels, seed, steps)
+    # The design lock is trained to keep image 1 as it is, its view too: off for a camera change.
+    p = create_prompt(settings, design, text, 0 if lines or mode == "camera" else keep, megapixels, seed, steps)
     if lines:
         p["16"] = {"class_type": "Canny", "inputs": {"image": ["11", 0], "low_threshold": 0.15,
                                                        "high_threshold": 0.35}}
@@ -1044,8 +1045,11 @@ F3_HOLD = (F3_KEEP + " Do not add any parts, trims, light strips, panels or deta
 # on the user's PC (Nov 2026): colours and materials, or the whole look, come
 # over from the reference while the design stays.
 F3_REF_PRESETS = {
-    "camera": ("Show the design of the first image from exactly the camera position, angle and field of view "
-               "of the second image. Keep the design, materials and colours of the first image."),
+    "camera": ("Change the camera. Show the design of the first image as seen from the camera of the second "
+               "image: the same camera position, height, tilt, angle, lens and framing as the second image. If the "
+               "second image looks down from above, look down from above; if it is closer or wider, be closer or "
+               "wider. The composition must match the second image, not the first. Keep the design, materials and "
+               "colours of the first image; take nothing but the viewpoint from the second image."),
     "cmf": ("Render the design in the first image as a photorealistic photograph. " + F3_KEEP + " Apply the "
             "colours, materials and finishes of the second image: the same colours and materials on the same "
             "kinds of parts, the same trim materials and the same ambient light colour. Do not copy the shapes "
@@ -1054,6 +1058,12 @@ F3_REF_PRESETS = {
               "the lighting, colours, materials, mood and photographic look of the second image. Do not copy "
               "the shapes or the camera view of the second image."),
 }
+
+
+# For a camera change: hold the design, but never the first image's viewpoint
+# (the usual "keep the camera view" wording made the result copy image 1's view).
+F3_CAMERA_KEEP = ("Keep every part, shape, proportion, material and colour of the first image's design. "
+                  "Only the viewpoint changes, to the second image's camera.")
 
 
 # Sketch renders came out with stained, mottled leather and crushed-velvet

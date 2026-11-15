@@ -546,7 +546,12 @@ class Studio:
                     text = studio.with_locks(text, job["locks"], (job.get("preset") or "") == "sketch")
             seed = int(job.get("seed") or int(time.time()) % 100000 * 7919)
             keep = float(job.get("keep") if job.get("keep") is not None else 0.8)
-            if studio.flux3_ready(s) and keep >= 0.6 and studio.F3_KEEP not in text:
+            camera = mode == "reference" and (job.get("preset") or "camera") == "camera"
+            if camera:
+                # "Follow my sketch" here means the design; the view comes from the reference.
+                if keep >= 0.3:
+                    text = text + "\n\n" + studio.F3_CAMERA_KEEP
+            elif studio.flux3_ready(s) and keep >= 0.6 and studio.F3_KEEP not in text:
                 # FLUX 3 weighs what comes first: the design leads, nothing is added.
                 text = studio.F3_HOLD + "\n\n" + text
             elif not _has_lock(s) and studio.F3_KEEP not in text:
