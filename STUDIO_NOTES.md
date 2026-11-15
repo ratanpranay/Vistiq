@@ -1,5 +1,8 @@
 # Vistiq Studio (test build)
 
+## 0.4.14
+- The same reference picture can be added twice (e.g. once for its materials, once for its light).
+
 ## 0.4.13
 - Board: Ctrl or Shift click up to 4 tiles (numbered). The bar offers Compare side by side and Mix into one (1 is the base, the others become references; pick what each gives).
 - Touchpad: two-finger pans no longer turn into a zoom when you let go.

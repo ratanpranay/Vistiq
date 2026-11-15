@@ -127,7 +127,7 @@
   function addRef(info) {
     if (!info) return;
     var p = S.create; p.refs = p.refs || [];
-    if (p.refs.some(function (r) { return r.path === info.path; })) { toast("That reference is already in"); return; }
+    // The same picture may come in twice (e.g. its materials and its light); it then takes the next free use.
     if (p.refs.length >= 3) { toast("Three references at most: remove one first"); return; }
     var used = p.refs.map(function (r) { return r.use; });
     var use = ["camera", "materials", "light", "style"].filter(function (u) { return used.indexOf(u) < 0; })[0] || "describe";
