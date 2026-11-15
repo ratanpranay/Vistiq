@@ -674,7 +674,8 @@ class Studio:
                 cam_i = (sent.index(cam_i - 1) + 1) if cam_i and (cam_i - 1) in sent else 0
                 ref_images = [ref_images[i] for i in sent]
             elif job.get("instant"):
-                text = studio.instant_text(job.get("text") or "", self._read(work_path, "scene", say))
+                scene = self._read(work_path, "scene", say)
+                text = studio.instant_text(job.get("text") or "", scene)
             else:
                 # Words: the picture reader spells out everything the change means in this picture
                 # (snow on the ground and on the truck, winter clothes…), the way a person would.
@@ -710,6 +711,13 @@ class Studio:
             elif not _has_lock(s) and studio.F3_KEEP not in text:
                 # Without the design lock, the slider works through the wording.
                 text = text + "\n\n" + follow_words(keep, studio.flux3_ready(s))
+            if studio.use_qwenedit(s) and mode == "create":
+                # Qwen Image Edit reads short, direct instructions best (the long
+                # FLUX wording made it muddy and stopped camera moves).
+                text = studio.qwen_text(job.get("text") or "", instant=bool(job.get("instant")),
+                                        scene=locals().get("scene") or "", locks=job.get("locks"),
+                                        ref_head=(text.split("\n\n")[0] if refs else ""),
+                                        sketch=(job.get("preset") or "") == "sketch")
             stem = os.path.splitext(os.path.basename(job.get("name") or src_path))[0]
             if stem.lower().startswith("vistiq_"):
                 stem = stem[7:]

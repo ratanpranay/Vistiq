@@ -330,6 +330,51 @@ def qwenedit_prompt(settings, images, text, seed=None, frame=0, megapixels=QE_MP
     return p
 
 
+QE_INSTANT = ("Turn this design sketch into a finished, photorealistic CGI render, like a car maker's studio "
+              "visualization: every drawn shape becomes the real part it stands for, built with real materials, glass, "
+              "panel gaps and stitching; parts the sketch only hints at are completed. Keep the design, proportions, "
+              "colour scheme and camera view. No sketch lines remain.")
+QE_CLEAN = ("Clean, brand-new surfaces: leather and fabric smooth and evenly coloured, no stains, smudges, "
+            "fingerprints, blotches or mottled texture; crisp, sharp detail.")
+
+
+def qwen_text(words, instant=False, scene="", locks=None, ref_head="", sketch=False):
+    """Short, direct instructions for Qwen Image Edit."""
+    words = " ".join(clean_prompt(words).split())
+    if words and words[-1] not in ".!?":
+        words += "."
+    locks = dict(locks or {})
+    parts = []
+    if instant:
+        parts.append(QE_INSTANT)
+        if scene:
+            parts.append("In the picture: " + scene)
+        if words:
+            parts.append("The scene: " + words)
+    else:
+        if ref_head:
+            parts.append(ref_head)
+        if sketch and not ref_head:
+            parts.append("Turn this sketch into a photorealistic render.")
+        if words:
+            parts.append(words)
+        keep = []
+        if locks.get("design", True):
+            keep.append("the design and every part")
+        if locks.get("materials") and not sketch:
+            keep.append("the materials and colours")
+        if locks.get("light"):
+            keep.append("the lighting")
+        if locks.get("camera", True):
+            keep.append("the camera view")
+        if keep and not ref_head:
+            parts.append("Keep " + ", ".join(keep[:-1]) + (" and " if len(keep) > 1 else "") + keep[-1] + " exactly as they are.")
+        elif not locks.get("camera", True) and not ref_head:
+            pass
+    parts.append(QE_CLEAN)
+    return " ".join(parts)
+
+
 def _have(key, settings):
     return bool(find(key, settings))
 

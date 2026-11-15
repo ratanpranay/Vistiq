@@ -1,5 +1,8 @@
 # Vistiq Studio (test build)
 
+## 0.4.17
+- Qwen Image Edit gets short, direct instructions (cleaner materials, camera moves follow your words).
+
 ## 0.4.16
 - Camera changes in words work without a reference: with Camera unlocked, the design stays and the view follows your words.
 - Experimental: Qwen Image Edit 2511 (Settings → Image model, 31 GB download). It reads the picture itself, so it understands context: what a sketch shows, what a change implies, new views. Switch between FLUX 3 and Qwen Image Edit any time.
