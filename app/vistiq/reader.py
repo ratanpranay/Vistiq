@@ -26,6 +26,25 @@ BASE = "https://huggingface.co/Qwen/Qwen3-VL-2B-Instruct-GGUF/resolve/main/"
 MODEL = "Qwen3VL-2B-Instruct-Q8_0.gguf"
 MMPROJ = "mmproj-Qwen3VL-2B-Instruct-F16.gguf"
 GB = 2.6
+# The XL reader (Qwen3-VL 8B, about 5.8 GB) understands sketches far better: what each
+# drawn shape is (a band across the dashboard is a display…). Used when it is there.
+XL_BASE = "https://huggingface.co/Qwen/Qwen3-VL-8B-Instruct-GGUF/resolve/main/"
+XL_MODEL = "Qwen3VL-8B-Instruct-Q4_K_M.gguf"
+XL_MMPROJ = "mmproj-Qwen3VL-8B-Instruct-F16.gguf"
+XL_GB = 6.2
+
+
+def _files(models_dir):
+    """The best reader on this computer: (model, eyes)."""
+    f = folder(models_dir)
+    if os.path.isfile(os.path.join(f, XL_MODEL)) and os.path.isfile(os.path.join(f, XL_MMPROJ)):
+        return os.path.join(f, XL_MODEL), os.path.join(f, XL_MMPROJ)
+    return os.path.join(f, MODEL), os.path.join(f, MMPROJ)
+
+
+def xl_installed(models_dir):
+    f = folder(models_dir)
+    return os.path.isfile(os.path.join(f, XL_MODEL)) and os.path.isfile(os.path.join(f, XL_MMPROJ)) and bool(_server(models_dir))
 RELEASES = "https://api.github.com/repos/ggml-org/llama.cpp/releases?per_page=30"
 PORT = 38395
 SIDE = 896          # the picture is read at this size (longest side)
@@ -44,16 +63,21 @@ ASK = {
               "sketch, pencil drawing, watercolour or other; the line work, the shading technique, the colour "
               "palette, how the background is treated and how realistic it is. Do not describe what is "
               "shown. One paragraph, at most 60 words."),
-    "scene": ("Describe this picture for a photographer who will recreate it as a real photograph. Say what it "
-              "is (for example a car interior, a car exterior, a product), then the colour and material look of "
-              "each main part exactly as drawn (for example yellow seats, aubergine door panels, black dashboard, "
-              "metal pedals), and the setting outside or behind it. Precise colour names. At most 80 words, "
-              "plain sentences, no opinions."),
-    "edit": ("Here is a picture and a change someone wants: \"{req}\". Write one clear instruction for an "
-             "image-editing AI that carries out this change completely and believably in this picture: name "
-             "everything the change implies here (for example ground, surfaces and objects covered in snow, what "
-             "people wear, light and weather, fires lit, reflections), and say that the main subject's design and "
-             "the camera stay the same. Plain sentences, at most 90 words, the instruction only."),
+    "scene": ("This is a designer's sketch or render for a car (interior or exterior) or a product. Explain it "
+              "to a 3D visualizer who will build a finished, photoreal CGI render from it. 1) What it is and the "
+              "view. 2) What each drawn part IS and how it works, reading the designer's intent (for example: the "
+              "wide blue band across the dashboard is a curved glass display; the shape in the middle is the "
+              "centre console with a wireless charging tray; the yoke is the steering wheel; the grey area below is "
+              "the carpeted floor). 3) The intended colour and material of each part, as drawn. 4) What a "
+              "finished car would have here that the sketch only hints at (seats, door panels, glass, a closed "
+              "cabin). 5) The setting or studio background. At most 110 words, plain sentences."),
+    "edit": ("Here is a picture and a change someone wants: \"{req}\". Rewrite it as one complete instruction "
+             "for an image-editing AI that does the change thoroughly and believably in THIS picture, the way a "
+             "skilled retoucher would: name everything it implies here (for example: snow on the ground, on the "
+             "roof, bonnet, tyres, tent and cooler; falling snow; overcast winter light; people dressed for the "
+             "cold; a lit campfire with glow on nearby faces), and say what stays exactly the same (the main "
+             "subject's design and colours, the people's poses, the camera). Plain sentences, at most 100 words, "
+             "the instruction only."),
     "materials": ("Describe only the colours, materials and finishes in this picture, part by part (for "
                   "example the seats, dashboard, door panels, console, trims, floor), with precise words: the "
                   "colour, the material (leather, fabric, wood, metal, plastic…), its finish (matte, satin, "
@@ -75,12 +99,14 @@ def _server(models_dir):
 
 
 def installed(models_dir):
+    if xl_installed(models_dir):
+        return True
     f = folder(models_dir)
     return (os.path.isfile(os.path.join(f, MODEL)) and os.path.isfile(os.path.join(f, MMPROJ))
             and bool(_server(models_dir)))
 
 
-def install(models_dir, download, on_progress, cancelled=lambda: False):
+def install(models_dir, download, on_progress, cancelled=lambda: False, xl=False):
     f = folder(models_dir)
     os.makedirs(f, exist_ok=True)
     if not _server(models_dir):
@@ -111,10 +137,12 @@ def install(models_dir, download, on_progress, cancelled=lambda: False):
                     if n.startswith("llama-") or n.endswith(".dylib"):
                         os.chmod(os.path.join(root, n), 0o755)
             subprocess.run(["xattr", "-dr", "com.apple.quarantine", dest], capture_output=True)
-    for name, label in ((MMPROJ, "Picture reader eyes"), (MODEL, "Picture reader model")):
+    files = (((XL_MMPROJ, "Picture reader XL eyes"), (XL_MODEL, "Picture reader XL model")) if xl
+             else ((MMPROJ, "Picture reader eyes"), (MODEL, "Picture reader model")))
+    for name, label in files:
         p = os.path.join(f, name)
         if not os.path.isfile(p):
-            download(BASE + name, p, on_progress, label, cancelled)
+            download((XL_BASE if xl else BASE) + name, p, on_progress, label, cancelled)
 
 
 def _jpeg(path):
@@ -142,14 +170,18 @@ class Reader:
 
     def _start(self):
         if self.proc and self.proc.poll() is None:
-            return
+            if getattr(self, "which", None) == _files(self.models_dir())[0]:
+                return
+            self.stop()                           # the XL reader just arrived: switch to it
         md = self.models_dir()
         exe = _server(md)
         if not exe:
             raise RuntimeError("The picture reader isn't installed.")
         f = folder(md)
         threads = str(max(2, min(12, (os.cpu_count() or 4) - 2)))
-        cmd = [exe, "-m", os.path.join(f, MODEL), "--mmproj", os.path.join(f, MMPROJ), "--port", str(PORT),
+        model, eyes = _files(md)
+        self.which = model
+        cmd = [exe, "-m", model, "--mmproj", eyes, "--port", str(PORT),
                "--host", "127.0.0.1", "-c", "4096", "--jinja", "-t", threads]
         flags = 0x08000000 if sys.platform == "win32" else 0
         self.proc = subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,

@@ -321,9 +321,14 @@ def status(settings=None):
             "tiers": {k: {"label": v, "ready": ready(k)} for k, v in TIERS.items()},
             "engine_installed": engine_installed(), "loras": loras(settings),
             "select_ready": select_installed(settings), "helper_ready": helper_installed(settings),
-            "reader_ready": reader_installed(settings),
+            "reader_ready": reader_installed(settings), "reader_xl_ready": reader_xl_installed(settings),
             "home": home(settings), "comfy_models": guess_comfy_models(settings),
             "flux3": flux3_ready(settings)}
+
+
+def reader_xl_installed(settings=None):
+    from . import reader
+    return reader.xl_installed(models_dir(settings))
 
 
 def reader_installed(settings=None):
@@ -1255,15 +1260,13 @@ def _interior(text):
 
 # Instant render (Nov 2026): Create with no words and no references makes a
 # studio-quality CGI picture that follows the sketch or render as it is.
-INSTANT = ("Render this as a high-end photorealistic CGI automotive visualization, like a car maker's "
-           "design-studio render. Follow every line, proportion, part and the camera view exactly as drawn and add "
-           "nothing that is not there. The colours in the drawing are the real colours: keep every part's colour "
-           "exactly (a yellow seat stays yellow, a purple panel stays purple), only make them real materials "
-           "(paint, smooth leather, fabric, glass, chrome, plastics) with true textures. Physically accurate light, "
-           "soft reflections, clean shadows; what is drawn outside or behind becomes a real, photographic setting. "
-           "No pencil or ink lines remain: every drawn line becomes a real edge, seam or panel gap. Light colours "
-           "stay light, bright and clean; surfaces are smooth and brand new, never suede-like, stained, dusty, "
-           "blotchy or worn.")
+INSTANT = ("Turn this design sketch into a finished, photorealistic CGI render, like a car maker's "
+           "design-studio visualization. Keep the design, its proportions and the camera view, but read the "
+           "sketch as a designer would: every drawn shape becomes the real part it stands for, built to production "
+           "quality with real materials, clean surfaces, panel gaps, stitching and glass, and parts the sketch only "
+           "hints at are completed as they would be in the finished car. Keep the drawn colour scheme. No sketch "
+           "lines, pencil marks or paper texture remain. Light colours stay light and clean; surfaces are brand "
+           "new, never worn, dusty or blotchy. Clean studio lighting with soft reflections and gentle shadows.")
 
 
 def instant_text(text="", scene=""):

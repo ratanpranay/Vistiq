@@ -592,6 +592,9 @@ class Api:
     def studio_get_helper(self):
         return self._app.studio.get_helper()
 
+    def studio_get_reader_xl(self):
+        return self._app.studio.get_reader_xl()
+
     def studio_get_reader(self):
         return self._app.studio.get_reader()
 

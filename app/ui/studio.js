@@ -878,6 +878,7 @@
       else if (a === "models") api().studio_open_models();
       else if (a === "outputs") api().studio_open_outputs();
       else if (a === "refresh") refresh();
+      else if (a === "get-reader-xl") { S.setup.error = ""; api().studio_get_reader_xl(); S.setup.run = { label: "Picture reader XL", fraction: null }; render(); }
       else if (a === "get-reader") { S.setup.error = ""; api().studio_get_reader(); S.setup.run = { label: "Picture reader", fraction: null }; render(); }
       else if (a === "get-helper") { S.setup.error = ""; api().studio_get_helper(); S.setup.run = { label: "Prompt helper", fraction: null }; render(); }
       else if (a === "get-select") { S.setup.error = ""; api().studio_get_select(); S.setup.run = { label: "Selection tool", fraction: null }; render(); }
@@ -1994,6 +1995,8 @@
       (st.select_ready ? '<span class="s-ok">Ready</span>' : '<button type="button" class="s-btn p" data-su="get-select"' + (running ? " disabled" : "") + ">Download</button>") + "</div>";
     var readerRow = '<div class="s-row"><div class="n"><b>Picture reader (optional)</b><small>Reads a reference picture\'s camera, light and style into words, so Create can follow them.</small></div><span class="s-pill">2.6 GB</span>' +
       (st.reader_ready ? '<span class="s-ok">Ready</span>' : '<button type="button" class="s-btn p" data-su="get-reader"' + (running ? " disabled" : "") + ">Download</button>") + "</div>";
+    readerRow += '<div class="s-row"><div class="n"><b>Picture reader XL (optional)</b><small>A bigger reader that understands sketches far better (what each drawn part is). Used instead of the small one once it is here.</small></div><span class="s-pill">6.2 GB</span>' +
+      (st.reader_xl_ready ? '<span class="s-ok">Ready</span>' : '<button type="button" class="s-btn p" data-su="get-reader-xl"' + (running ? " disabled" : "") + ">Download</button>") + "</div>";
     var helperRow = '<div class="s-row"><div class="n"><b>Prompt helper (optional)</b><small>Adds “Improve my prompt”: turns a few words into a clear instruction.</small></div><span class="s-pill">1.1 GB</span>' +
       (st.helper_ready ? '<span class="s-ok">Ready</span>' : '<button type="button" class="s-btn p" data-su="get-helper"' + (running ? " disabled" : "") + ">Download</button>") + "</div>";
     var u = S.update || {}, us = u.state;

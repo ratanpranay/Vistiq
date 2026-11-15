@@ -1,5 +1,10 @@
 # Vistiq Studio (test build)
 
+## 0.4.15
+- Picture reader XL (optional, 6.2 GB, Settings): understands sketches far better (what each drawn part is meant to be); used instead of the small reader once installed.
+- Instant render reads the sketch like a designer: drawn shapes become the real parts (a band across the dashboard becomes a display), hinted parts are completed, no sketch lines left.
+- Changes in words: the picture reader's fuller instruction replaces your words for the model; the result still shows your own words.
+
 ## 0.4.14
 - The same reference picture can be added twice (e.g. once for its materials, once for its light).
 

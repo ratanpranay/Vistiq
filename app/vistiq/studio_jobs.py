@@ -471,6 +471,26 @@ class Studio:
         self._setup.start()
         return True
 
+    def get_reader_xl(self):
+        """Download the XL picture reader (about 6 GB): reads sketches much better."""
+        if self._setup and self._setup.is_alive():
+            return False
+        self._cancel.clear()
+        from . import reader
+
+        def run():
+            try:
+                reader.install(studio.models_dir(self.settings), studio.download, lambda label, f: self.emit(
+                    "studio-setup", {"state": "running", "label": label, "fraction": f}), self._cancel.is_set, xl=True)
+                self.emit("studio-setup", {"state": "done", "status": studio.status(self.settings)})
+            except Exception as exc:
+                log.exception("picture reader XL download failed")
+                self.emit("studio-setup", {"state": "cancelled" if str(exc).lower() == "cancelled" else "error",
+                                           "message": str(exc)})
+        self._setup = threading.Thread(target=run, daemon=True)
+        self._setup.start()
+        return True
+
     def describe(self, path, use):
         """A reference's camera, light, style or materials in words."""
         from . import reader
@@ -635,7 +655,9 @@ class Studio:
                 if (job.get("text") or "").strip() and not job.get("refine_of"):
                     more = self._read(work_path, "edit", say, job.get("text"))
                     if more:
-                        job = dict(job, text=(job.get("text") or "").strip() + "\n\n" + more)
+                        # The fuller instruction replaces the words; the result still shows yours.
+                        user_words = job.get("text")
+                        job = dict(job, text=more, said=user_words)
                 text = studio.build_text(job.get("preset") or "", job.get("text"))
                 if job.get("locks"):
                     text = studio.with_locks(text, job["locks"], (job.get("preset") or "") == "sketch")
@@ -708,6 +730,9 @@ class Studio:
                     # The design lock keeps image 1's view too: off for a new camera.
                     prompt = studio.create_prompt(s, image, text, 0 if cam_i else keep, WORK_MP, seed + v,
                                                   refs=ref_images, frame=cam_i)
+                elif job.get("instant"):
+                    # One copy of the sketch: two make the model trace the lines instead of building the parts.
+                    prompt = studio.create_prompt(s, image, text, min(keep, 0.9), WORK_MP, seed + v)
                 else:
                     prompt = studio.create_prompt(s, image, text, keep, WORK_MP, seed + v)
                 if sys.platform != "darwin":
@@ -748,7 +773,7 @@ class Studio:
                 result.save(buf, "PNG")
                 path, w, h = imaging.save(buf.getvalue(), stem + ".png", out_dir, "PNG",
                                           "%s_v%d" % (tag, v + 1), limit=16384)
-                meta = {"mode": mode, "preset": job.get("preset"), "text": job.get("text") or "",
+                meta = {"mode": mode, "preset": job.get("preset"), "text": job.get("said") or job.get("text") or "",
                         "keep": keep, "seed": seed + v, "source": src_path, "reference": job.get("reference"),
                         "painted": mask is not None, "instant": bool(job.get("instant")),
                         "refs": [{"path": r["path"], "use": u, "desc": r.get("desc") or ""} for r, u in zip(refs, uses)],
