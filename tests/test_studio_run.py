@@ -231,7 +231,8 @@ class WholeRun(unittest.TestCase):
         self.engine.runs.clear()
         with mock.patch.object(studio, "use_qwenedit", lambda s=None: True), \
                 mock.patch.object(self.st, "_read", lambda *a, **k: ""):
-            self.settings.set("studio_detail", True)
+            lab = mock.patch.object(self.sj, "_lab", lambda: {"detail": True})
+            lab.start()
             r = self.go({"mode": "create", "image": src, "text": "red seats", "variations": 1})
             prompts = [n["inputs"]["prompt"] for p in self.engine.runs for n in p.values()
                        if isinstance(n, dict) and n.get("class_type") == "TextEncodeQwenImageEditPlus"]
@@ -239,7 +240,7 @@ class WholeRun(unittest.TestCase):
             self.assertTrue(all(studio.QE_DETAIL_SRC in t for t in prompts[1:]), prompts[1:])
             self.assertEqual(Image.open(r[0]["path"]).size, (1280, 720), r[0])
             # Off in Settings: one run, the model's own size.
-            self.settings.set("studio_detail", False)
+            lab.stop()
             self.engine.runs.clear()
             r = self.go({"mode": "create", "image": src, "text": "red seats", "variations": 1})
             self.assertEqual(len(self.engine.runs), 1)

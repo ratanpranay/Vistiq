@@ -817,7 +817,7 @@ class Studio:
             # the view and the design are kept and it isn't a sketch or a style change.
             locks_ = job.get("locks") or {}
             detail_on = (sys.platform != "darwin" and studio.use_qwenedit(s) and mode == "create"
-                         and bool(lab.get("detail", s.get("studio_detail", False))))
+                         and bool(lab.get("detail", False)))   # testing only (lab.json)
             detail_src = (locks_.get("camera", True) and locks_.get("design", True) and not cam_i
                           and (job.get("preset") or "") != "sketch" and not job.get("instant")
                           and "style" not in uses)

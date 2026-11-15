@@ -1,5 +1,8 @@
 # Vistiq Studio (test build)
 
+## 0.4.24
+- The tiled detail pass can no longer switch on from an earlier setting (testing only now).
+
 ## 0.4.23
 - Qwen Image Edit draws at 3.2 MP (was 1.4): crisp logos, edges and fabric textures, about 2800 × 1200.
 - Detail pass from 0.4.22 turned off (its parts came back shifted, doubling edges).
