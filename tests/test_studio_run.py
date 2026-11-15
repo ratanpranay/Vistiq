@@ -48,6 +48,19 @@ class FakeEngine:
         pass
 
 
+def _texts(runs):
+    """The prompt text of each run (a ComfyUI graph, or the Mac engine's plain job)."""
+    out = []
+    for p in runs:
+        if not isinstance(p, dict):
+            continue
+        if isinstance(p.get("text"), str):
+            out.append(p["text"])
+        out += [n["inputs"]["text"] for n in p.values() if isinstance(n, dict) and n.get("class_type") == "CLIPTextEncode"
+                and n["inputs"].get("text")]
+    return out
+
+
 class WholeRun(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
@@ -180,8 +193,7 @@ class WholeRun(unittest.TestCase):
                      "refs": [{"path": ref, "use": "camera"}, {"path": ref, "use": "materials"}]})
         self.assertEqual(len(r), 1)
         self.assertEqual([x["use"] for x in r[0]["meta"]["refs"]], ["camera", "materials"])
-        texts = [n["inputs"]["text"] for p in self.engine.runs if isinstance(p, dict) for n in p.values()
-                 if isinstance(n, dict) and n.get("class_type") == "CLIPTextEncode" and n["inputs"].get("text")]
+        texts = _texts(self.engine.runs)
         self.assertTrue(any("Camera from image 2" in x and "image 2 view" in x for x in texts), texts)
 
     def test_camera_reference_does_not_hold_the_first_view(self):
@@ -189,8 +201,7 @@ class WholeRun(unittest.TestCase):
         Image.new("RGB", (1200, 800), "white").save(src)
         self.engine.runs.clear()
         self.go({"mode": "reference", "image": src, "reference": src, "preset": "camera", "keep": 1.0, "variations": 1})
-        texts = [n["inputs"]["text"] for p in self.engine.runs if isinstance(p, dict) for n in p.values()
-                 if isinstance(n, dict) and n.get("class_type") == "CLIPTextEncode" and n["inputs"].get("text")]
+        texts = _texts(self.engine.runs)
         self.assertTrue(texts)
         for t in texts:
             self.assertNotIn("camera view exactly as in the first image", t)
