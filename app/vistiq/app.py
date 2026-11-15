@@ -595,6 +595,9 @@ class Api:
     def studio_get_qwenedit(self):
         return self._app.studio.get_qwenedit()
 
+    def studio_get_metaview(self):
+        return self._app.studio.get_metaview()
+
     def studio_set_engine(self, which):
         if which in ("flux3", "qwenedit"):
             self._app.settings.set("studio_engine", which)

@@ -657,6 +657,14 @@ class Flux3(unittest.TestCase):
         self.assertIn("rear seat", t)
         self.assertNotIn("Keep the camera", t)
 
+    def test_metaview_graph(self):
+        with mock.patch.object(studio, "find", lambda k, s=None: "/m/%s.safetensors" % k):
+            p = studio.metaview_prompt(None, "a.png", -30, 15, seed=1)
+        self.assertEqual(p["6"]["inputs"]["yaw"], -30.0)
+        self.assertEqual(p["6"]["inputs"]["pitch"], 15.0)
+        self.assertEqual(p["12"]["class_type"], "MetaViewSigmas")
+        self.assertEqual(p["4"]["inputs"]["prompt"], studio.MV_TRIGGER)
+
     def test_qwen_night(self):
         t = studio.qwen_text("Night time.", locks={})
         self.assertIn("press photo", t)

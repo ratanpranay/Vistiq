@@ -1,5 +1,8 @@
 # Vistiq Studio (test build)
 
+## 0.4.25
+- Experimental: MetaView download (Settings, under Qwen Image Edit): moves the camera in a picture by turn and tilt. For testing; its depth models are non-commercial.
+
 ## 0.4.24
 - The tiled detail pass can no longer switch on from an earlier setting (testing only now).
 

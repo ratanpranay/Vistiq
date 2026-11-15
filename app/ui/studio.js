@@ -878,6 +878,7 @@
       else if (a === "models") api().studio_open_models();
       else if (a === "outputs") api().studio_open_outputs();
       else if (a === "refresh") refresh();
+      else if (a === "get-metaview") { S.setup.error = ""; api().studio_get_metaview(); S.setup.run = { label: "MetaView", fraction: null }; render(); }
       else if (a === "get-qwenedit") { S.setup.error = ""; api().studio_get_qwenedit(); S.setup.run = { label: "Qwen Image Edit", fraction: null }; render(); }
       else if (a === "engine") { api().studio_set_engine(b.getAttribute("data-e")).then(function (st2) { if (st2) S.status = Object.assign(S.status || {}, st2); render(); }); }
       else if (a === "get-reader-xl") { S.setup.error = ""; api().studio_get_reader_xl(); S.setup.run = { label: "Picture reader XL", fraction: null }; render(); }
@@ -1908,7 +1909,10 @@
       '<button type="button" class="s-tier' + (q ? " on" : "") + '" data-su="engine" data-e="qwenedit"' + (st.qwenedit ? "" : " disabled") + '><b>Qwen Image Edit <em class="s-opt">experimental</em></b><small>' +
       (st.qwenedit ? "Understands context: new views, scene changes" : "Not downloaded yet") + "</small></button></div>" +
       (st.qwenedit ? "" : '<div class="s-row"><div class="n"><b>Qwen Image Edit 2511</b><small>Reads the picture itself, so it understands what a sketch shows and what a change means. About a minute a picture.</small></div><span class="s-pill">31 GB</span>' +
-        '<button type="button" class="s-btn p" data-su="get-qwenedit"' + (running ? " disabled" : "") + ">Download</button></div>");
+        '<button type="button" class="s-btn p" data-su="get-qwenedit"' + (running ? " disabled" : "") + ">Download</button></div>") +
+      (!st.qwenedit ? "" : st.metaview ? '<div class="s-row"><div class="n"><b>MetaView <em class="s-opt">experimental</em></b><small>Moves the camera in a picture (yaw, pitch). Ready.</small></div></div>' :
+        '<div class="s-row"><div class="n"><b>MetaView <em class="s-opt">experimental</em></b><small>Moves the camera in a picture: turn and tilt the view, the scene is redrawn. Its depth models are for non-commercial use.</small></div><span class="s-pill">39 GB</span>' +
+        '<button type="button" class="s-btn p" data-su="get-metaview"' + (running ? " disabled" : "") + ">Download</button></div>");
   }
   function fileRows(files) {
     return files.map(function (f) {
@@ -2187,7 +2191,7 @@
 
   // For the board (board.js): the shared state and the actions it reuses.
   window.VS = { addRef: addRef, local: function (e, f) { return zoom.local(e, f); }, layout: function () { layout(); }, zoomSpace: function () { return zoom.space || !!zoom.pan; }, plusMenu: plusMenu, pop: pop, closePop: closePop, painter: painter, S: S, api: api, esc: esc, short: short, go: go, render: render, setImage: setImage, sendPS: sendPS,
-                toast: toast, refresh: refresh, current: current, P: P };
+                toast: toast, refresh: refresh, current: current, P: P, job: job, readRef: readRef };
 
   function start() {
     api().init().then(function (s) {

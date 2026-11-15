@@ -86,7 +86,7 @@ def portable_dir():
     return os.path.join(engine_dir(), "ComfyUI_windows_portable")
 
 
-SUBFOLDERS = ("diffusion_models", "text_encoders", "vae", "loras", "controlnet")
+SUBFOLDERS = ("diffusion_models", "text_encoders", "vae", "loras", "controlnet", "depthanything3")
 
 
 # -- the model files ------------------------------------------------------
@@ -151,6 +151,25 @@ FILES = [
      "names": ["Qwen-Image-Edit-2511-Lightning-4steps-V1.0-bf16.safetensors"], "gb": 0.85, "optional": True,
      "url": HF % ("lightx2v/Qwen-Image-Edit-2511-Lightning", "Qwen-Image-Edit-2511-Lightning-4steps-V1.0-bf16.safetensors"),
      "page": "https://huggingface.co/lightx2v/Qwen-Image-Edit-2511-Lightning", "about": "4 steps instead of 40."},
+    # MetaView (experimental, Nov 2026): one picture + a camera move (yaw, pitch) renders the
+    # scene from the new viewpoint. Built on Qwen Image Edit (shares its reader and decoder).
+    # Its depth models (Depth-Anything-3) are non-commercial (CC BY-NC 4.0).
+    {"key": "mv", "part": "metaview", "folder": "diffusion_models", "label": "MetaView model",
+     "names": ["metaview_dit_fp8scaled.safetensors"], "gb": 28.4, "optional": True,
+     "url": HF % ("Wherebot101/MetaView-ComfyUI", "metaview_dit_fp8scaled.safetensors"),
+     "page": "https://huggingface.co/Wherebot101/MetaView-ComfyUI", "about": "Moves the camera in your picture."},
+    {"key": "mv_giant_cfg", "part": "metaview", "folder": "depthanything3/DA3-GIANT-1.1", "label": "MetaView depth (3D)",
+     "names": ["config.json"], "gb": 0.0, "optional": True, "url": HF % ("depth-anything/DA3-GIANT-1.1", "config.json"),
+     "page": "https://huggingface.co/depth-anything/DA3-GIANT-1.1", "about": ""},
+    {"key": "mv_giant", "part": "metaview", "folder": "depthanything3/DA3-GIANT-1.1", "label": "MetaView depth (3D)",
+     "names": ["model.safetensors"], "gb": 4.5, "optional": True, "url": HF % ("depth-anything/DA3-GIANT-1.1", "model.safetensors"),
+     "page": "https://huggingface.co/depth-anything/DA3-GIANT-1.1", "about": "Reads the 3D shape of your picture."},
+    {"key": "mv_depth_cfg", "part": "metaview", "folder": "depthanything3/DA3NESTED-GIANT-LARGE-1.1", "label": "MetaView depth",
+     "names": ["config.json"], "gb": 0.0, "optional": True, "url": HF % ("depth-anything/DA3NESTED-GIANT-LARGE-1.1", "config.json"),
+     "page": "https://huggingface.co/depth-anything/DA3NESTED-GIANT-LARGE-1.1", "about": ""},
+    {"key": "mv_depth", "part": "metaview", "folder": "depthanything3/DA3NESTED-GIANT-LARGE-1.1", "label": "MetaView depth",
+     "names": ["model.safetensors"], "gb": 6.0, "optional": True, "url": HF % ("depth-anything/DA3NESTED-GIANT-LARGE-1.1", "model.safetensors"),
+     "page": "https://huggingface.co/depth-anything/DA3NESTED-GIANT-LARGE-1.1", "about": "Reads how far each part is."},
     {"key": "flux1", "part": "juice", "folder": "diffusion_models", "label": "Finishing model",
      "names": ["flux1-dev-fp8.safetensors", "flux1-dev.safetensors"], "gb": 23.8, "url": None,
      "page": "https://huggingface.co/black-forest-labs/FLUX.1-dev",
@@ -282,6 +301,49 @@ def flux3_ready(settings=None):
 
 def qwenedit_ready(settings=None):
     return sys.platform != "darwin" and all(_have(k, settings) for k in ("qie", "qie_te", "qie_vae", "qie_fast"))
+
+
+MV_NODES = ("https://github.com/EnviralDesign/comfyUI-enviral-design-node-pack/archive/"
+            "3a95f3bc3314976abdb74f9c54a186a1bb0ab988.zip")
+MV_NODES_DIR = "comfyUI-enviral-design-node-pack"
+MV_PACKAGES = ["addict", "omegaconf", "einops", "opencv-python-headless", "scipy", "color-matcher"]
+MV_TRIGGER = "\u955c\u5934\u89c6\u89d2\u8f6c\u5230\u6307\u5b9a\u4f4d\u7f6e"   # its fixed trigger: "move the camera to the set viewpoint"
+
+
+def metaview_nodes_dir():
+    return os.path.join(portable_dir(), "ComfyUI", "custom_nodes", MV_NODES_DIR)
+
+
+def metaview_ready(settings=None):
+    return (sys.platform != "darwin" and os.path.isdir(metaview_nodes_dir())
+            and all(_have(k, settings) for k in ("mv", "mv_giant", "mv_giant_cfg", "mv_depth", "mv_depth_cfg", "qie_te", "qie_vae")))
+
+
+def metaview_prompt(settings, image, yaw, pitch, seed=None, width=0, height=0, steps=8):
+    """MetaView: the picture seen from a camera turned by yaw / pitch degrees
+    (the node pack's own example graph)."""
+    s = settings
+    return {
+        "1": {"class_type": "LoadImage", "inputs": {"image": image}},
+        "2": {"class_type": "CLIPLoader", "inputs": {"clip_name": os.path.basename(find("qie_te", s)), "type": "qwen_image", "device": "default"}},
+        "3": {"class_type": "VAELoader", "inputs": {"vae_name": os.path.basename(find("qie_vae", s))}},
+        "4": {"class_type": "TextEncodeQwenImageEdit", "inputs": {"clip": ["2", 0], "prompt": MV_TRIGGER, "image": ["1", 0]}},
+        "5": {"class_type": "MetaViewDA3Loader", "inputs": {"giant_model": "DA3-GIANT-1.1", "depth_model": "DA3NESTED-GIANT-LARGE-1.1"}},
+        "6": {"class_type": "MetaView3DConditioning", "inputs": {"conditioning": ["4", 0], "da3_model": ["5", 0], "image": ["1", 0],
+                                                                 "yaw": float(yaw), "pitch": float(pitch), "radius": 0.0,
+                                                                 "auto_radius": True, "vae": ["3", 0],
+                                                                 "width": int(width), "height": int(height)}},
+        "7": {"class_type": "MetaViewModelLoader", "inputs": {"model_name": os.path.basename(find("mv", s))}},
+        "8": {"class_type": "TextEncodeQwenImageEdit", "inputs": {"clip": ["2", 0], "prompt": ""}},
+        "12": {"class_type": "MetaViewSigmas", "inputs": {"steps": int(steps), "latent": ["6", 1]}},
+        "13": {"class_type": "KSamplerSelect", "inputs": {"sampler_name": "euler"}},
+        "9": {"class_type": "SamplerCustom", "inputs": {"model": ["7", 0], "add_noise": True,
+                                                        "noise_seed": int(seed if seed is not None else random.randint(1, 2**48)),
+                                                        "cfg": 1.0, "positive": ["6", 0], "negative": ["8", 0], "sampler": ["13", 0],
+                                                        "sigmas": ["12", 0], "latent_image": ["6", 1]}},
+        "10": {"class_type": "VAEDecode", "inputs": {"samples": ["9", 0], "vae": ["3", 0]}},
+        "11": {"class_type": "SaveImage", "inputs": {"images": ["10", 0], "filename_prefix": "VistiqStudio"}},
+    }
 
 
 def use_qwenedit(settings=None):
@@ -497,7 +559,7 @@ def status(settings=None):
             "select_ready": select_installed(settings), "helper_ready": helper_installed(settings),
             "reader_ready": reader_installed(settings), "reader_xl_ready": reader_xl_installed(settings),
             "home": home(settings), "comfy_models": guess_comfy_models(settings),
-            "flux3": flux3_ready(settings), "qwenedit": qwenedit_ready(settings),
+            "flux3": flux3_ready(settings), "qwenedit": qwenedit_ready(settings), "metaview": metaview_ready(settings),
             "engine_choice": (settings.get("studio_engine") if settings else "") or "flux3"}
 
 

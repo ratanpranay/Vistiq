@@ -463,7 +463,7 @@ class Studio:
                 for f in studio.FILES:
                     if f["part"] == "juice" and not juice:
                         continue
-                    if f["part"] == "qwenedit":
+                    if f["part"] in ("qwenedit", "metaview"):
                         continue                     # only on request (Settings)
                     if f["part"] == "create" and not studio.in_tier(f, t):
                         continue
@@ -556,6 +556,55 @@ class Studio:
                 self.emit("studio-setup", {"state": "done", "status": studio.status(self.settings)})
             except Exception as exc:
                 log.exception("Qwen Image Edit download failed")
+                self.emit("studio-setup", {"state": "cancelled" if str(exc).lower() == "cancelled" else "error",
+                                           "message": str(exc)})
+        self._setup = threading.Thread(target=run, daemon=True)
+        self._setup.start()
+        return True
+
+    def get_metaview(self):
+        """Download MetaView (about 39 GB: its model, two depth models and its nodes)."""
+        if self._setup and self._setup.is_alive():
+            return False
+        self._cancel.clear()
+
+        def run():
+            prog = lambda label, f: self.emit("studio-setup", {"state": "running", "label": label, "fraction": f})
+            try:
+                for f in studio.FILES:
+                    if f["part"] == "metaview" and not studio.find(f["key"], self.settings):
+                        dst = os.path.join(studio.models_dir(self.settings), f["folder"], f["names"][0])
+                        studio.download(f["url"], dst, prog, f["label"], self._cancel.is_set)
+                if not os.path.isdir(studio.metaview_nodes_dir()):
+                    import shutil, subprocess, zipfile
+                    prog("MetaView nodes", None)
+                    z = os.path.join(studio.engine_dir(), "metaview_nodes.zip")
+                    studio.download(studio.MV_NODES, z, prog, "MetaView nodes", self._cancel.is_set)
+                    target = studio.metaview_nodes_dir()
+                    tmp = target + ".tmp"
+                    shutil.rmtree(tmp, ignore_errors=True)
+                    with zipfile.ZipFile(z) as zz:
+                        zz.extractall(tmp)
+                    inner = [os.path.join(tmp, d) for d in os.listdir(tmp)]
+                    py = os.path.join(studio.portable_dir(), "python_embeded", "python.exe")
+                    prog("Installing what MetaView needs", None)
+                    with open(os.path.join(studio.engine_dir(), "metaview-pip.log"), "ab") as logf:
+                        r = subprocess.run([py, "-s", "-m", "pip", "install", "--no-warn-script-location"] + studio.MV_PACKAGES,
+                                           cwd=studio.portable_dir(), stdout=logf, stderr=subprocess.STDOUT,
+                                           creationflags=0x08000000 if sys.platform == "win32" else 0)
+                    if r.returncode != 0:
+                        raise RuntimeError("installing MetaView's packages failed (metaview-pip.log)")
+                    os.replace(inner[0] if len(inner) == 1 and os.path.isdir(inner[0]) else tmp, target)
+                    shutil.rmtree(tmp, ignore_errors=True)
+                    os.remove(z)
+                studio.write_model_paths(self.settings)
+                try:
+                    self.engine.stop()               # it loads the new nodes on its next start
+                except Exception:
+                    pass
+                self.emit("studio-setup", {"state": "done", "status": studio.status(self.settings)})
+            except Exception as exc:
+                log.exception("MetaView download failed")
                 self.emit("studio-setup", {"state": "cancelled" if str(exc).lower() == "cancelled" else "error",
                                            "message": str(exc)})
         self._setup = threading.Thread(target=run, daemon=True)
@@ -829,7 +878,12 @@ class Studio:
                 label = "Variation %d of %d" % (v + 1, n) if n > 1 else "Creating"
                 say(label, v / n)
                 prog = lambda f, v=v: say(label, (v + f) / n)
-                if sys.platform != "darwin" and studio.use_qwenedit(s):
+                reframe = job.get("reframe") or lab.get("reframe")
+                if sys.platform != "darwin" and reframe and studio.metaview_ready(s):
+                    # MetaView (testing): the same scene from a camera turned by yaw / pitch degrees.
+                    prompt = studio.metaview_prompt(s, image, reframe.get("yaw", 0), reframe.get("pitch", 0), seed + v,
+                                                    int(reframe.get("w", 0)), int(reframe.get("h", 0)), int(reframe.get("steps", 8)))
+                elif sys.platform != "darwin" and studio.use_qwenedit(s):
                     imgs = [image] + list(ref_images or ([ref_image] if ref_image else []))
                     fr = cam_i if refs else (1 if mode == "reference" and (job.get("preset") or "camera") == "camera" else 0)
                     prompt = studio.qwenedit_prompt(s, imgs, text, seed + v, frame=fr,
