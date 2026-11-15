@@ -244,13 +244,14 @@
     var v = B.view, cv = root && root.querySelector("#b-cv"), r = cv ? cv.getBoundingClientRect() : { width: 1200, height: 800 };
     var vx0 = -v.x / v.z, vy0 = -v.y / v.z, vx1 = vx0 + r.width / v.z, vy1 = vy0 + r.height / v.z;
     var s = B.sel && byId(B.sel);
+    var lv = live(), minX = lv ? lv.x + W + GAP_X : -1e9;
     var startX;
     if (s && s !== t && s.x < vx1 && s.x + W > vx0 && s.y < vy1 && s.y + tileH(s) > vy0) {
       // the row starts at the left-most tile in line with the selected one (on screen)
       startX = Math.min.apply(null, B.tiles.filter(function (k) { return k !== t && Math.abs(k.y - s.y) < 30 && k.x >= vx0 - W / 2; }).map(function (k) { return k.x; }).concat([s.x]));
       t.x = s.x + W + GAP_X; t.y = s.y;
     }
-    else { t.x = startX = Math.round((vx0 + vx1) / 2 - W / 2); t.y = Math.round((vy0 + vy1) / 2 - tileH(t) / 2); }
+    else { t.x = startX = Math.max(minX, Math.round((vx0 + vx1) / 2 - W / 2)); t.y = Math.round((vy0 + vy1) / 2 - tileH(t) / 2); }
     for (var i = 0; i < 80; i++) {
       if (t.x + W > vx1 && t.x > startX) { t.x = startX; t.y += tileH(t) + GAP_Y; }   // off screen: the next row
       var hit = B.tiles.filter(function (k) { return k !== t && k.x < t.x + W + 24 && k.x + W + 24 > t.x && k.y < t.y + tileH(k) + 24 && k.y + tileH(k) + 24 > t.y; })[0];
@@ -340,17 +341,26 @@
   // ---------------------------------------------------------------- organize
 
   function organize() {
+    // Like Vizcom: the Live tile on the far left; pictures flow to the right in creation
+    // order, each with what was made from it to its right; a new row only when it gets wide.
     var kids = {};
     B.tiles.forEach(function (t) { var f = t.from && byId(t.from) ? t.from : ""; (kids[f] = kids[f] || []).push(t); });
-    Object.keys(kids).forEach(function (k) { kids[k].sort(function (a, b) { return (a.kind === "live" ? -1 : 0) - (b.kind === "live" ? -1 : 0) || (a.made || 0) - (b.made || 0); }); });
-    var y = 0;
-    function lay(t, depth, top) {
-      t.x = depth * (W + GAP_X); t.y = top;
-      var bottom = top + tileH(t), cy = top;
-      (kids[t.id] || []).forEach(function (c) { var b = lay(c, depth + 1, cy); cy = b + GAP_Y; bottom = Math.max(bottom, b); });
-      return bottom;
+    Object.keys(kids).forEach(function (k) { kids[k].sort(function (a, b) { return (a.made || 0) - (b.made || 0); }); });
+    function lay(t, x, top) {               // returns [right edge, bottom]
+      t.x = x; t.y = top;
+      var right = x + W, bottom = top + tileH(t), cy = top;
+      (kids[t.id] || []).forEach(function (c) { var r = lay(c, x + W + GAP_X, cy); cy = r[1] + GAP_Y; right = Math.max(right, r[0]); bottom = Math.max(bottom, r[1]); });
+      return [right, bottom];
     }
-    (kids[""] || []).forEach(function (t) { y = lay(t, 0, y) + GAP_Y * 1.6; });
+    var lv = live(), roots = (kids[""] || []).filter(function (t) { return t !== lv; });
+    if (lv) { lv.x = 0; lv.y = 0; }
+    var x0 = lv ? W + GAP_X * 1.5 : 0, maxW = x0 + 5 * (W + GAP_X), x = x0, y = 0, rowB = 0;
+    roots.forEach(function (t) {
+      var r = lay(t, x, y);
+      if (r[0] > maxW && x > x0) { x = x0; y = rowB + GAP_Y * 1.6; r = lay(t, x, y); }
+      x = r[0] + GAP_X; rowB = Math.max(rowB, r[1]);
+    });
+    if (lv) (kids[lv.id] || []).forEach(function (c, i) { lay(c, 0, tileH(lv) + GAP_Y + i * (tileH(c) + GAP_Y)); });
     world.classList.add("anim"); setTimeout(function () { world.classList.remove("anim"); }, 450);
     lastHTML = ""; save(); render(); fit();
   }

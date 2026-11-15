@@ -210,9 +210,9 @@ const frame = (n, name) => ({ path: "live://photoshop/" + n, name: name || "flat
     check("Escape closes the menu", await p.evaluate(() => document.getElementById("b-menu").hidden), "still open");
     await p.click(".b-bar [data-b=organize]");
     await p.waitForTimeout(500);
-    check("Organize lays out in order: Live first, result to the right of its source", await p.evaluate(() => {
+    check("Organize lays out to the right: Live left-most, result right of its source", await p.evaluate(() => {
       const t = window.VSBoard._state().tiles, live = t.find((x) => x.id === "live"), s = t.find((x) => x.path === "C:/a/sketch.png"), r = t.find((x) => x.path === "C:/o/r1.png");
-      return live.y < s.y && r.x > s.x && r.y === s.y;
+      return live.x < s.x && r.x > s.x && r.y === s.y;
     }), JSON.stringify(await p.evaluate(() => window.VSBoard._state().tiles.map((x) => [x.id, x.x, x.y]))));
     check("the board is saved", await p.evaluate(() => !!(window.__board && window.__board.tiles.length === 3)), "not saved");
     // Opening another tile must not lose the results made from the first one.
