@@ -631,6 +631,31 @@ class Flux3(unittest.TestCase):
         return s
 
     @unittest.skipIf(sys.platform == "darwin", "the Mac has its own image engine")
+    def test_create_with_references(self):
+        for keys in (("klein", "qwen", "vae2", "consistency"), ("klein", "qwen", "vae2", "consistency", "flux3", "qwen3vl")):
+            with tempfile.TemporaryDirectory() as t:
+                s = self._settings(t, keys)
+                p = studio.create_prompt(s, "a.png", "x", 0, refs=["cam.png", "mat.png"], frame=1)
+                loads = [n["inputs"]["image"] for n in p.values() if n.get("class_type") == "LoadImage"]
+                self.assertEqual(loads[:1] + sorted(loads[1:]), ["a.png", "cam.png", "mat.png"])
+                size_of = p["30"]["inputs"]["image"][0]
+                self.assertEqual(p[p[size_of]["inputs"]["image"][0]]["inputs"]["image"], "cam.png")   # camera ref's frame
+
+    def test_reference_wording(self):
+        t = studio.ref_text("seats like ref 2, light from Ref 1", ["camera", "materials"], {"camera": True, "materials": True, "light": True}, False, 0.8)
+        self.assertIn("image 3", t)                      # ref 2 -> image 3
+        self.assertIn("Camera from image 2", t)
+        self.assertIn("Materials from image 3", t)
+        self.assertIn(studio.REF_KEEP_DESIGN, t)
+        self.assertNotIn("Keep the camera of image 1", t)   # the camera comes from the reference
+        self.assertNotIn("Keep the materials", t)
+        self.assertIn("Keep the lighting of image 1", t)    # still locked
+        t = studio.ref_text("", ["style"], {}, True, 0.8)
+        self.assertIn("Rendering style from image 2", t)
+        self.assertNotIn("photorealistic", t)               # the reference's own look
+        self.assertNotIn(studio.CRISP, t)
+
+    @unittest.skipIf(sys.platform == "darwin", "the Mac has its own image engine")
     def test_used_when_present(self):
         with tempfile.TemporaryDirectory() as t:
             s = self._settings(t, ("klein", "qwen", "vae2", "consistency"))

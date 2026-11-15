@@ -519,8 +519,12 @@ class Studio:
             original = load_rgb(src_path)
             if job.get("layers"):
                 original = flatten_layers(original, job["layers"])   # painted layers on top, as seen
+            # Reference images (Create): each gives one thing (camera, materials, style, light).
+            refs = [r for r in (job.get("refs") or []) if r and r.get("path")][:3] if job.get("mode", "create") == "create" else []
+            uses = [r.get("use") or "describe" for r in refs]
+            cam_i = uses.index("camera") + 1 if "camera" in uses else 0
             mask = box = None
-            if job.get("mask"):
+            if job.get("mask") and not cam_i:      # a new camera view changes the whole picture
                 mask = decode_mask(job["mask"], original.size)
                 box = crop_box(mask, original.size)
                 if not box:
@@ -533,6 +537,13 @@ class Studio:
             image = self.engine.upload(work_path)
             ref_image = None
             mode = job.get("mode") or "create"
+            ref_images = []
+            for i, r in enumerate(refs):
+                rp = os.path.join(tmp_dir, "cref%d_%s.png" % (i, job_id))
+                load_rgb(self.real_path(r["path"])).save(rp, "PNG", compress_level=1)
+                ref_images.append(self.engine.upload(rp))
+            if refs:
+                job = dict(job, text=studio.map_refs(job.get("text") or ""))
             job = dict(job, text=self._condense(job.get("preset") or "", job.get("text") or ""))
             if mode == "reference":
                 ref_path = os.path.join(tmp_dir, "ref_%s.png" % job_id)
@@ -540,6 +551,9 @@ class Studio:
                 ref_image = self.engine.upload(ref_path)
                 text = studio.build_text(job.get("preset") or "camera", job.get("text"), studio.REF_PRESETS,
                                          f3=studio.flux3_ready(s))
+            elif refs:
+                text = studio.ref_text(job.get("text"), uses, job.get("locks"), (job.get("preset") or "") == "sketch",
+                                       float(job.get("keep") if job.get("keep") is not None else 0.8))
             else:
                 text = studio.build_text(job.get("preset") or "", job.get("text"))
                 if job.get("locks"):
@@ -547,7 +561,9 @@ class Studio:
             seed = int(job.get("seed") or int(time.time()) % 100000 * 7919)
             keep = float(job.get("keep") if job.get("keep") is not None else 0.8)
             camera = mode == "reference" and (job.get("preset") or "camera") == "camera"
-            if camera:
+            if refs:
+                pass                    # the reference wording already says what to keep
+            elif camera:
                 # "Follow my sketch" here means the design; the view comes from the reference.
                 if keep >= 0.3:
                     text = text + "\n\n" + studio.F3_CAMERA_KEEP
@@ -583,11 +599,16 @@ class Studio:
                 say(label, v / n)
                 prog = lambda f, v=v: say(label, (v + f) / n)
                 if sys.platform == "darwin":
-                    prompt = {"image": image, "ref": ref_image, "text": text, "seed": seed + v, "keep": keep,
+                    prompt = {"image": image, "ref": ref_image or (ref_images[0] if ref_images else None), "text": text,
+                              "seed": seed + v, "keep": keep,
                               "lines": mode == "reference" and job.get("preset") in ("cmf", "style")}
                 elif mode == "reference":
                     prompt = studio.reference_prompt(s, image, ref_image, text, job.get("preset") or "camera",
                                                      keep, WORK_MP, seed + v)
+                elif refs:
+                    # The design lock keeps image 1's view too: off for a new camera.
+                    prompt = studio.create_prompt(s, image, text, 0 if cam_i else keep, WORK_MP, seed + v,
+                                                  refs=ref_images, frame=cam_i)
                 else:
                     prompt = studio.create_prompt(s, image, text, keep, WORK_MP, seed + v)
                 if sys.platform != "darwin":
@@ -618,7 +639,8 @@ class Studio:
                     else:
                         data = juiced
                 result = Image.open(io.BytesIO(data)).convert("RGB")
-                if not (mode == "reference" and job.get("preset") == "style") and s.get("studio_finish", True):
+                if not (mode == "reference" and job.get("preset") == "style") and "style" not in uses \
+                        and s.get("studio_finish", True):
                     result = finish(result)        # a style reference keeps its own look
                 if mask is not None:
                     blend = int(float(job.get("blend", 0.35)) * 0.06 * max(box[2] - box[0], box[3] - box[1])) + 2
@@ -629,7 +651,8 @@ class Studio:
                                           "%s_v%d" % (tag, v + 1), limit=16384)
                 meta = {"mode": mode, "preset": job.get("preset"), "text": job.get("text") or "",
                         "keep": keep, "seed": seed + v, "source": src_path, "reference": job.get("reference"),
-                        "painted": mask is not None, "juice": job.get("juice") or 0, "lora": job.get("lora"),
+                        "painted": mask is not None,
+                        "refs": [{"path": r["path"], "use": u} for r, u in zip(refs, uses)], "juice": job.get("juice") or 0, "lora": job.get("lora"),
                         "kind": "reference" if mode == "reference" else "create",
                         "made": time.strftime("%Y-%m-%d %H:%M:%S")}
                 _write_meta(path, meta)

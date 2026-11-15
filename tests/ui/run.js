@@ -171,7 +171,7 @@ const frame = (n, name) => ({ path: "live://photoshop/" + n, name: name || "flat
   // 9. Every page opens without errors.
   {
     const p = await open(browser);
-    for (const pg of ["board", "create", "reference", "upscale", "library", "settings"]) {
+    for (const pg of ["board", "create", "upscale", "library", "settings"]) {
       await p.click(".s-nav button[data-page=" + pg + "]");
       await p.waitForTimeout(150);
     }
@@ -536,6 +536,35 @@ const frame = (n, name) => ({ path: "live://photoshop/" + n, name: name || "flat
     await p.waitForTimeout(100);
     check("new results are saved for next time", await p.evaluate(() => !!(window.__strip && window.__strip.create.some((r) => r.path === "C:/o/new.png") && window.__strip.create.length >= 3)), JSON.stringify(await p.evaluate(() => window.__strip)).slice(0, 300));
     check("no page errors with the kept strip", p.errors.length === 0, p.errors.join(" | "));
+    await p.close();
+  }
+
+  // References live in Create: no Reference tab; each reference gives one thing.
+  {
+    const p = await open(browser, null, {});
+    await p.ev("studio-live", frame(1));
+    await p.click(".s-nav button[data-page=create]");
+    await p.waitForTimeout(300);
+    check("no Reference tab", await p.evaluate(() => !document.querySelector(".s-nav button[data-page=reference]")), "");
+    const G = "data:image/gif;base64,R0lGODlhAQABAAAAACw=";
+    await p.evaluate((g) => { window.VS.addRef({ path: "C:/r/a.png", name: "a.png", w: 100, h: 60, preview: g }); window.VS.addRef({ path: "C:/r/b.png", name: "b.png", w: 100, h: 60, preview: g }); }, G);
+    await p.waitForTimeout(100);
+    check("references show as tiles with what they give", await p.evaluate(() => [...document.querySelectorAll("#c-refs .s-ru")].map((b) => b.textContent).join("|")) === "Camera|Materials",
+      await p.evaluate(() => document.getElementById("c-refs").textContent));
+    check("a camera reference unlocks the camera lock", await p.evaluate(() => { const b = document.querySelector("#c-locks [data-v=camera]"); return b.disabled && !b.classList.contains("on"); }), "");
+    await p.click("#c-refs [data-ru='1']"); await p.waitForTimeout(100);
+    await p.click(".s-pop [data-p=light]"); await p.waitForTimeout(100);
+    check("the menu changes what a reference gives", await p.evaluate(() => window.VS.S.create.refs[1].use) === "light", "");
+    await p.click("#c-refs [data-rn='2']"); await p.waitForTimeout(50);
+    check("clicking Ref 2 puts it in the description", /ref 2/.test(await p.evaluate(() => document.getElementById("c-text").value)), "");
+    await p.evaluate(() => { window.__job = null; window.pywebview.api.studio_run = (j) => { window.__job = j; return Promise.resolve("j8"); }; window.VS.S.status = Object.assign(window.VS.S.status || {}, { create_ready: true }); });
+    await p.click("#c-go"); await p.waitForTimeout(100);
+    const j = await p.evaluate(() => window.__job);
+    check("Create sends the references", j && j.refs && j.refs.length === 2 && j.refs[0].use === "camera" && j.refs[1].use === "light" && j.locks.camera === false && j.locks.light === false, JSON.stringify(j && { refs: j.refs, locks: j.locks }));
+    await p.evaluate(() => { const S = window.VS.S.create; S.job = null; S.pending = 0; window.VS.render(); });
+    await p.click("#c-refs [data-rx='0']"); await p.waitForTimeout(100);
+    check("× removes a reference", await p.evaluate(() => window.VS.S.create.refs.length === 1 && document.querySelectorAll("#c-refs .s-ref").length === 1), "");
+    check("no page errors with references", p.errors.length === 0, p.errors.join(" | "));
     await p.close();
   }
 

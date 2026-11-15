@@ -188,7 +188,7 @@
     }
     else if (a === "upscale") call("studio_to_upscale", t.path).then(function () { V.go("upscale"); });
     else if (a === "ps") V.sendPS(t.path);
-    else if (a === "ref") call("studio_image", t.path).then(function (info) { if (info) { V.setImage(S.ref, "refimg", info); V.go("reference"); } });
+    else if (a === "ref") call("studio_image", t.path).then(function (info) { if (info) { V.addRef(info); V.go("create"); } });
     else if (a === "folder") { var x = api(); if (x && x.reveal) x.reveal(t.path); }
     else if (a === "export") call("studio_save_copy", t.path).then(function (r) { if (r) V.toast("Saved " + r); });
     else if (a === "remove") { B.tiles = B.tiles.filter(function (k) { return k !== t; }); B.tiles.forEach(function (k) { if (k.from === t.id) k.from = t.from || null; }); save(); render(); }

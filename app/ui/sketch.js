@@ -417,10 +417,8 @@
     var Lc = s.L.canvas.getContext("2d");
     if (s.magic) { magicErase(); return; }
     if (!s.erase) {
-      if (s.kind === "sketch") {
-        var g = buf.getContext("2d"); g.globalCompositeOperation = "destination-out"; g.globalAlpha = 0.35; g.fillStyle = grainPattern(g); g.fillRect(0, 0, doc.w, doc.h);
-        g.globalCompositeOperation = "source-over"; g.globalAlpha = 1;
-      }
+      // What shows while drawing is what stays: no grain knocked out afterwards
+      // (it made strokes go faded and speckled on release).
       var sel = V().painter;
       if (sel.any) { var g2 = buf.getContext("2d"); g2.globalCompositeOperation = "destination-in"; g2.globalAlpha = 1; g2.drawImage(sel.canvas, 0, 0, doc.w, doc.h); g2.globalCompositeOperation = "source-over"; }
       Lc.globalAlpha = T.opacity; Lc.globalCompositeOperation = "source-over"; Lc.drawImage(buf, 0, 0); Lc.globalAlpha = 1;

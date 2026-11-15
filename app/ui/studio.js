@@ -58,6 +58,35 @@
   };
   function isRender(src) { return !!src && !src.live && !src.frozen && /_(create|refine|paint|camera|cmf|style|reference|variation)/i.test(src.name || src.path || ""); }
   function defaultLocks(src) { var r = isRender(src); return { design: true, materials: r, light: r, camera: true }; }
+  // Reference images in Create: each gives exactly one thing.
+  var RUSE = {
+    camera: ["Camera view", "Show my design from this angle", "camera", "Camera"],
+    materials: ["Materials & colours", "Its colours and materials on my design", "materials", "Materials"],
+    style: ["Rendering style", "Its rendering technique and finish", "", "Style"],
+    light: ["Lighting", "Its light and mood", "light", "Lighting"],
+    describe: ["As I describe", "Say in the prompt what to take from it", "", "As I say"]
+  };
+  // Which locks a reference takes over: { camera: 1 } = the camera comes from Ref 1.
+  function refLocks(p) {
+    var by = {};
+    (p.refs || []).forEach(function (r, i) { var k = RUSE[r.use] && RUSE[r.use][2]; if (k && !by[k]) by[k] = i + 1; });
+    return by;
+  }
+  function effLocks(p) {
+    var L = Object.assign({}, p.locks || defaultLocks(p.src)), by = refLocks(p);
+    Object.keys(by).forEach(function (k) { L[k] = false; });
+    return L;
+  }
+  function addRef(info) {
+    if (!info) return;
+    var p = S.create; p.refs = p.refs || [];
+    if (p.refs.some(function (r) { return r.path === info.path; })) { toast("That reference is already in"); return; }
+    if (p.refs.length >= 3) { toast("Three references at most: remove one first"); return; }
+    var used = p.refs.map(function (r) { return r.use; });
+    var use = ["camera", "materials", "light", "style"].filter(function (u) { return used.indexOf(u) < 0; })[0] || "describe";
+    p.refs.push({ path: info.path, name: info.name, w: info.w, h: info.h, preview: info.preview, use: use });
+    render();
+  }
   // The old preset that matches the locks (its wording is tested on the engine).
   function presetFor(p) {
     var L = p.locks || defaultLocks(p.src);
@@ -80,7 +109,7 @@
     setup: { run: null, error: "", done: "" },
     lib: { items: [], filter: "all", loading: false },
     create: page({ source: load("c.source", "image"), area: "whole", preset: ["sketch", "cmf", "lighting", "photo"].indexOf(load("c.preset", "sketch")) >= 0 ? load("c.preset", "sketch") : "sketch", text: "", keep: load("c.keep", 0.8), vars: load("c.vars", 2),
-                   blend: load("c.blend2", 0.15), lora: load("c.lora", ""), juice: load("c.juice", 0), juiceLora: load("c.juiceLora", "") }),
+                   blend: load("c.blend2", 0.15), lora: load("c.lora", ""), juice: load("c.juice", 0), juiceLora: load("c.juiceLora", ""), refs: [] }),
     ref: page({ refimg: null, preset: load("r.preset", "camera"), text: "", keep: load("r.keep", 0.8), vars: load("r.vars", 1) }),
     dropSlot: "", liveApp: load("liveApp", ""),
     live: { on: false, doc: "", frames: 0, msg: "" },
@@ -141,7 +170,7 @@
     var nav = document.createElement("nav");
     nav.className = "s-nav";
     nav.innerHTML = '<div class="s-logo" title="Vistiq Studio"><img src="assets/mark.png" alt=""></div>' +
-      ["board", "create", "reference", "upscale", "library"].map(function (p) {
+      ["board", "create", "upscale", "library"].map(function (p) {
         return '<button type="button" data-page="' + p + '">' + svg(p) + p.charAt(0).toUpperCase() + p.slice(1) + "</button>";
       }).join("") + '<div class="s-sp"></div><button type="button" data-page="settings">' + svg("settings") + "Settings</button>" +
       '<button type="button" class="s-min s-navmin" data-min="nav" title="Collapse / expand"><svg viewBox="0 0 24 24"><path d="M15 6l-6 6 6 6"/></svg></button>';
@@ -158,6 +187,8 @@
       '<div class="s-old"><div class="s-tiles4" id="c-presets">' +
       PRESETS.map(function (p) { return '<button type="button" data-v="' + p[0] + '">' + svg(p[3]) + "<span>" + p[1] + "</span></button>"; }).join("") + "</div></div>" +
       '<div class="s-grow"><div class="s-label" id="c-prompt-l">Describe the result</div>' + promptBox("c", "Describe the change") + '<div class="s-warn" id="c-warn" hidden></div></div>' +
+      '<div id="c-refs-w" data-slot="ref"><div class="s-label">References <em class="s-opt">optional</em></div><div class="s-refs" id="c-refs"></div>' +
+      '<p class="s-hint s-rhint" id="c-refs-hint"></p></div>' +
       '<div><div class="s-label s-lockl"><span>Keep</span><em>Studio never changes what is locked</em></div><div class="s-locks" id="c-locks">' +
       LOCKS.map(function (l) { return '<button type="button" data-v="' + l[0] + '" title="' + l[3] + '">' + svg("lock") + svg("unlock") + "<span>" + l[1] + "</span><small>" + l[2] + "</small></button>"; }).join("") + "</div></div>" +
       '<div id="c-blend-w" hidden><div class="s-label">Blend edges <em id="c-blend-v"></em></div><input class="s-range" type="range" min="0" max="1" step="0.05" id="c-blend"></div>' +
@@ -282,7 +313,8 @@
   // ------------------------------------------------------------------ actions
 
   function go(p) {
-    if (["board", "create", "reference", "upscale", "library", "settings"].indexOf(p) < 0) p = "board";
+    if (p === "reference") p = "create";          // references live in Create now
+    if (["board", "create", "upscale", "library", "settings"].indexOf(p) < 0) p = "board";
     S.page = p; keep("page", p);
     document.body.setAttribute("data-page", p);
     document.querySelectorAll(".s-nav button").forEach(function (b) { b.classList.toggle("on", b.getAttribute("data-page") === p); });
@@ -537,7 +569,8 @@
       var lay = window.VSSketch && window.VSSketch.payload(p.src);
       if (lay) j.layers = lay;
       j.lora = p.lora || null;
-      j.locks = Object.assign({}, p.locks || defaultLocks(p.src));
+      j.locks = effLocks(p);
+      j.refs = (p.refs || []).map(function (r) { return { path: r.path, use: r.use }; });
       if (!j.locks.design) j.keep = Math.min(j.keep, 0.35);        // design unlocked: free to change shapes
     }
     Object.assign(j, extra || {});
@@ -563,7 +596,7 @@
     if (!base) return;
     input.value = "";
     job(id, { mode: "create", image: base.path, preset: "", text: "Keep everything else exactly the same. " + text,
-              variations: 1, refine_of: base.path, reference: null });
+              variations: 1, refine_of: base.path, reference: null, refs: [] });
   }
 
   function hasConsistency() {
@@ -588,6 +621,32 @@
       var b = e.target.closest("button"); if (!b) return;
       var p = S.create, k = b.getAttribute("data-v");
       p.locks = Object.assign({}, p.locks || defaultLocks(p.src)); p.locks[k] = !p.locks[k]; p.locksFor = keyOfSrc(p.src); render();
+    });
+    $("c-refs").addEventListener("click", function (e) {
+      var p = S.create, b;
+      if ((b = e.target.closest("[data-rx]"))) { p.refs.splice(+b.getAttribute("data-rx"), 1); render(); return; }
+      if ((b = e.target.closest("[data-rn]"))) {
+        // "Ref 2" into the description, where the cursor is.
+        var ta = $("c-text"), t = "ref " + b.getAttribute("data-rn") + " ", a = ta.selectionStart || ta.value.length;
+        if (document.activeElement !== ta) a = ta.value.length;
+        var pre = ta.value.slice(0, a), sp = pre && !/\s$/.test(pre) ? " " : "";
+        ta.value = pre + sp + t + ta.value.slice(a); p.text = ta.value; ta.focus();
+        ta.selectionStart = ta.selectionEnd = (pre + sp + t).length; renderWarn(); return;
+      }
+      if ((b = e.target.closest("[data-ru]"))) {
+        var i = +b.getAttribute("data-ru");
+        pop(b, Object.keys(RUSE).map(function (k) {
+          return '<button type="button" class="it' + (p.refs[i].use === k ? " on" : "") + '" data-p="' + k + '"><span>' + RUSE[k][0] + "<small>" + RUSE[k][1] + "</small></span></button>";
+        }).join(""), function (v) { p.refs[i].use = v; render(); });
+        return;
+      }
+      if ((b = e.target.closest("[data-radd]"))) {
+        pop(b, '<button type="button" class="it" data-p="pick">' + svg("image") + "<span>Upload an image</span></button>" +
+          '<button type="button" class="it" data-p="paste">' + svg("clip") + "<span>Paste from clipboard</span></button>", function (v) {
+          if (v === "pick") api().studio_pick().then(addRef);
+          else api().studio_paste().then(function (i) { if (i) addRef(i); else toast("Nothing to paste: copy a picture first."); });
+        });
+      }
     });
     $("c-warn").addEventListener("click", function (e) {
       var b = e.target.closest("[data-unlock]"); if (!b) return;
@@ -696,7 +755,7 @@
       else if (act === "ps") sendPS(path);
       else if (act === "upscale") api().studio_to_upscale(path).then(function () { go("upscale"); });
       else if (act === "edit") api().studio_image(path).then(function (info) { setImage(S.create, "src", info); go("create"); });
-      else if (act === "ref") api().studio_image(path).then(function (info) { setImage(S.ref, "src", info); go("reference"); });
+      else if (act === "ref") api().studio_image(path).then(function (info) { addRef(info); go("create"); });
     });
     $("c-ps").addEventListener("click", function (e) {
       var b = e.target.closest("[data-ps]"); if (!b) return;
@@ -757,11 +816,11 @@
     // Which slot a drop lands in.
     window.addEventListener("dragover", function (e) {
       var s = e.target.closest && e.target.closest("[data-slot]");
-      document.querySelectorAll(".s-slot.drag").forEach(function (x) { if (x !== s) x.classList.remove("drag"); });
+      document.querySelectorAll("[data-slot].drag").forEach(function (x) { if (x !== s) x.classList.remove("drag"); });
       if (s) s.classList.add("drag");
       S.dropSlot = s ? s.getAttribute("data-slot") : "";
     });
-    window.addEventListener("drop", function () { setTimeout(function () { document.querySelectorAll(".s-slot.drag").forEach(function (x) { x.classList.remove("drag"); }); }, 50); });
+    window.addEventListener("drop", function () { setTimeout(function () { document.querySelectorAll("[data-slot].drag").forEach(function (x) { x.classList.remove("drag"); }); }, 50); });
     document.addEventListener("keydown", function (e) {
       var pg = S.page; if (pg !== "create" && pg !== "reference") return;
       var inText = /^(TEXTAREA|INPUT)$/.test((document.activeElement || {}).tagName || "");
@@ -1317,8 +1376,23 @@
   }
   function keyOfSrc(src) { return src ? (src.live ? "live" : src.path) : ""; }
   // A word in the prompt that changes something locked: say so, with one click to unlock.
+  function renderRefs() {
+    var p = S.create, refs = p.refs || [], el = $("c-refs");
+    var h = refs.map(function (r, i) {
+      return '<div class="s-ref"><div class="s-rimg"><img src="' + r.preview + '" alt="" title="' + esc(r.name || "") + '">' +
+        '<button type="button" class="s-rn" data-rn="' + (i + 1) + '" title="Put \'ref ' + (i + 1) + '\' in the description">Ref ' + (i + 1) + "</button>" +
+        '<button type="button" class="s-rx" data-rx="' + i + '" title="Remove">×</button></div>' +
+        '<button type="button" class="s-ru" data-ru="' + i + '" title="' + RUSE[r.use][0] + '">' + RUSE[r.use][3] + "</button></div>";
+    }).join("") + (refs.length < 3 ? '<button type="button" class="s-radd" data-radd="1"><span>+</span>' + (refs.length ? "Add" : "Add a reference") + "</button>" : "");
+    if (el.getAttribute("data-h") !== h) { el.innerHTML = h; el.setAttribute("data-h", h); }
+    var by = refLocks(p), names = { camera: "Camera", materials: "Materials", light: "Light" };
+    var note = Object.keys(by).map(function (k) { return names[k] + " comes from Ref " + by[k]; }).join(" · ");
+    $("c-refs-hint").textContent = refs.length ? (note ? note + ", so it is unlocked. " : "") + "Type ref 1, ref 2 in the description to point at one."
+      : "Take the camera, materials, rendering style or light from another picture. Your design stays.";
+  }
+
   function renderWarn() {
-    var p = S.create, el = $("c-warn"), t = p.text || "", L = p.locks || defaultLocks(p.src), hit = [];
+    var p = S.create, el = $("c-warn"), t = p.text || "", L = effLocks(p), hit = [];
     Object.keys(LOCK_WORDS).forEach(function (k) { var m = L[k] && t.match(LOCK_WORDS[k]); if (m) hit.push([k, m[0]]); });
     // A sketch is rendered: describing its materials and light is the point, not a clash.
     if (!isRender(p.src)) hit = hit.filter(function (h) { return h[0] === "camera"; });
@@ -1353,8 +1427,14 @@
     $("c-ps").hidden = !(w && w.live);
     if (w && p.resultsFor !== keyOfSrc(w)) { p.resultsFor = keyOfSrc(w); loadResultsFor(p, w); }
     if (p.locksFor !== keyOfSrc(w)) { p.locks = defaultLocks(w); p.locksFor = keyOfSrc(w); }
-    var LK = p.locks || defaultLocks(w);
-    $("c-locks").querySelectorAll("button").forEach(function (b) { b.classList.toggle("on", !!LK[b.getAttribute("data-v")]); });
+    var LK = p.locks || defaultLocks(w), BY = refLocks(p);
+    $("c-locks").querySelectorAll("button").forEach(function (b) {
+      var k = b.getAttribute("data-v");
+      if (!b.hasAttribute("data-t")) b.setAttribute("data-t", b.title);
+      b.classList.toggle("on", !!LK[k] && !BY[k]); b.classList.toggle("s-byref", !!BY[k]); b.disabled = !!BY[k];
+      b.title = BY[k] ? "Comes from Ref " + BY[k] : b.getAttribute("data-t") || b.title;
+    });
+    renderRefs();
     p.preset = presetFor(p);
     $("c-prompt-l").textContent = isRender(w) ? "Describe the change" : "Describe the result";
     $("c-keep-w").hidden = !LK.design;
@@ -1953,6 +2033,8 @@
         } else if (data.target === "board" && window.VSBoard) {
           window.VSBoard.addImages(imgs);
           if (data.from === "phone") { S.phoneN = (S.phoneN || 0) + imgs.length; phoneGot(S.phoneN); toast("From your phone: on the board"); }
+        } else if (data.target === "create" && S.dropSlot === "ref") {
+          imgs.forEach(addRef);
         } else if (data.target === "create" || data.target === "library") {
           setImage(S.create, "src", imgs[0]); if (data.target === "library") go("create");
         }
@@ -1962,7 +2044,7 @@
   }
 
   // For the board (board.js): the shared state and the actions it reuses.
-  window.VS = { local: function (e, f) { return zoom.local(e, f); }, layout: function () { layout(); }, zoomSpace: function () { return zoom.space || !!zoom.pan; }, plusMenu: plusMenu, pop: pop, closePop: closePop, painter: painter, S: S, api: api, esc: esc, short: short, go: go, render: render, setImage: setImage, sendPS: sendPS,
+  window.VS = { addRef: addRef, local: function (e, f) { return zoom.local(e, f); }, layout: function () { layout(); }, zoomSpace: function () { return zoom.space || !!zoom.pan; }, plusMenu: plusMenu, pop: pop, closePop: closePop, painter: painter, S: S, api: api, esc: esc, short: short, go: go, render: render, setImage: setImage, sendPS: sendPS,
                 toast: toast, refresh: refresh, current: current, P: P };
 
   function start() {

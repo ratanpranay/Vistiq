@@ -170,6 +170,20 @@ class WholeRun(unittest.TestCase):
         for preset in ("cmf", "style", "camera"):
             self.go({"mode": "reference", "image": src, "reference": src, "preset": preset, "variations": 1})
 
+    def test_create_with_references(self):
+        src = os.path.join(self.tmp.name, "src.png")
+        Image.new("RGB", (1200, 800), "white").save(src)
+        ref = os.path.join(self.tmp.name, "ref.png")
+        Image.new("RGB", (900, 900), "gray").save(ref)
+        self.engine.runs.clear()
+        r = self.go({"mode": "create", "image": src, "text": "ref 1 view", "variations": 1, "preset": "sketch",
+                     "refs": [{"path": ref, "use": "camera"}, {"path": ref, "use": "materials"}]})
+        self.assertEqual(len(r), 1)
+        self.assertEqual([x["use"] for x in r[0]["meta"]["refs"]], ["camera", "materials"])
+        texts = [n["inputs"]["text"] for p in self.engine.runs if isinstance(p, dict) for n in p.values()
+                 if isinstance(n, dict) and n.get("class_type") == "CLIPTextEncode" and n["inputs"].get("text")]
+        self.assertTrue(any("Camera from image 2" in x and "image 2 view" in x for x in texts), texts)
+
     def test_camera_reference_does_not_hold_the_first_view(self):
         src = os.path.join(self.tmp.name, "src.png")
         Image.new("RGB", (1200, 800), "white").save(src)

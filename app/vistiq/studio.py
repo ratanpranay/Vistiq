@@ -862,12 +862,35 @@ def flux3_prompt(settings, images, text, megapixels=F3_MP, seed=None, steps=F3_S
     return p
 
 
-def create_prompt(settings, image, text, keep=0.8, megapixels=2.0, seed=None, steps=STEPS):
-    """Klein edit of one image (render or sketch)."""
+def create_prompt(settings, image, text, keep=0.8, megapixels=2.0, seed=None, steps=STEPS, refs=None, frame=0):
+    """Klein edit of one image (render or sketch). `refs`: reference images
+    (image 2, 3…), `frame`: the image whose size and framing the result takes."""
+    refs = list(refs or [])
     if flux3_ready(settings):
+        if refs:
+            return flux3_prompt(settings, [image] + refs, text, seed=seed, frame=frame)
         # "Follow my sketch" at the top: the sketch goes in twice, which holds
         # the design tighter (tested: the rear and front stayed as drawn).
         return flux3_prompt(settings, [image, image] if keep >= 0.95 else [image], text, seed=seed)
+    p, model = _create_klein(settings, image, text, keep, megapixels, seed, steps)
+    cond = ["21", 0]
+    for i, ref in enumerate(refs):
+        load, scale, enc, node = str(60 + 4 * i), str(61 + 4 * i), str(62 + 4 * i), str(63 + 4 * i)
+        p[load] = {"class_type": "LoadImage", "inputs": {"image": ref}}
+        p[scale] = {"class_type": "ImageScaleToTotalPixels",
+                    "inputs": {"image": [load, 0], "upscale_method": "lanczos", "megapixels": float(megapixels),
+                               "resolution_steps": 16}}
+        p[enc] = {"class_type": "VAEEncode", "inputs": {"pixels": [scale, 0], "vae": ["3", 0]}}
+        p[node] = {"class_type": "ReferenceLatent", "inputs": {"conditioning": cond, "latent": [enc, 0]}}
+        cond = [node, 0]
+        if frame == i + 1:
+            p["30"]["inputs"]["image"] = [scale, 0]       # the result takes this reference's framing
+    if refs:
+        p["22"]["inputs"]["conditioning"] = cond
+    return p
+
+
+def _create_klein(settings, image, text, keep, megapixels, seed, steps):
     p, model = _klein_base(settings, keep)
     p.update({
         "10": {"class_type": "LoadImage", "inputs": {"image": image}},
@@ -890,7 +913,7 @@ def create_prompt(settings, image, text, keep=0.8, megapixels=2.0, seed=None, st
         "41": {"class_type": "VAEDecode", "inputs": {"samples": ["40", 0], "vae": ["3", 0]}},
         "42": {"class_type": "SaveImage", "inputs": {"images": ["41", 0], "filename_prefix": "VistiqStudio"}},
     })
-    return p
+    return p, model
 
 
 def reference_prompt(settings, design, reference, text, mode="camera", keep=0.8, megapixels=2.0,
@@ -1064,6 +1087,72 @@ F3_REF_PRESETS = {
 # (the usual "keep the camera view" wording made the result copy image 1's view).
 F3_CAMERA_KEEP = ("Keep every part, shape, proportion, material and colour of the first image's design. "
                   "Only the viewpoint changes, to the second image's camera.")
+
+
+# Create with reference images (Nov 2026): image 1 is the design, each
+# reference gives exactly one thing. Everything else stays the design's own.
+REF_USES = ("camera", "materials", "style", "light", "describe")
+REF_KEEP_DESIGN = ("Image 1 is the design to keep: every part, shape, line, opening and proportion stays exactly "
+                   "as in image 1. Do not add or remove anything, and take no parts or shapes from the other images.")
+REF_LOOSE_DESIGN = "Image 1 is the design to start from; its shapes may be refined."
+REF_CLAUSE = {
+    "camera": ("Camera from {n}: show the design from exactly the camera position, height, tilt, angle, lens and "
+               "framing of {n}. If {n} looks down from above, look down from above; the composition must match "
+               "{n}, not image 1. Take only the viewpoint from {n}."),
+    "materials": ("Materials from {n}: give the design exactly the colours, materials and finishes of {n}, on the "
+                  "same kinds of parts (seats like its seats, dashboard like its dashboard, trims like its trims)."
+                  "{sk} Take only the colours and materials from {n}, not its shapes, parts or camera view."),
+    "style": ("Rendering style from {n}: render the design in exactly the rendering style of {n}: the same "
+              "medium, technique, line work, shading and finish. Take only the rendering style from {n}, not its "
+              "shapes, parts or camera view."),
+    "light": ("Lighting from {n}: light the design exactly like {n}: the same light direction, colour, softness, "
+              "contrast, time of day and mood. Take only the light from {n}, not its shapes, parts or camera view."),
+    "describe": "{n} is a reference: use it only as the instructions below say.",
+}
+_REF_RE = re.compile(r"\b(?:ref(?:erence)?)\s*#?\s*([1-3])\b", re.I)
+
+
+def map_refs(text):
+    """"ref 1" in the prompt is image 2 for the model (image 1 is the design)."""
+    return _REF_RE.sub(lambda m: "image %d" % (int(m.group(1)) + 1), text or "")
+
+
+def ref_text(text, uses, locks=None, sketch=False, keep=0.8):
+    """The prompt for Create with reference images: what each one gives,
+    strictly, while the design stays."""
+    uses = [u if u in REF_USES else "describe" for u in uses]
+    has = lambda u: u in uses
+    locks = dict(locks or {})
+    text = map_refs(clean_prompt(text))
+    out = [REF_KEEP_DESIGN if keep >= 0.3 else REF_LOOSE_DESIGN]
+    if sketch and not has("style"):
+        out.append("Render the sketch in image 1 as a photorealistic photograph.")
+    for i, u in enumerate(uses):
+        out.append(REF_CLAUSE[u].format(n="image %d" % (i + 2),
+                                        sk=" The colours in the sketch are only placeholders." if sketch else ""))
+    if not has("camera") and locks.get("camera"):
+        out.append("Keep the camera of image 1 exactly: the same viewpoint, angle, lens and framing.")
+    if not sketch and not has("materials") and locks.get("materials"):
+        out.append("Keep the materials, colours and finishes of image 1 exactly.")
+    if not sketch and not has("light") and locks.get("light"):
+        out.append("Keep the lighting of image 1 exactly.")
+    if sketch and not has("materials") and COLOUR_WORDS.search(text):
+        out.append(SKETCH_RECOLOUR)
+    out.append("Take nothing else from the reference images.")
+    out = ["\n".join(out)]
+    if text:
+        out.append(text)
+    light = ""
+    if not has("light") and not has("style") and not locks.get("light"):
+        light = light_for(text)
+        if light:
+            out.append(light)
+    inside = _interior(text)
+    if inside and not has("materials") and not has("style"):
+        out.append(FINISH_MAT)
+    if not has("style"):
+        out.append(CLEAN if inside or light in (LIGHT_INT, LIGHT_NIGHT) else CRISP)
+    return "\n\n".join(out)
 
 
 # Sketch renders came out with stained, mottled leather and crushed-velvet
