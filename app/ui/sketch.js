@@ -152,8 +152,11 @@
       '<button type="button" class="sk-b" data-k="undo" title="Undo (Ctrl Z)">' + ic("undo") + "</button>" +
       '<button type="button" class="sk-b" data-k="redo" title="Redo (Ctrl Shift Z)">' + ic("redo") + "</button></div>";
   }
+  // Size runs on a curve: 1–10 px get a third of the slider, like Photoshop.
+  function sizePos(v) { return Math.log(Math.max(1, v)) / Math.log(300); }
+  function sizeAt(u) { return Math.max(1, Math.min(300, Math.round(Math.exp(u * Math.log(300))))); }
   function slider(k, label, v, max, unit) {
-    var p = Math.round(100 * v / max);
+    var p = Math.round(100 * (k === "size" ? sizePos(v) : v / max));
     return '<label class="sk-sl" data-s="' + k + '">' + label + '<span class="tr"><u style="width:' + p + '%"></u><b style="left:' + p + '%"></b></span><em>' + (unit === "px" ? Math.round(v) + " px" : Math.round(v * 100) + "%") + "</em></label>";
   }
   function sizeKey() { return T.tool === "erase" ? (T.eraser === "magic" ? "magic" : "erase") : "brush"; }
@@ -181,7 +184,7 @@
   // Size changes show at once: the ring and the Size slider, without rebuilding the bars.
   function updateSizeUI() {
     var s = view && view.querySelector('#sk-opts [data-s="size"]'); if (!s) return;
-    var p = Math.round(100 * T.sizes[sizeKey()] / 300);
+    var p = Math.round(100 * sizePos(T.sizes[sizeKey()]));
     s.querySelector("u").style.width = p + "%"; s.querySelector("b").style.left = p + "%"; s.querySelector("em").textContent = T.sizes[sizeKey()] + " px";
   }
   function refreshBars() {
@@ -228,9 +231,9 @@
       var tr = s.querySelector(".tr"), k = s.getAttribute("data-s");
       var setv = function (ev) {
         var r = tr.getBoundingClientRect(), u = Math.max(0, Math.min(1, (ev.clientX - r.left) / r.width));
-        if (k === "size") { T.sizes[sizeKey()] = Math.max(1, Math.round(u * 300)); keep("sizes", T.sizes); }
+        if (k === "size") { T.sizes[sizeKey()] = sizeAt(u); keep("sizes", T.sizes); }
         else { T[k] = Math.round(u * 100) / 100; keep(k, T[k]); }
-        var p = Math.round(100 * (k === "size" ? T.sizes[sizeKey()] / 300 : T[k]));
+        var p = Math.round(100 * (k === "size" ? sizePos(T.sizes[sizeKey()]) : T[k]));
         tr.querySelector("u").style.width = p + "%"; tr.querySelector("b").style.left = p + "%";
         s.querySelector("em").textContent = k === "size" ? T.sizes[sizeKey()] + " px" : Math.round(T[k] * 100) + "%";
         if (k === "size") moveRing();
@@ -338,6 +341,18 @@
     }
     return ctx.createPattern(grain, "repeat");
   }
+  // Pencil tooth: the stroke colour with a fine paper grain, fixed to the
+  // canvas (so it reads as paper, not as a pattern moving with the pen).
+  function toothFor(ctx, col) {
+    var c = document.createElement("canvas"); c.width = c.height = 96;
+    var g = c.getContext("2d"), d = g.createImageData(96, 96), m = col.match(/\d+/g);
+    for (var i = 0; i < d.data.length; i += 4) {
+      d.data[i] = +m[0]; d.data[i + 1] = +m[1]; d.data[i + 2] = +m[2];
+      d.data[i + 3] = 255 * (0.3 + 0.7 * Math.pow(Math.random(), 0.5));
+    }
+    g.putImageData(d, 0, 0);
+    return ctx.createPattern(c, "repeat");
+  }
   var lastPtr = null;
   function point(e) {
     var q = V().local(e, fit), u = q[0], v = q[1];
@@ -372,7 +387,7 @@
     ctx._col = magic ? "rgba(232,72,72,1)" : erase ? "rgba(0,0,0,1)" : rgba(T.color, 1);
     ctx._col0 = magic ? "rgba(232,72,72,0)" : erase ? "rgba(0,0,0,0)" : rgba(T.color, 0);
     ctx.globalCompositeOperation = erase ? "destination-out" : "source-over";
-    if (kind === "sketch" && !erase) { ctx._col = rgba(T.color, 1); }
+    if (kind === "sketch" && !erase) { ctx._col = rgba(T.color, 1); ctx._tooth = toothFor(ctx, ctx._col); } else ctx._tooth = null;
     stroke = { L: L, ctx: ctx, target: target, kind: kind, erase: erase, magic: magic, before: L.canvas.getContext("2d").getImageData(0, 0, doc.w, doc.h),
                last: null, pos: null, left: 0, pen: e.pointerType === "pen" };
     buf.style.opacity = magic ? 0 : T.opacity; magicBuf.style.opacity = magic ? 0.45 : 0;
@@ -395,11 +410,37 @@
     else if (!s.magic) { var k = 1 - T.smooth * 0.85; s.pos[0] += (p[0] - s.pos[0]) * k; s.pos[1] += (p[1] - s.pos[1]) * k; }
     else s.pos = p.slice();
     var q = s.pos.slice();
-    var rad = size / 2 * (s.kind === "sketch" ? 0.12 + 0.88 * pr : 0.35 + 0.65 * pr);
-    var a = s.magic ? 1 : T.flow * (s.kind === "sketch" ? 0.25 + 0.75 * pr : 0.55 + 0.45 * pr) * (s.erase ? T.opacity : 1);
-    if (s.kind === "sketch" && !s.erase) a *= 0.9;
-    var step = Math.max(0.6, rad * (s.kind === "soft" ? 0.18 : 0.3));
+    // Pen pressure, smoothed a little (raw tablet readings jitter).
+    s.pr = s.pr == null ? pr : s.pr * 0.55 + pr * 0.45; pr = s.pr;
+    // Like Photoshop: pressure drives size (down to 8% for the pencil) and, for the pencil, opacity.
+    var rad = size / 2 * (s.kind === "sketch" ? 0.08 + 0.92 * pr : 0.35 + 0.65 * pr);
+    var a = s.magic ? 1 : T.flow * (s.kind === "sketch" ? 0.18 + 0.82 * pr : 0.55 + 0.45 * pr) * (s.erase ? T.opacity : 1);
+    var pencil = s.kind === "sketch" && !s.erase && !s.magic;
+    var step = Math.max(pencil ? 0.35 : 0.6, rad * (s.kind === "soft" ? 0.18 : pencil ? 0.22 : 0.3));
     var ctx = s.ctx;
+    if (pencil) {
+      // Shape dynamics: a slightly flattened tip that follows the stroke,
+      // with a touch of size, angle and opacity jitter, on paper tooth.
+      if (s.last) { var ddx = q[0] - s.last[0], ddy = q[1] - s.last[1]; if (ddx * ddx + ddy * ddy > 0.5) s.ang = Math.atan2(ddy, ddx); }
+      // Dabs overlap about n times: each lays down only its share, so the
+      // stroke ends at the set opacity and the paper grain stays visible.
+      var n = Math.max(1, 2 * rad / step);
+      var draw = function (x, y) {
+        var r = Math.max(0.35, rad * (0.9 + 0.2 * Math.random()));
+        ctx.globalAlpha = Math.max(0, Math.min(1, 1 - Math.pow(1 - Math.min(0.985, a * 1.15 * (0.9 + 0.1 * Math.random())), 1 / n)));
+        ctx.fillStyle = r > 1.2 ? ctx._tooth : ctx._col;
+        ctx.save(); ctx.translate(x, y); ctx.rotate((s.ang || 0) + (Math.random() - 0.5) * 0.5);
+        ctx.scale(1, 0.72 + 0.2 * Math.random());
+        ctx.beginPath(); ctx.arc(0, 0, r, 0, Math.PI * 2); ctx.restore(); ctx.fill();
+      };
+      if (!s.last) { draw(q[0], q[1]); s.last = q; }
+      else {
+        var px = q[0] - s.last[0], py = q[1] - s.last[1], pd = Math.hypot(px, py), pt = s.left;
+        while (pt <= pd) { var pf = pd ? pt / pd : 0; draw(s.last[0] + px * pf, s.last[1] + py * pf); pt += step; }
+        s.left = pt - pd; s.last = q;
+      }
+      return;
+    }
     if (s.kind === "sketch" && !s.erase && !s.magic) { ctx.save(); }
     if (!s.last) { dab(ctx, q[0], q[1], rad, a, s.kind); s.last = q; }
     else {

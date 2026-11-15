@@ -522,19 +522,20 @@ const frame = (n, name) => ({ path: "live://photoshop/" + n, name: name || "flat
     await p.waitForTimeout(200);
     await p.ev("studio-live", frame(1));
     await p.waitForTimeout(150);
-    check("results come back after a restart", await p.evaluate(() => window.VS.S.create.results.length) === 2 && await p.evaluate(() => document.querySelectorAll("#c-strip [data-i='0'], #c-strip [data-i='1']").length) === 2,
+    check("results come back after a restart", await p.evaluate(() => window.VS.S.create.results.some((r) => r.path === "C:/o/kept.png") && !!document.querySelector("#c-strip [data-i]")),
       await p.evaluate(() => document.getElementById("c-strip").innerHTML.slice(0, 400)));
-    check("a moved or deleted result shows as missing", await p.evaluate(() => !!document.querySelector("#c-strip .s-miss")), "no missing tile");
-    await p.click("#c-strip [data-i='0']");
+    check("a deleted or moved result just leaves the strip", await p.evaluate(() => !window.VS.S.create.results.some((r) => r.path === "C:/o/gone.png") && !document.querySelector("#c-strip .s-miss")), "still there");
+    await p.click("#c-strip img[data-i='0']");
     await p.waitForTimeout(150);
     check("clicking a kept result opens the full picture", await p.evaluate(() => window.VS.S.create.sel === 0 && !window.VS.S.create.results[0].thin), JSON.stringify(await p.evaluate(() => window.VS.S.create.results[0])).slice(0, 200));
-    await p.click("#c-strip .s-miss");
-    await p.waitForTimeout(150);
-    check("clicking a missing one says so", /missing from its original location/i.test(await p.evaluate(() => document.body.innerText)), "no message");
     await p.ev("studio-result", { id: "", index: 0, of: 1, result: { path: "C:/o/new.png", name: "new.png", w: 1600, h: 900, preview: "x", meta: { source: "C:/w/sk.jpg" } } });
     await p.evaluate(() => { const S = window.VS.S.create; S.results.push({ path: "C:/o/new.png", name: "new.png", w: 1600, h: 900, preview: "x", srcKey: "live:flat 2.psd", meta: { source: "C:/w/sk.jpg", text: "t" } }); window.VS.render(); });
     await p.waitForTimeout(100);
-    check("new results are saved for next time", await p.evaluate(() => !!(window.__strip && window.__strip.create.some((r) => r.path === "C:/o/new.png") && window.__strip.create.length >= 3)), JSON.stringify(await p.evaluate(() => window.__strip)).slice(0, 300));
+    check("new results are saved for next time", await p.evaluate(() => !!(window.__strip && window.__strip.create.some((r) => r.path === "C:/o/new.png") && window.__strip.create.length >= 2)), JSON.stringify(await p.evaluate(() => window.__strip)).slice(0, 300));
+    await p.evaluate(() => { const S = window.VS.S.create; S.results.push({ path: "C:/o/old.png", name: "old.png", w: 1600, h: 900, preview: "data:image/gif;base64,R0lGODlhAQABAAAAACw=", srcKey: "other" }); window.VS.render(); });
+    await p.waitForTimeout(50);
+    await p.click("#c-strip .s-earlier"); await p.waitForTimeout(100);
+    check("Earlier shows its results when opened", await p.evaluate(() => { const t = document.querySelector("#c-strip .s-earl img"); return !!t && t.getBoundingClientRect().width > 50; }), "earlier tiles hidden");
     check("no page errors with the kept strip", p.errors.length === 0, p.errors.join(" | "));
     await p.close();
   }

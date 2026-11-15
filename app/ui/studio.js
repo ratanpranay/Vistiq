@@ -480,7 +480,7 @@
         p.results = back.concat(p.results);         // anything made already this session stays after
         if (p.sel >= 0) p.sel += back.length;
         back.forEach(function (r) {
-          a.studio_thumb(r.path).then(function (t) { if (t) r.preview = t; else r.missing = true; render(); });
+          a.studio_thumb(r.path).then(function (t) { if (t) { r.preview = t; render(); } else dropResult(p, r); });
           if (r.source) a.studio_thumb(r.source).then(function (t) { if (t) { r.orig = t; render(); } });
         });
       });
@@ -491,6 +491,13 @@
       render();
     });
   }
+  // A result whose file was deleted or moved simply leaves the strip.
+  function dropResult(p, r) {
+    var i = p.results.indexOf(r); if (i < 0) return;
+    p.results.splice(i, 1);
+    if (p.sel === i) p.sel = -1; else if (p.sel > i) p.sel--;
+    render();
+  }
   var BLANK = "data:image/gif;base64,R0lGODlhAQABAIAAAO7v8wAAACH5BAAAAAAALAAAAAABAAEAAAICRAEAOw==";
   // Clicking a result kept from an earlier session reads the full picture from its folder.
   function pickResult(p, i) {
@@ -499,8 +506,8 @@
     if (!r || !r.thin) { p.sel = i; render(); return; }
     api().studio_image(r.path).then(function (info) {
       if (!info) {
-        r.missing = true; render();
-        toast("This image is missing from its original location: " + r.path);
+        dropResult(p, r);
+        toast("That picture was deleted or moved, so it's gone from the strip");
         return;
       }
       r.preview = info.preview; r.w = info.w; r.h = info.h; r.thin = false; r.missing = false;
@@ -1623,7 +1630,7 @@
     if (earlier.length) {
       if (mine.length || p.job) strip += '<span class="s-div" aria-hidden="true"></span>';
       strip += '<button type="button" class="s-earlier">' + (p.showEarlier ? "Hide earlier" : "Earlier · " + earlier.length) + "</button>";
-      if (p.showEarlier) earlier.slice().reverse().forEach(function (i) { strip += '<span class="s-old">' + tile(i) + "</span>"; });
+      if (p.showEarlier) earlier.slice().reverse().forEach(function (i) { strip += '<span class="s-earl">' + tile(i) + "</span>"; });
     }
     var sk = $(id + "-strip");
     if (sk.getAttribute("data-h") !== strip) {

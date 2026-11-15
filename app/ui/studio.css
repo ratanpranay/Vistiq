@@ -245,8 +245,8 @@ body.studio .s-page.on{display:flex;flex:1;min-width:0;height:100%}
 .s-tilewrap em.live{background:#E5484D}
 .s-earlier{height:63px;padding:0 14px;border-radius:12px;background:var(--field);border:1px solid var(--line);font-size:12.5px;font-weight:700;color:var(--dim);flex-shrink:0}
 .s-earlier:hover{color:var(--ink)}
-.s-old img{opacity:.7}
-.s-old img:hover,.s-old img.sel{opacity:1}
+.s-earl img{opacity:.7}
+.s-earl img:hover,.s-earl img.sel{opacity:1}
 /* the live dot breathes, like a recording light */
 .s-tilewrap em .ld{display:inline-block;width:6px;height:6px;border-radius:50%;background:#fff;margin-right:4px;vertical-align:1px;animation:s-blink 1.6s ease-in-out infinite}
 @keyframes s-blink{0%,100%{opacity:1}50%{opacity:.25}}
@@ -831,7 +831,7 @@ body.studio #c-view>.s-pane{z-index:9}
 body.studio .s-vars{scrollbar-width:none;position:relative}
 body.studio .s-vars::-webkit-scrollbar{display:none}
 body.studio .s-vars .s-pin{position:sticky;left:0;z-index:3;display:flex;align-items:center;gap:10px;flex-shrink:0;padding-right:4px;background:linear-gradient(90deg,#f7f8fb 88%,rgba(247,248,251,0))}
-body.studio .s-vars>img,body.studio .s-vars>.s-ph,body.studio .s-vars>.s-miss,body.studio .s-vars .s-old img{width:128px;height:72px}
+body.studio .s-vars>img,body.studio .s-vars>.s-ph,body.studio .s-vars>.s-miss,body.studio .s-vars .s-earl img{width:128px;height:72px}
 body.studio .s-vars .s-rundiv{margin:10px 2px}
 
 /* Upscale in Studio: the picture floats like in Create; the strip ends above the machine line */
