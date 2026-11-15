@@ -1,5 +1,8 @@
 # Vistiq Studio (test build)
 
+## 0.4.21
+- New views from words work together with material changes (Camera unlocked: your own words go to the model, so the view isn't dropped).
+
 ## 0.4.20
 - Qwen Image Edit: materials, light, camera and style from a reference go in as the picture reader's words, so your design stays exactly yours (a reference picture pulled its whole dashboard in).
 

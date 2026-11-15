@@ -371,8 +371,9 @@ def qwen_text(words, instant=False, scene="", locks=None, ref_head="", sketch=Fa
         if sketch and not ref_head:
             parts.append("Turn this sketch into a photorealistic render.")
         night = night_clause(said if said is not None else words)
-        if night and said:
-            words = " ".join(clean_prompt(said).split())   # the reader's rewrite adds starry skies
+        if said and (night or locks.get("camera") is False):
+            # the reader's rewrite keeps the camera and adds starry skies: use the person's words
+            words = " ".join(clean_prompt(said).split())
             if words[-1:] not in ".!?":
                 words += "."
         if words:

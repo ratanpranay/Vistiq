@@ -652,6 +652,11 @@ class Flux3(unittest.TestCase):
         t, sent = studio.qwen_refs("", [{"use": "camera", "desc": "Low, from the rear."}], {"camera": True})
         self.assertNotIn("the camera view", t)
 
+    def test_qwen_new_view_uses_own_words(self):
+        t = studio.qwen_text("Keep the camera. Red seats.", locks={"camera": False}, said="Red seats, seen from the rear seat.")
+        self.assertIn("rear seat", t)
+        self.assertNotIn("Keep the camera", t)
+
     def test_qwen_night(self):
         t = studio.qwen_text("Night time.", locks={})
         self.assertIn("press photo", t)
