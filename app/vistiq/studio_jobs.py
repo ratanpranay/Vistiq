@@ -552,12 +552,18 @@ class Studio:
                 text = studio.build_text(job.get("preset") or "camera", job.get("text"), studio.REF_PRESETS,
                                          f3=studio.flux3_ready(s))
             elif refs:
+                user_text = studio.map_refs(job.get("text") or "")
                 text = studio.ref_text(job.get("text"), uses, job.get("locks"), (job.get("preset") or "") == "sketch",
                                        float(job.get("keep") if job.get("keep") is not None else 0.8))
             else:
                 text = studio.build_text(job.get("preset") or "", job.get("text"))
                 if job.get("locks"):
                     text = studio.with_locks(text, job["locks"], (job.get("preset") or "") == "sketch")
+            # Lab (testing only): %APPDATA%\VistiqStudio\lab.json tries other wordings
+            # and image orders for references without a new build.
+            lab = _lab() if refs else {}
+            if lab.get("text"):
+                text = lab["text"].replace("{auto}", text).replace("{user}", user_text)
             seed = int(job.get("seed") or int(time.time()) % 100000 * 7919)
             keep = float(job.get("keep") if job.get("keep") is not None else 0.8)
             camera = mode == "reference" and (job.get("preset") or "camera") == "camera"
@@ -605,6 +611,16 @@ class Studio:
                 elif mode == "reference":
                     prompt = studio.reference_prompt(s, image, ref_image, text, job.get("preset") or "camera",
                                                      keep, WORK_MP, seed + v)
+                elif refs and lab and studio.flux3_ready(s):
+                    toks = {"d": image}
+                    toks.update({"r%d" % (i + 1): im for i, im in enumerate(ref_images)})
+                    order = [t for t in (lab.get("order") or ["d"] + ["r%d" % (i + 1) for i in range(len(ref_images))]) if t in toks]
+                    fr = lab.get("frame") or ("r%d" % cam_i if cam_i else "d")
+                    prompt = studio.flux3_prompt(s, [toks[t] for t in order], text, seed=seed + v,
+                                                 frame=order.index(fr) if fr in order else 0,
+                                                 megapixels=float(lab.get("mp", studio.F3_MP)),
+                                                 ref_mp=float(lab.get("ref_mp", studio.F3_REF_MP)),
+                                                 steps=int(lab.get("steps", studio.F3_STEPS)))
                 elif refs:
                     # The design lock keeps image 1's view too: off for a new camera.
                     prompt = studio.create_prompt(s, image, text, 0 if cam_i else keep, WORK_MP, seed + v,
@@ -652,7 +668,8 @@ class Studio:
                 meta = {"mode": mode, "preset": job.get("preset"), "text": job.get("text") or "",
                         "keep": keep, "seed": seed + v, "source": src_path, "reference": job.get("reference"),
                         "painted": mask is not None,
-                        "refs": [{"path": r["path"], "use": u} for r, u in zip(refs, uses)], "juice": job.get("juice") or 0, "lora": job.get("lora"),
+                        "refs": [{"path": r["path"], "use": u} for r, u in zip(refs, uses)],
+                        "prompt": text if refs else None, "lab": lab or None, "juice": job.get("juice") or 0, "lora": job.get("lora"),
                         "kind": "reference" if mode == "reference" else "create",
                         "made": time.strftime("%Y-%m-%d %H:%M:%S")}
                 _write_meta(path, meta)
@@ -793,6 +810,19 @@ def _is_blank(data):
         return hi - lo < 8
     except Exception:
         return False
+
+
+def _lab():
+    try:
+        from .settings import data_dir
+        p = os.path.join(data_dir(), "lab.json")
+        if os.path.isfile(p):
+            with open(p, encoding="utf-8") as fh:
+                d = json.load(fh)
+            return d if isinstance(d, dict) and d.get("on", True) else {}
+    except Exception as e:
+        log.warning("lab.json unreadable: %s", e)
+    return {}
 
 
 def _has_lock(settings):

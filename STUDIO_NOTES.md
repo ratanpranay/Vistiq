@@ -1,5 +1,8 @@
 # Vistiq Studio (test build)
 
+## 0.4.8
+- Test build for tuning references (camera, materials): each result remembers the exact wording it was made with.
+
 ## 0.4.7
 - References are part of Create (the Reference tab is gone): add up to 3 pictures and choose what each gives: Camera view, Materials & colours, Rendering style, Lighting or As I describe. Each gives only that, strictly, and your design stays. Click a Ref badge to name it in the description.
 - Camera from a reference works: the result takes the reference's viewpoint and framing.
