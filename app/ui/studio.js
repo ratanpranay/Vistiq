@@ -157,7 +157,7 @@
       '<div class="s-seg" id="c-area" hidden><button type="button" data-v="whole"></button><button type="button" data-v="paint"></button></div>' +
       '<div class="s-old"><div class="s-tiles4" id="c-presets">' +
       PRESETS.map(function (p) { return '<button type="button" data-v="' + p[0] + '">' + svg(p[3]) + "<span>" + p[1] + "</span></button>"; }).join("") + "</div></div>" +
-      '<div><div class="s-label" id="c-prompt-l">Describe the result</div>' + promptBox("c", "Describe the change") + '<div class="s-warn" id="c-warn" hidden></div></div>' +
+      '<div class="s-grow"><div class="s-label" id="c-prompt-l">Describe the result</div>' + promptBox("c", "Describe the change") + '<div class="s-warn" id="c-warn" hidden></div></div>' +
       '<div><div class="s-label s-lockl"><span>Keep</span><em>Studio never changes what is locked</em></div><div class="s-locks" id="c-locks">' +
       LOCKS.map(function (l) { return '<button type="button" data-v="' + l[0] + '" title="' + l[3] + '">' + svg("lock") + svg("unlock") + "<span>" + l[1] + "</span><small>" + l[2] + "</small></button>"; }).join("") + "</div></div>" +
       '<div id="c-blend-w" hidden><div class="s-label">Blend edges <em id="c-blend-v"></em></div><input class="s-range" type="range" min="0" max="1" step="0.05" id="c-blend"></div>' +
@@ -841,9 +841,9 @@
       this.ctx.clearRect(0, 0, this.w, this.h); this.undo = []; this.any = false;
       this.svg.setAttribute("viewBox", "0 0 " + this.w + " " + this.h); this.path = null; this.cost = null; this.drawPath();
     },
-    scale: function () { var r = this.canvas.getBoundingClientRect(); return r.width ? this.w / r.width : 1; },
+    scale: function () { var f = this.canvas.parentNode; if (!f || !f.offsetWidth) return 1; return this.w / (f.offsetWidth * zoom.of(f.parentNode).z); },
     point: function (e) {
-      var r = this.canvas.getBoundingClientRect(), u = (e.clientX - r.left) / r.width, v = (e.clientY - r.top) / r.height, f = window.VSSketch ? window.VSSketch.flip() : {};
+      var q = zoom.local(e, this.canvas.parentNode), u = q[0], v = q[1], f = window.VSSketch ? window.VSSketch.flip() : {};
       if (f.h) u = 1 - u; if (f.v) v = 1 - v;
       return [u * this.w, v * this.h];
     },
@@ -860,8 +860,8 @@
     // right click takes it away. The outline comes from the selection model.
     pick: function (e) {
       if (this.busy || !S.create.src) return;
-      var r = this.canvas.getBoundingClientRect(), self = this;
-      var u = (e.clientX - r.left) / r.width, v = (e.clientY - r.top) / r.height, fl = window.VSSketch ? window.VSSketch.flip() : {};
+      var q = zoom.local(e, this.canvas.parentNode), self = this;
+      var u = q[0], v = q[1], fl = window.VSSketch ? window.VSSketch.flip() : {};
       if (fl.h) u = 1 - u; if (fl.v) v = 1 - v;
       var add = !(e.altKey || e.button === 2 || this.mode === "sub");
       this.busy = true; this.hint("Selecting…"); this.canvas.style.cursor = "progress";
@@ -1559,13 +1559,13 @@
   // keep the zoom, so they can be compared at the same spot.
   var zoom = {
     st: {},
-    of: function (v) { var id = v.id; return this.st[id] || (this.st[id] = { z: 1, x: 0, y: 0, wh: "" }); },
+    of: function (v) { var id = v.id; return this.st[id] || (this.st[id] = { z: 1, x: 0, y: 0, r: 0, wh: "" }); },
     apply: function (v, f, w, h) {
       var z = this.of(v), wh = w + "x" + h;
-      if (z.wh !== wh) { z.wh = wh; z.z = 1; z.x = 0; z.y = 0; }
+      if (z.wh !== wh) { z.wh = wh; z.z = 1; z.x = 0; z.y = 0; z.r = 0; }
       f.style.transformOrigin = "50% 50%";
       var fl = window.VSSketch && v.id === "c-view" ? window.VSSketch.flip() : {};
-      f.style.transform = "translate(" + z.x + "px," + z.y + "px) scale(" + z.z * (fl.h ? -1 : 1) + "," + z.z * (fl.v ? -1 : 1) + ")";
+      f.style.transform = "translate(" + z.x + "px," + z.y + "px) rotate(" + (z.r || 0) + "deg) scale(" + z.z * (fl.h ? -1 : 1) + "," + z.z * (fl.v ? -1 : 1) + ")";
       f.classList.toggle("s-zoomed", z.z !== 1);
       var pill = v.querySelector(".s-zpill");
       if (!pill) {
@@ -1573,7 +1573,7 @@
         pill.innerHTML = '<button type="button" data-z="out" title="Zoom out">−</button><b></b><button type="button" data-z="in" title="Zoom in">+</button><button type="button" data-z="fit" title="Fit the picture (double-click the canvas)">Fit</button>';
         v.appendChild(pill);
       }
-      pill.querySelector("b").textContent = Math.round(z.z * 100) + "%";
+      pill.querySelector("b").textContent = Math.round(z.z * 100) + "%" + (z.r ? " · " + Math.round(z.r) + "°" : "");
     },
     // Zoom by f around a point given in the view's coordinates.
     by: function (v, f, px, py) {
@@ -1586,7 +1586,15 @@
       if (Math.abs(z.z - 1) < 0.02 && Math.abs(z.x) < 4 && Math.abs(z.y) < 4) { z.z = 1; z.x = 0; z.y = 0; }
       layout(); painter.refreshRing();
     },
-    fit: function (v) { var z = this.of(v); z.z = 1; z.x = 0; z.y = 0; layout(); },
+    fit: function (v) { var z = this.of(v); z.z = 1; z.x = 0; z.y = 0; z.r = 0; layout(); },
+    // Where a pointer is on the picture (0..1 across and down), whatever the zoom and turn.
+    local: function (e, f) {
+      var v = f.parentNode, z = this.of(v), r = f.getBoundingClientRect(), cx = r.left + r.width / 2, cy = r.top + r.height / 2;
+      var a = -(z.r || 0) * Math.PI / 180, dx = e.clientX - cx, dy = e.clientY - cy;
+      var x = dx * Math.cos(a) - dy * Math.sin(a), y = dx * Math.sin(a) + dy * Math.cos(a);
+      return [0.5 + x / (f.offsetWidth * z.z), 0.5 + y / (f.offsetHeight * z.z), f.offsetWidth * z.z];
+    },
+    rot: false,
     pan: null, space: false,
     wire: function (v) {
       var self = this;
@@ -1598,6 +1606,21 @@
         self.by(v, step, e.clientX - r.left, e.clientY - r.top);
       }, { passive: false });
       v.addEventListener("pointerdown", function (e) {
+        if (self.rot && e.button === 0 && v.querySelector(".s-fit")) {
+          e.preventDefault(); e.stopPropagation();
+          var f = v.querySelector(".s-fit"), rc = f.getBoundingClientRect(), cx = rc.left + rc.width / 2, cy = rc.top + rc.height / 2, z = self.of(v);
+          var a0 = Math.atan2(e.clientY - cy, e.clientX - cx), r0 = z.r || 0;
+          v.setPointerCapture(e.pointerId);
+          var mv = function (ev) {
+            var d = (Math.atan2(ev.clientY - cy, ev.clientX - cx) - a0) * 180 / Math.PI, r = r0 + d;
+            if (ev.shiftKey) r = Math.round(r / 15) * 15;
+            r = ((r + 540) % 360) - 180; if (Math.abs(r) < 1.5) r = 0;
+            z.r = r; layout();
+          };
+          var up = function () { v.removeEventListener("pointermove", mv); v.removeEventListener("pointerup", up); };
+          v.addEventListener("pointermove", mv); v.addEventListener("pointerup", up);
+          return;
+        }
         var hand = e.button === 0 && window.VSSketch && v.id === "c-view" && window.VSSketch.tool() === "hand" && e.target.closest(".s-fit");
         if (!(e.button === 1 || (e.button === 0 && self.space) || hand)) return;
         if (!v.querySelector(".s-fit") || e.target.closest(".s-tools,.s-zpill,.s-paintbtn,.sk-bar,.sk-opts,.sk-panel")) return;
@@ -1630,7 +1653,17 @@
       if (document.querySelector(".s-page.on .s-view .s-fit")) e.preventDefault();
     }
   });
-  document.addEventListener("keyup", function (e) { if (e.code === "Space") { zoom.space = false; document.body.classList.remove("s-space"); } });
+  document.addEventListener("keyup", function (e) {
+    if (e.code === "Space") { zoom.space = false; document.body.classList.remove("s-space"); }
+    if (e.code === "KeyR") { zoom.rot = false; document.body.classList.remove("s-rot"); }
+  });
+  // Hold R and drag to turn the view (Shift snaps to 15°); Fit straightens it again.
+  document.addEventListener("keydown", function (e) {
+    if (e.code !== "KeyR" || e.ctrlKey || e.altKey || e.metaKey || /^(TEXTAREA|INPUT|SELECT)$/.test((document.activeElement || {}).tagName || "")) return;
+    if (!document.querySelector(".s-page.on .s-view .s-fit")) return;
+    e.preventDefault(); e.stopPropagation();
+    if (!zoom.rot) { zoom.rot = true; document.body.classList.add("s-rot"); }
+  }, true);
 
   function layout() {
     document.querySelectorAll(".s-page.on .s-fit").forEach(function (f) {
@@ -1928,7 +1961,7 @@
   }
 
   // For the board (board.js): the shared state and the actions it reuses.
-  window.VS = { layout: function () { layout(); }, zoomSpace: function () { return zoom.space || !!zoom.pan; }, plusMenu: plusMenu, pop: pop, closePop: closePop, painter: painter, S: S, api: api, esc: esc, short: short, go: go, render: render, setImage: setImage, sendPS: sendPS,
+  window.VS = { local: function (e, f) { return zoom.local(e, f); }, layout: function () { layout(); }, zoomSpace: function () { return zoom.space || !!zoom.pan; }, plusMenu: plusMenu, pop: pop, closePop: closePop, painter: painter, S: S, api: api, esc: esc, short: short, go: go, render: render, setImage: setImage, sendPS: sendPS,
                 toast: toast, refresh: refresh, current: current, P: P };
 
   function start() {

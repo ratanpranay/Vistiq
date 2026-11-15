@@ -539,6 +539,31 @@ const frame = (n, name) => ({ path: "live://photoshop/" + n, name: name || "flat
     await p.close();
   }
 
+  // Hold R + drag turns the view; drawing still lands under the pointer; [ ] resize the ring at once.
+  {
+    const p = await open(browser, null, {});
+    await p.ev("studio-live", frame(1));
+    await p.click(".s-nav button[data-page=create]");
+    await p.waitForTimeout(400);
+    const bb = await (await p.$("#c-view .s-fit")).boundingBox(), cx = bb.x + bb.width / 2, cy = bb.y + bb.height / 2;
+    await p.keyboard.down("r"); await p.mouse.move(cx + 150, cy); await p.mouse.down();
+    await p.keyboard.down("Shift"); await p.mouse.move(cx + 150, cy + 150, { steps: 5 }); await p.mouse.up(); await p.keyboard.up("Shift"); await p.keyboard.up("r");
+    check("hold R and drag turns the view (Shift snaps)", /rotate\(45deg\)/.test(await p.evaluate(() => document.querySelector("#c-view .s-fit").style.transform)), await p.evaluate(() => document.querySelector("#c-view .s-fit").style.transform));
+    const map = await p.evaluate(() => { const f = document.querySelector("#c-view .s-fit"), s = document.createElement("i"); s.style.cssText = "position:absolute;left:25%;top:75%;width:1px;height:1px"; f.appendChild(s); const q = s.getBoundingClientRect(); s.remove(); return window.VS.local({ clientX: q.left + .5, clientY: q.top + .5 }, f); });
+    check("a turned view still maps the pointer to the right spot", Math.abs(map[0] - .25) < .01 && Math.abs(map[1] - .75) < .01, JSON.stringify(map));
+    await p.click("#c-view .s-zpill [data-z=fit]");
+    check("Fit straightens the view", /rotate\(0deg\)/.test(await p.evaluate(() => document.querySelector("#c-view .s-fit").style.transform)), "");
+    await p.keyboard.press("b").catch(() => {});
+    await p.mouse.move(cx, cy); await p.waitForTimeout(50);
+    const w0 = await p.evaluate(() => parseFloat(document.querySelector("#c-view .sk-ring").style.width));
+    await p.keyboard.press("]"); await p.keyboard.press("]");
+    const w1 = await p.evaluate(() => parseFloat(document.querySelector("#c-view .sk-ring").style.width));
+    check("[ ] resize the brush ring straight away", w1 > w0, w0 + " -> " + w1);
+    check("no crosshair inside the brush ring", await p.evaluate(() => getComputedStyle(document.querySelector("#c-view .sk-catch")).cursor) === "none", "");
+    check("no page errors when turning the view", p.errors.length === 0, p.errors.join(" | "));
+    await p.close();
+  }
+
   await browser.close();
   console.log(failed ? failed + " screen test(s) failed" : "all screen tests passed");
   process.exit(failed ? 1 : 0);

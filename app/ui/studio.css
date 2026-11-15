@@ -850,3 +850,13 @@ body.studio .shell .rail-foot .go-meta span:empty{display:none}
 body.studio .shell .rail-foot .go-meta span+span:before{content:"· ";}
 body.studio #c-view>.s-busy{z-index:11}
 body.studio #c-view .s-pane .s-tag{left:auto;right:10px}
+
+/* brushes: only the ring, no crosshair in it; R held: turning the view */
+.s-view[data-tool=brush] .sk-catch,.s-view[data-tool=erase] .sk-catch{cursor:none}
+body.s-rot .s-view,body.s-rot .s-view *{cursor:alias!important}
+/* Create panel: even, fixed gaps; the prompt box takes the spare height */
+body.studio #p-create .s-rail-body>*{margin-top:0}
+body.studio #p-create .s-rail-body{gap:22px}
+body.studio #p-create .s-rail-body>.s-grow{flex:1 1 auto;display:flex;flex-direction:column;min-height:0}
+body.studio #p-create .s-rail-body>.s-grow .s-pbox{flex:1;display:flex;flex-direction:column}
+body.studio #p-create .s-rail-body>.s-grow .s-prompt{flex:1;min-height:110px;max-height:none}

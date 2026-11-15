@@ -178,6 +178,12 @@
     else if (T.tool === "hand") h = '<span class="note">Drag to move the view · wheel zooms</span>';
     return '<div class="sk-opts" id="sk-opts">' + h + "</div>";
   }
+  // Size changes show at once: the ring and the Size slider, without rebuilding the bars.
+  function updateSizeUI() {
+    var s = view && view.querySelector('#sk-opts [data-s="size"]'); if (!s) return;
+    var p = Math.round(100 * T.sizes[sizeKey()] / 300);
+    s.querySelector("u").style.width = p + "%"; s.querySelector("b").style.left = p + "%"; s.querySelector("em").textContent = T.sizes[sizeKey()] + " px";
+  }
   function refreshBars() {
     if (!view) return;
     var bar = view.querySelector("#sk-bar"), o = view.querySelector("#sk-opts");
@@ -227,6 +233,7 @@
         var p = Math.round(100 * (k === "size" ? T.sizes[sizeKey()] / 300 : T[k]));
         tr.querySelector("u").style.width = p + "%"; tr.querySelector("b").style.left = p + "%";
         s.querySelector("em").textContent = k === "size" ? T.sizes[sizeKey()] + " px" : Math.round(T[k] * 100) + "%";
+        if (k === "size") moveRing();
       };
       setv(e); s.setPointerCapture(e.pointerId);
       var mv = function (ev) { setv(ev); }, up = function () { s.removeEventListener("pointermove", mv); s.removeEventListener("pointerup", up); };
@@ -331,13 +338,14 @@
     }
     return ctx.createPattern(grain, "repeat");
   }
+  var lastPtr = null;
   function point(e) {
-    var r = catcher.getBoundingClientRect(), u = (e.clientX - r.left) / r.width, v = (e.clientY - r.top) / r.height;
+    var q = V().local(e, fit), u = q[0], v = q[1];
     if (T.flipH) u = 1 - u;
     if (T.flipV) v = 1 - v;
     return [u * doc.w, v * doc.h];
   }
-  function scale() { var r = catcher.getBoundingClientRect(); return r.width ? doc.w / r.width : 1; }
+  function scale() { var q = V().local({ clientX: 0, clientY: 0 }, fit); return q[2] ? doc.w / q[2] : 1; }
   function dab(ctx, x, y, rad, a, kind) {
     if (rad < 0.3) rad = 0.3;
     ctx.globalAlpha = Math.max(0, Math.min(1, a));
@@ -561,7 +569,8 @@
     if (ring) ring.hidden = !(T.tool === "brush" || T.tool === "erase");
   }
   function moveRing(e) {
-    if (!ring || ring.hidden || !view) return;
+    if (e) lastPtr = { clientX: e.clientX, clientY: e.clientY }; else e = lastPtr;
+    if (!ring || ring.hidden || !view || !e) return;
     var r = view.getBoundingClientRect(), d = T.sizes[sizeKey()] / scale();
     ring.style.left = (e.clientX - r.left) + "px"; ring.style.top = (e.clientY - r.top) + "px";
     ring.style.width = ring.style.height = Math.max(4, d) + "px";
@@ -614,8 +623,9 @@
     if (isSel(T.tool) && V().painter.key(e)) return true;
     if (e.ctrlKey || e.metaKey || e.altKey) return false;
     if (e.key === "[" || e.key === "]") {
-      var sk = sizeKey(); T.sizes[sk] = Math.max(1, Math.min(300, Math.round(T.sizes[sk] * (e.key === "]" ? 1.2 : 1 / 1.2)) + (e.key === "]" ? 1 : 0)));
-      keep("sizes", T.sizes); refreshBars(); return true;
+      var sk = sizeKey(), cur = T.sizes[sk], step = Math.max(1, Math.round(cur * 0.1));
+      T.sizes[sk] = Math.max(1, Math.min(300, cur + (e.key === "]" ? step : -step)));
+      keep("sizes", T.sizes); updateSizeUI(); moveRing(); return true;
     }
     var map = { b: "brush", e: "erase", i: "pick", t: "tr", l: "lasso", m: "rect", p: "pen", s: "object" };
     if (k === "h") { if (e.shiftKey) flipView("fv"); else flipView("fh"); return true; }
