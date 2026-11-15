@@ -1,5 +1,14 @@
 # Vistiq Studio (test build)
 
+## 0.4.7
+- References are part of Create (the Reference tab is gone): add up to 3 pictures and choose what each gives: Camera view, Materials & colours, Rendering style, Lighting or As I describe. Each gives only that, strictly, and your design stays. Click a Ref badge to name it in the description.
+- Camera from a reference works: the result takes the reference's viewpoint and framing.
+- Sketching brush: pen pressure sets size and darkness, a pencil tip with shape dynamics and paper grain; what you draw is what stays. Size slider on a curve (small sizes are easy to pick); [ ] resize the brush ring at once; no crosshair inside it.
+- Hold R and drag to rotate the canvas (Shift snaps to 15°); Fit straightens it.
+- While making: only the blurred picture and the ring, also for references.
+- Earlier results show again; deleted or moved results leave the strip.
+- Create panel: even spacing.
+
 ## 0.4.6
 - Results open at full size (no more blurry thumbnails); Add puts the full picture on a layer.
 - Clicking a tool again closes its menu.
