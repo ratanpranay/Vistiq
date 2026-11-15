@@ -641,7 +641,6 @@ class Flux3(unittest.TestCase):
                 size_of = p["30"]["inputs"]["image"][0]
                 self.assertEqual(p[p[size_of]["inputs"]["image"][0]]["inputs"]["image"], "cam.png")   # camera ref's frame
 
-    @unittest.skipIf(sys.platform == "darwin", "the Mac has its own image engine")
     def test_qwen_night(self):
         t = studio.qwen_text("Night time.", locks={})
         self.assertIn("press photo", t)
@@ -651,6 +650,7 @@ class Flux3(unittest.TestCase):
         self.assertIn("press photo", studio.qwen_text("starry night sky", locks={}, said="make it night"))
         self.assertNotIn("press photo", studio.qwen_text("Golden hour.", locks={}))
 
+    @unittest.skipIf(sys.platform == "darwin", "the Mac has its own image engine")
     def test_qwen_image_edit(self):
         with tempfile.TemporaryDirectory() as t:
             s = self._settings(t, ("qie", "qie_te", "qie_vae", "qie_fast"))
