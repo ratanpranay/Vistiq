@@ -592,6 +592,15 @@ class Api:
     def studio_get_helper(self):
         return self._app.studio.get_helper()
 
+    def studio_get_qwenedit(self):
+        return self._app.studio.get_qwenedit()
+
+    def studio_set_engine(self, which):
+        if which in ("flux3", "qwenedit"):
+            self._app.settings.set("studio_engine", which)
+        from . import studio
+        return studio.status(self._app.settings)
+
     def studio_get_reader_xl(self):
         return self._app.studio.get_reader_xl()
 

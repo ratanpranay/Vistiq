@@ -398,6 +398,8 @@ class Studio:
                 for f in studio.FILES:
                     if f["part"] == "juice" and not juice:
                         continue
+                    if f["part"] == "qwenedit":
+                        continue                     # only on request (Settings)
                     if f["part"] == "create" and not studio.in_tier(f, t):
                         continue
                     if f["url"] and not studio.find(f["key"], self.settings):
@@ -465,6 +467,30 @@ class Studio:
                 self.emit("studio-setup", {"state": "done", "status": studio.status(self.settings)})
             except Exception as exc:
                 log.exception("picture reader download failed")
+                self.emit("studio-setup", {"state": "cancelled" if str(exc).lower() == "cancelled" else "error",
+                                           "message": str(exc)})
+        self._setup = threading.Thread(target=run, daemon=True)
+        self._setup.start()
+        return True
+
+    def get_qwenedit(self):
+        """Download Qwen Image Edit (about 31 GB) and switch to it."""
+        if self._setup and self._setup.is_alive():
+            return False
+        self._cancel.clear()
+
+        def run():
+            prog = lambda label, f: self.emit("studio-setup", {"state": "running", "label": label, "fraction": f})
+            try:
+                for f in studio.FILES:
+                    if f["part"] == "qwenedit" and not studio.find(f["key"], self.settings):
+                        dst = os.path.join(studio.models_dir(self.settings), f["folder"], f["names"][0])
+                        studio.download(f["url"], dst, prog, f["label"], self._cancel.is_set)
+                studio.write_model_paths(self.settings)
+                self.settings.set("studio_engine", "qwenedit")
+                self.emit("studio-setup", {"state": "done", "status": studio.status(self.settings)})
+            except Exception as exc:
+                log.exception("Qwen Image Edit download failed")
                 self.emit("studio-setup", {"state": "cancelled" if str(exc).lower() == "cancelled" else "error",
                                            "message": str(exc)})
         self._setup = threading.Thread(target=run, daemon=True)
@@ -675,6 +701,9 @@ class Studio:
                 # "Follow my sketch" here means the design; the view comes from the reference.
                 if keep >= 0.3:
                     text = text + "\n\n" + studio.F3_CAMERA_KEEP
+            elif (job.get("locks") or {}).get("camera") is False and studio.flux3_ready(s) and keep >= 0.6:
+                # Camera unlocked: keep the design, but let the words move the camera.
+                text = studio.F3_FREE_CAM + "\n\n" + text
             elif studio.flux3_ready(s) and keep >= 0.6 and studio.F3_KEEP not in text:
                 # FLUX 3 weighs what comes first: the design leads, nothing is added.
                 text = studio.F3_HOLD + "\n\n" + text
@@ -709,7 +738,11 @@ class Studio:
                 label = "Variation %d of %d" % (v + 1, n) if n > 1 else "Creating"
                 say(label, v / n)
                 prog = lambda f, v=v: say(label, (v + f) / n)
-                if sys.platform == "darwin":
+                if sys.platform != "darwin" and studio.use_qwenedit(s):
+                    imgs = [image] + list(ref_images or ([ref_image] if ref_image else []))
+                    fr = cam_i if refs else (1 if mode == "reference" and (job.get("preset") or "camera") == "camera" else 0)
+                    prompt = studio.qwenedit_prompt(s, imgs, text, seed + v, frame=fr)
+                elif sys.platform == "darwin":
                     prompt = {"image": image, "ref": ref_image or (ref_images[0] if ref_images else None), "text": text,
                               "seed": seed + v, "keep": keep,
                               "lines": mode == "reference" and job.get("preset") in ("cmf", "style")}
@@ -962,8 +995,8 @@ def follow_words(keep, f3=False):
 
 def _add_lora(prompt, lora, strength):
     """An extra Klein LoRA (a look), after Klein-consistency."""
-    if prompt.get("1", {}).get("inputs", {}).get("unet_name", "").startswith("flux3"):
-        return          # Klein 9B looks don't fit FLUX 3
+    if prompt.get("1", {}).get("inputs", {}).get("unet_name", "").startswith(("flux3", "qwen")):
+        return          # Klein 9B looks fit neither FLUX 3 nor Qwen
     if not lora or lora in studio.RETIRED or any(lora in f["names"] for f in studio.FILES if f["folder"] == "loras"):
         return          # Studio's own helpers are already in the job
     model = prompt["40"]["inputs"]["model"]

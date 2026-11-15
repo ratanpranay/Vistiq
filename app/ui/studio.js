@@ -878,6 +878,8 @@
       else if (a === "models") api().studio_open_models();
       else if (a === "outputs") api().studio_open_outputs();
       else if (a === "refresh") refresh();
+      else if (a === "get-qwenedit") { S.setup.error = ""; api().studio_get_qwenedit(); S.setup.run = { label: "Qwen Image Edit", fraction: null }; render(); }
+      else if (a === "engine") { api().studio_set_engine(b.getAttribute("data-e")).then(function (st2) { if (st2) S.status = Object.assign(S.status || {}, st2); render(); }); }
       else if (a === "get-reader-xl") { S.setup.error = ""; api().studio_get_reader_xl(); S.setup.run = { label: "Picture reader XL", fraction: null }; render(); }
       else if (a === "get-reader") { S.setup.error = ""; api().studio_get_reader(); S.setup.run = { label: "Picture reader", fraction: null }; render(); }
       else if (a === "get-helper") { S.setup.error = ""; api().studio_get_helper(); S.setup.run = { label: "Prompt helper", fraction: null }; render(); }
@@ -1899,6 +1901,15 @@
 
   function gb(n) { return n >= 10 ? Math.round(n) + " GB" : (Math.round(n * 10) / 10) + " GB"; }
 
+  // Which image model makes the pictures: FLUX 3, or Qwen Image Edit (experimental).
+  function engineChoice(st, running) {
+    var q = st.engine_choice === "qwenedit" && st.qwenedit;
+    return '<div class="s-engines"><button type="button" class="s-tier' + (q ? "" : " on") + '" data-su="engine" data-e="flux3"><b>FLUX 3</b><small>Fast, follows the drawing closely</small></button>' +
+      '<button type="button" class="s-tier' + (q ? " on" : "") + '" data-su="engine" data-e="qwenedit"' + (st.qwenedit ? "" : " disabled") + '><b>Qwen Image Edit <em class="s-opt">experimental</em></b><small>' +
+      (st.qwenedit ? "Understands context: new views, scene changes" : "Not downloaded yet") + "</small></button></div>" +
+      (st.qwenedit ? "" : '<div class="s-row"><div class="n"><b>Qwen Image Edit 2511</b><small>Reads the picture itself, so it understands what a sketch shows and what a change means. About a minute a picture.</small></div><span class="s-pill">31 GB</span>' +
+        '<button type="button" class="s-btn p" data-su="get-qwenedit"' + (running ? " disabled" : "") + ">Download</button></div>");
+  }
   function fileRows(files) {
     return files.map(function (f) {
       var right;
@@ -2019,7 +2030,7 @@
       progressHTML() +
       (st.mac ? '<div class="s-sec">This Mac</div><p class="s-hint">' + esc(st.mac.chip) + " · " + st.mac.ram + " GB memory · creates at up to " + st.mac.work_side + " px, upscales up to " + st.mac.max_side + " px" +
         (st.mac.can_generate ? "" : " · image generation needs 16 GB or more") + '</p><div class="s-list">' + fileRows(st.files) + selectRow + helperRow + readerRow + "</div>" : "") +
-      (st.mac || !st.flux3 ? "" : '<div class="s-sec">Image model</div><p class="s-hint">FLUX 3 Klein, the newest model: results at about 2400 × 1300 with clean, refined lines and materials, about 40 seconds a picture. Below is the earlier model, used if FLUX 3 is removed.</p>') +
+      (st.mac || !st.flux3 ? "" : '<div class="s-sec">Image model</div><p class="s-hint">FLUX 3 Klein, the newest model: results at about 2400 × 1300 with clean, refined lines and materials, about 40 seconds a picture. Below is the earlier model, used if FLUX 3 is removed.</p>' + engineChoice(st, running)) +
       (st.mac ? "" : '<div class="s-sec">Quality</div><div class="s-tiers">' + ["best", "good"].map(function (k) {
         var tt = st.chosen || st.tier;
         return '<button type="button" class="s-tier' + (tt === k ? " on" : "") + '" data-su="tier" data-t="' + k + '"' + (running ? " disabled" : "") + "><b>" + TIER_TEXT[k][0] +

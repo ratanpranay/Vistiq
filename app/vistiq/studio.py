@@ -132,6 +132,25 @@ FILES = [
      "names": ["qwen3vl_4b_int8_convrot.safetensors", "qwen3vl_4b_bf16.safetensors"], "gb": 4.9, "url": None,
      "optional": True, "page": "https://huggingface.co/black-forest-labs/flux-3-image-klein-comfy",
      "about": "Understands what you type and sees your reference pictures."},
+    # Qwen Image Edit 2511 (Nov 2026, experimental): reads the picture natively, so
+    # it understands context (what a sketch shows, what a change implies, new views).
+    {"key": "qie", "part": "qwenedit", "folder": "diffusion_models", "label": "Qwen Image Edit model",
+     "names": ["qwen_image_edit_2511_int8_convrot.safetensors", "qwen_image_edit_2511_fp8mixed.safetensors",
+               "qwen_image_edit_2511_bf16.safetensors"], "gb": 20.5, "optional": True,
+     "url": HF % ("Comfy-Org/Qwen-Image-Edit_ComfyUI", "split_files/diffusion_models/qwen_image_edit_2511_int8_convrot.safetensors"),
+     "page": "https://huggingface.co/Comfy-Org/Qwen-Image-Edit_ComfyUI", "about": "Understands pictures and changes in context."},
+    {"key": "qie_te", "part": "qwenedit", "folder": "text_encoders", "label": "Qwen Image Edit reader",
+     "names": ["qwen_2.5_vl_7b_fp8_scaled.safetensors"], "gb": 9.4, "optional": True,
+     "url": HF % ("Comfy-Org/HunyuanVideo_1.5_repackaged", "split_files/text_encoders/qwen_2.5_vl_7b_fp8_scaled.safetensors"),
+     "page": "https://huggingface.co/Comfy-Org/HunyuanVideo_1.5_repackaged", "about": "Sees your picture and reads your words."},
+    {"key": "qie_vae", "part": "qwenedit", "folder": "vae", "label": "Qwen Image Edit decoder",
+     "names": ["qwen_image_vae.safetensors"], "gb": 0.25, "optional": True,
+     "url": HF % ("Comfy-Org/Qwen-Image_ComfyUI", "split_files/vae/qwen_image_vae.safetensors"),
+     "page": "https://huggingface.co/Comfy-Org/Qwen-Image_ComfyUI", "about": "Turns its work into a picture."},
+    {"key": "qie_fast", "part": "qwenedit", "folder": "loras", "label": "Qwen Image Edit speed-up",
+     "names": ["Qwen-Image-Edit-2511-Lightning-4steps-V1.0-bf16.safetensors"], "gb": 0.85, "optional": True,
+     "url": HF % ("lightx2v/Qwen-Image-Edit-2511-Lightning", "Qwen-Image-Edit-2511-Lightning-4steps-V1.0-bf16.safetensors"),
+     "page": "https://huggingface.co/lightx2v/Qwen-Image-Edit-2511-Lightning", "about": "4 steps instead of 40."},
     {"key": "flux1", "part": "juice", "folder": "diffusion_models", "label": "Finishing model",
      "names": ["flux1-dev-fp8.safetensors", "flux1-dev.safetensors"], "gb": 23.8, "url": None,
      "page": "https://huggingface.co/black-forest-labs/FLUX.1-dev",
@@ -261,6 +280,56 @@ def flux3_ready(settings=None):
     return sys.platform != "darwin" and all(_have(k, settings) for k in ("flux3", "qwen3vl", "vae2"))
 
 
+def qwenedit_ready(settings=None):
+    return sys.platform != "darwin" and all(_have(k, settings) for k in ("qie", "qie_te", "qie_vae", "qie_fast"))
+
+
+def use_qwenedit(settings=None):
+    """Qwen Image Edit makes the pictures when it is here and chosen in Settings."""
+    return bool(settings and settings.get("studio_engine") == "qwenedit") and qwenedit_ready(settings)
+
+
+QE_MP = 1.4          # Qwen Image Edit works best around 1 to 1.6 megapixels
+QE_STEPS = 4
+
+
+def qwenedit_prompt(settings, images, text, seed=None, frame=0, megapixels=QE_MP, steps=QE_STEPS):
+    """Qwen Image Edit 2511 with its 4-step speed-up (ComfyUI's own template,
+    minus the extras). images[0] is the picture worked on; up to two more are
+    references. `frame`: the image whose size the result takes."""
+    s = settings
+    p = {
+        "1": {"class_type": "UNETLoader", "inputs": {"unet_name": os.path.basename(find("qie", s)), "weight_dtype": "default"}},
+        "2": {"class_type": "CLIPLoader", "inputs": {"clip_name": os.path.basename(find("qie_te", s)), "type": "qwen_image",
+                                                       "device": "default"}},
+        "3": {"class_type": "VAELoader", "inputs": {"vae_name": os.path.basename(find("qie_vae", s))}},
+        "4": {"class_type": "LoraLoaderModelOnly", "inputs": {"model": ["1", 0], "lora_name": os.path.basename(find("qie_fast", s)),
+                                                                "strength_model": 1.0}},
+        "5": {"class_type": "ModelSamplingAuraFlow", "inputs": {"model": ["4", 0], "shift": 3.1}},
+    }
+    enc = {"clip": ["2", 0], "prompt": text, "vae": ["3", 0]}
+    for i, im in enumerate(images[:3]):
+        load, scale = str(10 + 2 * i), str(11 + 2 * i)
+        p[load] = {"class_type": "LoadImage", "inputs": {"image": im}}
+        p[scale] = {"class_type": "ImageScaleToTotalPixels",
+                    "inputs": {"image": [load, 0], "upscale_method": "lanczos", "megapixels": float(megapixels),
+                               "resolution_steps": 16}}
+        enc["image%d" % (i + 1)] = [scale, 0]
+    fr = str(11 + 2 * (frame if frame < len(images[:3]) else 0))
+    p.update({
+        "20": {"class_type": "TextEncodeQwenImageEditPlus", "inputs": enc},
+        "21": {"class_type": "ConditioningZeroOut", "inputs": {"conditioning": ["20", 0]}},
+        "30": {"class_type": "VAEEncode", "inputs": {"pixels": [fr, 0], "vae": ["3", 0]}},
+        "40": {"class_type": "KSampler",
+               "inputs": {"model": ["5", 0], "positive": ["20", 0], "negative": ["21", 0], "latent_image": ["30", 0],
+                          "seed": int(seed if seed is not None else random.randint(1, 2**48)), "steps": int(steps),
+                          "cfg": 1.0, "sampler_name": "euler", "scheduler": "simple", "denoise": 1.0}},
+        "41": {"class_type": "VAEDecode", "inputs": {"samples": ["40", 0], "vae": ["3", 0]}},
+        "42": {"class_type": "SaveImage", "inputs": {"images": ["41", 0], "filename_prefix": "VistiqStudio"}},
+    })
+    return p
+
+
 def _have(key, settings):
     return bool(find(key, settings))
 
@@ -323,7 +392,8 @@ def status(settings=None):
             "select_ready": select_installed(settings), "helper_ready": helper_installed(settings),
             "reader_ready": reader_installed(settings), "reader_xl_ready": reader_xl_installed(settings),
             "home": home(settings), "comfy_models": guess_comfy_models(settings),
-            "flux3": flux3_ready(settings)}
+            "flux3": flux3_ready(settings), "qwenedit": qwenedit_ready(settings),
+            "engine_choice": (settings.get("studio_engine") if settings else "") or "flux3"}
 
 
 def reader_xl_installed(settings=None):
@@ -1094,6 +1164,8 @@ F3_REF_PRESETS = {
 }
 
 
+F3_FREE_CAM = ("Keep every part, shape, line, proportion, material and colour of the design in the first image; "
+               "change nothing in the design. The camera is free: show it from the view the instructions ask for.")
 # For a camera change: hold the design, but never the first image's viewpoint
 # (the usual "keep the camera view" wording made the result copy image 1's view).
 F3_CAMERA_KEEP = ("Keep every part, shape, proportion, material and colour of the first image's design. "

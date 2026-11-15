@@ -641,6 +641,21 @@ class Flux3(unittest.TestCase):
                 size_of = p["30"]["inputs"]["image"][0]
                 self.assertEqual(p[p[size_of]["inputs"]["image"][0]]["inputs"]["image"], "cam.png")   # camera ref's frame
 
+    @unittest.skipIf(sys.platform == "darwin", "the Mac has its own image engine")
+    def test_qwen_image_edit(self):
+        with tempfile.TemporaryDirectory() as t:
+            s = self._settings(t, ("qie", "qie_te", "qie_vae", "qie_fast"))
+            self.assertTrue(studio.qwenedit_ready(s))
+            self.assertFalse(studio.use_qwenedit(s))          # chosen in Settings first
+            s.set("studio_engine", "qwenedit")
+            self.assertTrue(studio.use_qwenedit(s))
+            p = studio.qwenedit_prompt(s, ["a.png", "r.png"], "make it night", seed=1, frame=1)
+            self.assertEqual(p["20"]["class_type"], "TextEncodeQwenImageEditPlus")
+            self.assertEqual(p["20"]["inputs"]["image2"], ["13", 0])
+            self.assertEqual(p["30"]["inputs"]["pixels"], ["13", 0])      # the frame of image 2
+            self.assertEqual(p["40"]["inputs"]["steps"], 4)
+            self.assertEqual(p["2"]["inputs"]["type"], "qwen_image")
+
     def test_reference_wording(self):
         # A camera read into words goes in as words only; the other references keep their picture numbers.
         t, sent = studio.ref_plan("seats like ref 2, view of ref 1",

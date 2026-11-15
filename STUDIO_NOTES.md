@@ -1,5 +1,9 @@
 # Vistiq Studio (test build)
 
+## 0.4.16
+- Camera changes in words work without a reference: with Camera unlocked, the design stays and the view follows your words.
+- Experimental: Qwen Image Edit 2511 (Settings → Image model, 31 GB download). It reads the picture itself, so it understands context: what a sketch shows, what a change implies, new views. Switch between FLUX 3 and Qwen Image Edit any time.
+
 ## 0.4.15
 - Picture reader XL (optional, 6.2 GB, Settings): understands sketches far better (what each drawn part is meant to be); used instead of the small reader once installed.
 - Instant render reads the sketch like a designer: drawn shapes become the real parts (a band across the dashboard becomes a display), hinted parts are completed, no sketch lines left.
