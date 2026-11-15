@@ -337,11 +337,11 @@ QE_INSTANT = ("Turn this design sketch into a finished, photorealistic CGI rende
 QE_CLEAN = ("Clean, brand-new surfaces: leather and fabric smooth and evenly coloured, no stains, smudges, "
             "fingerprints, blotches or mottled texture; crisp, sharp detail.")
 # Plain "night" made a starry, blue-washed, neon look (tested Nov 2026). This reads like a real press photo.
-QE_NIGHT = ("Make it a real night photograph, like a premium car maker's press photo: calm and elegant, "
-            "natural low light; every material keeps its true colour and stays readable, with no blue colour "
-            "cast; ambient lighting is only a thin, understated line with a warm white glow, never neon; screens "
-            "are on; outside is a deep night sky with a few distant city lights low on the horizon, no stars, "
-            "no starry headliner; soft, gentle contrast and clean reflections.")
+QE_NIGHT = ("Make it an evening press photo shot at blue hour in a city, like a premium car maker's "
+            "brochure: the cabin is gently lit by soft, warm interior lights, so the seats, dashboard and trims are "
+            "clearly visible with their true colours and fine texture; a thin, warm white ambient light line "
+            "glows along the dashboard and doors; the screens glow; through the windows, softly blurred city "
+            "lights and buildings; elegant, calm and realistic, gentle contrast, clean reflections.")
 NIGHT_WORDS = re.compile(r"\b(night|nighttime|night-time|evening|dusk|after dark|midnight)\b", re.I)
 NIGHT_OWN = re.compile(r"\b(neon|stars?|starry|starlight|cyberpunk)\b", re.I)
 
@@ -370,9 +370,13 @@ def qwen_text(words, instant=False, scene="", locks=None, ref_head="", sketch=Fa
             parts.append(ref_head)
         if sketch and not ref_head:
             parts.append("Turn this sketch into a photorealistic render.")
+        night = night_clause(said if said is not None else words)
+        if night and said:
+            words = " ".join(clean_prompt(said).split())   # the reader's rewrite adds starry skies
+            if words[-1:] not in ".!?":
+                words += "."
         if words:
             parts.append(words)
-        night = night_clause(said if said is not None else words)
         if night:
             parts.append(night)
             locks["light"] = False

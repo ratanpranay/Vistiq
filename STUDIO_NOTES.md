@@ -1,5 +1,8 @@
 # Vistiq Studio (test build)
 
+## 0.4.19
+- Night reworked: an evening press photo with a softly lit cabin, true colours and blurred city lights outside; no starry skies.
+
 ## 0.4.18
 - Night looks like a real press photo: calm low light, true material colours, thin warm ambient lines, no stars or neon (unless you ask for them).
 

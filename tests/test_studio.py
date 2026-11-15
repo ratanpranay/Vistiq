@@ -644,10 +644,11 @@ class Flux3(unittest.TestCase):
     def test_qwen_night(self):
         t = studio.qwen_text("Night time.", locks={})
         self.assertIn("press photo", t)
-        self.assertIn("no stars", t)
+        self.assertNotIn("star", t)
         self.assertNotIn("the lighting", t)
         self.assertNotIn("press photo", studio.qwen_text("night with neon", locks={}))
         self.assertIn("press photo", studio.qwen_text("starry night sky", locks={}, said="make it night"))
+        self.assertNotIn("starry", studio.qwen_text("starry night sky", locks={}, said="make it night"))
         self.assertNotIn("press photo", studio.qwen_text("Golden hour.", locks={}))
 
     @unittest.skipIf(sys.platform == "darwin", "the Mac has its own image engine")
