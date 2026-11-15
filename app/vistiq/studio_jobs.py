@@ -403,7 +403,10 @@ class Studio:
         st["engine"] = {"state": self.engine.state, "message": self.engine.message}
         st["apps"] = installed_apps()
         st["sizes"] = recommended_sizes()
-        st["times"] = dict(self.settings.get("studio_times") or {}, warm=bool(getattr(self, "_warm", False)))
+        t = dict(self.settings.get("studio_times") or {})
+        if sys.platform != "darwin" and studio.use_qwenedit(self.settings):
+            t = {"per": t.get("per_qe"), "load": t.get("load_qe")}     # the chosen model's own times
+        st["times"] = dict(t, warm=bool(getattr(self, "_warm", False)))
         st["busy"] = bool(self._job and self._job.is_alive())
         st["setup_running"] = bool(self._setup and self._setup.is_alive())
         st["free_gb"] = _free_gb(studio.home(self.settings))
@@ -759,6 +762,7 @@ class Studio:
                     text = studio.with_locks(text, job["locks"], (job.get("preset") or "") == "sketch")
             # Lab (testing only): %APPDATA%\VistiqStudio\lab.json tries other wordings
             # and image orders for references without a new build.
+            user_text = locals().get("user_text", job.get("said") or job.get("text") or "")
             lab = _lab() if refs or studio.use_qwenedit(s) else {}
             if lab.get("text"):
                 text = lab["text"].replace("{auto}", text).replace("{user}", user_text)
@@ -801,7 +805,9 @@ class Studio:
             # How long this should take, from earlier runs on this computer:
             # seconds per variation, plus the model loading of a session's first run.
             times = dict(s.get("studio_times") or {})
-            per, load = times.get("per"), times.get("load")
+            # Each image model learns its own time (Qwen at 3.2 MP takes far longer than FLUX).
+            tk = "_qe" if (sys.platform != "darwin" and studio.use_qwenedit(s)) else ""
+            per, load = times.get("per" + tk), times.get("load" + tk)
             first = not getattr(self, "_warm", False)
             if per:
                 est = per * n + ((load or 0) if first else 0)
@@ -811,7 +817,7 @@ class Studio:
             # the view and the design are kept and it isn't a sketch or a style change.
             locks_ = job.get("locks") or {}
             detail_on = (sys.platform != "darwin" and studio.use_qwenedit(s) and mode == "create"
-                         and bool(lab.get("detail", s.get("studio_detail", True))))
+                         and bool(lab.get("detail", s.get("studio_detail", False))))
             detail_src = (locks_.get("camera", True) and locks_.get("design", True) and not cam_i
                           and (job.get("preset") or "") != "sketch" and not job.get("instant")
                           and "style" not in uses)
@@ -827,7 +833,8 @@ class Studio:
                     imgs = [image] + list(ref_images or ([ref_image] if ref_image else []))
                     fr = cam_i if refs else (1 if mode == "reference" and (job.get("preset") or "camera") == "camera" else 0)
                     prompt = studio.qwenedit_prompt(s, imgs, text, seed + v, frame=fr,
-                                                    megapixels=float(lab.get("qe_mp", studio.QE_MP)),
+                                                    megapixels=float(lab.get("qe_mp", min(studio.QE_MP, max(
+                                                        studio.QE_MP_MIN, work.size[0] * work.size[1] / 1e6)))),
                                                     steps=int(lab.get("qe_steps", studio.QE_STEPS)))
                 elif sys.platform == "darwin":
                     prompt = {"image": image, "ref": ref_image or (ref_images[0] if ref_images else None), "text": text,
@@ -911,9 +918,9 @@ class Studio:
                 took = time.time() - t_var
                 if v == 0 and first:
                     # The first variation includes loading the models: learn both parts.
-                    times["load"] = round(max(0.0, took - (per or took * 0.5)), 1) if per else round(took * 0.5, 1)
-                    took = took - times["load"]
-                times["per"] = round(took if not times.get("per") else times["per"] * 0.6 + took * 0.4, 1)
+                    times["load" + tk] = round(max(0.0, took - (per or took * 0.5)), 1) if per else round(took * 0.5, 1)
+                    took = took - times["load" + tk]
+                times["per" + tk] = round(took if not times.get("per" + tk) else times["per" + tk] * 0.6 + took * 0.4, 1)
                 try:
                     s.set("studio_times", times)
                 except Exception:

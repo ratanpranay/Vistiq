@@ -289,7 +289,8 @@ def use_qwenedit(settings=None):
     return bool(settings and settings.get("studio_engine") == "qwenedit") and qwenedit_ready(settings)
 
 
-QE_MP = 1.4          # Qwen Image Edit works best around 1 to 1.6 megapixels
+QE_MP = 3.2          # tested Nov 2026: 3.2 MP is crisp (logos, edges, textures) and still whole; 1.4 was soft
+QE_MP_MIN = 1.0
 QE_STEPS = 4
 
 

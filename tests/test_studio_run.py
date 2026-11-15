@@ -231,6 +231,7 @@ class WholeRun(unittest.TestCase):
         self.engine.runs.clear()
         with mock.patch.object(studio, "use_qwenedit", lambda s=None: True), \
                 mock.patch.object(self.st, "_read", lambda *a, **k: ""):
+            self.settings.set("studio_detail", True)
             r = self.go({"mode": "create", "image": src, "text": "red seats", "variations": 1})
             prompts = [n["inputs"]["prompt"] for p in self.engine.runs for n in p.values()
                        if isinstance(n, dict) and n.get("class_type") == "TextEncodeQwenImageEditPlus"]
