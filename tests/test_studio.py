@@ -642,18 +642,29 @@ class Flux3(unittest.TestCase):
                 self.assertEqual(p[p[size_of]["inputs"]["image"][0]]["inputs"]["image"], "cam.png")   # camera ref's frame
 
     def test_reference_wording(self):
-        t = studio.ref_text("seats like ref 2, light from Ref 1", ["camera", "materials"], {"camera": True, "materials": True, "light": True}, False, 0.8)
-        self.assertIn("image 3", t)                      # ref 2 -> image 3
-        self.assertIn("Camera from image 2", t)
-        self.assertIn("Materials from image 3", t)
-        self.assertIn(studio.REF_KEEP_DESIGN, t)
-        self.assertNotIn("Keep the camera of image 1", t)   # the camera comes from the reference
-        self.assertNotIn("Keep the materials", t)
-        self.assertIn("Keep the lighting of image 1", t)    # still locked
-        t = studio.ref_text("", ["style"], {}, True, 0.8)
-        self.assertIn("Rendering style from image 2", t)
-        self.assertNotIn("photorealistic", t)               # the reference's own look
+        # A camera read into words goes in as words only; the other references keep their picture numbers.
+        t, sent = studio.ref_plan("seats like ref 2, view of ref 1",
+                                  [{"use": "camera", "desc": "High overhead view looking down."}, {"use": "materials"}],
+                                  {"camera": False, "materials": True, "light": True}, False, 0.8)
+        self.assertEqual(sent, [1])
+        self.assertIn("High overhead view looking down.", t)
+        self.assertIn("colours and materials of image 2", t)
+        self.assertIn("seats like image 2", t)                   # ref 2 is picture 2 now
+        self.assertIn("the camera described above", t)
+        self.assertNotIn("Keep the camera", t)
+        self.assertNotIn("every material and colour", t)          # materials come from the reference
+        self.assertIn("the lighting of image 1", t)               # still locked
+        t, sent = studio.ref_plan("", [{"use": "light", "desc": "Night, amber light strips."}], {"materials": True}, False, 0.8)
+        self.assertEqual(sent, [0])
+        self.assertIn("Change the lighting of image 1 to match image 2: Night, amber light strips.", t)
+        self.assertIn("every material and colour", t)
+        t, _ = studio.ref_plan("", [{"use": "style", "desc": "Grey marker sketch."}], {}, True, 0.8)
+        self.assertIn("rendering style of image 2: Grey marker sketch.", t)
+        self.assertNotIn("photorealistic", t)
         self.assertNotIn(studio.CRISP, t)
+        t, sent = studio.ref_plan("", [{"use": "camera"}], {}, False, 0.8)       # no words: the picture goes in
+        self.assertEqual(sent, [0])
+        self.assertIn("camera position, height, tilt", t)
 
     @unittest.skipIf(sys.platform == "darwin", "the Mac has its own image engine")
     def test_used_when_present(self):

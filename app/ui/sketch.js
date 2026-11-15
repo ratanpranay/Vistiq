@@ -106,6 +106,7 @@
   // -------------------------------------------------------------------- toolbar
 
   var I = {
+    board: '<rect x="3" y="3" width="8" height="6" rx="1.5"/><rect x="13" y="8" width="8" height="6" rx="1.5"/><rect x="3" y="14" width="8" height="7" rx="1.5"/><path d="M11 6h2v5M11 17h4v-3"/>',
     brush: '<path d="M4 20c2 0 4-1 4-3s2-3 3-3l7-7-3-3-7 7c0 1-1 3-3 3s-3 2-3 4z"/>',
     pencil: '<path d="M15 4l5 5L9 20H4v-5z"/>',
     soft: '<circle cx="12" cy="12" r="7" opacity=".35"/><circle cx="12" cy="12" r="4"/>', hard: '<circle cx="12" cy="12" r="7"/>',
@@ -150,7 +151,8 @@
       '<button type="button" class="sk-b" data-k="deselect" title="Deselect (Ctrl D)">' + ic("deselect") + "</button><i></i>" +
       b("flip", "flip", "Flip the view to check proportions", true) + "<i></i>" +
       '<button type="button" class="sk-b" data-k="undo" title="Undo (Ctrl Z)">' + ic("undo") + "</button>" +
-      '<button type="button" class="sk-b" data-k="redo" title="Redo (Ctrl Shift Z)">' + ic("redo") + "</button></div>";
+      '<button type="button" class="sk-b" data-k="redo" title="Redo (Ctrl Shift Z)">' + ic("redo") + "</button><i></i>" +
+      '<button type="button" class="sk-b sk-board" data-k="board" title="Back to the board">' + ic("board") + "<span>Board</span></button></div>";
   }
   // Size runs on a curve: 1–10 px get a third of the slider, like Photoshop.
   function sizePos(v) { return Math.log(Math.max(1, v)) / Math.log(300); }
@@ -212,6 +214,7 @@
       else if (k === "color") colorPop(b);
       else if (k === "deselect") deselect();
       else if (k === "undo") undo(); else if (k === "redo") redo();
+      else if (k === "board") V().go("board");
       else if (k === "sel") setTool(T.selTool);
       else setTool(k);
     });

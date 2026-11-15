@@ -534,8 +534,7 @@ const frame = (n, name) => ({ path: "live://photoshop/" + n, name: name || "flat
     check("new results are saved for next time", await p.evaluate(() => !!(window.__strip && window.__strip.create.some((r) => r.path === "C:/o/new.png") && window.__strip.create.length >= 2)), JSON.stringify(await p.evaluate(() => window.__strip)).slice(0, 300));
     await p.evaluate(() => { const S = window.VS.S.create; S.results.push({ path: "C:/o/old.png", name: "old.png", w: 1600, h: 900, preview: "data:image/gif;base64,R0lGODlhAQABAAAAACw=", srcKey: "other" }); window.VS.render(); });
     await p.waitForTimeout(50);
-    await p.click("#c-strip .s-earlier"); await p.waitForTimeout(100);
-    check("Earlier shows its results when opened", await p.evaluate(() => { const t = document.querySelector("#c-strip .s-earl img"); return !!t && t.getBoundingClientRect().width > 50; }), "earlier tiles hidden");
+    check("no Earlier fold in the strip", await p.evaluate(() => !document.querySelector("#c-strip .s-earlier")), "still there");
     check("no page errors with the kept strip", p.errors.length === 0, p.errors.join(" | "));
     await p.close();
   }
@@ -565,6 +564,29 @@ const frame = (n, name) => ({ path: "live://photoshop/" + n, name: name || "flat
     await p.evaluate(() => { const S = window.VS.S.create; S.job = null; S.pending = 0; window.VS.render(); });
     await p.click("#c-refs [data-rx='0']"); await p.waitForTimeout(100);
     check("× removes a reference", await p.evaluate(() => window.VS.S.create.refs.length === 1 && document.querySelectorAll("#c-refs .s-ref").length === 1), "");
+    // The picture reader fills in the words; they go with Create.
+    await p.evaluate(() => { window.VS.S.status = Object.assign(window.VS.S.status || {}, { reader_ready: true, create_ready: true });
+      window.pywebview.api.studio_describe = (path, use) => Promise.resolve({ text: "WORDS-" + use }); window.VS.S.create.refs = []; window.VS.render(); });
+    await p.evaluate((g) => window.VS.addRef({ path: "C:/r/c.png", name: "c.png", w: 100, h: 60, preview: g }), G);
+    await p.waitForTimeout(150);
+    check("the picture reader puts the camera into words", await p.evaluate(() => document.querySelector("#c-refd [data-rd='0']").value) === "WORDS-camera", await p.evaluate(() => document.getElementById("c-refd").innerHTML.slice(0, 300)));
+    await p.fill("#c-refd [data-rd='0']", "my own camera words");
+    await p.click("#c-go"); await p.waitForTimeout(100);
+    check("Create sends the reference words", await p.evaluate(() => window.__job && window.__job.refs[0].desc === "my own camera words"), JSON.stringify(await p.evaluate(() => window.__job && window.__job.refs)));
+    await p.evaluate(() => { const S = window.VS.S.create; S.job = null; S.pending = 0; window.VS.render(); });
+    // A result shows the words it was made with.
+    await p.evaluate(() => { const S = window.VS.S.create; S.results.push({ path: "C:/o/w.png", name: "w.png", w: 160, h: 90, preview: "data:image/gif;base64,R0lGODlhAQABAAAAACw=", srcKey: window.VS.S.create.results.length ? window.VS.S.create.results[0].srcKey : "", meta: { text: "white seats", prompt: "FULL PROMPT" } }); });
+    await p.evaluate(() => { const S = window.VS.S.create; S.results[S.results.length - 1].srcKey = S.results[0] ? S.results[0].srcKey : ""; S.sel = S.results.length - 1; window.VS.render(); });
+    await p.waitForTimeout(150);
+    const pb = await p.$("#c-view [data-ra=prompt]");
+    check("a result has a Prompt button", !!pb, await p.evaluate(() => (document.querySelector("#c-view .s-ra") || {}).innerHTML));
+    if (pb) {
+      await pb.click(); await p.waitForTimeout(100);
+      check("Prompt shows the words and the full prompt", await p.evaluate(() => /white seats/.test(document.querySelector(".s-pop").textContent) && /FULL PROMPT/.test(document.querySelector(".s-pop").textContent)), "");
+      await p.click(".s-pop [data-p=use]"); await p.waitForTimeout(100);
+      check("Use these words puts them in Describe", await p.evaluate(() => document.getElementById("c-text").value) === "white seats", "");
+    }
+    check("the toolbar has a Board button", await p.evaluate(() => !!document.querySelector("#c-view [data-k=board], .sk-bar [data-k=board]")), "");
     check("no page errors with references", p.errors.length === 0, p.errors.join(" | "));
     await p.close();
   }

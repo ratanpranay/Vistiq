@@ -1,5 +1,11 @@
 # Vistiq Studio (test build)
 
+## 0.4.9
+- References follow their camera, lighting and style: the new Picture reader (optional, 2.6 GB, Settings) reads each reference into words, shown under it to check or edit. Without it, type the words yourself. Materials come over strongly.
+- Click Prompt on any result to see the words it was made with: copy them, or Use these words to start a new Create.
+- Board button at the end of the sketch toolbar.
+- The Earlier fold is gone from the results row (everything is in the Library).
+
 ## 0.4.8
 - Test build for tuning references (camera, materials): each result remembers the exact wording it was made with.
 

@@ -414,6 +414,38 @@ class Studio:
             log.warning("prompt helper couldn't shorten the prompt: %s", e)
             return text
 
+    def get_reader(self):
+        """Download the picture reader (about 2.6 GB)."""
+        if self._setup and self._setup.is_alive():
+            return False
+        self._cancel.clear()
+        from . import reader
+
+        def run():
+            try:
+                reader.install(studio.models_dir(self.settings), studio.download, lambda label, f: self.emit(
+                    "studio-setup", {"state": "running", "label": label, "fraction": f}), self._cancel.is_set)
+                self.emit("studio-setup", {"state": "done", "status": studio.status(self.settings)})
+            except Exception as exc:
+                log.exception("picture reader download failed")
+                self.emit("studio-setup", {"state": "cancelled" if str(exc).lower() == "cancelled" else "error",
+                                           "message": str(exc)})
+        self._setup = threading.Thread(target=run, daemon=True)
+        self._setup.start()
+        return True
+
+    def describe(self, path, use):
+        """A reference's camera, light, style or materials in words."""
+        from . import reader
+        if not studio.reader_installed(self.settings):
+            return ""
+        if not hasattr(self, "_reader"):
+            self._reader = reader.Reader(lambda: studio.models_dir(self.settings))
+        return self._reader.describe(self.real_path(path), use)
+
+    def meta(self, path):
+        return _read_meta(self.real_path(path)) or {}
+
     def improve(self, preset, text):
         from . import helper
         if not hasattr(self, "_helper"):
@@ -523,6 +555,7 @@ class Studio:
             refs = [r for r in (job.get("refs") or []) if r and r.get("path")][:3] if job.get("mode", "create") == "create" else []
             uses = [r.get("use") or "describe" for r in refs]
             cam_i = uses.index("camera") + 1 if "camera" in uses else 0
+            sent = list(range(len(refs)))
             mask = box = None
             if job.get("mask") and not cam_i:      # a new camera view changes the whole picture
                 mask = decode_mask(job["mask"], original.size)
@@ -542,8 +575,6 @@ class Studio:
                 rp = os.path.join(tmp_dir, "cref%d_%s.png" % (i, job_id))
                 load_rgb(self.real_path(r["path"])).save(rp, "PNG", compress_level=1)
                 ref_images.append(self.engine.upload(rp))
-            if refs:
-                job = dict(job, text=studio.map_refs(job.get("text") or ""))
             job = dict(job, text=self._condense(job.get("preset") or "", job.get("text") or ""))
             if mode == "reference":
                 ref_path = os.path.join(tmp_dir, "ref_%s.png" % job_id)
@@ -552,9 +583,13 @@ class Studio:
                 text = studio.build_text(job.get("preset") or "camera", job.get("text"), studio.REF_PRESETS,
                                          f3=studio.flux3_ready(s))
             elif refs:
-                user_text = studio.map_refs(job.get("text") or "")
-                text = studio.ref_text(job.get("text"), uses, job.get("locks"), (job.get("preset") or "") == "sketch",
-                                       float(job.get("keep") if job.get("keep") is not None else 0.8))
+                text, sent = studio.ref_plan(job.get("text"), refs, job.get("locks"), (job.get("preset") or "") == "sketch",
+                                             float(job.get("keep") if job.get("keep") is not None else 0.8))
+                user_text = job.get("text") or ""
+                # Only references that go in as pictures; the frame is the design's,
+                # or a camera reference's when its camera couldn't be put into words.
+                cam_i = (sent.index(cam_i - 1) + 1) if cam_i and (cam_i - 1) in sent else 0
+                ref_images = [ref_images[i] for i in sent]
             else:
                 text = studio.build_text(job.get("preset") or "", job.get("text"))
                 if job.get("locks"):
@@ -668,8 +703,8 @@ class Studio:
                 meta = {"mode": mode, "preset": job.get("preset"), "text": job.get("text") or "",
                         "keep": keep, "seed": seed + v, "source": src_path, "reference": job.get("reference"),
                         "painted": mask is not None,
-                        "refs": [{"path": r["path"], "use": u} for r, u in zip(refs, uses)],
-                        "prompt": text if refs else None, "lab": lab or None, "juice": job.get("juice") or 0, "lora": job.get("lora"),
+                        "refs": [{"path": r["path"], "use": u, "desc": r.get("desc") or ""} for r, u in zip(refs, uses)],
+                        "prompt": text, "lab": lab or None, "juice": job.get("juice") or 0, "lora": job.get("lora"),
                         "kind": "reference" if mode == "reference" else "create",
                         "made": time.strftime("%Y-%m-%d %H:%M:%S")}
                 _write_meta(path, meta)
@@ -797,6 +832,8 @@ class Studio:
         self.affinity.stop()
         if hasattr(self, "_helper"):
             self._helper.stop()
+        if hasattr(self, "_reader"):
+            self._reader.stop()
         if not self.settings.get("keep_engine", True):
             self.engine.stop()
 

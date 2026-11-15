@@ -586,6 +586,22 @@ class Api:
     def studio_get_helper(self):
         return self._app.studio.get_helper()
 
+    def studio_get_reader(self):
+        return self._app.studio.get_reader()
+
+    def studio_describe(self, path, use):
+        try:
+            return {"text": self._app.studio.describe(path, use)}
+        except Exception as exc:
+            log.exception("picture reader failed")
+            return {"error": str(exc)}
+
+    def studio_meta(self, path):
+        try:
+            return self._app.studio.meta(path)
+        except Exception:
+            return {}
+
     def studio_improve(self, preset, text):
         try:
             return {"text": self._app.studio.improve(preset or "", text or "")}

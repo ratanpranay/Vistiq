@@ -27,6 +27,7 @@
     select: '<path d="M4 4l6 16 2.5-6.5L19 11z"/>',
     page: '<rect x="6" y="3" width="12" height="18" rx="1"/>',
     image: '<rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 16l5-5 4 4 3-3 6 6"/>',
+    words: '<path d="M4 6h16M4 11h16M4 16h10"/>',
     clip: '<rect x="8" y="3" width="8" height="4" rx="1"/><path d="M8 5H6a1 1 0 0 0-1 1v14a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V6a1 1 0 0 0-1-1h-2"/>',
     phone: '<rect x="7" y="2" width="10" height="20" rx="2"/><path d="M11 18h2"/>',
     plus: '<path d="M12 5v14M5 12h14"/>',
@@ -57,6 +58,35 @@
     camera: /\b(angle|view from|side view|front view|rear view|top view|from above|from below|camera|zoom out|zoom in|close-?up|wide shot|perspective)\b/i
   };
   function isRender(src) { return !!src && !src.live && !src.frozen && /_(create|refine|paint|camera|cmf|style|reference|variation)/i.test(src.name || src.path || ""); }
+  function PROMPTBTN() { return '<button type="button" data-ra="prompt" title="The words this was made with">' + svg("words") + "Prompt</button>"; }
+  // The words a result was made with: copy them, or use them again.
+  function copyText(t) {
+    var ok = false;
+    try { var ta = document.createElement("textarea"); ta.value = t; ta.style.cssText = "position:fixed;left:-9999px"; document.body.appendChild(ta); ta.select(); ok = document.execCommand("copy"); ta.remove(); } catch (e) {}
+    if (!ok && navigator.clipboard) navigator.clipboard.writeText(t).then(function () {}, function () {});
+    toast("Copied");
+  }
+  function promptPop(anchor, c, p) {
+    var show = function (m) {
+      m = m || {};
+      var words = m.text || "", full = m.prompt || "";
+      var refs = (m.refs || []).filter(function (r) { return r.desc; });
+      var h = '<div class="s-ppop"><div class="ttl">Made with</div>' +
+        '<label>Your words</label><div class="s-pw">' + (words ? esc(words) : "<em>none</em>") + "</div>" +
+        refs.map(function (r, i) { return "<label>Ref " + (i + 1) + " · " + ((RUSE[r.use] || ["Reference"])[0]) + '</label><div class="s-pw">' + esc(r.desc) + "</div>"; }).join("") +
+        (full ? '<details><summary>Full prompt sent to the model</summary><pre class="s-pf">' + esc(full) + "</pre></details>" : "") +
+        '<div class="s-pb">' + (words ? '<button type="button" class="s-btn p" data-p="use">Use these words</button><button type="button" class="s-btn" data-p="copy">Copy</button>' : "") +
+        (full ? '<button type="button" class="s-btn" data-p="copyall">Copy full prompt</button>' : "") + "</div></div>";
+      var el = pop(anchor, h, function (v) {
+        if (v === "copy") copyText(words);
+        else if (v === "copyall") copyText(full);
+        else if (v === "use") { p.text = words; $("c-text").value = words; p.sel = -1; render(); toast("In Describe: change what you like and Create"); }
+      });
+      if (el) el.classList.add("s-promptpop");
+    };
+    if (c.meta && (c.meta.prompt || c.meta.text)) show(c.meta);
+    else api().studio_meta(c.path).then(function (m) { c.meta = Object.assign({}, c.meta || {}, m || {}); show(c.meta); });
+  }
   function defaultLocks(src) { var r = isRender(src); return { design: true, materials: r, light: r, camera: true }; }
   // Reference images in Create: each gives exactly one thing.
   var RUSE = {
@@ -77,6 +107,27 @@
     Object.keys(by).forEach(function (k) { L[k] = false; });
     return L;
   }
+  var RPH = {
+    camera: "How the camera sits, e.g. high overhead view from behind the front seats, looking steeply down",
+    light: "The light, e.g. night, starry sky, warm amber ambient strips, dark cabin",
+    style: "The rendering style, e.g. grey marker sketch with ink outlines on paper",
+    materials: "Optional: the materials, e.g. cognac nappa seats, dark grey dashboard"
+  };
+  // The picture reader puts a reference's camera, light, style or materials into words.
+  function readRef(r) {
+    var st = S.status;
+    if (!st || !st.reader_ready || !RPH[r.use] || r.typed) return;
+    var key = r.path + "|" + r.use;
+    if (r.descFor === key || r.reading === key) return;
+    r.reading = key; render();
+    api().studio_describe(r.path, r.use).then(function (res) {
+      if (r.reading !== key) return;
+      r.reading = "";
+      if (res && res.text && r.use + "" === key.split("|")[1]) { r.desc = res.text; r.descFor = key; }
+      else if (res && res.error) toast("Couldn't read the reference: " + res.error);
+      render();
+    });
+  }
   function addRef(info) {
     if (!info) return;
     var p = S.create; p.refs = p.refs || [];
@@ -84,8 +135,9 @@
     if (p.refs.length >= 3) { toast("Three references at most: remove one first"); return; }
     var used = p.refs.map(function (r) { return r.use; });
     var use = ["camera", "materials", "light", "style"].filter(function (u) { return used.indexOf(u) < 0; })[0] || "describe";
-    p.refs.push({ path: info.path, name: info.name, w: info.w, h: info.h, preview: info.preview, use: use });
-    render();
+    var r = { path: info.path, name: info.name, w: info.w, h: info.h, preview: info.preview, use: use, desc: "" };
+    p.refs.push(r);
+    render(); readRef(r);
   }
   // The old preset that matches the locks (its wording is tested on the engine).
   function presetFor(p) {
@@ -188,7 +240,7 @@
       PRESETS.map(function (p) { return '<button type="button" data-v="' + p[0] + '">' + svg(p[3]) + "<span>" + p[1] + "</span></button>"; }).join("") + "</div></div>" +
       '<div class="s-grow"><div class="s-label" id="c-prompt-l">Describe the result</div>' + promptBox("c", "Describe the change") + '<div class="s-warn" id="c-warn" hidden></div></div>' +
       '<div id="c-refs-w" data-slot="ref"><div class="s-label">References <em class="s-opt">optional</em></div><div class="s-refs" id="c-refs"></div>' +
-      '<p class="s-hint s-rhint" id="c-refs-hint"></p></div>' +
+      '<div class="s-refd" id="c-refd"></div><p class="s-hint s-rhint" id="c-refs-hint"></p></div>' +
       '<div><div class="s-label s-lockl"><span>Keep</span><em>Studio never changes what is locked</em></div><div class="s-locks" id="c-locks">' +
       LOCKS.map(function (l) { return '<button type="button" data-v="' + l[0] + '" title="' + l[3] + '">' + svg("lock") + svg("unlock") + "<span>" + l[1] + "</span><small>" + l[2] + "</small></button>"; }).join("") + "</div></div>" +
       '<div id="c-blend-w" hidden><div class="s-label">Blend edges <em id="c-blend-v"></em></div><input class="s-range" type="range" min="0" max="1" step="0.05" id="c-blend"></div>' +
@@ -561,6 +613,7 @@
     var st = S.status;
     if (!p.src || p.job || !st || !st.create_ready) return;
     if (id === "r" && !p.refimg) return;
+    if (id === "c" && !extra && (p.refs || []).some(function (r) { return r.reading; })) { toast("Studio is still reading a reference: a moment"); return; }
     var j = {
       mode: id === "c" ? "create" : "reference", image: p.src.path, name: p.src.name, live_app: p.src.live ? S.live.app : "",
       // An improved prompt already is the whole instruction: send it as it is.
@@ -577,7 +630,7 @@
       if (lay) j.layers = lay;
       j.lora = p.lora || null;
       j.locks = effLocks(p);
-      j.refs = (p.refs || []).map(function (r) { return { path: r.path, use: r.use }; });
+      j.refs = (p.refs || []).map(function (r) { return { path: r.path, use: r.use, desc: (r.desc || "").trim() }; });
       if (!j.locks.design) j.keep = Math.min(j.keep, 0.35);        // design unlocked: free to change shapes
     }
     Object.assign(j, extra || {});
@@ -644,7 +697,7 @@
         var i = +b.getAttribute("data-ru");
         pop(b, Object.keys(RUSE).map(function (k) {
           return '<button type="button" class="it' + (p.refs[i].use === k ? " on" : "") + '" data-p="' + k + '"><span>' + RUSE[k][0] + "<small>" + RUSE[k][1] + "</small></span></button>";
-        }).join(""), function (v) { p.refs[i].use = v; render(); });
+        }).join(""), function (v) { var r = p.refs[i]; if (r.use !== v) { r.use = v; r.desc = ""; r.descFor = ""; r.typed = false; r.reading = ""; } render(); readRef(r); });
         return;
       }
       if ((b = e.target.closest("[data-radd]"))) {
@@ -654,6 +707,15 @@
           else api().studio_paste().then(function (i) { if (i) addRef(i); else toast("Nothing to paste: copy a picture first."); });
         });
       }
+    });
+    $("c-refd").addEventListener("input", function (e) {
+      var t = e.target.closest("[data-rd]"); if (!t) return;
+      var r = S.create.refs[+t.getAttribute("data-rd")]; if (!r) return;
+      r.desc = t.value; r.typed = true;
+    });
+    $("c-refd").addEventListener("click", function (e) {
+      var b = e.target.closest("[data-rr]"); if (b) { var r = S.create.refs[+b.getAttribute("data-rr")]; if (r) { r.typed = false; r.descFor = ""; readRef(r); } return; }
+      if (e.target.closest("[data-rget]")) go("settings");
     });
     $("c-warn").addEventListener("click", function (e) {
       var b = e.target.closest("[data-unlock]"); if (!b) return;
@@ -713,6 +775,7 @@
         var b = e.target.closest("[data-ra]"); if (!b) return;
         var c = current(p); if (!c) return;
         if (b.getAttribute("data-ra") === "add") { if (id === "c") addAsLayer(); return; }
+        if (b.getAttribute("data-ra") === "prompt") { promptPop(b, c, p); return; }
         pop(b, '<div class="ttl">Export this picture</div><button type="button" class="it" data-p="png">' + svg("image") + '<span>PNG<small>Full quality, larger file</small></span></button>' +
           '<button type="button" class="it" data-p="jpg">' + svg("image") + '<span>JPEG<small>Smaller file, for sharing</small></span></button>', function (fmt) {
           api().studio_export(c.path, fmt).then(function (r) { if (r) toast("Saved " + r); });
@@ -813,6 +876,7 @@
       else if (a === "models") api().studio_open_models();
       else if (a === "outputs") api().studio_open_outputs();
       else if (a === "refresh") refresh();
+      else if (a === "get-reader") { S.setup.error = ""; api().studio_get_reader(); S.setup.run = { label: "Picture reader", fraction: null }; render(); }
       else if (a === "get-helper") { S.setup.error = ""; api().studio_get_helper(); S.setup.run = { label: "Prompt helper", fraction: null }; render(); }
       else if (a === "get-select") { S.setup.error = ""; api().studio_get_select(); S.setup.run = { label: "Selection tool", fraction: null }; render(); }
       else if (a === "check") { api().check_updates(); S.update = Object.assign({}, S.update, { state: "checking" }); render(); }
@@ -1351,7 +1415,7 @@
       pane.innerHTML = '<div class="s-pfit"><img class="' + (what.res ? "s-res" : "") + '" src="' + what.img + '" alt=""></div>' +
         '<span class="s-tag">' + (what.res ? "Result" + (n ? " " + n + " of " + mine.length : "") + " · click it again for your picture" : what.job ? "Making…" : "Sketch these were made from") + "</span>" +
         (what.res ? '<div class="s-ra">' + '<button type="button" data-ra="add" title="Put this result on a layer over your picture">' + svg("plus") + "Add</button>" +
-          '<button type="button" data-ra="export" title="Save as PNG or JPEG">' + svg("download") + "Export</button></div>" : "");
+          '<button type="button" data-ra="export" title="Save as PNG or JPEG">' + svg("download") + "Export</button>" + PROMPTBTN() + "</div>" : "");
       layout();
     }
     // While making: the sketch blurred, the steps coming through, a progress ring and the stage.
@@ -1392,6 +1456,25 @@
         '<button type="button" class="s-ru" data-ru="' + i + '" title="' + RUSE[r.use][0] + '">' + RUSE[r.use][3] + "</button></div>";
     }).join("") + (refs.length < 3 ? '<button type="button" class="s-radd" data-radd="1"><span>+</span>' + (refs.length ? "Add" : "Add a reference") + "</button>" : "");
     if (el.getAttribute("data-h") !== h) { el.innerHTML = h; el.setAttribute("data-h", h); }
+    // Under the tiles: each reference's camera, light or style in words (read, or typed).
+    var st = S.status || {}, dk = refs.map(function (r, i) { return i + r.use + (r.reading ? "r" : "") + (RPH[r.use] ? 1 : 0); }).join(",") + (st.reader_ready ? "R" : "");
+    var dEl = $("c-refd");
+    if (dEl.getAttribute("data-k") !== dk) {
+      dEl.setAttribute("data-k", dk);
+      dEl.innerHTML = refs.map(function (r, i) {
+        if (!RPH[r.use]) return "";
+        var need = r.use !== "materials";
+        return '<div class="s-rd"><div class="l"><b>Ref ' + (i + 1) + " · " + RUSE[r.use][3] + "</b>" +
+          (r.reading ? '<em class="busy">Reading the picture…</em>' : st.reader_ready ? '<button type="button" class="s-link" data-rr="' + i + '">Read again</button>'
+            : need ? '<button type="button" class="s-link" data-rget="1">Let Studio read it</button>' : "") + "</div>" +
+          '<textarea class="s-rdt" data-rd="' + i + '" rows="2" placeholder="' + esc(RPH[r.use]) + '"></textarea></div>';
+      }).join("");
+    }
+    dEl.querySelectorAll("[data-rd]").forEach(function (t) {
+      var r = refs[+t.getAttribute("data-rd")];
+      if (r && document.activeElement !== t && t.value !== (r.desc || "")) t.value = r.desc || "";
+      t.disabled = !!(r && r.reading);
+    });
     var by = refLocks(p), names = { camera: "Camera", materials: "Materials", light: "Light" };
     var note = Object.keys(by).map(function (k) { return names[k] + " comes from Ref " + by[k]; }).join(" · ");
     $("c-refs-hint").textContent = refs.length ? (note ? note + ", so it is unlocked. " : "") + "Type ref 1, ref 2 in the description to point at one."
@@ -1539,7 +1622,7 @@
         view.innerHTML = '<div class="s-fit" data-w="' + info.w + '" data-h="' + info.h + '"><img class="' + (mode === "result" ? "s-res" : "") + '" src="' + info.preview + '" alt="">' + dev + selOv + "</div>" +
           (mode === "result" ? '<span class="s-tag">Result · hold to see the original</span>' +
             '<div class="s-ra">' + (id === "c" ? '<button type="button" data-ra="add" title="Put this result on a layer over your picture">' + svg("plus") + "Add</button>" : "") +
-            '<button type="button" data-ra="export" title="Save as PNG or JPEG">' + svg("download") + "Export</button></div>" : '<span class="s-tag' + (info.live ? " s-livetag" : "") + '">' + (info.live ? '<i class="s-ldot"></i>' : "") + (info.live ? "Live from " + ((APPS[info.app] || APPS.photoshop)[1]) : info.frozen ? (mode === "orig" && p.job ? "Making…" : mode === "orig" && !p.job ? "Sketch · what these results were made from" : "Sketch · frozen while creating") : "Original") + "</span>");
+            '<button type="button" data-ra="export" title="Save as PNG or JPEG">' + svg("download") + "Export</button>" + PROMPTBTN() + "</div>" : '<span class="s-tag' + (info.live ? " s-livetag" : "") + '">' + (info.live ? '<i class="s-ldot"></i>' : "") + (info.live ? "Live from " + ((APPS[info.app] || APPS.photoshop)[1]) : info.frozen ? (mode === "orig" && p.job ? "Making…" : mode === "orig" && !p.job ? "Sketch · what these results were made from" : "Sketch · frozen while creating") : "Original") + "</span>");
       }
     }
     if (mode === "paint") {
@@ -1627,11 +1710,7 @@
     });
     if (mine.length) strip += '<span class="s-div s-rundiv" aria-hidden="true"></span>';
     for (var k = 0; k < (p.job ? p.pending : 0); k++) strip += '<span class="s-ph"></span>';
-    if (earlier.length) {
-      if (mine.length || p.job) strip += '<span class="s-div" aria-hidden="true"></span>';
-      strip += '<button type="button" class="s-earlier">' + (p.showEarlier ? "Hide earlier" : "Earlier · " + earlier.length) + "</button>";
-      if (p.showEarlier) earlier.slice().reverse().forEach(function (i) { strip += '<span class="s-earl">' + tile(i) + "</span>"; });
-    }
+    // Results of other pictures stay in the Library (no "Earlier" fold here).
     var sk = $(id + "-strip");
     if (sk.getAttribute("data-h") !== strip) {
       sk.innerHTML = strip; sk.setAttribute("data-h", strip);
@@ -1874,6 +1953,8 @@
     };
     var selectRow = '<div class="s-row"><div class="n"><b>Object selection</b><small>The Select tool: click a part to select it along its edges.</small></div><span class="s-pill">0.1 GB</span>' +
       (st.select_ready ? '<span class="s-ok">Ready</span>' : '<button type="button" class="s-btn p" data-su="get-select"' + (running ? " disabled" : "") + ">Download</button>") + "</div>";
+    var readerRow = '<div class="s-row"><div class="n"><b>Picture reader (optional)</b><small>Reads a reference picture\'s camera, light and style into words, so Create can follow them.</small></div><span class="s-pill">2.6 GB</span>' +
+      (st.reader_ready ? '<span class="s-ok">Ready</span>' : '<button type="button" class="s-btn p" data-su="get-reader"' + (running ? " disabled" : "") + ">Download</button>") + "</div>";
     var helperRow = '<div class="s-row"><div class="n"><b>Prompt helper (optional)</b><small>Adds “Improve my prompt”: turns a few words into a clear instruction.</small></div><span class="s-pill">1.1 GB</span>' +
       (st.helper_ready ? '<span class="s-ok">Ready</span>' : '<button type="button" class="s-btn p" data-su="get-helper"' + (running ? " disabled" : "") + ">Download</button>") + "</div>";
     var u = S.update || {}, us = u.state;
@@ -1895,14 +1976,14 @@
       (st.comfy_models ? '<button type="button" class="s-btn" data-su="take" data-path="' + esc(st.comfy_models) + '"' + (running ? " disabled" : "") + ">Take from my ComfyUI</button>" : "") + "</div>" +
       progressHTML() +
       (st.mac ? '<div class="s-sec">This Mac</div><p class="s-hint">' + esc(st.mac.chip) + " · " + st.mac.ram + " GB memory · creates at up to " + st.mac.work_side + " px, upscales up to " + st.mac.max_side + " px" +
-        (st.mac.can_generate ? "" : " · image generation needs 16 GB or more") + '</p><div class="s-list">' + fileRows(st.files) + selectRow + helperRow + "</div>" : "") +
+        (st.mac.can_generate ? "" : " · image generation needs 16 GB or more") + '</p><div class="s-list">' + fileRows(st.files) + selectRow + helperRow + readerRow + "</div>" : "") +
       (st.mac || !st.flux3 ? "" : '<div class="s-sec">Image model</div><p class="s-hint">FLUX 3 Klein, the newest model: results at about 2400 × 1300 with clean, refined lines and materials, about 40 seconds a picture. Below is the earlier model, used if FLUX 3 is removed.</p>') +
       (st.mac ? "" : '<div class="s-sec">Quality</div><div class="s-tiers">' + ["best", "good"].map(function (k) {
         var tt = st.chosen || st.tier;
         return '<button type="button" class="s-tier' + (tt === k ? " on" : "") + '" data-su="tier" data-t="' + k + '"' + (running ? " disabled" : "") + "><b>" + TIER_TEXT[k][0] +
           (st.tiers[k].ready ? ' <span class="s-ok">Ready</span>' : "") + "</b><small>" + TIER_TEXT[k][1] + "</small></button>";
       }).join("") + "</div>" +
-      '<div class="s-list">' + fileRows(tierFiles(st, st.chosen || st.tier || "best").concat(st.files.filter(function (f) { return f.key === "consistency" && (st.chosen || st.tier || "best") === "best"; }))) + selectRow + helperRow + "</div>" +
+      '<div class="s-list">' + fileRows(tierFiles(st, st.chosen || st.tier || "best").concat(st.files.filter(function (f) { return f.key === "consistency" && (st.chosen || st.tier || "best") === "best"; }))) + selectRow + helperRow + readerRow + "</div>" +
       (function () { var miss = setupGB(st, st.chosen || st.tier || "best") - (st.engine_installed ? 0 : 2.1) - (st.select_ready ? 0 : 0.1);
         return miss > 0.05 && !running ? '<div class="s-btns"><button type="button" class="s-btn p" data-su="download">Download (' + gb(miss) + ")</button></div>" : ""; })()) +
       (st.mac ? "" : '<div class="s-sec">Looks</div><p class="s-hint">Extra styles for Create, shown under Style. To add one, put its file in Models › loras; it shows up when you come back to Studio.</p>' +

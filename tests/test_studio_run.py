@@ -194,7 +194,14 @@ class WholeRun(unittest.TestCase):
         self.assertEqual(len(r), 1)
         self.assertEqual([x["use"] for x in r[0]["meta"]["refs"]], ["camera", "materials"])
         texts = _texts(self.engine.runs)
-        self.assertTrue(any("Camera from image 2" in x and "image 2 view" in x for x in texts), texts)
+        self.assertTrue(any("framing of image 2" in x and "image 2 view" in x for x in texts), texts)
+        self.assertTrue(r[0]["meta"]["prompt"])
+        # With the camera in words, only the materials picture goes in.
+        self.engine.runs.clear()
+        r = self.go({"mode": "create", "image": src, "text": "x", "variations": 1,
+                     "refs": [{"path": ref, "use": "camera", "desc": "Overhead view."}, {"path": ref, "use": "materials"}]})
+        texts = _texts(self.engine.runs)
+        self.assertTrue(any("Overhead view." in x and "materials of image 2" in x for x in texts), texts)
 
     def test_camera_reference_does_not_hold_the_first_view(self):
         src = os.path.join(self.tmp.name, "src.png")

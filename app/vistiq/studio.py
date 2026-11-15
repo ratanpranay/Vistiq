@@ -294,7 +294,7 @@ def _mac_status(settings):
     return {"files": rows, "create_ready": ready, "juice_ready": False, "tier": "good", "chosen": "good",
             "tiers": {"best": {"label": "Best quality", "ready": False}, "good": {"label": "Good quality", "ready": ready}},
             "engine_installed": rows[0]["ready"], "loras": [], "select_ready": select_installed(settings),
-            "helper_ready": helper_installed(settings),
+            "helper_ready": helper_installed(settings), "reader_ready": reader_installed(settings),
             "home": home(settings), "comfy_models": "",
             "mac": {"chip": macos.chip(), "ram": ram, "can_generate": gen, "max_side": macos.max_side(ram), "work_side": macos.work_side(ram)}}
 
@@ -321,8 +321,14 @@ def status(settings=None):
             "tiers": {k: {"label": v, "ready": ready(k)} for k, v in TIERS.items()},
             "engine_installed": engine_installed(), "loras": loras(settings),
             "select_ready": select_installed(settings), "helper_ready": helper_installed(settings),
+            "reader_ready": reader_installed(settings),
             "home": home(settings), "comfy_models": guess_comfy_models(settings),
             "flux3": flux3_ready(settings)}
+
+
+def reader_installed(settings=None):
+    from . import reader
+    return reader.installed(models_dir(settings))
 
 
 def helper_installed(settings=None):
@@ -1092,67 +1098,101 @@ F3_CAMERA_KEEP = ("Keep every part, shape, proportion, material and colour of th
 # Create with reference images (Nov 2026): image 1 is the design, each
 # reference gives exactly one thing. Everything else stays the design's own.
 REF_USES = ("camera", "materials", "style", "light", "describe")
-REF_KEEP_DESIGN = ("Image 1 is the design to keep: every part, shape, line, opening and proportion stays exactly "
-                   "as in image 1. Do not add or remove anything, and take no parts or shapes from the other images.")
-REF_LOOSE_DESIGN = "Image 1 is the design to start from; its shapes may be refined."
+REF_LOOSE_DESIGN = "Use image 1 as the design to start from; its shapes may be refined."
+# Worded as tested on the user's PC (Nov 2026): FLUX 3 copies colours and
+# materials from a reference picture, but only follows a camera, a light or a
+# style when it is put into words ({desc}, read by the picture reader or typed).
 REF_CLAUSE = {
-    "camera": ("Camera from {n}: show the design from exactly the camera position, height, tilt, angle, lens and "
-               "framing of {n}. If {n} looks down from above, look down from above; the composition must match "
-               "{n}, not image 1. Take only the viewpoint from {n}."),
-    "materials": ("Materials from {n}: give the design exactly the colours, materials and finishes of {n}, on the "
-                  "same kinds of parts (seats like its seats, dashboard like its dashboard, trims like its trims)."
-                  "{sk} Take only the colours and materials from {n}, not its shapes, parts or camera view."),
-    "style": ("Rendering style from {n}: render the design in exactly the rendering style of {n}: the same "
-              "medium, technique, line work, shading and finish. Take only the rendering style from {n}, not its "
-              "shapes, parts or camera view."),
-    "light": ("Lighting from {n}: light the design exactly like {n}: the same light direction, colour, softness, "
-              "contrast, time of day and mood. Take only the light from {n}, not its shapes, parts or camera view."),
+    "camera": ("Show this exact design from a completely different camera: {desc} Only the camera moves."),
+    "camera_nodesc": ("Show the design from exactly the camera position, height, tilt, angle, lens and framing of "
+                      "{n}; the composition must match {n}, not image 1."),
+    "materials": ("Recolour image 1 with the colours and materials of {n}. Every surface takes the colour and "
+                  "material of the matching surface in {n} (seats, dashboard, door panels, console and trims "
+                  "alike): the same leather or fabric, colour, finish and stitching. The colour change must be "
+                  "clearly visible.{desc}{sk}"),
+    "style": "Redraw image 1 in the rendering style of {n}: {desc}",
+    "style_nodesc": ("Redraw image 1 in exactly the rendering style of {n}: the same medium, line work, shading "
+                     "technique, colour palette and finish."),
+    "light": "Change the lighting of image 1 to match {n}: {desc}",
+    "light_nodesc": ("Light image 1 exactly like {n}: the same time of day, sky, light direction, colour "
+                     "temperature, brightness, contrast, ambient light strips and mood. The view through the "
+                     "windows changes to match."),
     "describe": "{n} is a reference: use it only as the instructions below say.",
 }
 _REF_RE = re.compile(r"\b(?:ref(?:erence)?)\s*#?\s*([1-3])\b", re.I)
 
 
-def map_refs(text):
-    """"ref 1" in the prompt is image 2 for the model (image 1 is the design)."""
-    return _REF_RE.sub(lambda m: "image %d" % (int(m.group(1)) + 1), text or "")
+def map_refs(text, numbers=None):
+    """"ref 1" in the prompt becomes the picture's number for the model
+    (image 1 is the design; a camera reference read into words is no picture)."""
+    numbers = numbers or {1: 2, 2: 3, 3: 4}
+    def sub(m):
+        k = int(m.group(1))
+        return ("image %d" % numbers[k]) if numbers.get(k) else "the camera described above"
+    return _REF_RE.sub(sub, text or "")
 
 
-def ref_text(text, uses, locks=None, sketch=False, keep=0.8):
-    """The prompt for Create with reference images: what each one gives,
-    strictly, while the design stays."""
-    uses = [u if u in REF_USES else "describe" for u in uses]
-    has = lambda u: u in uses
+def ref_plan(text, refs, locks=None, sketch=False, keep=0.8):
+    """The prompt for Create with reference images, and which references go
+    in as pictures. `refs`: [{"use": …, "desc": …}]. Returns (text, sent),
+    `sent` the indices of the references sent as pictures 2, 3…"""
     locks = dict(locks or {})
-    text = map_refs(clean_prompt(text))
-    out = [REF_KEEP_DESIGN if keep >= 0.3 else REF_LOOSE_DESIGN]
+    refs = [dict(r, use=r.get("use") if r.get("use") in REF_USES else "describe",
+                 desc=" ".join((r.get("desc") or "").split())) for r in refs]
+    sent, numbers = [], {}
+    for i, r in enumerate(refs):
+        if r["use"] == "camera" and r["desc"]:
+            continue                      # the camera goes in as words only (tested: the picture pulls the design)
+        sent.append(i)
+        numbers[i + 1] = len(sent) + 1
+    uses = [r["use"] for r in refs]
+    has = lambda u: u in uses
+    out = []
     if sketch and not has("style"):
         out.append("Render the sketch in image 1 as a photorealistic photograph.")
-    for i, u in enumerate(uses):
-        out.append(REF_CLAUSE[u].format(n="image %d" % (i + 2),
-                                        sk=" The colours in the sketch are only placeholders." if sketch else ""))
-    if not has("camera") and locks.get("camera"):
-        out.append("Keep the camera of image 1 exactly: the same viewpoint, angle, lens and framing.")
+    for i, r in enumerate(refs):
+        u, d, n = r["use"], r["desc"], "image %d" % numbers.get(i + 1, 0)
+        if u == "materials":
+            out.append(REF_CLAUSE["materials"].format(n=n, desc=(" In %s: %s" % (n, d)) if d else "",
+                                                      sk=" The colours in the sketch are only placeholders." if sketch else ""))
+        elif u in ("camera", "style", "light"):
+            out.append(REF_CLAUSE[u if d else u + "_nodesc"].format(n=n, desc=d))
+        else:
+            out.append(REF_CLAUSE["describe"].format(n=n))
+    # One rule for what stays: everything a reference doesn't change.
+    keep_parts = ["every shape, part, line and proportion"] if keep >= 0.3 else []
     if not sketch and not has("materials") and locks.get("materials"):
-        out.append("Keep the materials, colours and finishes of image 1 exactly.")
-    if not sketch and not has("light") and locks.get("light"):
-        out.append("Keep the lighting of image 1 exactly.")
-    if sketch and not has("materials") and COLOUR_WORDS.search(text):
+        keep_parts.append("every material and colour")
+    if not has("light") and not has("style") and locks.get("light"):
+        keep_parts.append("the lighting")
+    if not has("camera") and locks.get("camera", True):
+        keep_parts.append("the camera")
+    if keep_parts:
+        out.append("Keep " + ", ".join(keep_parts[:-1]) + (" and " if len(keep_parts) > 1 else "") + keep_parts[-1] +
+                   " of image 1 exactly; take no shapes or parts from the reference images.")
+    else:
+        out.append(REF_LOOSE_DESIGN + " Take no shapes or parts from the reference images.")
+    if sketch and not has("materials") and COLOUR_WORDS.search(text or ""):
         out.append(SKETCH_RECOLOUR)
-    out.append("Take nothing else from the reference images.")
-    out = ["\n".join(out)]
+    body = [" ".join(out)]
+    text = map_refs(clean_prompt(text), numbers)
     if text:
-        out.append(text)
+        body.append(text)
     light = ""
     if not has("light") and not has("style") and not locks.get("light"):
         light = light_for(text)
         if light:
-            out.append(light)
+            body.append(light)
     inside = _interior(text)
     if inside and not has("materials") and not has("style"):
-        out.append(FINISH_MAT)
+        body.append(FINISH_MAT)
     if not has("style"):
-        out.append(CLEAN if inside or light in (LIGHT_INT, LIGHT_NIGHT) else CRISP)
-    return "\n\n".join(out)
+        body.append(CLEAN if inside or light in (LIGHT_INT, LIGHT_NIGHT) else CRISP)
+    return "\n\n".join(body), sent
+
+
+def ref_text(text, uses, locks=None, sketch=False, keep=0.8):
+    return ref_plan(text, [{"use": u} for u in uses], locks, sketch, keep)[0]
 
 
 # Sketch renders came out with stained, mottled leather and crushed-velvet
