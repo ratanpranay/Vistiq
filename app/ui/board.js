@@ -233,31 +233,32 @@
 
   function place(t, from) {
     var p = from && byId(from);
-    if (p) {
-      var kids = B.tiles.filter(function (k) { return k.from === from && k !== t; });
-      t.x = p.x + W + GAP_X;
-      t.y = kids.length ? Math.max.apply(null, kids.map(function (k) { return k.y + tileH(k); })) + GAP_Y : p.y;
-      return;
-    }
     // A new picture lands where you are looking: right of the selected tile when it's
     // on screen, else in the middle of the view; never on top of another tile.
     var v = B.view, cv = root && root.querySelector("#b-cv"), r = cv ? cv.getBoundingClientRect() : { width: 1200, height: 800 };
     var vx0 = -v.x / v.z, vy0 = -v.y / v.z, vx1 = vx0 + r.width / v.z, vy1 = vy0 + r.height / v.z;
     var s = B.sel && byId(B.sel);
     var lv = live(), minX = lv ? lv.x + W + GAP_X : -1e9;
-    var startX;
-    if (s && s !== t && s.x < vx1 && s.x + W > vx0 && s.y < vy1 && s.y + tileH(s) > vy0) {
-      // the row starts at the left-most tile in line with the selected one (on screen)
-      startX = Math.min.apply(null, B.tiles.filter(function (k) { return k !== t && Math.abs(k.y - s.y) < 30 && k.x >= vx0 - W / 2; }).map(function (k) { return k.x; }).concat([s.x]));
-      t.x = s.x + W + GAP_X; t.y = s.y;
+    // Target: right of the selected tile when it's on screen, else the middle of the view.
+    var tx, ty;
+    if (p) { tx = p.x + W + GAP_X; ty = p.y; }        // a result: next to what it was made from
+    else if (s && s !== t && s.x < vx1 && s.x + W > vx0 && s.y < vy1 && s.y + tileH(s) > vy0) { tx = s.x + W + GAP_X; ty = s.y; }
+    else { tx = Math.round((vx0 + vx1) / 2 - W / 2); ty = Math.round((vy0 + vy1) / 2 - tileH(t) / 2); }
+    // Then the nearest free spot around it, in every direction (a grid of tile-sized cells).
+    var sx = W + GAP_X, sy = tileH(t) + GAP_Y, best = null;
+    function free(x, y) {
+      return x >= minX && !B.tiles.some(function (k) { return k !== t && k.x < x + W + 24 && k.x + W + 24 > x && k.y < y + tileH(k) + 24 && k.y + tileH(k) + 24 > y; });
     }
-    else { t.x = startX = Math.max(minX, Math.round((vx0 + vx1) / 2 - W / 2)); t.y = Math.round((vy0 + vy1) / 2 - tileH(t) / 2); }
-    for (var i = 0; i < 80; i++) {
-      if (t.x + W > vx1 && t.x > startX) { t.x = startX; t.y += tileH(t) + GAP_Y; }   // off screen: the next row
-      var hit = B.tiles.filter(function (k) { return k !== t && k.x < t.x + W + 24 && k.x + W + 24 > t.x && k.y < t.y + tileH(k) + 24 && k.y + tileH(k) + 24 > t.y; })[0];
-      if (!hit) break;
-      t.x = hit.x + W + GAP_X;           // taken: go to the right of what's there
+    for (var r = 0; r < 14 && !best; r++) {
+      for (var i = -r; i <= r; i++) for (var j = -r; j <= r; j++) {
+        if (Math.max(Math.abs(i), Math.abs(j)) !== r) continue;
+        var x = tx + i * sx, y = ty + j * sy;
+        if (!free(x, y)) continue;
+        var d = (i * sx) * (i * sx) + (j * sy) * (j * sy) * 1.4 + (!p && (x < vx0 || x + W > vx1) ? 1e7 : 0) + (p && i < 0 ? 1e6 : 0);
+        if (!best || d < best[2]) best = [x, y, d];
+      }
     }
+    t.x = best ? best[0] : tx; t.y = best ? best[1] : ty;
   }
 
   function add(info, from) {
@@ -354,7 +355,10 @@
     }
     var lv = live(), roots = (kids[""] || []).filter(function (t) { return t !== lv; });
     if (lv) { lv.x = 0; lv.y = 0; }
-    var x0 = lv ? W + GAP_X * 1.5 : 0, maxW = x0 + 5 * (W + GAP_X), x = x0, y = 0, rowB = 0;
+    // Lay the groups out in a block about as wide as the screen is (16:9), not one long line.
+    var area = 0;
+    roots.forEach(function (t) { var r = lay(t, 0, 0); area += (r[0] + GAP_X) * (r[1] + GAP_Y); });
+    var x0 = lv ? W + GAP_X * 1.5 : 0, maxW = x0 + Math.max(W * 2 + GAP_X, 1.35 * Math.sqrt(area * 16 / 9)), x = x0, y = 0, rowB = 0;
     roots.forEach(function (t) {
       var r = lay(t, x, y);
       if (r[0] > maxW && x > x0) { x = x0; y = rowB + GAP_Y * 1.6; r = lay(t, x, y); }
