@@ -1,5 +1,10 @@
 # Vistiq Studio (test build)
 
+## 0.4.36
+- Board: no more "3D" frame. A 3D view sits next to its picture, joined by a line, like any result (old frames are removed; their pictures stay).
+- 3D views button takes the file open in Create, flattened with its layers (a Live Photoshop/Affinity file is copied as it is now).
+- Add as layer goes back where the picture came from: into Photoshop for a Live file, otherwise onto that picture's layers in Create.
+
 ## 0.4.35
 - 3D views: a small plan from above (design outside, or the cabin with seats and dashboard inside). Drag the dot to place the camera; the cone shows where it looks; the ring is your picture. Named views snap.
 - Progress moves smoothly between the model's steps (no more 25% jumps), in Create and 3D views.

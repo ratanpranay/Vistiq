@@ -760,6 +760,36 @@ const frame = (n, name) => ({ path: "live://photoshop/" + n, name: name || "flat
     await p.close();
   }
 
+  // 3D views from the nav: takes Create's file; Add as layer goes back to it; no 3D frame on the board.
+  {
+    const p = await open(browser);
+    await p.evaluate(() => {
+      const api = window.pywebview.api, g = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg==";
+      api.studio_describe = () => Promise.resolve({ text: "kind=interior; side=rear; height=eye" });
+      api.studio_results_for = () => Promise.resolve([]);
+      api.studio_send = (path, app) => { window.__sent = [path, app]; return Promise.resolve({ ok: true, how: "layer" }); };
+      api.studio_image = (x) => Promise.resolve({ path: x, name: x.split("/").pop(), w: 1600, h: 900, preview: g });
+      api.studio_freeze = (path, name) => Promise.resolve({ path: "C:/o/frozen.png", name: "frozen.png", w: 1600, h: 900, preview: g });
+      window.VS.setImage(window.VS.S.create, "src", { path: "C:/o/cabin.png", name: "cabin.png", w: 1600, h: 900, preview: g });
+    });
+    await p.click(".s-nav button[data-page='3d']"); await p.waitForTimeout(300);
+    check("3D views takes the file open in Create", await p.evaluate(() => (window.VS3D._state().src || {}).path) === "C:/o/cabin.png", await p.evaluate(() => JSON.stringify(window.VS3D._state().src)));
+    await p.evaluate(() => window.VS3D.onResult({ path: "C:/o/v9.png", name: "v9.png", w: 1600, h: 900, preview: "data:image/gif;base64,R0lGODlhAQABAIAAAP///wAAACw=", meta: { view: { target: "left" } } }));
+    await p.click("#t-acts [data-x=layer]"); await p.waitForTimeout(400);
+    check("Add as layer puts the view on that picture in Create", await p.evaluate(() => { const d = window.VSSketch._state().docs["C:/o/cabin.png"]; return !!d && d.layers.some((L) => L.kind !== "base" && /3D|Driver|v9/.test(L.name || "")); }),
+      await p.evaluate(() => JSON.stringify(Object.keys(window.VSSketch._state().docs))));
+    check("the view joins its picture on the board, no 3D frame", await p.evaluate(() => { const b = window.VSBoard._state(), v = b.tiles.find((k) => k.path === "C:/o/v9.png"); return !!v && !!v.from && !b.tiles.some((k) => k.kind === "frame"); }), "");
+    // A Live picture: the view goes back into Photoshop.
+    await p.evaluate(() => { window.VS.S.live.app = "photoshop"; window.VS.setImage(window.VS.S.create, "src", { path: "live://photoshop/3", name: "flat.psd", w: 1600, h: 900, n: 3, live: true, app: "photoshop", preview: "data:image/gif;base64,R0lGODlhAQABAAAAACw=" }); });
+    await p.click(".s-nav button[data-page=board]"); await p.click(".s-nav button[data-page='3d']"); await p.waitForTimeout(300);
+    check("from Live, 3D views takes a still copy", await p.evaluate(() => window.VS3D._state().src.path) === "C:/o/frozen.png", "");
+    await p.evaluate(() => window.VS3D.onResult({ path: "C:/o/v10.png", name: "v10.png", w: 1600, h: 900, preview: "x", meta: { view: { target: "left" } } }));
+    await p.click("#t-acts [data-x=layer]"); await p.waitForTimeout(200);
+    check("from Live, Add as layer goes into Photoshop", JSON.stringify(await p.evaluate(() => window.__sent)) === JSON.stringify(["C:/o/v10.png", "photoshop"]), JSON.stringify(await p.evaluate(() => window.__sent)));
+    check("no page errors, 3D from Create", p.errors.length === 0, p.errors.join(" | "));
+    await p.close();
+  }
+
   await browser.close();
   console.log(failed ? failed + " screen test(s) failed" : "all screen tests passed");
   process.exit(failed ? 1 : 0);

@@ -49,6 +49,11 @@
     wire();
     call("studio_board_get").then(function (b) {
       if (b && b.tiles) B = b;
+      // No more "3D" frame (confusing): its views stay where they are, as ordinary results.
+      if (B.tiles.some(function (k) { return k.kind === "frame"; })) {
+        B.tiles = B.tiles.filter(function (k) { return k.kind !== "frame"; });
+        B.tiles.forEach(function (k) { delete k.frame; }); save();
+      }
       if (!B.view) B.view = { x: 60, y: 40, z: 0.8 };
       ensureLive(); loaded = true; render();
     });
@@ -561,16 +566,14 @@
   // A new picture from the + menu in Focus view: on the board, and open it.
   // A sketch branched off another tile (Live): sits next to it, joined by a line.
   function refreshThumb(path) { if (thumbs[path] !== undefined) { delete thumbs[path]; lastHTML = ""; render(); } }
-  // A 3D view: into the "3D" frame, joined by a line to the picture it was made from.
+  // A 3D view: next to the picture it was made from, joined by a line, like any result.
   function addBeside(res, src) {
     if (!res || has(res.path)) return;
     var t0 = B.tiles.filter(function (k) { return k.path === src.path; })[0];
     if (!t0) t0 = add({ path: src.path, name: src.name, w: src.w, h: src.h, preview: src.preview }, null);
-    var f = frame3d(), n = B.tiles.filter(function (k) { return k.frame === F3D; }).length;
-    var t = { id: uid(), kind: "result", path: res.path, name: res.name, w: res.w, h: res.h, from: t0 ? t0.id : null, frame: F3D, made: Date.now(),
-              x: f.x + FPAD + (n % FCOLS) * (W + GAP_X), y: f.y + FPAD + 34 + Math.floor(n / FCOLS) * (tileH() + GAP_Y) };
-    if (res.preview) thumbs[t.path] = res.preview;
-    B.tiles.push(t); save(); lastHTML = ""; render();
+    var keep = B.view && { x: B.view.x, y: B.view.y, z: B.view.z }, sel = B.sel;
+    add({ path: res.path, name: res.name, w: res.w, h: res.h, preview: res.preview }, t0 ? t0.id : null);
+    B.sel = sel; if (keep && VS().S.page !== "board") { B.view = keep; save(); }   // made on the 3D page: don't move the board
   }
   function addFrom(info, fromId) { return add(info, byId(fromId) ? fromId : null); }
   function addAndOpen(info) { var t = add(info, null); if (t) open(t); return t; }

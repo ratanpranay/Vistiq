@@ -623,6 +623,26 @@
     });
   }
 
+  // The current file in Create as a picture file, for 3D views: the chosen result; else the
+  // picture (a Live one is copied from Photoshop/Affinity), flattened with its Studio layers.
+  // cb(info, origin): origin = { src, app, key } says where "Add as layer" goes back to.
+  function currentFile(cb) {
+    var p = S.create, c = current(p);
+    if (c) { api().studio_image(c.path).then(function (info) { if (info) cb(info, { src: p.src, app: "", key: c.path }); }); return; }
+    var src = p.src; if (!src) { cb(null); return; }
+    var lay = window.VSSketch && window.VSSketch.payload(src), app = src.live ? (S.live.app || "photoshop") : "";
+    var key = (src.live ? "live:" + (src.n || "") : src.path) + (lay ? ":" + JSON.stringify(lay).length : "");
+    function flat(info) {
+      if (!lay) return api().studio_image(info.path);
+      return api().studio_flatten(info.path, lay).then(function (f) { return f && api().studio_image(f.path); });
+    }
+    var first = src.live ? api().studio_freeze(src.path, src.name) : Promise.resolve(src);
+    first.then(function (info) { return info ? flat(info) : null; }).then(function (info) {
+      if (!info) { toast("Couldn't take the picture from Create."); cb(null); return; }
+      cb(info, { src: src, app: app, key: key });
+    });
+  }
+
   function setImage(p, slot, info) {
     if (!info) return;
     p[slot] = info;
@@ -706,7 +726,9 @@
 
   function wire() {
     document.querySelector(".s-nav").addEventListener("click", function (e) {
-      var b = e.target.closest("button[data-page]"); if (b) go(b.getAttribute("data-page"));
+      var b = e.target.closest("button[data-page]");
+      if (b && b.getAttribute("data-page") === "3d" && window.VS3D) { go("3d"); window.VS3D.fromCreate(); }   // takes Create's current file
+      else if (b) go(b.getAttribute("data-page"));
     });
     // Create
     $("c-slot").addEventListener("click", function () { pick("c", "src"); });
@@ -801,7 +823,7 @@
         $(id + "-refine").value = t; refine(id);
       });
       if ($(id + "-to3d")) $(id + "-to3d").addEventListener("click", function () {
-        withTarget(p, function (c) { api().studio_image(c.path).then(function (info) { if (info && window.VS3D) window.VS3D.open(info); }); });
+        currentFile(function (info, origin) { if (info && window.VS3D) window.VS3D.open(info, origin); });
       });
       $(id + "-toboard").addEventListener("click", function () {
         if (!window.VSBoard) return;
@@ -2232,7 +2254,7 @@
   }
 
   // For the board (board.js): the shared state and the actions it reuses.
-  window.VS = { addRef: addRef, local: function (e, f) { return zoom.local(e, f); }, layout: function () { layout(); }, zoomSpace: function () { return zoom.space || !!zoom.pan; }, plusMenu: plusMenu, pop: pop, closePop: closePop, painter: painter, S: S, api: api, esc: esc, short: short, go: go, render: render, setImage: setImage, sendPS: sendPS,
+  window.VS = { currentFile: currentFile, addRef: addRef, local: function (e, f) { return zoom.local(e, f); }, layout: function () { layout(); }, zoomSpace: function () { return zoom.space || !!zoom.pan; }, plusMenu: plusMenu, pop: pop, closePop: closePop, painter: painter, S: S, api: api, esc: esc, short: short, go: go, render: render, setImage: setImage, sendPS: sendPS,
                 toast: toast, refresh: refresh, current: current, P: P, job: job, readRef: readRef };
 
   function start() {

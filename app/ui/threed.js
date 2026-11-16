@@ -235,12 +235,17 @@
 
   function act(x) {
     var V = VS(), r = T.results[T.sel]; if (!r) return;
-    if (x === "layer") {           // a layer over the picture (in Create's layers, as there)
+    if (x === "layer") {
+      // Back into the same program: a Live picture's app (Photoshop) gets it as a layer;
+      // a picture from Create gets it as a layer there, on that picture.
+      var o = T.origin;
+      if (o && o.app) { V.api().studio_send(r.path, o.app).then(function (res) { V.toast(res && res.ok ? (res.how === "layer" ? "Added as a layer in " + (o.app === "affinity" ? "Affinity" : "Photoshop") : "Opened in Photoshop") : (res && res.error) || "Couldn't send it."); }); return; }
+      var to = o && o.src || T.src;
       V.api().studio_image(r.path).then(function (info) {
         if (!info || !window.VSSketch) return;
-        V.setImage(V.S.create, "src", T.src);
-        window.VSSketch.addImageLayer(V.S.create.src, info.preview, V.short(r.name || ""));
-        V.toast("Added as a layer over your picture (Create › Layers)");
+        if (V.S.create.src !== to) V.setImage(V.S.create, "src", to);
+        window.VSSketch.addImageLayer(to, info.preview, V.short(r.label || r.name || "3D view"));
+        V.toast("Added as a layer on your picture in Create");
       });
     }
     else if (x === "ps") V.sendPS(r.path);
@@ -269,8 +274,15 @@
     return true;
   }
 
-  function open(info) {
+  // The 3D views button: take Create's current file (flattened), unless it's the one here already.
+  function fromCreate() {
+    var V = VS(); if (T.running || !V.currentFile || !V.S.create.src && !(V.S.create.sel >= 0)) return;
+    V.currentFile(function (info, origin) { if (info && !(T.origin && origin && T.origin.key === origin.key && T.src)) open(info, origin); });
+  }
+
+  function open(info, origin) {
     if (!info) return;
+    T.origin = origin || null;
     T.src = info; T.yaw = 0; T.pitch = 0; T.dist = 0; T.lens = "normal"; T.sel = -1; T.results = []; T.base = null; T.kind = ""; T.view = "res";
     VS().go("3d"); render();
     var a = VS().api();
@@ -294,5 +306,5 @@
     });
   }
 
-  window.VS3D = { build: build, render: render, open: open, onResult: onResult, _state: function () { return T; } };
+  window.VS3D = { fromCreate: fromCreate, build: build, render: render, open: open, onResult: onResult, _state: function () { return T; } };
 })();
