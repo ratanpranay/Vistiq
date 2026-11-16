@@ -1,5 +1,9 @@
 # Vistiq Studio (test build)
 
+## 0.4.29
+- New 3D tab (before Create): drag the picture or pick an angle (front, ¾, side, behind, above, low), fine-tune turn, height, distance and lens, then Render this view. In Create, the Refine button is now 3D.
+- Closing Studio lets go of the image models, so the PC's memory is free again.
+
 ## 0.4.28
 - Settings: “Download everything” — the engine, image models, Qwen Image Edit, both picture readers, the prompt helper, Select and the magic eraser, one after another (for a new PC left to download).
 
