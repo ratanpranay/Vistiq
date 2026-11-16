@@ -2169,6 +2169,7 @@
       } else if (kind === "studio-result") {
         var q = byJob(data.id); if (!q) return;
         data.result.srcKey = q.jobKey; data.result.orig = q.jobOrig; data.result.made = Date.now(); data.result.run = data.result.run || runOf(data.result); q.results.push(data.result);
+        if (q === S.create && window.VS3D) window.VS3D.onResult(data.result);       // a 3D view: shown on the 3D page too
         q.preview = null; q.previewN = 0; q.pending = Math.max(0, q.pending - 1); q.jobDone = (q.jobDone || 0) + 1;
         // Watching the run: each new result comes into view as it lands.
         if (q.follow !== false) q.sel = q.results.length - 1;

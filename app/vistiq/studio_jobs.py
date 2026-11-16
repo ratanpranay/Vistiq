@@ -832,6 +832,16 @@ class Studio:
                 # or a camera reference's when its camera couldn't be put into words.
                 cam_i = (sent.index(cam_i - 1) + 1) if cam_i and (cam_i - 1) in sent else 0
                 ref_images = [ref_images[i] for i in sent]
+            elif job.get("view"):
+                # 3D: which side we see, then the view to show, in words.
+                v = job["view"]
+                kind, side, _h = studio.parse_view(self._read(work_path, "view", say) or "")
+                words, target = studio.view_words(kind, side, v.get("yaw", 0), v.get("pitch", 0), float(v.get("dist", 0)),
+                                                   v.get("lens", "normal"), v.get("target"))
+                extra = (job.get("text") or "").strip()
+                job = dict(job, text=words + (" " + extra if extra else ""), said=extra,
+                           locks=dict(job.get("locks") or {}, camera=False), view=dict(v, kind=kind, seen=side, target=target))
+                text = job["text"]
             elif job.get("instant"):
                 scene = self._read(work_path, "scene", say)
                 text = studio.instant_text(job.get("text") or "", scene)
@@ -871,7 +881,9 @@ class Studio:
             elif not _has_lock(s) and studio.F3_KEEP not in text:
                 # Without the design lock, the slider works through the wording.
                 text = text + "\n\n" + follow_words(keep, studio.flux3_ready(s))
-            if studio.use_qwenedit(s) and mode == "create" and not job.get("qwen_refs"):
+            if studio.use_qwenedit(s) and mode == "create" and job.get("view"):
+                text = (job.get("text") or "") + " " + studio.QE_CLEAN
+            elif studio.use_qwenedit(s) and mode == "create" and not job.get("qwen_refs"):
                 # Qwen Image Edit reads short, direct instructions best (the long
                 # FLUX wording made it muddy and stopped camera moves).
                 text = studio.qwen_text(job.get("text") or "", instant=bool(job.get("instant")),
@@ -996,7 +1008,8 @@ class Studio:
                 result.save(buf, "PNG")
                 path, w, h = imaging.save(buf.getvalue(), stem + ".png", out_dir, "PNG",
                                           "%s_v%d" % (tag, v + 1), limit=16384)
-                meta = {"mode": mode, "preset": job.get("preset"), "text": job.get("said") or job.get("text") or "",
+                meta = {"mode": mode, "preset": job.get("preset"), "view": job.get("view"),
+                        "text": job.get("said") if job.get("view") else (job.get("said") or job.get("text") or ""),
                         "keep": keep, "seed": seed + v, "source": src_path, "reference": job.get("reference"),
                         "painted": mask is not None, "instant": bool(job.get("instant")),
                         "refs": [{"path": r["path"], "use": u, "desc": r.get("desc") or ""} for r, u in zip(refs, uses)],
@@ -1104,7 +1117,7 @@ class Studio:
             meta = _read_meta(p)
             out.append({"path": p, "name": nm, "w": w, "h": h, "thumb": self.thumb(p, mtime), "made": mtime * 1000,
                         "meta": {"text": meta.get("text", ""), "preset": meta.get("preset", ""), "source": meta.get("source", ""),
-                                 "instant": bool(meta.get("instant")),
+                                 "instant": bool(meta.get("instant")), "view": meta.get("view"),
                                  "refs": [{"use": r.get("use")} for r in (meta.get("refs") or [])]}})
         out.sort(key=lambda x: x["made"])
         return out

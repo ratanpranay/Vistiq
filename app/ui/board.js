@@ -361,9 +361,16 @@
   // A new picture from the + menu in Focus view: on the board, and open it.
   // A sketch branched off another tile (Live): sits next to it, joined by a line.
   function refreshThumb(path) { if (thumbs[path] !== undefined) { delete thumbs[path]; lastHTML = ""; render(); } }
+  // A 3D view: next to the picture it was made from (put on the board too, if it isn't).
+  function addBeside(res, src) {
+    if (!res || has(res.path)) return;
+    var t = B.tiles.filter(function (k) { return k.path === src.path; })[0];
+    if (!t) t = add({ path: src.path, name: src.name, w: src.w, h: src.h, preview: src.preview }, null);
+    add({ path: res.path, name: res.name, w: res.w, h: res.h, preview: res.preview }, t ? t.id : null);
+  }
   function addFrom(info, fromId) { return add(info, byId(fromId) ? fromId : null); }
   function addAndOpen(info) { var t = add(info, null); if (t) open(t); return t; }
 
-  window.VSBoard = { multi: function () { return multi.slice(); }, build: build, render: render, addImages: addImages, addResult: addResult, has: has, organize: organize, add: add, addAndOpen: addAndOpen, addFrom: addFrom, refreshThumb: refreshThumb, open: function (id) { var t = byId(id); if (t) open(t); },
+  window.VSBoard = { multi: function () { return multi.slice(); }, build: build, render: render, addImages: addImages, addResult: addResult, has: has, organize: organize, add: add, addAndOpen: addAndOpen, addFrom: addFrom, addBeside: addBeside, refreshThumb: refreshThumb, open: function (id) { var t = byId(id); if (t) open(t); },
                      _state: function () { return B; } };
 })();

@@ -79,6 +79,13 @@ ASK = {
              "cold; a lit campfire with glow on nearby faces), and say what stays exactly the same (the main "
              "subject's design and colours, the people's poses, the camera). Plain sentences, at most 100 words, "
              "the instruction only."),
+    "view": ("Look at this picture and answer in exactly this form, nothing else: "
+             "kind=<exterior|interior|product>; side=<front|front-right|right|rear-right|rear|rear-left|left|front-left>; "
+             "height=<low|eye|high|top>. kind: a car seen from outside, a car's inside (cabin, dashboard, seats), or "
+             "anything else. side: for an exterior or product, which side of it faces the camera (the car's own left and "
+             "right, as a driver sitting in it would say); for an interior, where the camera stands in the cabin "
+             "(front = at the windscreen looking back, rear = behind the front seats looking forward, left or right = "
+             "at that door). height: where the camera is."),
     "materials": ("Describe only the colours, materials and finishes in this picture, part by part (for "
                   "example the seats, dashboard, door panels, console, trims, floor), with precise words: the "
                   "colour, the material (leather, fabric, wood, metal, plastic…), its finish (matte, satin, "

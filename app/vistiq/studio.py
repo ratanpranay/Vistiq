@@ -429,6 +429,63 @@ def detail_boxes(w, h, tile_mp=DETAIL_TILE_MP, overlap=0.18):
     return boxes
 
 
+# 3D: a camera move put into words. The picture reader says which side we see; the
+# move then names the view to show ("rear-left three-quarter, from low"), which the
+# model follows far better than "orbit 97 degrees". Azimuth: the camera's place around
+# the car, clockwise seen from above, 0 = in front.
+SIDES = ["front", "front-right", "right", "rear-right", "rear", "rear-left", "left", "front-left"]
+SIDE_WORDS = {"front": "straight from the front", "front-right": "front-right three-quarter view",
+              "right": "right side view", "rear-right": "rear-right three-quarter view", "rear": "straight from behind",
+              "rear-left": "rear-left three-quarter view", "left": "left side view", "front-left": "front-left three-quarter view"}
+CABIN_WORDS = {"front": "from the windscreen, looking back into the cabin over the dashboard",
+               "front-right": "from the front passenger corner, looking across the cabin",
+               "right": "from the open passenger door, looking across the cabin",
+               "rear-right": "from behind the passenger seat, looking forward across the cabin",
+               "rear": "from the middle of the rear seat, looking forward between the front seats",
+               "rear-left": "from behind the driver's seat, looking forward across the cabin",
+               "left": "from the open driver's door, looking across the cabin",
+               "front-left": "from the driver's front corner, looking across the cabin"}
+
+
+def parse_view(answer):
+    """The picture reader's answer: (kind, side, height), with safe defaults."""
+    a = (answer or "").lower()
+    kind = next((k for k in ("interior", "exterior", "product") if k in a), "exterior")
+    m = re.search(r"side\s*=\s*([a-z-]+)", a)
+    side = m.group(1) if m and m.group(1) in SIDES else "front-left"
+    m = re.search(r"height\s*=\s*([a-z]+)", a)
+    height = m.group(1) if m and m.group(1) in ("low", "eye", "high", "top") else "eye"
+    return kind, side, height
+
+
+def view_words(kind, side, yaw, pitch, dist=0.0, lens="normal", target=None):
+    """Words for the view after turning the camera by yaw (dragging right brings the
+    picture's left side forward) and pitch degrees, or straight to `target` (a side)."""
+    if target not in SIDES:
+        az = (SIDES.index(side) * 45 - float(yaw)) % 360
+        target = SIDES[int(round(az / 45.0)) % 8]
+    p = float(pitch)
+    height = ("from high above, looking steeply down" if p >= 45 else "from a raised camera, looking down" if p >= 15
+              else "from a low camera, looking up" if p <= -12 else "from eye level")
+    if kind == "interior":
+        where = CABIN_WORDS[target] + ", " + height
+    else:
+        where = "the " + SIDE_WORDS[target] + ", " + height
+    extra = []
+    if dist <= -0.25:
+        extra.append("closer in")
+    elif dist >= 0.25:
+        extra.append("from further back, showing more around it")
+    if lens == "wide":
+        extra.append("wide-angle lens")
+    elif lens == "tele":
+        extra.append("long lens, flat perspective")
+    return ("Show this exact same design from a new camera: " + where + (", " + ", ".join(extra) if extra else "") +
+            ". Every part stays exactly as designed and keeps its colour and finish; only the camera moves. "
+            "Parts that were hidden are completed to match the design. Add no logos, badges or text that are not "
+            "in the picture."), target
+
+
 QE_INSTANT = ("Turn this design sketch into a finished, photorealistic CGI render, like a car maker's studio "
               "visualization: every drawn shape becomes the real part it stands for, built with real materials, glass, "
               "panel gaps and stitching; parts the sketch only hints at are completed. Keep the design, proportions, "

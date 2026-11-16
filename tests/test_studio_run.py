@@ -245,6 +245,21 @@ class WholeRun(unittest.TestCase):
             r = self.go({"mode": "create", "image": src, "text": "red seats", "variations": 1})
             self.assertEqual(len(self.engine.runs), 1)
 
+    @unittest.skipIf(sys.platform == "darwin", "the Mac has its own image engine")
+    def test_3d_view_names_the_view(self):
+        src = os.path.join(self.tmp.name, "car.png")
+        Image.new("RGB", (1600, 900), "white").save(src)
+        self.engine.runs.clear()
+        with mock.patch.object(studio, "use_qwenedit", lambda s=None: True), \
+                mock.patch.object(self.st, "_read", lambda path, use, *a, **k: "kind=exterior; side=front-left; height=eye" if use == "view" else "EXPANDED"):
+            r = self.go({"mode": "create", "image": src, "text": "", "variations": 1,
+                         "view": {"yaw": 90, "pitch": -20, "dist": 0, "lens": "normal", "target": "rear-left"}})
+        prompts = [n["inputs"]["prompt"] for p in self.engine.runs for n in p.values()
+                   if isinstance(n, dict) and n.get("class_type") == "TextEncodeQwenImageEditPlus"]
+        self.assertTrue(any("rear-left three-quarter view" in t and "low camera" in t and "logos" in t for t in prompts), prompts)
+        self.assertFalse(any("EXPANDED" in t for t in prompts))
+        self.assertEqual(r[0]["meta"]["view"]["target"], "rear-left")
+
 
 if __name__ == "__main__":
     unittest.main()

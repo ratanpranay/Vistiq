@@ -1,5 +1,9 @@
 # Vistiq Studio (test build)
 
+## 0.4.30
+- 3D renders on the 3D page: results stay there (compare Original / New view / Side by side), and land on the board next to their picture. Buttons: as a Photoshop layer, Open in Create, Upscale.
+- 3D reads which side the picture shows first, then asks for a named view (e.g. rear ¾ left, low) instead of degrees; no invented logos or badges. Angles are now absolute: Front, Front ¾ left/right, sides, Rear ¾ left/right, Rear, plus Eye level / From above / Low.
+
 ## 0.4.29
 - New 3D tab (before Create): drag the picture or pick an angle (front, ¾, side, behind, above, low), fine-tune turn, height, distance and lens, then Render this view. In Create, the Refine button is now 3D.
 - Closing Studio lets go of the image models, so the PC's memory is free again.
