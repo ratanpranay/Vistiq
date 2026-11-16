@@ -581,10 +581,18 @@ class Studio:
                     z = os.path.join(studio.engine_dir(), "metaview_nodes.zip")
                     studio.download(studio.MV_NODES, z, prog, "MetaView nodes", self._cancel.is_set)
                     target = studio.metaview_nodes_dir()
-                    tmp = target + ".tmp"
-                    shutil.rmtree(tmp, ignore_errors=True)
+                    # A short folder, only what ComfyUI loads, and long-path support: Windows
+                    # stops at 260 characters (the pack's .github templates went past it).
+                    tmp = os.path.join(studio.engine_dir(), "mvn")
+                    lp = (lambda q: "\\\\?\\" + os.path.abspath(q)) if sys.platform == "win32" else (lambda q: q)
+                    for old in (tmp, target + ".tmp"):          # also what an earlier try left
+                        shutil.rmtree(lp(old), ignore_errors=True)
                     with zipfile.ZipFile(z) as zz:
-                        zz.extractall(tmp)
+                        for m in zz.infolist():
+                            parts = m.filename.split("/")
+                            if len(parts) > 1 and parts[1] in (".github", "docs", "tests", "workflows"):
+                                continue
+                            zz.extract(m, lp(tmp))
                     inner = [os.path.join(tmp, d) for d in os.listdir(tmp)]
                     py = os.path.join(studio.portable_dir(), "python_embeded", "python.exe")
                     prog("Installing what MetaView needs", None)

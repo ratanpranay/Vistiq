@@ -1,5 +1,8 @@
 # Vistiq Studio (test build)
 
+## 0.4.27
+- MetaView install: fixed “No such file or directory” (a Windows path-length limit while unpacking its nodes). Press Download again; the models already downloaded are kept.
+
 ## 0.4.26
 - Rendering style from a reference: the reference picture itself now guides the look (designer Photoshop renderings stay drawn, not photoreal), and the sketch keeps its crisp lines and sharp edges.
 
