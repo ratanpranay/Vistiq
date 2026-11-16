@@ -1,5 +1,8 @@
 # Vistiq Studio (test build)
 
+## 0.4.39
+- Instant render adds no logos or badges that aren't drawn (a plain steering wheel hub).
+
 ## 0.4.38
 - 3D views plan: smooth dragging. Inside a cabin the camera dot goes anywhere and a handle turns the cone (where it looks); outside it goes round the design. The grey ring (your picture) can be dragged to correct a wrong reading; the dropdown is gone.
 

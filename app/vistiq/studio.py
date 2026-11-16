@@ -552,7 +552,8 @@ QE_INSTANT = ("Turn this design sketch into a finished, photorealistic CGI rende
               "of the picture: every part stays the same size and in the same place, nothing new appears at the "
               "edges. Each part keeps exactly the colour it is painted (dark blue stays dark blue, tan stays tan); "
               "add no wood, chrome or colours that are not in the picture. Where the picture is only lines, use a "
-              "calm, premium two-tone scheme.")
+              "calm, premium two-tone scheme. Add no logos, badges, brand marks or text that are not drawn; the "
+              "steering wheel hub stays plain.")
 QE_CLEAN = ("Clean, brand-new surfaces: leather and fabric smooth and evenly coloured, no stains, smudges, "
             "fingerprints, blotches or mottled texture; crisp, sharp detail.")
 # Plain "night" made a starry, blue-washed, neon look (tested Nov 2026). This reads like a real press photo.
