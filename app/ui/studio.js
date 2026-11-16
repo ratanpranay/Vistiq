@@ -11,6 +11,7 @@
   function short(n) { return String(n || "").replace(/^Vistiq_/, "").replace(/\.(png|jpe?g|webp)$/i, ""); }
 
   var ICON = {
+    "3d": '<path d="M12 3l8 4.5v9L12 21l-8-4.5v-9z"/><path d="M12 12l8-4.5M12 12v9M12 12L4 7.5"/>',
     board: '<rect x="3" y="3" width="8" height="6" rx="1.5"/><rect x="13" y="8" width="8" height="6" rx="1.5"/><rect x="3" y="14" width="8" height="7" rx="1.5"/><path d="M11 6h2v5M11 17h4v-3"/>',
     create: '<path d="M4 20l4-1 11-11-3-3L5 16z"/><path d="M14 6l3 3"/>',
     reference: '<rect x="3" y="5" width="8" height="14" rx="2"/><rect x="13" y="5" width="8" height="14" rx="2"/>',
@@ -171,7 +172,9 @@
       '<svg viewBox="0 0 24 24"><path d="M6 15l6-6 6 6"/></svg></button></div><div class="s-rail-body">' + inner + "</div>" +
       '<div class="s-rail-foot"><div class="s-err" id="' + id + '-err" hidden></div>' +
       // What to do with the chosen result, right above Create.
-      '<div class="s-acts3"><button type="button" class="s-btn" id="' + id + '-refine-this" title="Change this result with your words" disabled>' + svg("sketch") + '<span>Refine</span></button>' +
+      '<div class="s-acts3">' + (id === "c" ? '<button type="button" class="s-btn" id="c-to3d" title="Turn the camera around this picture">' + svg("3d") + '<span>3D</span></button>' +
+        '<button type="button" class="s-btn" id="' + id + '-refine-this" hidden disabled></button>' :
+        '<button type="button" class="s-btn" id="' + id + '-refine-this" title="Change this result with your words" disabled>' + svg("sketch") + '<span>Refine</span></button>') +
       '<button type="button" class="s-btn" id="' + id + '-toboard" title="Put this result on the board" disabled>' + svg("board") + '<span>To board</span></button>' +
       '<button type="button" class="s-btn" id="' + id + '-tops" title="Send this result to Photoshop as a new layer" disabled><span class="m-ico ps">Ps</span><span>Photoshop</span></button>' +
       '<button type="button" class="s-btn" id="' + id + '-up" title="Upscale this result" disabled>' + svg("upscale") + '<span>Upscale</span></button></div>' +
@@ -218,8 +221,8 @@
     var nav = document.createElement("nav");
     nav.className = "s-nav";
     nav.innerHTML = '<div class="s-logo" title="Vistiq Studio"><img src="assets/mark.png" alt=""></div>' +
-      ["board", "create", "upscale", "library"].map(function (p) {
-        return '<button type="button" data-page="' + p + '">' + svg(p) + p.charAt(0).toUpperCase() + p.slice(1) + "</button>";
+      ["board", "3d", "create", "upscale", "library"].map(function (p) {
+        return '<button type="button" data-page="' + p + '">' + svg(p) + (p === "3d" ? "3D" : p.charAt(0).toUpperCase() + p.slice(1)) + "</button>";
       }).join("") + '<div class="s-sp"></div><button type="button" data-page="settings">' + svg("settings") + "Settings</button>" +
       '<button type="button" class="s-min s-navmin" data-min="nav" title="Collapse / expand"><svg viewBox="0 0 24 24"><path d="M15 6l-6 6 6 6"/></svg></button>';
     document.body.insertBefore(nav, document.body.firstChild);
@@ -293,6 +296,10 @@
     board.className = "s-page"; board.id = "p-board";
     document.body.appendChild(board);
     if (window.VSBoard) window.VSBoard.build(board);
+    var td = document.createElement("div");
+    td.className = "s-page"; td.id = "p-3d";
+    document.body.appendChild(td);
+    if (window.VS3D) window.VS3D.build(td);
     loadStrip();
     var mach = document.createElement("div"); mach.id = "s-machine"; mach.className = "s-machine"; document.body.appendChild(mach);
     statsLoop();
@@ -362,7 +369,7 @@
 
   function go(p) {
     if (p === "reference") p = "create";          // references live in Create now
-    if (["board", "create", "upscale", "library", "settings"].indexOf(p) < 0) p = "board";
+    if (["board", "3d", "create", "upscale", "library", "settings"].indexOf(p) < 0) p = "board";
     S.page = p; keep("page", p);
     document.body.setAttribute("data-page", p);
     document.querySelectorAll(".s-nav button").forEach(function (b) { b.classList.toggle("on", b.getAttribute("data-page") === p); });
@@ -764,6 +771,9 @@
         var t = (p.text || "").trim();
         if (!t) { var box = $(id + "-text"); if (box) box.focus(); toast("Type what to change in the prompt, then Refine this"); return; }
         $(id + "-refine").value = t; refine(id);
+      });
+      if ($(id + "-to3d")) $(id + "-to3d").addEventListener("click", function () {
+        withTarget(p, function (c) { api().studio_image(c.path).then(function (info) { if (info && window.VS3D) window.VS3D.open(info); }); });
       });
       $(id + "-toboard").addEventListener("click", function () {
         if (!window.VSBoard) return;
@@ -1605,7 +1615,8 @@
     $(id + "-up").disabled = !tg || !!p.job; $(id + "-reveal").disabled = !tg;
     $(id + "-toboard").disabled = !tg || onB;
     $(id + "-toboard").querySelector("span").textContent = onB ? "On board" : "To board";
-    $(id + "-refine-this").hidden = false; $(id + "-refine-this").disabled = !c || !!p.job;
+    $(id + "-refine-this").hidden = id === "c"; $(id + "-refine-this").disabled = !c || !!p.job;
+    if ($(id + "-to3d")) $(id + "-to3d").disabled = !tg || !!p.job;
     $(id + "-tops").hidden = false; $(id + "-tops").disabled = !tg;
     $(id + "-tops").title = S.psOn ? "Put this picture in your open Photoshop file as a new layer" : "Open this picture in Photoshop";
     $(id + "-clear").hidden = true;          // results are never cleared: each picture always shows all it made
