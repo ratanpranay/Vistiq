@@ -941,7 +941,11 @@ class Studio:
                                                     megapixels=float(lab.get("qe_mp", min(studio.QE_MP, max(
                                                         studio.QE_MP_MIN, work.size[0] * work.size[1] / 1e6)))),
                                                     steps=int(lab.get("qe_steps", studio.QE_STEPS)),
-                                                    ref_latent=bool(lab.get("qe_reflat", True)))
+                                                    # the full-size picture holds every part in place: right when
+                                                    # the camera stays, but it stops a new view (3D, Camera unlocked,
+                                                    # a camera reference), so those keep the model's own small one
+                                                    ref_latent=bool(lab.get("qe_reflat", not job.get("view") and not cam_i and
+                                                                            (job.get("locks") or {}).get("camera") is not False)))
                 elif sys.platform == "darwin":
                     prompt = {"image": image, "ref": ref_image or (ref_images[0] if ref_images else None), "text": text,
                               "seed": seed + v, "keep": keep,

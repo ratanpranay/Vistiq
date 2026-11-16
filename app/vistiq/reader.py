@@ -80,8 +80,9 @@ ASK = {
              "subject's design and colours, the people's poses, the camera). Plain sentences, at most 100 words, "
              "the instruction only."),
     "design": ("Describe the design in this picture in two short sentences, so someone could draw it again from "
-               "another side: what it is and whether it is a sketch, a render or a photo; its proportions and "
-               "silhouette; its key features (lights, grille, wheels, window line, surfaces, colours). Facts only."),
+               "another side: what it is; its proportions and "
+               "silhouette; its key features (lights, grille, wheels, window line, seats, dashboard, surfaces, colours "
+               "and materials). Facts only; do not say how it is drawn."),
     # Car-left/right was often mirrored (Nov 2026); which way the nose points in the picture is
     # read reliably, and the side follows from it (see studio.parse_view).
     "view": ("Look at this picture and answer in exactly this form, nothing else: "
@@ -93,7 +94,8 @@ ASK = {
              "visible) toward the camera or away from it; in a three-quarter view the nose points left or right. end: which end we also see, its front "
              "end (headlights, grille), its rear end (tail lights), or none (a pure side view). side: for an "
              "interior, where the camera stands in the cabin (front = at the windscreen looking back, rear = behind "
-             "the front seats looking forward, left or right = at that door); otherwise your best guess. "
+             "the front seats looking forward, left or right = at that door; if the dashboard and windscreen are ahead of "
+             "the camera, it is side=rear); otherwise your best guess. "
              "height: where the camera is."),
     "materials": ("Describe only the colours, materials and finishes in this picture, part by part (for "
                   "example the seats, dashboard, door panels, console, trims, floor), with precise words: the "

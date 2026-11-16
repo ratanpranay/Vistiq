@@ -540,8 +540,8 @@ def view_words(kind, side, yaw, pitch, dist=0.0, lens="normal", target=None, des
     return ("Show this exact same design from a new camera: " + where + (", " + ", ".join(extra) if extra else "") + ". " +
             ("The design: " + design + " " if design else "") +
             "Keep every part exactly as designed: the same proportions, silhouette, lights, grille, wheels, window "
-            "line, surfaces and colours; only the camera moves. Keep the picture's style: a sketch stays a sketch "
-            "with the same strokes and shading, a render stays a render, a photo stays a photo. Parts that were "
+            "line, surfaces and colours; only the camera moves. Keep the picture's look exactly: the same kind of "
+            "image, materials, colours and light. Parts that were "
             "hidden are completed to match the design. Add no logos, badges or text that are not in the picture."), target
 
 

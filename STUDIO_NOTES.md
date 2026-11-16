@@ -1,5 +1,9 @@
 # Vistiq Studio (test build)
 
+## 0.4.40
+- 3D views move the camera again (the full-size picture, which keeps Create's framing, held every part in place; new views use the model's own reference). Views keep the picture's look (a render no longer turns into a sketch).
+- Inside a cabin, a picture looking at the dashboard is read as taken from the rear seats.
+
 ## 0.4.39
 - Instant render adds no logos or badges that aren't drawn (a plain steering wheel hub).
 

@@ -251,14 +251,18 @@ class WholeRun(unittest.TestCase):
         Image.new("RGB", (1600, 900), "white").save(src)
         self.engine.runs.clear()
         with mock.patch.object(studio, "use_qwenedit", lambda s=None: True), \
-                mock.patch.object(self.st, "_read", lambda path, use, *a, **k: "kind=exterior; side=front-left; height=eye" if use == "view" else "A boxy SUV sketch" if use == "design" else "EXPANDED"):
+                mock.patch.object(self.st, "_read", lambda path, use, *a, **k: "kind=exterior; side=front-left; height=eye" if use == "view" else "A boxy SUV with a long roof" if use == "design" else "EXPANDED"):
             r = self.go({"mode": "create", "image": src, "text": "", "variations": 1,
                          "view": {"yaw": 90, "pitch": -20, "dist": 0, "lens": "normal", "target": "rear-left"}})
         prompts = [n["inputs"]["prompt"] for p in self.engine.runs for n in p.values()
                    if isinstance(n, dict) and n.get("class_type") == "TextEncodeQwenImageEditPlus"]
         self.assertTrue(any("rear-left three-quarter view" in t and "low camera" in t and "logos" in t for t in prompts), prompts)
         self.assertFalse(any("EXPANDED" in t for t in prompts))
-        self.assertTrue(any("The design: A boxy SUV sketch." in t and "sketch stays a sketch" in t for t in prompts), prompts)
+        self.assertTrue(any("The design: A boxy SUV with a long roof." in t and "look exactly" in t for t in prompts), prompts)
+        self.assertFalse(any("sketch" in t for t in prompts), prompts)
+        # a new view: the model's own small reference, so the camera can move
+        enc = [n for p in self.engine.runs for n in p.values() if isinstance(n, dict) and n.get("class_type") == "TextEncodeQwenImageEditPlus"]
+        self.assertTrue(all("vae" in n["inputs"] for n in enc))
         self.assertEqual(r[0]["meta"]["view"]["target"], "rear-left")
 
 
