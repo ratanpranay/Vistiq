@@ -1011,3 +1011,32 @@ body.studio .s-vars>.s-ph.sel{border-color:var(--ink)}
 .t-will{flex-basis:100%;font-size:12.5px;color:#14161f;min-height:1em}
 .t-acts{display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px}
 .t-acts .s-btn{font-size:11.5px;padding:8px 4px;display:flex;flex-direction:column;align-items:center;gap:3px}
+/* Board: drag-select box, pan cursor, the Mix panel */
+.b-marq{position:absolute;z-index:25;border:1.5px solid #5b4ce0;background:rgba(91,76,224,.08);border-radius:4px;pointer-events:none}
+.b-marq[hidden]{display:none}
+.b-cv.pan{cursor:grab}
+.b-menu kbd{float:right;font:11px inherit;color:#80869a;margin-left:14px}
+.b-group button[disabled]{opacity:.45;cursor:default}
+.b-mix{position:absolute;z-index:31;width:300px;background:#fff;border-radius:16px;box-shadow:0 14px 44px rgba(14,16,32,.2);padding:12px 12px 10px;font-size:12.5px;border:1.5px solid #5b4ce0}
+.b-mix[hidden]{display:none}
+.bm-h{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
+.bm-h b{font-size:15px}
+.bm-x{border:0;background:none;font-size:18px;color:#80869a;cursor:pointer;line-height:1}
+.bm-sec{font-weight:600;margin:8px 0 6px;color:#14161f}
+.bm-sec small{font-weight:400;color:#80869a;margin-left:4px}
+.bm-main{display:flex;gap:6px}
+.bm-t{flex:1;border:2px solid transparent;border-radius:9px;padding:0;background:#f3f4f8;cursor:pointer;overflow:hidden;height:44px}
+.bm-t img,.bm-ref img{width:100%;height:100%;object-fit:cover;display:block}
+.bm-t.on{border-color:#5b4ce0}
+.bm-ref{display:flex;align-items:center;gap:8px;margin-bottom:6px}
+.bm-ref img,.bm-ref i{width:58px;height:36px;border-radius:7px;flex:none;background:#f3f4f8}
+.bm-n{width:18px;height:18px;border-radius:50%;background:#5b4ce0;color:#fff;font-size:10.5px;font-weight:700;display:grid;place-items:center;flex:none}
+.bm-ref select{flex:1;min-width:0;border:1px solid #e3e5ee;border-radius:8px;padding:6px 7px;font:inherit;background:#fff}
+#bm-text{width:100%;box-sizing:border-box;border:1px solid #e3e5ee;border-radius:10px;padding:8px 9px;font:inherit;resize:vertical;margin-top:4px}
+.bm-go{display:flex;gap:8px;margin-top:8px;align-items:center}
+.bm-v{display:flex;align-items:center;border:1px solid #e3e5ee;border-radius:9px}
+.bm-v button{border:0;background:none;width:26px;height:30px;cursor:pointer;font-size:15px}
+.bm-v b{min-width:14px;text-align:center}
+.bm-run{flex:1;border:0;border-radius:10px;height:34px;color:#fff;font:600 13px inherit;cursor:pointer;background:linear-gradient(90deg,#6d5df5,#a35cf0 60%,#f08a5d)}
+.bm-run[disabled]{opacity:.75;cursor:default}
+.bm-note{color:#80869a;font-size:11px;margin-top:6px}

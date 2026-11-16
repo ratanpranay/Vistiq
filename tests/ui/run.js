@@ -210,9 +210,9 @@ const frame = (n, name) => ({ path: "live://photoshop/" + n, name: name || "flat
     check("Escape closes the menu", await p.evaluate(() => document.getElementById("b-menu").hidden), "still open");
     await p.click(".b-bar [data-b=organize]");
     await p.waitForTimeout(500);
-    check("Organize lays out in order: Live first, result to the right of its source", await p.evaluate(() => {
+    check("Organize lays out to the right: Live left-most, result right of its source", await p.evaluate(() => {
       const t = window.VSBoard._state().tiles, live = t.find((x) => x.id === "live"), s = t.find((x) => x.path === "C:/a/sketch.png"), r = t.find((x) => x.path === "C:/o/r1.png");
-      return live.y < s.y && r.x > s.x && r.y === s.y;
+      return live.x < s.x && r.x > s.x && r.y === s.y;
     }), JSON.stringify(await p.evaluate(() => window.VSBoard._state().tiles.map((x) => [x.id, x.x, x.y]))));
     check("the board is saved", await p.evaluate(() => !!(window.__board && window.__board.tiles.length === 3)), "not saved");
     // Opening another tile must not lose the results made from the first one.
@@ -610,8 +610,26 @@ const frame = (n, name) => ({ path: "live://photoshop/" + n, name: name || "flat
     await p.click("#b-group [data-g=compare]"); await p.waitForTimeout(100);
     check("Compare shows them side by side", await p.evaluate(() => document.querySelectorAll("#b-compare figure").length) === 3, "");
     await p.keyboard.press("Escape"); await p.waitForTimeout(50);
-    await p.click("#b-group [data-g=create]"); await p.waitForTimeout(200);
-    check("Mix into one: 1 is the base, the rest references", await p.evaluate(() => window.VS.S.page === "create" && window.VS.S.create.src.path === "C:/t/1.png" && window.VS.S.create.refs.length === 2), await p.evaluate(() => JSON.stringify([window.VS.S.page, window.VS.S.create.src && window.VS.S.create.src.path, (window.VS.S.create.refs || []).length])));
+    await p.keyboard.press("q"); await p.waitForTimeout(150);
+    check("Q opens Mix: a main picture and a choice per reference", await p.evaluate(() => !document.getElementById("b-mix").hidden && document.querySelectorAll("#b-mix .bm-ref select").length === 2), "");
+    await p.selectOption('#b-mix .bm-ref select >> nth=1', "camera");
+    await p.fill("#bm-text", "night");
+    await p.click("#b-mix [data-x=run]"); await p.waitForTimeout(400);
+    check("Mix runs from the board: main + references with what each gives", await p.evaluate(() => {
+      const j = window.__lastJob; return !!j && window.VS.S.page === "board" && j.image === "C:/t/1.png" && j.text === "night" &&
+        j.refs.length === 2 && j.refs[0].use === "materials" && j.refs[1].use === "camera"; }), await p.evaluate(() => JSON.stringify([window.VS.S.page, window.__lastJob])));
+    // New pictures never land on top of others.
+    check("new pictures don't overlap", await p.evaluate(() => { const t = window.VSBoard._state().tiles;
+      return t.every((a) => t.every((b) => a === b || Math.abs(a.x - b.x) >= 300 || Math.abs(a.y - b.y) >= 199)); }), await p.evaluate(() => JSON.stringify(window.VSBoard._state().tiles.map((x) => [x.x, x.y]))));
+    // Drag on the empty board selects with a box; Delete removes them all.
+    await p.keyboard.press("Escape"); await p.keyboard.press("Escape");
+    const box = await p.evaluate(() => { const r = [...document.querySelectorAll(".b-tile:not(.b-live)")].map((n) => n.getBoundingClientRect());
+      return { x0: Math.min(...r.map((q) => q.left)) - 20, y0: Math.min(...r.map((q) => q.top)) - 20, x1: Math.max(...r.map((q) => q.right)) + 20, y1: Math.max(...r.map((q) => q.bottom)) + 20 }; });
+    await p.mouse.move(box.x0, box.y0); await p.mouse.down(); await p.mouse.move((box.x0 + box.x1) / 2, (box.y0 + box.y1) / 2, { steps: 4 }); await p.mouse.move(box.x1, box.y1, { steps: 4 }); await p.mouse.up();
+    await p.waitForTimeout(100);
+    check("dragging a box selects the tiles in it", await p.evaluate(() => window.VSBoard.multi().length) === 3, await p.evaluate(() => JSON.stringify(window.VSBoard.multi())));
+    await p.keyboard.press("Delete"); await p.waitForTimeout(100);
+    check("Delete removes the selected tiles", await p.evaluate(() => window.VSBoard._state().tiles.filter((t) => t.kind !== "live").length) === 0, "");
     check("no page errors on the board group", p.errors.length === 0, p.errors.join(" | "));
     await p.close();
   }

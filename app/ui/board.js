@@ -44,8 +44,9 @@
       '<button type="button" data-b="organize" title="Lay the board out neatly, in the order things were made">' +
       '<svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="5" rx="1"/><rect x="14" y="3" width="7" height="5" rx="1"/><rect x="3" y="12" width="7" height="5" rx="1"/><rect x="14" y="12" width="7" height="9" rx="1"/></svg>Organize</button>' +
       '<button type="button" data-b="fit">Fit</button><span class="b-zoom" id="b-zoom">80%</span></div>' +
-      '<div class="b-hint" id="b-hint">Click + for a blank canvas, an image or your phone · paste with Ctrl V or drop images here. Double-click a tile to work on it.</div>' +
-      '<div class="b-menu" id="b-menu" hidden></div><div class="b-group" id="b-group" hidden></div>';
+      '<div class="b-hint" id="b-hint">Click + for a blank canvas, an image or your phone · paste with Ctrl V or drop images here. Double-click a tile to work on it. Drag to select · hold Space or the middle button to pan.</div>' +
+      '<div class="b-menu" id="b-menu" hidden></div><div class="b-group" id="b-group" hidden></div>' +
+      '<div class="b-mix" id="b-mix" hidden></div><div class="b-marq" id="b-marq" hidden></div>';
     world = root.querySelector("#b-world"); svgEl = root.querySelector("#b-links"); menu = root.querySelector("#b-menu");
     wire();
     call("studio_board_get").then(function (b) {
@@ -112,26 +113,101 @@
     var g = root.querySelector("#b-group");
     if (multi.length < 2) { g.hidden = true; return; }
     g.hidden = false;
-    var h = "<b>" + multi.length + ' selected</b><button type="button" data-g="compare">⇆ Compare side by side</button>' +
-      '<button type="button" data-g="create" title="Opens in Create: 1 is the base, then pick what each other one gives">✦ Mix into one<small>1 = base · pick what each gives</small></button><button type="button" data-g="clear" title="Deselect (Esc)">×</button>';
+    var few = multi.length <= 4, off = few ? "" : " disabled title=\"Up to 4 pictures\"";
+    var h = "<b>" + multi.length + ' selected</b><button type="button" data-g="mix"' + off + '>✦ Mix<small>Q · 1 main, others as references</small></button>' +
+      '<button type="button" data-g="compare"' + off + '>⇆ Compare</button><button type="button" data-g="remove" title="Remove from the board (Delete). The files stay.">Remove</button>' +
+      '<button type="button" data-g="clear" title="Deselect (Esc)">×</button>';
     if (g.getAttribute("data-h") !== h) { g.innerHTML = h; g.setAttribute("data-h", h); }
   }
   function clearMulti() { if (multi.length) { multi = []; lastHTML = ""; render(); } }
   function groupAction(a) {
-    var tiles = multi.map(byId).filter(Boolean), V = VS();
+    var tiles = multi.map(byId).filter(Boolean);
     if (a === "clear") { clearMulti(); return; }
+    if (a === "remove") { removeTiles(tiles); return; }
+    if (tiles.length > 4) { VS().toast("Up to 4 pictures for this"); return; }
     if (a === "compare") { compare(tiles); return; }
-    if (a === "create") {
-      // The first picked is what gets worked on; the rest go in as references (pick what each gives in Create).
-      Promise.all(tiles.map(function (t) { return call("studio_image", t.path); })).then(function (infos) {
-        if (!infos[0]) return;
-        V.S.create.refs = [];
-        V.setImage(V.S.create, "src", infos[0]);
-        infos.slice(1).forEach(function (i) { if (i) V.addRef(i); });
-        clearMulti(); V.go("create");
-      });
-    }
+    if (a === "mix" || a === "create") mixOpen(tiles);
   }
+  function removeTiles(tiles) {
+    var ids = tiles.filter(function (t) { return t.kind !== "live"; }).map(function (t) { return t.id; });
+    if (!ids.length) return;
+    B.tiles.forEach(function (k) { if (ids.indexOf(k.from) >= 0) { var p = byId(k.from); k.from = p && p.from || null; } });
+    B.tiles = B.tiles.filter(function (k) { return ids.indexOf(k.id) < 0; });
+    multi = []; if (ids.indexOf(B.sel) >= 0) B.sel = null; mixClose();
+    lastHTML = ""; save(); render();
+    if (ids.length > 1) VS().toast("Removed " + ids.length + " from the board (the files stay)");
+  }
+
+  // ---------------------------------------------------------------- mix
+  // Up to 4 pictures: one is the main one (worked on), the others give one thing each.
+  var mix = null;
+  var MIX_USES = [["camera", "Camera view"], ["materials", "Materials & colours"], ["style", "Rendering style"], ["light", "Lighting"], ["describe", "As I describe"]];
+  function mixOpen(tiles) {
+    tiles = tiles.filter(function (t) { return t.kind !== "live"; }).slice(0, 4);
+    if (tiles.length < 2) return;
+    var uses = ["materials", "light", "style", "camera"];
+    mix = { ids: tiles.map(function (t) { return t.id; }), main: tiles[0].id, use: {}, text: "", vars: 1, busy: false };
+    tiles.slice(1).forEach(function (t, i) { mix.use[t.id] = uses[i] || "describe"; });
+    mixRender();
+  }
+  function mixClose() { mix = null; var el = root && root.querySelector("#b-mix"); if (el) el.hidden = true; }
+  function mixRender() {
+    var el = root.querySelector("#b-mix");
+    if (!mix) { el.hidden = true; return; }
+    var tiles = mix.ids.map(byId).filter(Boolean), refs = tiles.filter(function (t) { return t.id !== mix.main; });
+    var V = VS(), p = V.S.create, run = mix.busy && p.job;
+    var thumb = function (t) { var th = thumbs[t.path]; return th && th !== "missing" ? '<img src="' + th + '" alt="">' : "<i></i>"; };
+    el.innerHTML = '<div class="bm-h"><b>✦ Mix</b><button type="button" class="bm-x" data-x="close" title="Close (Esc)">×</button></div>' +
+      '<div class="bm-sec">Main picture <small>what gets worked on · click another to swap</small></div><div class="bm-main">' +
+      tiles.map(function (t) { return '<button type="button" class="bm-t' + (t.id === mix.main ? " on" : "") + '" data-main="' + t.id + '">' + thumb(t) + "</button>"; }).join("") + "</div>" +
+      '<div class="bm-sec">From the others</div>' + refs.map(function (t, i) {
+        return '<div class="bm-ref"><span class="bm-n">' + (i + 1) + "</span>" + thumb(t) + '<select data-use="' + t.id + '">' +
+          MIX_USES.map(function (u) { return '<option value="' + u[0] + '"' + (mix.use[t.id] === u[0] ? " selected" : "") + ">" + u[1] + "</option>"; }).join("") + "</select></div>";
+      }).join("") +
+      '<textarea id="bm-text" rows="3" placeholder="Describe the result (optional). Say ref 1, ref 2… to point at a reference.">' + esc(mix.text) + "</textarea>" +
+      '<div class="bm-go"><span class="bm-v"><button type="button" data-v="-1">−</button><b>' + mix.vars + '</b><button type="button" data-v="1">+</button></span>' +
+      '<button type="button" class="bm-run" data-x="run"' + (run ? " disabled" : "") + ">" + (run ? esc(mix.status || "Working") : "Mix") + "</button></div>" +
+      '<div class="bm-note">' + (run ? "Results appear to the right of the main picture." : "Results appear to the right of the main picture.") + "</div>";
+    el.hidden = false;
+    // Next to the pictures, on screen.
+    var v = B.view, r = root.getBoundingClientRect(), x1 = -1e9, y0 = 1e9;
+    tiles.forEach(function (t) { x1 = Math.max(x1, t.x + W); y0 = Math.min(y0, t.y); });
+    var sx = x1 * v.z + v.x + 24, sy = y0 * v.z + v.y;
+    el.style.left = Math.max(12, Math.min(sx, r.width - el.offsetWidth - 12)) + "px";
+    el.style.top = Math.max(60, Math.min(sy, r.height - el.offsetHeight - 12)) + "px";
+  }
+  function mixRun() {
+    var V = VS(), S = V.S, p = S.create;
+    var tiles = mix.ids.map(byId).filter(Boolean), main = byId(mix.main), refs = tiles.filter(function (t) { return t !== main; });
+    if (p.job) { V.toast("Studio is still working on something"); return; }
+    mix.busy = true; mix.status = "Reading references"; mixRender();
+    Promise.all([main].concat(refs).map(function (t) { return call("studio_image", t.path); })).then(function (infos) {
+      if (!infos[0]) { mix.busy = false; V.toast("The main picture was moved or deleted."); mixRender(); return; }
+      S.create.source = "image";
+      V.setImage(p, "src", infos[0]); S.boardFrom = main.id;
+      p.refs = [];
+      infos.slice(1).forEach(function (info, i) {
+        if (!info) return;
+        V.addRef(info);
+        var r = p.refs[p.refs.length - 1];
+        if (r && r.path === info.path && r.use !== mix.use[refs[i].id]) { r.use = mix.use[refs[i].id]; r.desc = ""; r.descFor = ""; V.readRef(r); }
+      });
+      p.text = mix.text; p.vars = mix.vars;
+      var tries = 0;
+      (function wait() {
+        if (!mix) return;
+        if ((p.refs || []).some(function (r) { return r.reading; }) && tries++ < 240) { setTimeout(wait, 500); return; }
+        mix.status = "Starting"; V.job("c"); mixWatch();
+      })();
+    });
+  }
+  function mixWatch() {
+    if (!mix || !mix.busy) return;
+    var p = VS().S.create;
+    if (p.job) { mix.status = (p.stage || "Working") + (p.frac ? " · " + Math.round(p.frac * 100) + "%" : ""); mixRender(); setTimeout(mixWatch, 700); }
+    else { mix.busy = false; mixRender(); }
+  }
+
   function compare(tiles) {
     var old = document.getElementById("b-compare"); if (old) old.remove();
     var el = document.createElement("div"); el.id = "b-compare"; el.className = "b-compare";
@@ -157,14 +233,32 @@
 
   function place(t, from) {
     var p = from && byId(from);
-    if (p) {
-      var kids = B.tiles.filter(function (k) { return k.from === from && k !== t; });
-      t.x = p.x + W + GAP_X;
-      t.y = kids.length ? Math.max.apply(null, kids.map(function (k) { return k.y + tileH(k); })) + GAP_Y : p.y;
-    } else {
-      var maxY = Math.max.apply(null, B.tiles.map(function (k) { return k.y + tileH(k); }).concat([0]));
-      t.x = 0; t.y = maxY + GAP_Y;
+    // A new picture lands where you are looking: right of the selected tile when it's
+    // on screen, else in the middle of the view; never on top of another tile.
+    var v = B.view, cv = root && root.querySelector("#b-cv"), r = cv ? cv.getBoundingClientRect() : { width: 1200, height: 800 };
+    var vx0 = -v.x / v.z, vy0 = -v.y / v.z, vx1 = vx0 + r.width / v.z, vy1 = vy0 + r.height / v.z;
+    var s = B.sel && byId(B.sel);
+    var lv = live(), minX = lv ? lv.x + W + GAP_X : -1e9;
+    // Target: right of the selected tile when it's on screen, else the middle of the view.
+    var tx, ty;
+    if (p) { tx = p.x + W + GAP_X; ty = p.y; }        // a result: next to what it was made from
+    else if (s && s !== t && s.x < vx1 && s.x + W > vx0 && s.y < vy1 && s.y + tileH(s) > vy0) { tx = s.x + W + GAP_X; ty = s.y; }
+    else { tx = Math.round((vx0 + vx1) / 2 - W / 2); ty = Math.round((vy0 + vy1) / 2 - tileH(t) / 2); }
+    // Then the nearest free spot around it, in every direction (a grid of tile-sized cells).
+    var sx = W + GAP_X, sy = tileH(t) + GAP_Y, best = null;
+    function free(x, y) {
+      return x >= minX && !B.tiles.some(function (k) { return k !== t && k.x < x + W + 24 && k.x + W + 24 > x && k.y < y + tileH(k) + 24 && k.y + tileH(k) + 24 > y; });
     }
+    for (var r = 0; r < 14 && !best; r++) {
+      for (var i = -r; i <= r; i++) for (var j = -r; j <= r; j++) {
+        if (Math.max(Math.abs(i), Math.abs(j)) !== r) continue;
+        var x = tx + i * sx, y = ty + j * sy;
+        if (!free(x, y)) continue;
+        var d = (i * sx) * (i * sx) + (j * sy) * (j * sy) * 1.4 + (!p && (x < vx0 || x + W > vx1) ? 1e7 : 0) + (p && i < 0 ? 1e6 : 0);
+        if (!best || d < best[2]) best = [x, y, d];
+      }
+    }
+    t.x = best ? best[0] : tx; t.y = best ? best[1] : ty;
   }
 
   function add(info, from) {
@@ -215,6 +309,16 @@
     menu.setAttribute("data-id", t.id);
   }
 
+  function showGroupMenu(x, y) {
+    var few = multi.length <= 4;
+    menu.innerHTML = (few ? '<button type="button" data-g="mix">✦ Mix…<kbd>Q</kbd></button><button type="button" data-g="compare">⇆ Compare side by side</button><hr>' : "") +
+      '<button type="button" data-g="remove">Remove ' + multi.length + " from board<kbd>Del</kbd></button>";
+    menu.hidden = false;
+    var r = root.getBoundingClientRect();
+    menu.style.left = Math.min(x - r.left, r.width - 210) + "px";
+    menu.style.top = Math.min(y - r.top, r.height - menu.offsetHeight - 10) + "px";
+  }
+
   function menuAction(a, t) {
     var V = VS(), S = V.S;
     menu.hidden = true;
@@ -238,17 +342,29 @@
   // ---------------------------------------------------------------- organize
 
   function organize() {
+    // Like Vizcom: the Live tile on the far left; pictures flow to the right in creation
+    // order, each with what was made from it to its right; a new row only when it gets wide.
     var kids = {};
     B.tiles.forEach(function (t) { var f = t.from && byId(t.from) ? t.from : ""; (kids[f] = kids[f] || []).push(t); });
-    Object.keys(kids).forEach(function (k) { kids[k].sort(function (a, b) { return (a.kind === "live" ? -1 : 0) - (b.kind === "live" ? -1 : 0) || (a.made || 0) - (b.made || 0); }); });
-    var y = 0;
-    function lay(t, depth, top) {
-      t.x = depth * (W + GAP_X); t.y = top;
-      var bottom = top + tileH(t), cy = top;
-      (kids[t.id] || []).forEach(function (c) { var b = lay(c, depth + 1, cy); cy = b + GAP_Y; bottom = Math.max(bottom, b); });
-      return bottom;
+    Object.keys(kids).forEach(function (k) { kids[k].sort(function (a, b) { return (a.made || 0) - (b.made || 0); }); });
+    function lay(t, x, top) {               // returns [right edge, bottom]
+      t.x = x; t.y = top;
+      var right = x + W, bottom = top + tileH(t), cy = top;
+      (kids[t.id] || []).forEach(function (c) { var r = lay(c, x + W + GAP_X, cy); cy = r[1] + GAP_Y; right = Math.max(right, r[0]); bottom = Math.max(bottom, r[1]); });
+      return [right, bottom];
     }
-    (kids[""] || []).forEach(function (t) { y = lay(t, 0, y) + GAP_Y * 1.6; });
+    var lv = live(), roots = (kids[""] || []).filter(function (t) { return t !== lv; });
+    if (lv) { lv.x = 0; lv.y = 0; }
+    // Lay the groups out in a block about as wide as the screen is (16:9), not one long line.
+    var area = 0;
+    roots.forEach(function (t) { var r = lay(t, 0, 0); area += (r[0] + GAP_X) * (r[1] + GAP_Y); });
+    var x0 = lv ? W + GAP_X * 1.5 : 0, maxW = x0 + Math.max(W * 2 + GAP_X, 1.35 * Math.sqrt(area * 16 / 9)), x = x0, y = 0, rowB = 0;
+    roots.forEach(function (t) {
+      var r = lay(t, x, y);
+      if (r[0] > maxW && x > x0) { x = x0; y = rowB + GAP_Y * 1.6; r = lay(t, x, y); }
+      x = r[0] + GAP_X; rowB = Math.max(rowB, r[1]);
+    });
+    if (lv) (kids[lv.id] || []).forEach(function (c, i) { lay(c, 0, tileH(lv) + GAP_Y + i * (tileH(c) + GAP_Y)); });
     world.classList.add("anim"); setTimeout(function () { world.classList.remove("anim"); }, 450);
     lastHTML = ""; save(); render(); fit();
   }
@@ -265,8 +381,12 @@
 
   // ---------------------------------------------------------------- input
 
+  var spaceDown = false;
   function wire() {
     var cv = root.querySelector("#b-cv"), drag = null;
+    document.addEventListener("keyup", function (e) { if (e.key === " ") { spaceDown = false; cv.classList.remove("pan"); } });
+    root.addEventListener("input", function (e) { if (e.target.id === "bm-text" && mix) mix.text = e.target.value; });
+    root.addEventListener("change", function (e) { var u = e.target.getAttribute && e.target.getAttribute("data-use"); if (u && mix) mix.use[u] = e.target.value; });
     root.addEventListener("click", function (e) {
       var b = e.target.closest("[data-b]");
       if (b) {
@@ -282,7 +402,20 @@
         return;
       }
       var g = e.target.closest("[data-g]");
-      if (g) { groupAction(g.getAttribute("data-g")); return; }
+      if (g) { menu.hidden = true; groupAction(g.getAttribute("data-g")); return; }
+      var mx = e.target.closest("#b-mix");
+      if (mx) {
+        var b2 = e.target.closest("[data-main],[data-x],[data-v]");
+        if (!b2 || !mix) return;
+        if (b2.hasAttribute("data-main") && !mix.busy) {
+          var nm = b2.getAttribute("data-main"), old = mix.main;
+          if (nm !== old) { mix.use[old] = mix.use[nm] || "describe"; delete mix.use[nm]; mix.main = nm; }
+        }
+        else if (b2.getAttribute("data-x") === "close") { mixClose(); return; }
+        else if (b2.getAttribute("data-x") === "run") { mixRun(); return; }
+        else if (b2.hasAttribute("data-v")) mix.vars = Math.max(1, Math.min(4, mix.vars + +b2.getAttribute("data-v")));
+        mixRender(); return;
+      }
       var m = e.target.closest("[data-m]");
       if (m) { var t = byId(menu.getAttribute("data-id")); if (t) menuAction(m.getAttribute("data-m"), t); return; }
       if (!e.target.closest("#b-menu")) menu.hidden = true;
@@ -295,7 +428,9 @@
     cv.addEventListener("contextmenu", function (e) {
       e.preventDefault();
       var el = e.target.closest(".b-tile"); if (!el) { menu.hidden = true; return; }
-      var t = byId(el.getAttribute("data-id")); B.sel = t.id; render(); showMenu(t, e.clientX, e.clientY);
+      var t = byId(el.getAttribute("data-id"));
+      if (multi.length > 1 && multi.indexOf(t.id) >= 0) { showGroupMenu(e.clientX, e.clientY); return; }
+      B.sel = t.id; render(); showMenu(t, e.clientX, e.clientY);
     });
     cv.addEventListener("pointerdown", function (e) {
       if (e.button !== 0 && e.button !== 1) return;
@@ -307,13 +442,17 @@
         // Ctrl or Shift click: add to (or take out of) the group, up to 4.
         if (!multi.length && B.sel && B.sel !== t.id && B.sel !== "live" && byId(B.sel)) multi.push(B.sel);
         var k = multi.indexOf(t.id);
-        if (k >= 0) multi.splice(k, 1); else if (multi.length < 4) multi.push(t.id); else VS().toast && VS().toast("Up to 4 at a time");
+        if (k >= 0) multi.splice(k, 1); else multi.push(t.id);
         lastHTML = ""; render(); return;
       }
       if (t && multi.length && multi.indexOf(t.id) < 0) { multi = []; lastHTML = ""; }
-      if (!t && multi.length && e.button === 0) { multi = []; lastHTML = ""; render(); }
       if (t) { B.sel = t.id; el.parentNode && world.querySelectorAll(".b-tile.sel").forEach(function (n) { n.classList.remove("sel"); }); el.classList.add("sel"); }
-      drag = { t: t, sx: e.clientX, sy: e.clientY, x: t ? t.x : B.view.x, y: t ? t.y : B.view.y, moved: false };
+      // Empty canvas: drag selects (a box); Space or the middle button pans.
+      var pan = !t && (e.button === 1 || spaceDown);
+      var group = t && multi.length > 1 && multi.indexOf(t.id) >= 0 ? multi.map(byId).filter(Boolean).map(function (k) { return { k: k, x: k.x, y: k.y }; }) : null;
+      drag = { t: t, group: group, box: !t && !pan, add: e.shiftKey || e.ctrlKey, keep: multi.slice(), sx: e.clientX, sy: e.clientY,
+               x: t ? t.x : B.view.x, y: t ? t.y : B.view.y, moved: false };
+      if (drag.box && !drag.add) { if (multi.length) { multi = []; lastHTML = ""; render(); } B.sel = null; world.querySelectorAll(".b-tile.sel").forEach(function (n) { n.classList.remove("sel"); }); }
       cv.setPointerCapture(e.pointerId);
     });
     cv.addEventListener("pointermove", function (e) {
@@ -321,16 +460,36 @@
       var dx = e.clientX - drag.sx, dy = e.clientY - drag.sy;
       if (!drag.moved && Math.abs(dx) + Math.abs(dy) < 4) return;
       drag.moved = true;
-      if (drag.t) {
+      if (drag.box) {
+        var r = root.getBoundingClientRect(), v = B.view, mq = root.querySelector("#b-marq");
+        var ax = Math.min(drag.sx, e.clientX) - r.left, ay = Math.min(drag.sy, e.clientY) - r.top, bw = Math.abs(dx), bh = Math.abs(dy);
+        mq.hidden = false; mq.style.left = ax + "px"; mq.style.top = ay + "px"; mq.style.width = bw + "px"; mq.style.height = bh + "px";
+        var wx0 = (ax - v.x) / v.z, wy0 = (ay - v.y) / v.z, wx1 = (ax + bw - v.x) / v.z, wy1 = (ay + bh - v.y) / v.z;
+        var inBox = B.tiles.filter(function (k) { return k.kind !== "live" && k.x < wx1 && k.x + W > wx0 && k.y < wy1 && k.y + tileH(k) > wy0; }).map(function (k) { return k.id; });
+        var next = drag.add ? drag.keep.concat(inBox.filter(function (id) { return drag.keep.indexOf(id) < 0; })) : inBox;
+        if (next.join() !== multi.join()) { multi = next; lastHTML = ""; render(); }
+        return;
+      }
+      if (drag.group) {
+        drag.group.forEach(function (g) {
+          g.k.x = Math.round(g.x + dx / B.view.z); g.k.y = Math.round(g.y + dy / B.view.z);
+          var n = world.querySelector('.b-tile[data-id="' + g.k.id + '"]'); if (n) { n.style.left = g.k.x + "px"; n.style.top = g.k.y + "px"; }
+        });
+        svgEl.innerHTML = linksSVG(); lastHTML = "";
+      } else if (drag.t) {
         drag.t.x = Math.round(drag.x + dx / B.view.z); drag.t.y = Math.round(drag.y + dy / B.view.z);
         var n = world.querySelector('.b-tile[data-id="' + drag.t.id + '"]');
         if (n) { n.style.left = drag.t.x + "px"; n.style.top = drag.t.y + "px"; }
         svgEl.innerHTML = linksSVG(); lastHTML = "";
       } else { B.view.x = drag.x + dx; B.view.y = drag.y + dy; applyView(); }
+      if (mix) mixRender();
       cv.classList.add("grab");
     });
     cv.addEventListener("pointerup", function (e) {
-      if (drag && drag.moved) save();
+      if (drag && drag.box) {
+        root.querySelector("#b-marq").hidden = true;
+        if (multi.length === 1) { B.sel = multi[0]; multi = []; lastHTML = ""; render(); }
+      } else if (drag && drag.moved) save();
       drag = null; cv.classList.remove("grab");
       try { cv.releasePointerCapture(e.pointerId); } catch (x) {}
     });
@@ -345,13 +504,16 @@
         var mx = e.clientX - r.left, my = e.clientY - r.top;
         v.x = mx - (mx - v.x) * z / v.z; v.y = my - (my - v.y) * z / v.z; v.z = z;
       } else { v.x -= e.deltaX; v.y -= e.deltaY; }        // trackpad: two fingers pan
-      applyView(); save();
+      applyView(); save(); if (mix) mixRender();
     }, { passive: false });
     document.addEventListener("keydown", function (e) {
       if (VS().S.page !== "board") return;
-      if (e.key === "Escape") { menu.hidden = true; var cmp = document.getElementById("b-compare"); if (cmp) cmp.remove(); else clearMulti(); return; }
-      var inText = /^(TEXTAREA|INPUT)$/.test((document.activeElement || {}).tagName || "");
+      if (e.key === "Escape") { menu.hidden = true; var cmp = document.getElementById("b-compare"); if (cmp) cmp.remove(); else if (mix && !mix.busy) mixClose(); else clearMulti(); return; }
+      var inText = /^(TEXTAREA|INPUT|SELECT)$/.test((document.activeElement || {}).tagName || "");
       if (inText) return;
+      if (e.key === " " && !spaceDown) { spaceDown = true; cv.classList.add("pan"); e.preventDefault(); return; }
+      if ((e.key === "q" || e.key === "Q") && !e.ctrlKey && multi.length > 1) { e.preventDefault(); groupAction("mix"); return; }
+      if ((e.key === "Delete" || e.key === "Backspace") && multi.length > 1) { removeTiles(multi.map(byId).filter(Boolean)); return; }
       if (e.ctrlKey && e.key.toLowerCase() === "v") { e.preventDefault(); call("studio_paste").then(function (i) { if (i) add(i, null); }); }
       else if ((e.key === "Delete" || e.key === "Backspace") && B.sel && B.sel !== "live") { var t = byId(B.sel); if (t) menuAction("remove", t); }
       else if (e.key === "Enter" && B.sel) { var s = byId(B.sel); if (s) open(s); }
