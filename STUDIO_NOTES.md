@@ -1,5 +1,9 @@
 # Vistiq Studio (test build)
 
+## 0.4.33
+- 3D views: the side of the car is read from where its nose points in the picture (left/right was often mirrored, so views came out on the wrong side). "Wrong side? Swap" fixes a wrong reading.
+- View buttons look like Create's (Add as layer, Open in Create, Photoshop, Upscale), right above Render this view.
+
 ## 0.4.32
 - "3D views" moved below Create. Machine stats show on the 3D page too.
 - Rendering a view looks like Create: blurred picture, progress ring, live preview.

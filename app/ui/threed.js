@@ -22,6 +22,20 @@
     var az = ((SIDES.indexOf(T.base) * 45 - T.yaw) % 360 + 360) % 360;
     return SIDES[Math.round(az / 45) % 8];
   }
+  // Same as studio.parse_view: outside a cabin, the side follows from where the nose points.
+  function parseView(text) {
+    var t = text.toLowerCase(), m = t.match(/side\s*=\s*([a-z-]+)/), n = t.match(/nose\s*=\s*([a-z]+)/), e = t.match(/end\s*=\s*([a-z]+)/);
+    var kind = /interior/.test(t) ? "interior" : /product/.test(t) ? "product" : "exterior";
+    var side = m && SIDES.indexOf(m[1]) >= 0 ? m[1] : "front-left";
+    if (kind !== "interior" && n) {
+      n = n[1]; e = e && e[1];
+      if (n === "toward") side = "front"; else if (n === "away") side = "rear";
+      else if (n === "left" || n === "right") side = e === "front" || e === "rear" ? e + "-" + n : n;
+    }
+    return { kind: kind, side: side };
+  }
+  // left <-> right, when the reading was mirrored
+  function mirror(s) { return s.replace(/left|right/, function (w) { return w === "left" ? "right" : "left"; }); }
   function heightName() { return T.pitch >= 55 ? "high above" : T.pitch >= 15 ? "from above" : T.pitch <= -12 ? "low" : "eye level"; }
   function viewName(side) { return side ? (T.kind === "interior" ? CABIN[side] : NAME[side]) : ""; }
   function moved() { return Math.abs(T.yaw) >= 10 || Math.abs(T.pitch) >= 8 || Math.abs(T.dist) >= 0.25 || T.lens !== "normal"; }
@@ -38,7 +52,7 @@
       '<div class="t-empty" id="t-empty">Open a picture from the board, or press 3D in Create</div></div>' +
       '<div class="t-strip" id="t-strip"></div></div>' +
       '<aside class="s-rail t-rail"><div class="s-rh"><h3>3D views</h3></div>' +
-      '<div><div class="s-label">Working on</div><div class="s-work" id="t-work"></div><p class="s-hint" id="t-seen"></p></div>' +
+      '<div><div class="s-label">Working on</div><div class="s-work" id="t-work"></div><p class="s-hint t-seenrow"><span id="t-seen"></span><button type="button" class="t-swap" id="t-swap" title="The picture shows the other side: swap left and right" hidden>Wrong side? Swap</button></p></div>' +
       '<div><div class="s-label">Show it from</div><div class="t-angles" id="t-angles"></div>' +
       '<div class="t-heights">' + HEIGHTS.map(function (h) { return '<button type="button" data-h="' + h[0] + '">' + h[1] + "</button>"; }).join("") + "</div></div>" +
       '<div><div class="s-label">Or fine-tune</div>' +
@@ -47,11 +61,13 @@
       '<div class="t-sl"><span>Distance</span><input type="range" id="t-dist" min="-1" max="1" step="0.05"><em id="t-dist-v"></em></div>' +
       '<div class="t-lens"><span>Lens</span><button type="button" data-l="wide">Wide</button><button type="button" data-l="normal">Normal</button><button type="button" data-l="tele">Tele</button></div></div>' +
       '<div><div class="s-label">Anything else <em class="s-opt">optional</em></div><textarea id="t-text" rows="2" placeholder="e.g. evening light, doors open"></textarea></div>' +
+      '<div class="s-acts3 t-acts" id="t-acts">' +
+      '<button type="button" class="s-btn" data-x="layer" title="Add this view as a layer over your picture (Create › Layers)" disabled><svg viewBox="0 0 24 24"><path d="M12 3l9 5-9 5-9-5z"/><path d="M3 13l9 5 9-5"/></svg><span>Add as layer</span></button>' +
+      '<button type="button" class="s-btn" data-x="create" title="Open this view in Create" disabled><svg viewBox="0 0 24 24"><path d="M4 20h4L19 9l-4-4L4 16z"/><path d="M13 7l4 4"/></svg><span>Open in Create</span></button>' +
+      '<button type="button" class="s-btn" data-x="ps" title="Send this view to Photoshop as a new layer" disabled><span class="m-ico ps">Ps</span><span>Photoshop</span></button>' +
+      '<button type="button" class="s-btn" data-x="up" title="Upscale this view" disabled><svg viewBox="0 0 24 24"><path d="M12 19V5M6 11l6-6 6 6"/></svg><span>Upscale</span></button></div>' +
       '<div class="t-go"><div class="t-will" id="t-will"></div><button type="button" class="s-go" id="t-go">Render this view</button><button type="button" class="s-btn t-reset" id="t-reset">Reset</button>' +
-      '<p class="s-hint" id="t-hint"></p></div>' +
-      '<div class="t-acts" id="t-acts" hidden><button type="button" class="s-btn" data-x="layer"><span>Add as layer</span></button>' +
-      '<button type="button" class="s-btn" data-x="ps"><span class="m-ico ps">Ps</span><span>Photoshop</span></button>' +
-      '<button type="button" class="s-btn" data-x="create"><span>Open in Create</span></button><button type="button" class="s-btn" data-x="up"><span>Upscale</span></button></div></aside>';
+      '<p class="s-hint" id="t-hint"></p></div></aside>';
     wire();
     setInterval(tick, 600);
     render();
@@ -83,6 +99,7 @@
     root.querySelector("#t-work").innerHTML = has ? '<img src="' + T.src.preview + '" alt=""><div><b>' + esc(V.short(T.src.name || "")) + "</b><small>" + (T.src.w || "") + " × " + (T.src.h || "") + "</small></div>" : "<small>Nothing yet</small>";
     root.querySelector("#t-seen").textContent = !has ? "" : T.reading ? "Reading which side we see…" :
       T.base ? "Seen from: " + viewName(T.base).toLowerCase() + " (" + (T.kind || "picture") + ")" : "";
+    var sw = root.querySelector("#t-swap"); sw.hidden = !T.base || T.reading || !/left|right/.test(T.base);
     // The preview: the picture turns with the camera.
     var c = root.querySelector("#t-card"), s = 1 - T.dist * 0.18;
     // camera above: the top edge comes nearer (wider); below: the bottom edge does
@@ -116,7 +133,7 @@
       pr.querySelector("b").style.width = Math.round((p.frac || 0) * 100) + "%";
       rg.querySelector(".fg").style.strokeDashoffset = String(125.7 * (1 - fr)); rg.querySelector("b").textContent = Math.round(fr * 100) + "%";
     }
-    root.querySelector("#t-acts").hidden = !res;
+    root.querySelectorAll("#t-acts [data-x]").forEach(function (b) { b.disabled = !res; });
     var sh = T.results.map(function (r, i) { return '<button type="button" data-r="' + i + '" class="' + (i === T.sel ? "on" : "") + '"><img src="' + (r.preview || "") + '" alt=""><small>' + esc(r.label || "") + "</small></button>"; }).join("");
     sh = has ? '<button type="button" data-r="-1" class="t-orig' + (T.sel < 0 ? " on" : "") + '"><img src="' + T.src.preview + '" alt=""><small>Original</small></button>' + (sh ? '<span class="t-gap"></span>' + sh : "") : "";
     var st = root.querySelector("#t-strip"); if (st.getAttribute("data-k") !== sh) { st.innerHTML = sh; st.setAttribute("data-k", sh); }
@@ -154,6 +171,7 @@
       else if (l) { T.lens = l.getAttribute("data-l"); render(); }
       else if (r) { var k = +r.getAttribute("data-r"); T.sel = k === T.sel ? -1 : k; render(); }   // again: back to your picture
       else if (x) act(x.getAttribute("data-x"));
+      else if (e.target.closest("#t-swap")) { var tg = target(); T.base = mirror(T.base); if (tg) T.yaw = norm(SIDES.indexOf(T.base) * 45 - SIDES.indexOf(tg) * 45); render(); }
       else if (e.target.closest("#t-reset")) { T.yaw = 0; T.pitch = 0; T.dist = 0; T.lens = "normal"; T.sel = -1; render(); }
       else if (e.target.closest("#t-go")) go();
     });
@@ -212,9 +230,7 @@
       T.reading = true; render();
       a.studio_describe(info.path, "view").then(function (res) {
         T.reading = false;
-        var t = (res && res.text || "").toLowerCase(), m = t.match(/side\s*=\s*([a-z-]+)/);
-        T.base = m && SIDES.indexOf(m[1]) >= 0 ? m[1] : "front-left";
-        T.kind = /interior/.test(t) ? "interior" : /product/.test(t) ? "product" : "exterior";
+        var r = parseView(res && res.text || ""); T.base = r.side; T.kind = r.kind;
         render();
       });
     } else { T.base = "front-left"; T.kind = "exterior"; }

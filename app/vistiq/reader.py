@@ -82,13 +82,18 @@ ASK = {
     "design": ("Describe the design in this picture in two short sentences, so someone could draw it again from "
                "another side: what it is and whether it is a sketch, a render or a photo; its proportions and "
                "silhouette; its key features (lights, grille, wheels, window line, surfaces, colours). Facts only."),
+    # Car-left/right was often mirrored (Nov 2026); which way the nose points in the picture is
+    # read reliably, and the side follows from it (see studio.parse_view).
     "view": ("Look at this picture and answer in exactly this form, nothing else: "
-             "kind=<exterior|interior|product>; side=<front|front-right|right|rear-right|rear|rear-left|left|front-left>; "
-             "height=<low|eye|high|top>. kind: a car seen from outside, a car's inside (cabin, dashboard, seats), or "
-             "anything else. side: for an exterior or product, which side of it faces the camera (the car's own left and "
-             "right, as a driver sitting in it would say); for an interior, where the camera stands in the cabin "
-             "(front = at the windscreen looking back, rear = behind the front seats looking forward, left or right = "
-             "at that door). height: where the camera is."),
+             "kind=<exterior|interior|product>; nose=<left|right|toward|away>; end=<front|rear|none>; "
+             "side=<front|front-right|right|rear-right|rear|rear-left|left|front-left>; height=<low|eye|high|top>. "
+             "kind: a car seen from outside, a car's inside (cabin, dashboard, seats), or anything else. "
+             "nose: which way the front of the car (or object) points in the picture: to the left edge of the "
+             "picture, to the right edge, toward the camera or away from it. end: which end we also see, its front "
+             "end (headlights, grille), its rear end (tail lights), or none (a pure side view). side: for an "
+             "interior, where the camera stands in the cabin (front = at the windscreen looking back, rear = behind "
+             "the front seats looking forward, left or right = at that door); otherwise your best guess. "
+             "height: where the camera is."),
     "materials": ("Describe only the colours, materials and finishes in this picture, part by part (for "
                   "example the seats, dashboard, door panels, console, trims, floor), with precise words: the "
                   "colour, the material (leather, fabric, wood, metal, plastic…), its finish (matte, satin, "

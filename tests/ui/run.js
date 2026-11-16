@@ -709,11 +709,15 @@ const frame = (n, name) => ({ path: "live://photoshop/" + n, name: name || "flat
     check("3D views sits after Create", await p.evaluate(() => [...document.querySelectorAll(".s-nav button[data-page]")].map((b) => b.dataset.page).join(",")) === "board,create,3d,upscale,library,settings", "");
     await p.evaluate(() => {
       const api = window.pywebview.api;
-      api.studio_describe = () => Promise.resolve({ text: "kind=exterior; side=left; height=eye" });
+      api.studio_describe = () => Promise.resolve({ text: "kind=product; nose=right; end=none; side=left; height=eye" });
       api.studio_results_for = () => Promise.resolve([]);
       window.VS3D.open({ path: "C:/o/car.png", name: "car.png", w: 1600, h: 900, preview: "data:image/gif;base64,R0lGODlhAQABAAAAACw=" });
     });
     await p.waitForTimeout(200);
+    check("the side follows where the nose points", await p.evaluate(() => window.VS3D._state().base) === "right", await p.evaluate(() => window.VS3D._state().base));
+    await p.click("#t-swap");
+    check("Swap fixes a mirrored reading", await p.evaluate(() => window.VS3D._state().base) === "left", "");
+    check("view buttons wait for a view", await p.evaluate(() => [...document.querySelectorAll("#t-acts [data-x]")].every((b) => b.disabled)), "");
     await p.click("#p-3d .t-heights [data-h=high]");
     const tf = await p.evaluate(() => document.getElementById("t-card").style.transform);
     check("From above tilts the top edge towards you", /rotateX\(-/.test(tf), tf);
@@ -723,6 +727,8 @@ const frame = (n, name) => ({ path: "live://photoshop/" + n, name: name || "flat
     check("rendering looks like Create: blurred picture and a ring", await p.evaluate(() => document.getElementById("t-card").classList.contains("t-loading") && !document.getElementById("t-ring").hidden), "");
     await p.evaluate(() => { window.VS.S.create.job = null; window.VS3D.onResult({ path: "C:/o/v1.png", name: "v1.png", preview: "data:image/gif;base64,R0lGODlhAQABAIAAAP///wAAACw=", meta: { view: { target: "left" } } });
       window.VS3D.onResult({ path: "C:/o/v2.png", name: "v2.png", preview: "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywA", meta: { view: { target: "front" } } }); });
+    check("view buttons work once there is a view", await p.evaluate(() => [...document.querySelectorAll("#t-acts [data-x]")].every((b) => !b.disabled)), "");
+    await p.screenshot({ path: process.env.SHOT || "/tmp/3d.png" });
     check("a gap after Original", await p.evaluate(() => !!document.querySelector("#t-strip .t-orig + .t-gap")), "");
     await p.click("#t-strip [data-r='-1']");
     await p.click("#t-strip [data-r='0']");

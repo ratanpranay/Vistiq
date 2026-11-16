@@ -448,11 +448,23 @@ CABIN_WORDS = {"front": "from the windscreen, looking back into the cabin over t
 
 
 def parse_view(answer):
-    """The picture reader's answer: (kind, side, height), with safe defaults."""
+    """The picture reader's answer: (kind, side, height), with safe defaults.
+    Outside a cabin the side comes from where the nose points in the picture: a car whose
+    nose points to the picture's left shows its own left side (and the reverse)."""
     a = (answer or "").lower()
     kind = next((k for k in ("interior", "exterior", "product") if k in a), "exterior")
     m = re.search(r"side\s*=\s*([a-z-]+)", a)
     side = m.group(1) if m and m.group(1) in SIDES else "front-left"
+    nose = re.search(r"nose\s*=\s*([a-z]+)", a)
+    end = re.search(r"end\s*=\s*([a-z]+)", a)
+    nose, end = nose and nose.group(1), end and end.group(1)
+    if kind != "interior" and nose:
+        if nose == "toward":
+            side = "front"
+        elif nose == "away":
+            side = "rear"
+        elif nose in ("left", "right"):
+            side = nose if end not in ("front", "rear") else end + "-" + nose
     m = re.search(r"height\s*=\s*([a-z]+)", a)
     height = m.group(1) if m and m.group(1) in ("low", "eye", "high", "top") else "eye"
     return kind, side, height

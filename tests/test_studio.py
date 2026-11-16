@@ -779,3 +779,12 @@ class Condense(unittest.TestCase):
             self.assertEqual(st._condense("sketch", long), long)                    # no helper: untouched
         self.assertNotIn("**", studio.clean_prompt(long))
         self.assertEqual(studio.light_for("interior, warm afternoon sunlight"), "")  # its own light wins
+
+
+class ViewSide(unittest.TestCase):
+    def test_side_from_the_nose(self):
+        from vistiq import studio
+        self.assertEqual(studio.parse_view("kind=product; nose=left; end=front; side=front-right")[1], "front-left")
+        self.assertEqual(studio.parse_view("kind=exterior; nose=right; end=rear; side=front")[1], "rear-right")
+        self.assertEqual(studio.parse_view("kind=exterior; nose=toward; end=front")[1], "front")
+        self.assertEqual(studio.parse_view("kind=interior; nose=left; side=rear")[1], "rear")
