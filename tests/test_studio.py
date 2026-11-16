@@ -800,10 +800,12 @@ class ViewSide(unittest.TestCase):
 class CabinCamera(unittest.TestCase):
     def test_free_camera_in_the_cabin(self):
         from vistiq import studio
-        w, _ = studio.view_words("interior", "rear", 0, 0, cabin={"u": -0.8, "v": 0.8, "look": 0})
-        self.assertIn("in the rear seats on the driver's side, looking toward the windscreen", w)
-        w, _ = studio.view_words("interior", "rear", 0, 0, cabin={"u": 0, "v": -0.2, "look": 90})
-        self.assertIn("between the front seats, looking toward the passenger door", w)
+        # a picture from the rear seats looking forward; the camera goes to the passenger seat, looking at the driver's corner
+        w, _ = studio.view_words("interior", "rear", 0, 0, cabin={"u": 0.6, "v": -0.1, "look": -45})
+        self.assertTrue(w.startswith("Turn the camera 45 degrees to the left and move it to the front passenger seat"), w)
+        self.assertIn("steering wheel, the driver's seat and the driver's door", w)
+        w, _ = studio.view_words("interior", "rear", 0, 0, cabin={"u": -0.6, "v": 0.8, "look": 0})
+        self.assertTrue(w.startswith("Move the camera to the rear seats on the driver's side"), w)
 
 
 class CameraAngles(unittest.TestCase):
@@ -818,7 +820,3 @@ class CameraAngles(unittest.TestCase):
             self.assertEqual(p["6"]["inputs"]["strength_model"], 0.9)
             self.assertNotIn("6", studio.qwenedit_prompt(None, ["a.png"], "x", seed=1))
 
-    def test_cabin_says_what_it_sees(self):
-        from vistiq import studio
-        w, _ = studio.view_words("interior", "rear", 0, 0, cabin={"u": 0.6, "v": -0.1, "look": -45})
-        self.assertIn("steering wheel, the driver's seat and the driver's door", w)

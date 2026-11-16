@@ -33,6 +33,7 @@
       if (n === "toward") side = "front"; else if (n === "away") side = "rear";
       else if (n === "left" || n === "right") side = e === "front" || e === "rear" ? e + "-" + n : n;
     }
+    if (kind === "interior" && side === "front") side = "rear";     // as studio.parse_view
     return { kind: kind, side: side };
   }
   // The card turns with the camera, but never edge-on: past a side it shows its back (mirrored),

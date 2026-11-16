@@ -1,5 +1,9 @@
 # Vistiq Studio (test build)
 
+## 0.4.45
+- Cabin views actually move: the model is told how to turn and move from your picture's camera ("turn the camera 45 degrees to the left and move it to the front passenger seat…"); named places alone left the view unchanged.
+- A cabin picture read as "from the windscreen" is taken as from the rear seats (the usual view).
+
 ## 0.4.44
 - (testing) 3D views can try other camera wordings from lab.json.
 

@@ -515,6 +515,10 @@ def parse_view(answer):
             side = "rear"
         elif nose in ("left", "right"):
             side = nose if end not in ("front", "rear") else end + "-" + nose
+    if kind == "interior" and side == "front":
+        # the reader says "front" for almost every cabin picture; looking back from the
+        # windscreen is rare, looking forward from the rear seats is the usual view
+        side = "rear"
     m = re.search(r"height\s*=\s*([a-z]+)", a)
     height = m.group(1) if m and m.group(1) in ("low", "eye", "high", "top") else "eye"
     return kind, side, height
@@ -525,14 +529,14 @@ CABIN_LOOKS = ["toward the windscreen and dashboard", "toward the front passenge
                "toward the driver's door", "toward the driver's front corner"]
 
 
-CABIN_SEES = ["ahead: the dashboard, the steering wheel and the windscreen",
-              "ahead and to the right: the passenger side of the dashboard and the passenger door, at an angle",
-              "close by: the passenger door panel and its window",
+CABIN_SEES = ["the dashboard, the steering wheel and the windscreen ahead",
+              "the passenger side of the dashboard and the passenger door, at an angle",
+              "the passenger side: the passenger seat, its door and window",
               "the rear passenger door and the right rear seat",
               "the rear seats and the back window",
               "the rear driver-side door and the left rear seat",
-              "close by: the driver's door panel and its window",
-              "ahead and to the left: the steering wheel, the driver's seat and the driver's door, seen at an angle across the cabin"]
+              "the driver's side: the driver's seat, its door and window",
+              "the steering wheel, the driver's seat and the driver's door, seen at an angle across the cabin"]
 
 
 def cabin_words(u, v, look):
@@ -548,6 +552,41 @@ def cabin_words(u, v, look):
             "from the picture")
 
 
+def cabin_place(u, v):
+    u, v = float(u), float(v)
+    side = "driver's side" if u < -0.35 else "passenger side" if u > 0.35 else ""
+    if v < -0.5:
+        return "the dashboard" + (" on the " + side if side else "")
+    if v < 0.1:
+        return "the driver's seat" if u < -0.35 else "the front passenger seat" if u > 0.35 else "between the front seats"
+    if v < 0.5:
+        return "just behind the front seats" + (" on the " + side if side else ", in the middle")
+    return "the rear seats" + (" on the " + side if side else ", in the middle")
+
+
+def cabin_move(base_side, u, v, look, height):
+    """Inside a cabin the model follows a relative move from the picture's camera ("turn the
+    camera 45 degrees to the left and move it to the front passenger seat"), not a place
+    named on its own (tested Nov 2026: named places left the view unchanged)."""
+    import math
+    az = math.radians(SIDES.index(base_side if base_side in SIDES else "rear") * 45)
+    bu, bv, blook = math.sin(az) * 30 / 38.0, -math.cos(az) * 62 / 82.0, (math.degrees(az) + 180) % 360
+    turn = int(round(((float(look) - blook + 540) % 360 - 180) / 15.0)) * 15
+    k = int(round(float(look) / 45.0)) % 8
+    parts = []
+    if abs(turn) >= 15:
+        parts.append("Turn the camera %d degrees to the %s" % (abs(turn), "right" if turn > 0 else "left"))
+    here, there = cabin_place(bu, bv), cabin_place(u, v)
+    if there != here or math.hypot(float(u) - bu, float(v) - bv) > 0.3:
+        parts.append(("and move it to " if parts else "Move the camera to ") + there)
+    if not parts:
+        parts.append("Keep the camera where it is")
+    hs = ("" if height == "from eye level" else ", raise it and look down" if "above" in height or "raised" in height
+          else ", lower it and look up")
+    return (" ".join(parts) + hs + ", so it looks " + CABIN_LOOKS[k] + ": the new picture shows " + CABIN_SEES[k] +
+            ". Same car interior, same design, materials and colours.")
+
+
 def view_words(kind, side, yaw, pitch, dist=0.0, lens="normal", target=None, design="", cabin=None):
     """Words for the view after turning the camera by yaw (dragging right brings the
     picture's left side forward) and pitch degrees, or straight to `target` (a side).
@@ -561,13 +600,23 @@ def view_words(kind, side, yaw, pitch, dist=0.0, lens="normal", target=None, des
     height = ("from high above, looking down at it" if p >= 55 else
               "from a slightly raised camera, a little above the roof, looking down a little, the side still fully visible" if p >= 15
               else "from a low camera close to the ground, looking up at it" if p <= -12 else "from eye level")
-    if kind == "interior" and cabin:
-        where = cabin_words(cabin.get("u", 0), cabin.get("v", 0), cabin.get("look", 0)) + ", " + height
-    elif kind == "interior":
-        # a named spot: on the ring round the cabin, looking across it (as the plan draws it)
+    if kind == "interior":
+        # where to go: the plan's free camera, or a named spot on the ring round the cabin looking across it
         import math
-        az = math.radians(SIDES.index(target) * 45)
-        where = cabin_words(math.sin(az) * 30 / 38.0, -math.cos(az) * 62 / 82.0, (SIDES.index(target) * 45 + 180) % 360) + ", " + height
+        if cabin:
+            u, v, lk = cabin.get("u", 0), cabin.get("v", 0), cabin.get("look", 0)
+        else:
+            az = math.radians(SIDES.index(target) * 45)
+            u, v, lk = math.sin(az) * 30 / 38.0, -math.cos(az) * 62 / 82.0, (SIDES.index(target) * 45 + 180) % 360
+        move = cabin_move(side, u, v, lk, height)
+        extra = []
+        if lens == "wide":
+            extra.append("Use a wide-angle lens.")
+        elif lens == "tele":
+            extra.append("Use a long lens.")
+        design = " ".join((design or "").split()).strip()
+        return (move + (" The interior: " + design if design else "") + (" " + " ".join(extra) if extra else "") +
+                " Add no logos, badges or text that are not in the picture."), target
     else:
         where = "the " + SIDE_WORDS[target] + ", " + height
     extra = []
