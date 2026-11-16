@@ -151,6 +151,12 @@ FILES = [
      "names": ["Qwen-Image-Edit-2511-Lightning-4steps-V1.0-bf16.safetensors"], "gb": 0.85, "optional": True,
      "url": HF % ("lightx2v/Qwen-Image-Edit-2511-Lightning", "Qwen-Image-Edit-2511-Lightning-4steps-V1.0-bf16.safetensors"),
      "page": "https://huggingface.co/lightx2v/Qwen-Image-Edit-2511-Lightning", "about": "4 steps instead of 40."},
+    # Camera angles (Nov 2026): a LoRA trained only on camera moves for this model; 3D views
+    # follow the chosen view far more often with it ("<sks> back-left quarter view ...").
+    {"key": "qie_angles", "part": "qwenedit", "folder": "loras", "label": "Camera angles",
+     "names": ["qwen-image-edit-2511-multiple-angles-lora.safetensors"], "gb": 0.3, "optional": True,
+     "url": HF % ("fal/Qwen-Image-Edit-2511-Multiple-Angles-LoRA", "qwen-image-edit-2511-multiple-angles-lora.safetensors"),
+     "page": "https://huggingface.co/fal/Qwen-Image-Edit-2511-Multiple-Angles-LoRA", "about": "Apache-2.0. Better 3D views."},
     # MetaView (experimental, Nov 2026): one picture + a camera move (yaw, pitch) renders the
     # scene from the new viewpoint. Built on Qwen Image Edit (shares its reader and decoder).
     # Its depth models (Depth-Anything-3) are non-commercial (CC BY-NC 4.0).
@@ -314,6 +320,24 @@ def metaview_nodes_dir():
     return os.path.join(portable_dir(), "ComfyUI", "custom_nodes", MV_NODES_DIR)
 
 
+def angles_ready(settings=None):
+    return qwenedit_ready(settings) and _have("qie_angles", settings)
+
+
+ANGLE_AZ = {"front": "front view", "front-right": "front-right quarter view", "right": "right side view",
+            "rear-right": "back-right quarter view", "rear": "back view", "rear-left": "back-left quarter view",
+            "left": "left side view", "front-left": "front-left quarter view"}
+
+
+def angles_text(target, pitch=0.0, dist=0.0):
+    """The Camera angles LoRA's own wording: <sks> azimuth elevation distance."""
+    p = float(pitch)
+    elev = ("high-angle shot" if p >= 55 else "elevated shot" if p >= 15 else "low-angle shot" if p <= -12 else "eye-level shot")
+    d = float(dist)
+    far = "close-up" if d <= -0.25 else "wide shot" if d >= 0.25 else "medium shot"
+    return "<sks> %s %s %s" % (ANGLE_AZ.get(target, "front view"), elev, far)
+
+
 def metaview_ready(settings=None):
     return (sys.platform != "darwin" and os.path.isdir(metaview_nodes_dir())
             and all(_have(k, settings) for k in ("mv", "mv_giant", "mv_giant_cfg", "mv_depth", "mv_depth_cfg", "qie_te", "qie_vae")))
@@ -357,7 +381,7 @@ QE_STEPS = 4
 
 
 def qwenedit_prompt(settings, images, text, seed=None, frame=0, megapixels=QE_MP, steps=QE_STEPS, ref_latent=True,
-                    ref_mp=1.0):
+                    ref_mp=1.0, angles=0.0):
     """Qwen Image Edit 2511 with its 4-step speed-up (ComfyUI's own template,
     minus the extras). images[0] is the picture worked on; up to two more are
     references. `frame`: the image whose size the result takes.
@@ -374,6 +398,10 @@ def qwenedit_prompt(settings, images, text, seed=None, frame=0, megapixels=QE_MP
                                                                 "strength_model": 1.0}},
         "5": {"class_type": "ModelSamplingAuraFlow", "inputs": {"model": ["4", 0], "shift": 3.1}},
     }
+    if angles:
+        p["6"] = {"class_type": "LoraLoaderModelOnly", "inputs": {"model": ["4", 0], "lora_name": os.path.basename(find("qie_angles", s)),
+                                                                    "strength_model": float(angles)}}
+        p["5"]["inputs"]["model"] = ["6", 0]
     enc = {"clip": ["2", 0], "prompt": text}
     if not ref_latent:
         enc["vae"] = ["3", 0]
@@ -495,6 +523,16 @@ CABIN_LOOKS = ["toward the windscreen and dashboard", "toward the front passenge
                "toward the driver's door", "toward the driver's front corner"]
 
 
+CABIN_SEES = ["ahead: the dashboard, the steering wheel and the windscreen",
+              "ahead and to the right: the passenger side of the dashboard and the passenger door, at an angle",
+              "close by: the passenger door panel and its window",
+              "the rear passenger door and the right rear seat",
+              "the rear seats and the back window",
+              "the rear driver-side door and the left rear seat",
+              "close by: the driver's door panel and its window",
+              "ahead and to the left: the steering wheel, the driver's seat and the driver's door, seen at an angle across the cabin"]
+
+
 def cabin_words(u, v, look):
     """Inside the cabin: where the camera stands (u: driver side -1 .. passenger side 1,
     v: dashboard -1 .. rear seats 1) and where it looks (degrees, 0 = forward, clockwise)."""
@@ -502,8 +540,10 @@ def cabin_words(u, v, look):
     row = ("at the dashboard" if v < -0.5 else "in the front row, between the front seats" if v < 0.1 and abs(u) <= 0.35
            else "in the front row" if v < 0.1 else "just behind the front seats" if v < 0.5 else "in the rear seats")
     side = "" if "between" in row else (" on the driver's side" if u < -0.35 else " on the passenger side" if u > 0.35 else " in the middle")
-    return ("from inside the cabin: the camera stands " + row + side + ", looking " +
-            CABIN_LOOKS[int(round(float(look) / 45.0)) % 8])
+    k = int(round(float(look) / 45.0)) % 8
+    return ("from inside the cabin: the camera stands " + row + side + ", looking " + CABIN_LOOKS[k] +
+            "; the new picture shows " + CABIN_SEES[k] + ". The camera has clearly moved: the view is different "
+            "from the picture")
 
 
 def view_words(kind, side, yaw, pitch, dist=0.0, lens="normal", target=None, design="", cabin=None):
@@ -681,6 +721,7 @@ def status(settings=None):
             "reader_ready": reader_installed(settings), "reader_xl_ready": reader_xl_installed(settings),
             "home": home(settings), "comfy_models": guess_comfy_models(settings),
             "flux3": flux3_ready(settings), "qwenedit": qwenedit_ready(settings), "metaview": metaview_ready(settings),
+            "angles": angles_ready(settings),
             "engine_choice": (settings.get("studio_engine") if settings else "") or "flux3"}
 
 

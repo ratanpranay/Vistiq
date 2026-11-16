@@ -804,3 +804,21 @@ class CabinCamera(unittest.TestCase):
         self.assertIn("in the rear seats on the driver's side, looking toward the windscreen", w)
         w, _ = studio.view_words("interior", "rear", 0, 0, cabin={"u": 0, "v": -0.2, "look": 90})
         self.assertIn("between the front seats, looking toward the passenger door", w)
+
+
+class CameraAngles(unittest.TestCase):
+    def test_wording_and_graph(self):
+        from vistiq import studio
+        self.assertEqual(studio.angles_text("rear-left", 30, 0), "<sks> back-left quarter view elevated shot medium shot")
+        self.assertEqual(studio.angles_text("front", -20, -0.5), "<sks> front view low-angle shot close-up")
+        with mock.patch.object(studio, "find", lambda k, s=None: "/m/" + k + ".safetensors"):
+            p = studio.qwenedit_prompt(None, ["a.png"], "x", seed=1, angles=0.9, ref_latent=False)
+            self.assertEqual(p["6"]["inputs"]["model"], ["4", 0])
+            self.assertEqual(p["5"]["inputs"]["model"], ["6", 0])
+            self.assertEqual(p["6"]["inputs"]["strength_model"], 0.9)
+            self.assertNotIn("6", studio.qwenedit_prompt(None, ["a.png"], "x", seed=1))
+
+    def test_cabin_says_what_it_sees(self):
+        from vistiq import studio
+        w, _ = studio.view_words("interior", "rear", 0, 0, cabin={"u": 0.6, "v": -0.1, "look": -45})
+        self.assertIn("steering wheel, the driver's seat and the driver's door", w)

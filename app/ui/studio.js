@@ -1972,9 +1972,9 @@
       (st.qwenedit ? "Understands context: new views, scene changes" : "Not downloaded yet") + "</small></button></div>" +
       (st.qwenedit ? "" : '<div class="s-row"><div class="n"><b>Qwen Image Edit 2511</b><small>Reads the picture itself, so it understands what a sketch shows and what a change means. About a minute a picture.</small></div><span class="s-pill">31 GB</span>' +
         '<button type="button" class="s-btn p" data-su="get-qwenedit"' + (running ? " disabled" : "") + ">Download</button></div>") +
-      (!st.qwenedit ? "" : st.metaview ? '<div class="s-row"><div class="n"><b>MetaView <em class="s-opt">experimental</em></b><small>Moves the camera in a picture (yaw, pitch). Ready.</small></div></div>' :
-        '<div class="s-row"><div class="n"><b>MetaView <em class="s-opt">experimental</em></b><small>Moves the camera in a picture: turn and tilt the view, the scene is redrawn. Its depth models are for non-commercial use.</small></div><span class="s-pill">39 GB</span>' +
-        '<button type="button" class="s-btn p" data-su="get-metaview"' + (running ? " disabled" : "") + ">Download</button></div>");
+      (!st.qwenedit ? "" : st.angles ? '<div class="s-row"><div class="n"><b>Camera angles</b><small>Helps 3D views turn to the view you chose. Ready.</small></div></div>' :
+        '<div class="s-row"><div class="n"><b>Camera angles</b><small>Helps 3D views turn to the view you chose (outside views).</small></div><span class="s-pill">0.3 GB</span>' +
+        '<button type="button" class="s-btn p" data-su="get-qwenedit"' + (running ? " disabled" : "") + ">Download</button></div>");
   }
   function fileRows(files) {
     return files.map(function (f) {

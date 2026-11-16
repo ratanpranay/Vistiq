@@ -840,7 +840,11 @@ class Studio:
                 words, target = studio.view_words(kind, side, v.get("yaw", 0), v.get("pitch", 0), float(v.get("dist", 0)),
                                                    v.get("lens", "normal"), v.get("target"), design, v.get("cabin"))
                 extra = (job.get("text") or "").strip()
-                job = dict(job, text=words + (" " + extra if extra else ""), said=extra,
+                # Outside, with the Camera angles LoRA: its own wording (a cabin isn't what it learned).
+                ang = kind != "interior" and studio.angles_ready(s)
+                if ang:
+                    words = studio.angles_text(target, v.get("pitch", 0), float(v.get("dist", 0)))
+                job = dict(job, text=words + (" " + extra if extra else ""), said=extra, angles=0.9 if ang else 0.0,
                            locks=dict(job.get("locks") or {}, camera=False), view=dict(v, kind=kind, seen=side, target=target))
                 text = job["text"]
             elif job.get("instant"):
@@ -944,6 +948,7 @@ class Studio:
                                                     # the full-size picture holds every part in place: right when
                                                     # the camera stays, but it stops a new view (3D, Camera unlocked,
                                                     # a camera reference), so those keep the model's own small one
+                                                    angles=float(lab.get("angles", job.get("angles") or 0.0)),
                                                     ref_latent=bool(lab.get("qe_reflat", not job.get("view") and not cam_i and
                                                                             (job.get("locks") or {}).get("camera") is not False)))
                 elif sys.platform == "darwin":

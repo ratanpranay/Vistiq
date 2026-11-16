@@ -250,7 +250,7 @@ class WholeRun(unittest.TestCase):
         src = os.path.join(self.tmp.name, "car.png")
         Image.new("RGB", (1600, 900), "white").save(src)
         self.engine.runs.clear()
-        with mock.patch.object(studio, "use_qwenedit", lambda s=None: True), \
+        with mock.patch.object(studio, "use_qwenedit", lambda s=None: True), mock.patch.object(studio, "angles_ready", lambda s=None: False), \
                 mock.patch.object(self.st, "_read", lambda path, use, *a, **k: "kind=exterior; side=front-left; height=eye" if use == "view" else "A boxy SUV with a long roof" if use == "design" else "EXPANDED"):
             r = self.go({"mode": "create", "image": src, "text": "", "variations": 1,
                          "view": {"yaw": 90, "pitch": -20, "dist": 0, "lens": "normal", "target": "rear-left"}})
