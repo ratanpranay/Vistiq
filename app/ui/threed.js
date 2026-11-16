@@ -51,7 +51,7 @@
       '<div class="t-tag" id="t-tag" hidden></div>' +
       '<div class="s-pring t-pring" id="t-ring" hidden><svg viewBox="0 0 48 48"><circle cx="24" cy="24" r="20" class="bg"/><circle cx="24" cy="24" r="20" class="fg"/></svg><b></b></div>' +
       '<div class="s-busy t-busy" id="t-prog" hidden><span></span><i><b></b></i></div>' +
-      '<div class="t-orbit t-plan" id="t-orbit" title="Drag the dot to place the camera (seen from above, front at the top)"><div class="t-ph" id="t-ph"></div><canvas id="t-plan" width="340" height="440"></canvas></div>' +
+      '<div class="t-orbit t-plan" id="t-orbit" title="Drag the dot to place the camera (seen from above, front at the top)"><div class="t-ph" id="t-ph"></div><div class="t-pload" id="t-pload" hidden><i></i>Loading view navigator…</div><canvas id="t-plan" width="340" height="440"></canvas></div>' +
       '<div class="t-tip" id="t-tip">Drag the picture or the dot to turn the camera · scroll to move closer</div>' +
       '<div class="t-empty" id="t-empty">Open a picture from the board, or press 3D in Create</div></div>' +
       '<div class="t-strip" id="t-strip"></div></div>' +
@@ -101,7 +101,10 @@
     if (res) tag.textContent = (res.label || "New view") + " · hold to see the original";
     root.querySelector("#t-orbit").hidden = showRes || busy; root.querySelector("#t-tip").hidden = showRes || !has || busy;
     root.querySelector("#t-work").innerHTML = has ? '<img src="' + T.src.preview + '" alt=""><div><b>' + esc(V.short(T.src.name || "")) + "</b><small>" + (T.src.w || "") + " × " + (T.src.h || "") + "</small></div>" : "<small>Nothing yet</small>";
-    root.querySelector("#t-seen").textContent = !has ? "" : T.reading ? "Reading which side we see…" :
+    var rd = has && T.reading;
+    root.querySelector("#t-pload").hidden = !rd; root.querySelector("#t-plan").style.visibility = rd ? "hidden" : "";
+    root.classList.toggle("t-reading", rd);
+    root.querySelector("#t-seen").textContent = !has ? "" : T.reading ? "Loading view navigator…" :
       T.base ? "Your picture: " + viewName(T.base).toLowerCase() + " (the grey ring on the plan; drag it if that's wrong)" : "";
     // The preview: the picture turns with the camera.
     var c = root.querySelector("#t-card"), s = 1 - T.dist * 0.18;
@@ -125,7 +128,7 @@
     root.querySelectorAll(".t-heights button").forEach(function (b) { var h = HEIGHTS.filter(function (x) { return x[0] === b.getAttribute("data-h"); })[0]; b.classList.toggle("on", T.pitch === h[2]); });
     root.querySelector("#t-will").innerHTML = tg && moved() ? "Will show: <b>" + esc(inCab() ? cabinLabel(T.cam) : viewName(tg)) + "</b>, " + heightName() : "";
     var go = root.querySelector("#t-go");
-    go.disabled = !has || !moved() || busy || !!p.job && !T.running;
+    go.disabled = !has || T.reading || !moved() || busy || !!p.job && !T.running;
     go.textContent = busy ? (p.stage || "Working") + (p.frac ? " · " + Math.round(p.frac * 100) + "%" : "") : "Render this view";
     root.querySelector("#t-hint").textContent = busy ? "" : !moved() ? "Pick a view or drag the picture." : "Same design, new camera. About 2 minutes.";
     var pr = root.querySelector("#t-prog"), rg = root.querySelector("#t-ring"), fr = Math.max(0.02, p.frac || 0);
@@ -217,7 +220,7 @@
 
   function wire() {
     var pl = root.querySelector("#t-plan"), pd = false;
-    pl.addEventListener("pointerdown", function (e) { if (!T.base || T.running) return; e.stopPropagation(); e.preventDefault(); pd = true; pl.setPointerCapture(e.pointerId); planDown(e); });
+    pl.addEventListener("pointerdown", function (e) { if (!T.base || T.running || T.reading) return; e.stopPropagation(); e.preventDefault(); pd = true; pl.setPointerCapture(e.pointerId); planDown(e); });
     pl.addEventListener("pointermove", function (e) { if (pd) planMove(e); });
     pl.addEventListener("pointerup", function () { pd = false; pmode = null; });
     pl.addEventListener("pointercancel", function () { pd = false; pmode = null; });
@@ -229,7 +232,7 @@
         hold = ri.getAttribute("src"); ri.src = T.src.preview; st.classList.add("hold");
         root.querySelector("#t-tag").textContent = "Original"; return;
       }
-      if (T.running) return;
+      if (T.running || T.reading) return;
       drag = { x: e.clientX, y: e.clientY, yaw: T.yaw, pitch: T.pitch }; st.setPointerCapture(e.pointerId); st.classList.add("grab");
     });
     st.addEventListener("pointermove", function (e) {
@@ -250,7 +253,7 @@
       if (a && T.base) { T.cam = null; T.yaw = norm(SIDES.indexOf(T.base) * 45 - SIDES.indexOf(a.getAttribute("data-a")) * 45); T.sel = -1; render(); }
       else if (h) { T.pitch = HEIGHTS.filter(function (q) { return q[0] === h.getAttribute("data-h"); })[0][2]; T.sel = -1; render(); }
       else if (l) { T.lens = l.getAttribute("data-l"); render(); }
-      else if (r) { var k = +r.getAttribute("data-r"); T.sel = k === T.sel ? -1 : k; render(); }   // again: back to your picture
+      else if (r) { var k = +r.getAttribute("data-r"); T.sel = k === T.sel ? -1 : k; full(T.results[T.sel]); render(); }   // again: back to your picture
       else if (x) act(x.getAttribute("data-x"));
       else if (e.target.closest("#t-reset")) { T.cam = null; T.yaw = 0; T.pitch = 0; T.dist = 0; T.lens = "normal"; T.sel = -1; render(); }
       else if (e.target.closest("#t-go")) go();
@@ -297,11 +300,18 @@
   }
 
   // A result of a 3D render: into this page's strip and onto the board, next to its picture.
+  // Views made earlier come with a thumbnail only: load the picture itself when one is shown.
+  function full(r) {
+    if (!r || !r.thumbOnly || r.loading) return;
+    r.loading = true;
+    VS().api().studio_image(r.path).then(function (info) { r.loading = false; if (info && info.preview) { r.preview = info.preview; r.thumbOnly = false; render(); } });
+  }
+
   function onResult(res) {
     if (!res || !res.meta || !res.meta.view) return false;
     var r = Object.assign({}, res, { label: T.wantLabel || viewName(res.meta.view.target) });
     T.results.push(r); T.sel = T.results.length - 1;
-    if (window.VSBoard && T.src) window.VSBoard.addBeside(r, T.src);
+    // (not on the board: views stay with their picture here; Add as layer puts one in its layers)
     render();
     return true;
   }
@@ -332,7 +342,7 @@
       if (T.src !== info || !list) return;
       list.forEach(function (r) {
         if (!r.meta || !r.meta.view || T.results.some(function (x) { return x.path === r.path; })) return;
-        T.results.push({ path: r.path, name: r.name, w: r.w, h: r.h, preview: r.thumb, meta: r.meta, made: r.made, label: viewName(r.meta.view.target) });
+        T.results.push({ path: r.path, name: r.name, w: r.w, h: r.h, preview: r.thumb, thumbOnly: true, meta: r.meta, made: r.made, label: viewName(r.meta.view.target) });
       });
       render();
     });

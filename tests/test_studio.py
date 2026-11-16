@@ -802,7 +802,7 @@ class CabinCamera(unittest.TestCase):
         from vistiq import studio
         # a picture from the rear seats looking forward; the camera goes to the passenger seat, looking at the driver's corner
         w, _ = studio.view_words("interior", "rear", 0, 0, cabin={"u": 0.6, "v": -0.1, "look": -45})
-        self.assertTrue(w.startswith("Turn the camera 45 degrees to the left and move it to the front passenger seat"), w)
+        self.assertTrue(w.startswith("Turn the camera 45 degrees to the left and move it to the front passenger's head position"), w)
         self.assertIn("steering wheel, the driver's seat and the driver's door", w)
         w, _ = studio.view_words("interior", "rear", 0, 0, cabin={"u": -0.6, "v": 0.8, "look": 0})
         self.assertTrue(w.startswith("Move the camera to the rear seats on the driver's side"), w)

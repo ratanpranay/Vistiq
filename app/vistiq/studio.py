@@ -557,8 +557,10 @@ def cabin_place(u, v):
     side = "driver's side" if u < -0.35 else "passenger side" if u > 0.35 else ""
     if v < -0.5:
         return "the dashboard" + (" on the " + side if side else "")
-    if v < 0.1:
-        return "the driver's seat" if u < -0.35 else "the front passenger seat" if u > 0.35 else "between the front seats"
+    if v < 0.1:   # the camera is where a person's eyes are, not looking at the seat from behind
+        return ("the driver's head position, as if sitting in the driver's seat" if u < -0.35 else
+                "the front passenger's head position, as if sitting in the passenger seat" if u > 0.35 else
+                "between the front seats, at head height")
     if v < 0.5:
         return "just behind the front seats" + (" on the " + side if side else ", in the middle")
     return "the rear seats" + (" on the " + side if side else ", in the middle")

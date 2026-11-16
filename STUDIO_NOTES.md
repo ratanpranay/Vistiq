@@ -1,5 +1,11 @@
 # Vistiq Studio (test build)
 
+## 0.4.46
+- 3D views: "Loading view navigator…" while the picture is read; the plan and buttons wait until it's ready.
+- Views made earlier show full size (they showed as small thumbnails).
+- 3D views no longer go on the board; they stay with their picture (Add as layer puts one in that file's layers).
+- Cabin: a camera in a front seat is at the person's head position (it showed the seat from behind).
+
 ## 0.4.45
 - Cabin views actually move: the model is told how to turn and move from your picture's camera ("turn the camera 45 degrees to the left and move it to the front passenger seat…"); named places alone left the view unchanged.
 - A cabin picture read as "from the windscreen" is taken as from the rear seats (the usual view).

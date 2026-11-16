@@ -785,7 +785,7 @@ const frame = (n, name) => ({ path: "live://photoshop/" + n, name: name || "flat
     await p.click("#t-acts [data-x=layer]"); await p.waitForTimeout(400);
     check("Add as layer puts the view on that picture in Create", await p.evaluate(() => { const d = window.VSSketch._state().docs["C:/o/cabin.png"]; return !!d && d.layers.some((L) => L.kind !== "base" && /3D|Driver|v9/.test(L.name || "")); }),
       await p.evaluate(() => JSON.stringify(Object.keys(window.VSSketch._state().docs))));
-    check("the view joins its picture on the board, no 3D frame", await p.evaluate(() => { const b = window.VSBoard._state(), v = b.tiles.find((k) => k.path === "C:/o/v9.png"); return !!v && !!v.from && !b.tiles.some((k) => k.kind === "frame"); }), "");
+    check("3D views stay off the board", await p.evaluate(() => !window.VSBoard._state().tiles.some((k) => k.path === "C:/o/v9.png")), "");
     // A Live picture: the view goes back into Photoshop.
     await p.evaluate(() => { window.VS.S.live.app = "photoshop"; window.VS.setImage(window.VS.S.create, "src", { path: "live://photoshop/3", name: "flat.psd", w: 1600, h: 900, n: 3, live: true, app: "photoshop", preview: "data:image/gif;base64,R0lGODlhAQABAAAAACw=" }); });
     await p.click(".s-nav button[data-page=board]"); await p.click(".s-nav button[data-page='3d']"); await p.waitForTimeout(300);
