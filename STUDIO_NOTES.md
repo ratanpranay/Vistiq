@@ -1,5 +1,12 @@
 # Vistiq Studio (test build)
 
+## 0.4.34
+- 3D views: "Your picture shows" is a menu: if the side was read wrong, pick the right one (your chosen view stays).
+- The dial shows the camera's place around the design, seen from above (front at the top; ring = your picture, dot = the new view).
+- The card turns the real way: past a side it shows its back (the far side), and "from above" tilts the right way from any side.
+- Better reading of three-quarter views (the reader called them "front").
+- Machine stats no longer cover the tabs.
+
 ## 0.4.33
 - 3D views: the side of the car is read from where its nose points in the picture (left/right was often mirrored, so views came out on the wrong side). "Wrong side? Swap" fixes a wrong reading.
 - View buttons look like Create's (Add as layer, Open in Create, Photoshop, Upscale), right above Render this view.

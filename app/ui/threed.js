@@ -34,8 +34,9 @@
     }
     return { kind: kind, side: side };
   }
-  // left <-> right, when the reading was mirrored
-  function mirror(s) { return s.replace(/left|right/, function (w) { return w === "left" ? "right" : "left"; }); }
+  // The card turns with the camera, but never edge-on: past a side it shows its back (mirrored),
+  // as the far side of the design would face you.
+  function cardTurn(f) { var a = Math.abs(f), g = a <= 90 ? a * 0.6 : 180 - (180 - a) * 0.6; return (f < 0 ? -1 : 1) * g; }
   function heightName() { return T.pitch >= 55 ? "high above" : T.pitch >= 15 ? "from above" : T.pitch <= -12 ? "low" : "eye level"; }
   function viewName(side) { return side ? (T.kind === "interior" ? CABIN[side] : NAME[side]) : ""; }
   function moved() { return Math.abs(T.yaw) >= 10 || Math.abs(T.pitch) >= 8 || Math.abs(T.dist) >= 0.25 || T.lens !== "normal"; }
@@ -48,11 +49,11 @@
       '<div class="t-tag" id="t-tag" hidden></div>' +
       '<div class="s-pring t-pring" id="t-ring" hidden><svg viewBox="0 0 48 48"><circle cx="24" cy="24" r="20" class="bg"/><circle cx="24" cy="24" r="20" class="fg"/></svg><b></b></div>' +
       '<div class="s-busy t-busy" id="t-prog" hidden><span></span><i><b></b></i></div>' +
-      '<div class="t-orbit" id="t-orbit"><i></i></div><div class="t-tip" id="t-tip">Drag to turn the camera · scroll to move closer</div>' +
+      '<div class="t-orbit" id="t-orbit" title="Where the camera goes, seen from above (front at the top). Ring: your picture."><b class="t-car"><em>front</em></b><u></u><i></i></div><div class="t-tip" id="t-tip">Drag to turn the camera · scroll to move closer</div>' +
       '<div class="t-empty" id="t-empty">Open a picture from the board, or press 3D in Create</div></div>' +
       '<div class="t-strip" id="t-strip"></div></div>' +
       '<aside class="s-rail t-rail"><div class="s-rh"><h3>3D views</h3></div>' +
-      '<div><div class="s-label">Working on</div><div class="s-work" id="t-work"></div><p class="s-hint t-seenrow"><span id="t-seen"></span><button type="button" class="t-swap" id="t-swap" title="The picture shows the other side: swap left and right" hidden>Wrong side? Swap</button></p></div>' +
+      '<div><div class="s-label">Working on</div><div class="s-work" id="t-work"></div><p class="s-hint t-seenrow"><span id="t-seen"></span><select class="t-seensel" id="t-seensel" title="Which side your picture shows: change it if it was read wrong" hidden></select></p></div>' +
       '<div><div class="s-label">Show it from</div><div class="t-angles" id="t-angles"></div>' +
       '<div class="t-heights">' + HEIGHTS.map(function (h) { return '<button type="button" data-h="' + h[0] + '">' + h[1] + "</button>"; }).join("") + "</div></div>" +
       '<div><div class="s-label">Or fine-tune</div>' +
@@ -97,19 +98,24 @@
     if (res) tag.textContent = (res.label || "New view") + " · hold to see the original";
     root.querySelector("#t-orbit").hidden = showRes || busy; root.querySelector("#t-tip").hidden = showRes || !has || busy;
     root.querySelector("#t-work").innerHTML = has ? '<img src="' + T.src.preview + '" alt=""><div><b>' + esc(V.short(T.src.name || "")) + "</b><small>" + (T.src.w || "") + " × " + (T.src.h || "") + "</small></div>" : "<small>Nothing yet</small>";
-    root.querySelector("#t-seen").textContent = !has ? "" : T.reading ? "Reading which side we see…" :
-      T.base ? "Seen from: " + viewName(T.base).toLowerCase() + " (" + (T.kind || "picture") + ")" : "";
-    var sw = root.querySelector("#t-swap"); sw.hidden = !T.base || T.reading || !/left|right/.test(T.base);
+    root.querySelector("#t-seen").textContent = !has ? "" : T.reading ? "Reading which side we see…" : T.base ? "Your picture shows:" : "";
+    var ss = root.querySelector("#t-seensel"); ss.hidden = !has || !T.base || T.reading;
+    var so = ANGLES.map(function (a) { return '<option value="' + a + '">' + esc(viewName(a)) + "</option>"; }).join("");
+    if (ss.getAttribute("data-k") !== so) { ss.innerHTML = so; ss.setAttribute("data-k", so); }
+    if (T.base) ss.value = T.base;
     // The preview: the picture turns with the camera.
     var c = root.querySelector("#t-card"), s = 1 - T.dist * 0.18;
     // camera above: the top edge comes nearer (wider); below: the bottom edge does
-    c.style.transform = busy ? "none" : "rotateY(" + (-T.yaw * 0.45) + "deg) rotateX(" + (-T.pitch * 0.45) + "deg) scale(" + s + ")";
+    c.style.transform = busy ? "none" : "rotateX(" + (-T.pitch * 0.45) + "deg) rotateY(" + cardTurn(-T.yaw) + "deg) scale(" + s + ")";
     c.classList.toggle("t-loading", busy);
     var dv = root.querySelector("#t-dev"), pv = busy && p.preview;
     dv.hidden = !pv; if (pv) { if (dv.getAttribute("src") !== p.preview) dv.src = p.preview; dv.style.opacity = Math.min(1, 0.35 + 0.13 * (p.previewN || 1)); }
     if (busy) c.style.setProperty("--blur", Math.max(2, 18 - 2.5 * (p.previewN || 0)) + "px");
     var o = root.querySelector("#t-orbit i");
-    o.style.left = (50 + T.yaw / 180 * 46) + "%"; o.style.top = (50 - T.pitch / 75 * 46) + "%";
+    // Seen from above, front up: the camera's place around the design (hollow ring = your picture).
+    var az = ((T.base ? SIDES.indexOf(T.base) * 45 : 0) - T.yaw) * Math.PI / 180, b0 = (T.base ? SIDES.indexOf(T.base) * 45 : 0) * Math.PI / 180;
+    o.style.left = (50 + 42 * Math.sin(az)) + "%"; o.style.top = (50 - 42 * Math.cos(az)) + "%";
+    var ob = root.querySelector("#t-orbit u"); ob.style.left = (50 + 42 * Math.sin(b0)) + "%"; ob.style.top = (50 - 42 * Math.cos(b0)) + "%"; ob.hidden = !T.base;
     root.querySelector("#t-yaw").value = T.yaw; root.querySelector("#t-pitch").value = T.pitch; root.querySelector("#t-dist").value = T.dist;
     root.querySelector("#t-yaw-v").textContent = Math.round(T.yaw) === 0 ? "—" : Math.abs(Math.round(T.yaw)) + "°";
     root.querySelector("#t-pitch-v").textContent = heightName();
@@ -171,11 +177,15 @@
       else if (l) { T.lens = l.getAttribute("data-l"); render(); }
       else if (r) { var k = +r.getAttribute("data-r"); T.sel = k === T.sel ? -1 : k; render(); }   // again: back to your picture
       else if (x) act(x.getAttribute("data-x"));
-      else if (e.target.closest("#t-swap")) { var tg = target(); T.base = mirror(T.base); if (tg) T.yaw = norm(SIDES.indexOf(T.base) * 45 - SIDES.indexOf(tg) * 45); render(); }
       else if (e.target.closest("#t-reset")) { T.yaw = 0; T.pitch = 0; T.dist = 0; T.lens = "normal"; T.sel = -1; render(); }
       else if (e.target.closest("#t-go")) go();
     });
+    root.addEventListener("change", function (e) {      // the picture was read wrong: keep the chosen view
+      if (e.target.id !== "t-seensel") return;
+      var tg = target(); T.base = e.target.value; if (tg && moved()) T.yaw = norm(SIDES.indexOf(T.base) * 45 - SIDES.indexOf(tg) * 45); render();
+    });
     root.addEventListener("input", function (e) {
+      if (e.target.id === "t-seensel") return;
       if (e.target.id === "t-yaw") T.yaw = +e.target.value;
       else if (e.target.id === "t-pitch") T.pitch = +e.target.value;
       else if (e.target.id === "t-dist") T.dist = +e.target.value;

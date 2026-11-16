@@ -715,8 +715,11 @@ const frame = (n, name) => ({ path: "live://photoshop/" + n, name: name || "flat
     });
     await p.waitForTimeout(200);
     check("the side follows where the nose points", await p.evaluate(() => window.VS3D._state().base) === "right", await p.evaluate(() => window.VS3D._state().base));
-    await p.click("#t-swap");
-    check("Swap fixes a mirrored reading", await p.evaluate(() => window.VS3D._state().base) === "left", "");
+    await p.click("#t-angles [data-a=front-left]");
+    await p.selectOption("#t-seensel", "left");
+    check("you can correct which side your picture shows, and the chosen view stays", await p.evaluate(() => window.VS3D._state().base === "left" && document.getElementById("t-will").textContent.includes("Front ¾ left")), await p.text("#t-will"));
+    check("the dial puts the camera at the chosen view", await p.evaluate(() => { const i = document.querySelector("#t-orbit i").style; return parseFloat(i.left) < 50 && parseFloat(i.top) < 50; }), "");
+    await p.click("#p-3d .t-heights [data-h=eye]");
     check("view buttons wait for a view", await p.evaluate(() => [...document.querySelectorAll("#t-acts [data-x]")].every((b) => b.disabled)), "");
     await p.click("#p-3d .t-heights [data-h=high]");
     const tf = await p.evaluate(() => document.getElementById("t-card").style.transform);
@@ -724,6 +727,7 @@ const frame = (n, name) => ({ path: "live://photoshop/" + n, name: name || "flat
     check("From above is a raised camera, not a top view", await p.evaluate(() => window.VS3D._state().pitch) <= 30, "");
     await p.click("#t-go");
     await p.evaluate(() => { window.VS.S.create.job = "j1"; window.VS.S.create.frac = 0.4; window.VS3D.render(); });
+    check("machine stats don't cover the tabs", await p.evaluate(() => { const m = document.getElementById("s-machine").getBoundingClientRect(), st = document.getElementById("t-strip").getBoundingClientRect(); return m.height === 0 || m.top >= st.bottom - 1; }), "");
     check("rendering looks like Create: blurred picture and a ring", await p.evaluate(() => document.getElementById("t-card").classList.contains("t-loading") && !document.getElementById("t-ring").hidden), "");
     await p.evaluate(() => { window.VS.S.create.job = null; window.VS3D.onResult({ path: "C:/o/v1.png", name: "v1.png", preview: "data:image/gif;base64,R0lGODlhAQABAIAAAP///wAAACw=", meta: { view: { target: "left" } } });
       window.VS3D.onResult({ path: "C:/o/v2.png", name: "v2.png", preview: "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywA", meta: { view: { target: "front" } } }); });
