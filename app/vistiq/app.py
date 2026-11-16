@@ -630,6 +630,9 @@ class Api:
             log.exception("prompt helper failed")
             return {"error": str(exc)}
 
+    def studio_get_all(self):
+        return self._app.studio.get_all()
+
     def studio_get_select(self):
         return self._app.studio.get_select()
 

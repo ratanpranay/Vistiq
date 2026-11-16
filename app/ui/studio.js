@@ -862,6 +862,7 @@
       var a = b.getAttribute("data-su");
       if (a === "take") api().studio_take_from(b.getAttribute("data-path") || "");
       else if (a === "take-other") api().studio_take_from("");
+      else if (a === "download-all") { S.setup.error = ""; api().studio_get_all(); S.setup.run = { label: "Starting", fraction: null }; render(); }
       else if (a === "download") {
         var go = function () { S.setup.error = ""; api().studio_setup(false); S.setup.run = { label: "Starting", fraction: null }; render(); };
         if (S.pickTier) api().studio_set_tier(S.pickTier).then(function (st) { if (st) S.status = st; go(); }); else go();
@@ -2042,7 +2043,8 @@
       }).join("") + "</div>" +
       '<div class="s-list">' + fileRows(tierFiles(st, st.chosen || st.tier || "best").concat(st.files.filter(function (f) { return f.key === "consistency" && (st.chosen || st.tier || "best") === "best"; }))) + selectRow + helperRow + readerRow + "</div>" +
       (function () { var miss = setupGB(st, st.chosen || st.tier || "best") - (st.engine_installed ? 0 : 2.1) - (st.select_ready ? 0 : 0.1);
-        return miss > 0.05 && !running ? '<div class="s-btns"><button type="button" class="s-btn p" data-su="download">Download (' + gb(miss) + ")</button></div>" : ""; })()) +
+        return miss > 0.05 && !running ? '<div class="s-btns"><button type="button" class="s-btn p" data-su="download">Download (' + gb(miss) + ")</button>" +
+          '<button type="button" class="s-btn" data-su="download-all" title="The engine, the image models, Qwen Image Edit, both picture readers, the prompt helper, Select and the magic eraser, one after another">Download everything (about 55 GB)</button></div>' : ""; })()) +
       (st.mac ? "" : '<div class="s-sec">Looks</div><p class="s-hint">Extra styles for Create, shown under Style. To add one, put its file in Models › loras; it shows up when you come back to Studio.</p>' +
       '<div class="s-list">' + styleRows(looks, "None yet.") + "</div>" +
       '<div class="s-btns"><button type="button" class="s-btn" data-su="models">Open the loras folder</button></div>' +

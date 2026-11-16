@@ -657,6 +657,36 @@ class Studio:
             self._helper = helper.Helper(lambda: studio.models_dir(self.settings))
         return self._helper.improve(preset, text)
 
+    def get_all(self):
+        """Everything Studio uses, one after another (a new PC left to download for hours):
+        the engine and image models, Qwen Image Edit, both picture readers, the prompt
+        helper, Select and the magic eraser. A failed part doesn't stop the rest."""
+        if (self._setup and self._setup.is_alive()) or (getattr(self, "_all", None) and self._all.is_alive()):
+            return False
+        self._cancel.clear()
+
+        def run():
+            steps = [self.setup, self.get_qwenedit, self.get_reader, self.get_reader_xl, self.get_helper, self.get_select]
+            for step in steps:
+                if self._cancel.is_set():
+                    return
+                if step():
+                    self._setup.join()
+            if self._cancel.is_set():
+                return
+            from . import eraser
+            md = studio.models_dir(self.settings)
+            if not eraser.installed(md):
+                try:
+                    studio.download(eraser.URL, eraser.path(md), lambda label, f: self.emit(
+                        "studio-setup", {"state": "running", "label": label, "fraction": f}), "Magic eraser", self._cancel.is_set)
+                except Exception:
+                    log.exception("magic eraser download failed")
+            self.emit("studio-setup", {"state": "done", "status": studio.status(self.settings)})
+        self._all = threading.Thread(target=run, daemon=True)
+        self._all.start()
+        return True
+
     def get_select(self):
         """Download the Select tool now (otherwise its first click does)."""
         if self._setup and self._setup.is_alive():

@@ -1,5 +1,8 @@
 # Vistiq Studio (test build)
 
+## 0.4.28
+- Settings: “Download everything” — the engine, image models, Qwen Image Edit, both picture readers, the prompt helper, Select and the magic eraser, one after another (for a new PC left to download).
+
 ## 0.4.27
 - MetaView install: fixed “No such file or directory” (a Windows path-length limit while unpacking its nodes). Press Download again; the models already downloaded are kept.
 
