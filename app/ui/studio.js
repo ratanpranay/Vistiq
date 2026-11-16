@@ -482,6 +482,34 @@
     v.querySelector(".st").classList.add("ok");
   }
 
+  // -- smooth progress: the model works in a few big steps (4 steps = 25% jumps); between
+  // steps the bar keeps moving at the pace of the last step, never past the next one.
+  function stepIn(p, f) {
+    var now = Date.now();
+    if (f !== p.raw) {
+      if (p.raw != null && f > p.raw) { p.stepSize = f - p.raw; if (p.rawAt) p.stepDur = Math.max(1500, Math.min(60000, now - p.rawAt)); }
+      else if (f < (p.raw || 0)) { p.stepSize = 0; p.stepDur = 0; }        // a new picture of the run
+      p.raw = f; p.rawAt = now;
+    }
+    p.frac = Math.max(f, p.frac && p.frac < f + (p.stepSize || 0) && p.frac >= f ? p.frac : f);
+  }
+  function smooth(p) {
+    if (!p.job || p.raw == null || !p.stepSize || !p.stepDur) return false;
+    var t = Math.min(0.95, (Date.now() - p.rawAt) / p.stepDur), f = Math.min(1, p.raw + p.stepSize * t);
+    if (f - (p.frac || 0) < 0.004) return false;
+    p.frac = f; return true;
+  }
+  setInterval(function () {
+    [S.create, S.ref].forEach(function (p) {
+      if (!smooth(p)) return;
+      var id = p === S.create ? "c" : "r", v = $(id + "-view"), pct = Math.round(p.frac * 100);
+      if ($(id + "-fill")) $(id + "-fill").style.width = pct + "%";
+      if (!v) return;
+      var ring = v.querySelector(".s-pring"); if (ring) { ring.querySelector(".fg").style.strokeDashoffset = String(125.7 * (1 - Math.max(0.02, p.frac))); ring.querySelector("b").textContent = pct + "%"; }
+      var bz = v.querySelector(".s-busy b"); if (bz) bz.style.width = pct + "%";
+    });
+  }, 400);
+
   // -- the machine line: graphics card, processor, memory (tiny, live) ------------------
   var statsT = 0;
   function bar(p, cls) { return '<i class="' + (cls || "") + '"><u style="width:' + Math.max(0, Math.min(100, p || 0)) + '%"></u></i>'; }
@@ -643,7 +671,7 @@
       if (!j.locks.design) j.keep = Math.min(j.keep, 0.35);        // design unlocked: free to change shapes
     }
     Object.assign(j, extra || {});
-    p.error = ""; p.stage = "Starting"; p.frac = 0; p.pending = j.variations; p.started = Date.now(); p.estimate = 0;
+    p.error = ""; p.stage = "Starting"; p.frac = 0; p.raw = null; p.rawAt = 0; p.stepSize = 0; p.stepDur = 0; p.pending = j.variations; p.started = Date.now(); p.estimate = 0;
     p.jobKey = srcKey(p.src);
     // Create works on the sketch as it is now: freeze a copy. Live keeps
     // updating in the background and comes back when the run is done.
@@ -2150,9 +2178,9 @@
       else if (kind === "studio-job") {
         var p = byJob(data.id);
         if (!p) return;
-        if (data.state === "running") { p.stage = data.stage; p.frac = data.fraction == null ? p.frac : data.fraction; if (data.estimate) p.estimate = data.estimate; if (!p.started) p.started = Date.now(); }
+        if (data.state === "running") { p.stage = data.stage; if (data.fraction != null) stepIn(p, data.fraction); if (data.estimate) p.estimate = data.estimate; if (!p.started) p.started = Date.now(); }
         else {
-          p.job = null; p.pending = 0; p.stage = ""; p.frac = 0; p.started = 0; p.estimate = 0; p.preview = null; p.previewN = 0;
+          p.job = null; p.pending = 0; p.stage = ""; p.frac = 0; p.raw = null; p.rawAt = 0; p.stepSize = 0; p.stepDur = 0; p.started = 0; p.estimate = 0; p.preview = null; p.previewN = 0;
           // The run is over: live takes over again with the newest sketch.
           if (p === S.create && p.source === "live" && p.src && p.src.frozen) {
             var keepSel2 = p.sel; if (p.liveSrc) p.src = p.liveSrc; p.sel = keepSel2;

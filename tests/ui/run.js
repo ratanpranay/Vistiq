@@ -718,7 +718,13 @@ const frame = (n, name) => ({ path: "live://photoshop/" + n, name: name || "flat
     await p.click("#t-angles [data-a=front-left]");
     await p.selectOption("#t-seensel", "left");
     check("you can correct which side your picture shows, and the chosen view stays", await p.evaluate(() => window.VS3D._state().base === "left" && document.getElementById("t-will").textContent.includes("Front ¾ left")), await p.text("#t-will"));
-    check("the dial puts the camera at the chosen view", await p.evaluate(() => { const i = document.querySelector("#t-orbit i").style; return parseFloat(i.left) < 50 && parseFloat(i.top) < 50; }), "");
+    {
+      const r = await p.evaluate(() => { const b = document.getElementById("t-plan").getBoundingClientRect(); return [b.x, b.y, b.width, b.height]; });
+      // the dot dragged to the right of the design (front at the top) = its right side
+      await p.mouse.move(r[0] + r[2] / 2, r[1] + r[3] * 0.555); await p.mouse.down(); await p.mouse.move(r[0] + r[2] - 4, r[1] + r[3] * 0.555, { steps: 4 }); await p.mouse.up();
+      check("dragging the dot on the plan sets the view", /Right side/.test(await p.text("#t-will")), await p.text("#t-will"));
+      await p.click("#t-angles [data-a=front-left]");
+    }
     await p.click("#p-3d .t-heights [data-h=eye]");
     check("view buttons wait for a view", await p.evaluate(() => [...document.querySelectorAll("#t-acts [data-x]")].every((b) => b.disabled)), "");
     await p.click("#p-3d .t-heights [data-h=high]");
@@ -744,6 +750,12 @@ const frame = (n, name) => ({ path: "live://photoshop/" + n, name: name || "flat
     check("holding a view shows the original", await p.evaluate(() => document.getElementById("t-res").getAttribute("src") === window.VS3D._state().src.preview), "");
     await p.mouse.up();
     check("letting go shows the view again", await p.evaluate(() => document.getElementById("t-res").getAttribute("src") !== window.VS3D._state().src.preview && window.VS3D._state().sel === 1), "");
+    await p.evaluate(() => { window.VS.S.create.job = "jx"; window.vistiq.event("studio-job", { id: "jx", state: "running", stage: "Creating", fraction: 0 }); });
+    await p.evaluate(() => { window.VS.S.create.rawAt = Date.now() - 4000; window.vistiq.event("studio-job", { id: "jx", state: "running", stage: "Creating", fraction: 0.25 }); window.VS.S.create.rawAt = Date.now() - 3000; });
+    await p.waitForTimeout(900);
+    const fr = await p.evaluate(() => window.VS.S.create.frac);
+    check("progress moves smoothly between the model's steps", fr > 0.3 && fr < 0.5, String(fr));
+    await p.evaluate(() => window.vistiq.event("studio-job", { id: "jx", state: "done" }));
     check("no page errors on 3D views", p.errors.length === 0, p.errors.join(" | "));
     await p.close();
   }

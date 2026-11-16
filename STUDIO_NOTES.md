@@ -1,5 +1,9 @@
 # Vistiq Studio (test build)
 
+## 0.4.35
+- 3D views: a small plan from above (design outside, or the cabin with seats and dashboard inside). Drag the dot to place the camera; the cone shows where it looks; the ring is your picture. Named views snap.
+- Progress moves smoothly between the model's steps (no more 25% jumps), in Create and 3D views.
+
 ## 0.4.34
 - 3D views: "Your picture shows" is a menu: if the side was read wrong, pick the right one (your chosen view stays).
 - The dial shows the camera's place around the design, seen from above (front at the top; ring = your picture, dot = the new view).

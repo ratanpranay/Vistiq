@@ -1073,3 +1073,6 @@ body.studio .s-vars>.s-ph.sel{border-color:var(--ink)}
 .t-car em{position:absolute;top:-17px;left:50%;transform:translateX(-50%);font-style:normal;font-size:9px;font-weight:700;color:#8a90a2}
 .t-orbit u{position:absolute;width:12px;height:12px;margin:-6px 0 0 -6px;border-radius:50%;border:2px solid #9aa1b2;background:#fff;box-sizing:border-box}
 .t-orbit u[hidden]{display:none}
+.t-orbit.t-plan{width:170px;height:240px;border-radius:14px;border:none;background:rgba(255,255,255,.94);box-shadow:0 6px 20px rgba(14,16,32,.12);overflow:hidden;cursor:default}
+.t-plan canvas{position:absolute;left:0;top:20px;width:170px;height:220px;cursor:pointer;touch-action:none}
+.t-ph{position:absolute;left:12px;top:10px;font-size:11px;font-weight:800;color:#14161f}

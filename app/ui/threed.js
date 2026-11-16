@@ -49,7 +49,8 @@
       '<div class="t-tag" id="t-tag" hidden></div>' +
       '<div class="s-pring t-pring" id="t-ring" hidden><svg viewBox="0 0 48 48"><circle cx="24" cy="24" r="20" class="bg"/><circle cx="24" cy="24" r="20" class="fg"/></svg><b></b></div>' +
       '<div class="s-busy t-busy" id="t-prog" hidden><span></span><i><b></b></i></div>' +
-      '<div class="t-orbit" id="t-orbit" title="Where the camera goes, seen from above (front at the top). Ring: your picture."><b class="t-car"><em>front</em></b><u></u><i></i></div><div class="t-tip" id="t-tip">Drag to turn the camera · scroll to move closer</div>' +
+      '<div class="t-orbit t-plan" id="t-orbit" title="Drag the dot to place the camera (seen from above, front at the top)"><div class="t-ph" id="t-ph"></div><canvas id="t-plan" width="340" height="440"></canvas></div>' +
+      '<div class="t-tip" id="t-tip">Drag the picture or the dot to turn the camera · scroll to move closer</div>' +
       '<div class="t-empty" id="t-empty">Open a picture from the board, or press 3D in Create</div></div>' +
       '<div class="t-strip" id="t-strip"></div></div>' +
       '<aside class="s-rail t-rail"><div class="s-rh"><h3>3D views</h3></div>' +
@@ -111,11 +112,7 @@
     var dv = root.querySelector("#t-dev"), pv = busy && p.preview;
     dv.hidden = !pv; if (pv) { if (dv.getAttribute("src") !== p.preview) dv.src = p.preview; dv.style.opacity = Math.min(1, 0.35 + 0.13 * (p.previewN || 1)); }
     if (busy) c.style.setProperty("--blur", Math.max(2, 18 - 2.5 * (p.previewN || 0)) + "px");
-    var o = root.querySelector("#t-orbit i");
-    // Seen from above, front up: the camera's place around the design (hollow ring = your picture).
-    var az = ((T.base ? SIDES.indexOf(T.base) * 45 : 0) - T.yaw) * Math.PI / 180, b0 = (T.base ? SIDES.indexOf(T.base) * 45 : 0) * Math.PI / 180;
-    o.style.left = (50 + 42 * Math.sin(az)) + "%"; o.style.top = (50 - 42 * Math.cos(az)) + "%";
-    var ob = root.querySelector("#t-orbit u"); ob.style.left = (50 + 42 * Math.sin(b0)) + "%"; ob.style.top = (50 - 42 * Math.cos(b0)) + "%"; ob.hidden = !T.base;
+    drawPlan();
     root.querySelector("#t-yaw").value = T.yaw; root.querySelector("#t-pitch").value = T.pitch; root.querySelector("#t-dist").value = T.dist;
     root.querySelector("#t-yaw-v").textContent = Math.round(T.yaw) === 0 ? "—" : Math.abs(Math.round(T.yaw)) + "°";
     root.querySelector("#t-pitch-v").textContent = heightName();
@@ -145,7 +142,49 @@
     var st = root.querySelector("#t-strip"); if (st.getAttribute("data-k") !== sh) { st.innerHTML = sh; st.setAttribute("data-k", sh); }
   }
 
+  // The plan: the design (or the cabin) seen from above, front at the top; the camera is the dot,
+  // the cone shows where it looks; the hollow ring is where your picture was taken from.
+  var PL = { w: 170, h: 220, cx: 85, cy: 122 };
+  function ring() { return T.kind === "interior" ? { rx: 30, ry: 62 } : { rx: 68, ry: 86 }; }
+  function camAz() { return (T.base ? SIDES.indexOf(T.base) * 45 : 315) - T.yaw; }
+  function drawPlan() {
+    var cv = root.querySelector("#t-plan"); if (!cv) return;
+    var g = cv.getContext("2d"), k = cv.width / PL.w, inT = T.kind === "interior", R = ring(), cx = PL.cx, cy = PL.cy;
+    root.querySelector("#t-ph").textContent = (inT ? "Cabin" : "Camera") + " · from above";
+    g.setTransform(k, 0, 0, k, 0, 0); g.clearRect(0, 0, PL.w, PL.h);
+    function rr(x, y, w, h, r, f, st) { g.beginPath(); g.roundRect(x, y, w, h, r); if (f) { g.fillStyle = f; g.fill(); } if (st) { g.strokeStyle = st; g.lineWidth = 1.5; g.stroke(); } }
+    g.font = "700 9px sans-serif"; g.fillStyle = "#8a90a2"; g.textAlign = "center";
+    if (inT) {
+      rr(cx - 46, cy - 92, 92, 184, 28, "#f3f4f8", "#9aa1b2");
+      rr(cx - 36, cy - 80, 72, 22, 8, "#dcdfe7");                                   // dashboard
+      rr(cx - 34, cy - 40, 28, 36, 6, "#e7e2d9"); rr(cx + 6, cy - 40, 28, 36, 6, "#e7e2d9");   // front seats
+      rr(cx - 34, cy + 40, 68, 30, 6, "#e7e2d9");                                   // rear bench
+      g.fillText("front", cx, cy - 98);
+    } else {
+      rr(cx - 26, cy - 50, 52, 100, 18, "#e9ebf0", "#9aa1b2");                       // the design
+      rr(cx - 19, cy - 22, 38, 40, 8, "#cfd3dc");                                   // glasshouse
+      g.fillText("front", cx, cy - 56);
+    }
+    if (!T.base) return;
+    function at(az) { var a = az * Math.PI / 180; return [cx + R.rx * Math.sin(a), cy - R.ry * Math.cos(a)]; }
+    var b = at(SIDES.indexOf(T.base) * 45), c = at(camAz()), look = Math.atan2(cy - c[1], cx - c[0]), half = inT ? 0.62 : 0.38, len = inT ? 120 : 70;
+    g.fillStyle = "rgba(109,93,245,.18)"; g.beginPath(); g.moveTo(c[0], c[1]); g.arc(c[0], c[1], len, look - half, look + half); g.closePath(); g.fill();
+    g.beginPath(); g.arc(b[0], b[1], 5.5, 0, 7); g.fillStyle = "#fff"; g.fill(); g.strokeStyle = "#9aa1b2"; g.lineWidth = 2; g.stroke();
+    g.beginPath(); g.arc(c[0], c[1], 7, 0, 7); g.fillStyle = "#6d5df5"; g.fill(); g.strokeStyle = "#fff"; g.lineWidth = 2; g.stroke();
+  }
+  function planDrag(e) {
+    var cv = root.querySelector("#t-plan"), r = cv.getBoundingClientRect(), R = ring();
+    var x = (e.clientX - r.left) / r.width * PL.w - PL.cx, y = (e.clientY - r.top) / r.height * PL.h - PL.cy;
+    var az = Math.atan2(x / R.rx, -y / R.ry) * 180 / Math.PI, snap = Math.round(az / 45) * 45;
+    if (Math.abs(az - snap) < 9) az = snap;                                   // the named views are easy to hit
+    T.yaw = norm(Math.round((T.base ? SIDES.indexOf(T.base) * 45 : 315) - az)); T.sel = -1; render();
+  }
+
   function wire() {
+    var pl = root.querySelector("#t-plan"), pd = false;
+    pl.addEventListener("pointerdown", function (e) { if (!T.base || T.running) return; e.stopPropagation(); pd = true; pl.setPointerCapture(e.pointerId); planDrag(e); });
+    pl.addEventListener("pointermove", function (e) { if (pd) planDrag(e); });
+    pl.addEventListener("pointerup", function () { pd = false; });
     var st = root.querySelector("#t-stage");
     st.addEventListener("pointerdown", function (e) {
       if (!T.src || e.target.closest("button")) return;
