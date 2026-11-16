@@ -356,10 +356,14 @@ QE_MP_MIN = 1.0
 QE_STEPS = 4
 
 
-def qwenedit_prompt(settings, images, text, seed=None, frame=0, megapixels=QE_MP, steps=QE_STEPS):
+def qwenedit_prompt(settings, images, text, seed=None, frame=0, megapixels=QE_MP, steps=QE_STEPS, ref_latent=True,
+                    ref_mp=1.0):
     """Qwen Image Edit 2511 with its 4-step speed-up (ComfyUI's own template,
     minus the extras). images[0] is the picture worked on; up to two more are
-    references. `frame`: the image whose size the result takes."""
+    references. `frame`: the image whose size the result takes.
+    ref_latent: the model gets the pictures at the size it draws (ReferenceLatent). The
+    stock encode node shrinks them to about 1 MP while we draw at ~3 MP; the mismatch made
+    results zoom out (a wider, more distant view than the sketch, Nov 2026)."""
     s = settings
     p = {
         "1": {"class_type": "UNETLoader", "inputs": {"unet_name": os.path.basename(find("qie", s)), "weight_dtype": "default"}},
@@ -370,21 +374,37 @@ def qwenedit_prompt(settings, images, text, seed=None, frame=0, megapixels=QE_MP
                                                                 "strength_model": 1.0}},
         "5": {"class_type": "ModelSamplingAuraFlow", "inputs": {"model": ["4", 0], "shift": 3.1}},
     }
-    enc = {"clip": ["2", 0], "prompt": text, "vae": ["3", 0]}
-    for i, im in enumerate(images[:3]):
+    enc = {"clip": ["2", 0], "prompt": text}
+    if not ref_latent:
+        enc["vae"] = ["3", 0]
+    imgs = images[:3]
+    fi = frame if frame < len(imgs) else 0
+    for i, im in enumerate(imgs):
         load, scale = str(10 + 2 * i), str(11 + 2 * i)
         p[load] = {"class_type": "LoadImage", "inputs": {"image": im}}
+        # The picture worked on (and the one whose size the result takes) at the drawing size;
+        # other references smaller (they only lend a look).
+        mp = megapixels if (i == 0 or i == fi or not ref_latent) else min(megapixels, ref_mp)
         p[scale] = {"class_type": "ImageScaleToTotalPixels",
-                    "inputs": {"image": [load, 0], "upscale_method": "lanczos", "megapixels": float(megapixels),
+                    "inputs": {"image": [load, 0], "upscale_method": "lanczos", "megapixels": float(mp),
                                "resolution_steps": 16}}
         enc["image%d" % (i + 1)] = [scale, 0]
-    fr = str(11 + 2 * (frame if frame < len(images[:3]) else 0))
+    p["20"] = {"class_type": "TextEncodeQwenImageEditPlus", "inputs": enc}
+    pos = ["20", 0]
+    if ref_latent:
+        for i in range(len(imgs)):
+            e, r = str(50 + 2 * i), str(51 + 2 * i)
+            p[e] = {"class_type": "VAEEncode", "inputs": {"pixels": [str(11 + 2 * i), 0], "vae": ["3", 0]}}
+            p[r] = {"class_type": "ReferenceLatent", "inputs": {"conditioning": pos, "latent": [e, 0]}}
+            pos = [r, 0]
+        latent = [str(50 + 2 * fi), 0]
+    else:
+        p["30"] = {"class_type": "VAEEncode", "inputs": {"pixels": [str(11 + 2 * fi), 0], "vae": ["3", 0]}}
+        latent = ["30", 0]
     p.update({
-        "20": {"class_type": "TextEncodeQwenImageEditPlus", "inputs": enc},
-        "21": {"class_type": "ConditioningZeroOut", "inputs": {"conditioning": ["20", 0]}},
-        "30": {"class_type": "VAEEncode", "inputs": {"pixels": [fr, 0], "vae": ["3", 0]}},
+        "21": {"class_type": "ConditioningZeroOut", "inputs": {"conditioning": pos}},
         "40": {"class_type": "KSampler",
-               "inputs": {"model": ["5", 0], "positive": ["20", 0], "negative": ["21", 0], "latent_image": ["30", 0],
+               "inputs": {"model": ["5", 0], "positive": pos, "negative": ["21", 0], "latent_image": latent,
                           "seed": int(seed if seed is not None else random.randint(1, 2**48)), "steps": int(steps),
                           "cfg": 1.0, "sampler_name": "euler", "scheduler": "simple", "denoise": 1.0}},
         "41": {"class_type": "VAEDecode", "inputs": {"samples": ["40", 0], "vae": ["3", 0]}},
@@ -510,7 +530,11 @@ def view_words(kind, side, yaw, pitch, dist=0.0, lens="normal", target=None, des
 QE_INSTANT = ("Turn this design sketch into a finished, photorealistic CGI render, like a car maker's studio "
               "visualization: every drawn shape becomes the real part it stands for, built with real materials, glass, "
               "panel gaps and stitching; parts the sketch only hints at are completed. Keep the design, proportions, "
-              "colour scheme and camera view. No sketch lines remain.")
+              "colour scheme and camera view. No sketch lines remain. Keep the exact framing, lens and perspective "
+              "of the picture: every part stays the same size and in the same place, nothing new appears at the "
+              "edges. Each part keeps exactly the colour it is painted (dark blue stays dark blue, tan stays tan); "
+              "add no wood, chrome or colours that are not in the picture. Where the picture is only lines, use a "
+              "calm, premium two-tone scheme.")
 QE_CLEAN = ("Clean, brand-new surfaces: leather and fabric smooth and evenly coloured, no stains, smudges, "
             "fingerprints, blotches or mottled texture; crisp, sharp detail.")
 # Plain "night" made a starry, blue-washed, neon look (tested Nov 2026). This reads like a real press photo.

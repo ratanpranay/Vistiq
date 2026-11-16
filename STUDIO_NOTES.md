@@ -1,5 +1,9 @@
 # Vistiq Studio (test build)
 
+## 0.4.37
+- Renders keep the sketch's framing: the model now gets your picture at the size it draws (it was shrunk to 1 MP inside, which made results zoom out to a wider, more distant view).
+- Instant render keeps the painted colours (no added wood, chrome or new colours) and the exact framing; line sketches get a calm two-tone scheme.
+
 ## 0.4.36
 - Board: no more "3D" frame. A 3D view sits next to its picture, joined by a line, like any result (old frames are removed; their pictures stay).
 - 3D views button takes the file open in Create, flattened with its layers (a Live Photoshop/Affinity file is copied as it is now).

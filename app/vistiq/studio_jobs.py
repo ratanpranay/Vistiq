@@ -940,7 +940,8 @@ class Studio:
                     prompt = studio.qwenedit_prompt(s, imgs, text, seed + v, frame=fr,
                                                     megapixels=float(lab.get("qe_mp", min(studio.QE_MP, max(
                                                         studio.QE_MP_MIN, work.size[0] * work.size[1] / 1e6)))),
-                                                    steps=int(lab.get("qe_steps", studio.QE_STEPS)))
+                                                    steps=int(lab.get("qe_steps", studio.QE_STEPS)),
+                                                    ref_latent=bool(lab.get("qe_reflat", True)))
                 elif sys.platform == "darwin":
                     prompt = {"image": image, "ref": ref_image or (ref_images[0] if ref_images else None), "text": text,
                               "seed": seed + v, "keep": keep,

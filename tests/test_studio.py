@@ -696,7 +696,14 @@ class Flux3(unittest.TestCase):
             p = studio.qwenedit_prompt(s, ["a.png", "r.png"], "make it night", seed=1, frame=1)
             self.assertEqual(p["20"]["class_type"], "TextEncodeQwenImageEditPlus")
             self.assertEqual(p["20"]["inputs"]["image2"], ["13", 0])
-            self.assertEqual(p["30"]["inputs"]["pixels"], ["13", 0])      # the frame of image 2
+            self.assertEqual(p["52"]["inputs"]["pixels"], ["13", 0])      # the frame of image 2
+            self.assertEqual(p["40"]["inputs"]["latent_image"], ["52", 0])
+            self.assertNotIn("vae", p["20"]["inputs"])                     # not shrunk to 1 MP inside the node
+            self.assertEqual(p["40"]["inputs"]["positive"], ["53", 0])      # both pictures as reference latents
+            self.assertEqual(p["53"]["inputs"]["conditioning"], ["51", 0])
+            self.assertEqual(p["11"]["inputs"]["megapixels"], studio.QE_MP)
+            q = studio.qwenedit_prompt(s, ["a.png"], "x", seed=1, ref_latent=False)
+            self.assertEqual(q["20"]["inputs"]["vae"], ["3", 0])
             self.assertEqual(p["40"]["inputs"]["steps"], 4)
             self.assertEqual(p["2"]["inputs"]["type"], "qwen_image")
 
