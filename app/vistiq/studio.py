@@ -490,7 +490,23 @@ def parse_view(answer):
     return kind, side, height
 
 
-def view_words(kind, side, yaw, pitch, dist=0.0, lens="normal", target=None, design=""):
+CABIN_LOOKS = ["toward the windscreen and dashboard", "toward the front passenger corner", "toward the passenger door",
+               "toward the rear passenger-side corner", "toward the rear of the cabin", "toward the rear driver-side corner",
+               "toward the driver's door", "toward the driver's front corner"]
+
+
+def cabin_words(u, v, look):
+    """Inside the cabin: where the camera stands (u: driver side -1 .. passenger side 1,
+    v: dashboard -1 .. rear seats 1) and where it looks (degrees, 0 = forward, clockwise)."""
+    u, v = float(u), float(v)
+    row = ("at the dashboard" if v < -0.5 else "in the front row, between the front seats" if v < 0.1 and abs(u) <= 0.35
+           else "in the front row" if v < 0.1 else "just behind the front seats" if v < 0.5 else "in the rear seats")
+    side = "" if "between" in row else (" on the driver's side" if u < -0.35 else " on the passenger side" if u > 0.35 else " in the middle")
+    return ("from inside the cabin: the camera stands " + row + side + ", looking " +
+            CABIN_LOOKS[int(round(float(look) / 45.0)) % 8])
+
+
+def view_words(kind, side, yaw, pitch, dist=0.0, lens="normal", target=None, design="", cabin=None):
     """Words for the view after turning the camera by yaw (dragging right brings the
     picture's left side forward) and pitch degrees, or straight to `target` (a side).
     `design`: the picture reader's description of the design, so the new view keeps it."""
@@ -503,7 +519,9 @@ def view_words(kind, side, yaw, pitch, dist=0.0, lens="normal", target=None, des
     height = ("from high above, looking down at it" if p >= 55 else
               "from a slightly raised camera, a little above the roof, looking down a little, the side still fully visible" if p >= 15
               else "from a low camera close to the ground, looking up at it" if p <= -12 else "from eye level")
-    if kind == "interior":
+    if kind == "interior" and cabin:
+        where = cabin_words(cabin.get("u", 0), cabin.get("v", 0), cabin.get("look", 0)) + ", " + height
+    elif kind == "interior":
         where = CABIN_WORDS[target] + ", " + height
     else:
         where = "the " + SIDE_WORDS[target] + ", " + height

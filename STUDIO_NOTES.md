@@ -1,5 +1,8 @@
 # Vistiq Studio (test build)
 
+## 0.4.38
+- 3D views plan: smooth dragging. Inside a cabin the camera dot goes anywhere and a handle turns the cone (where it looks); outside it goes round the design. The grey ring (your picture) can be dragged to correct a wrong reading; the dropdown is gone.
+
 ## 0.4.37
 - Renders keep the sketch's framing: the model now gets your picture at the size it draws (it was shrunk to 1 MP inside, which made results zoom out to a wider, more distant view).
 - Instant render keeps the painted colours (no added wood, chrome or new colours) and the exact framing; line sketches get a calm two-tone scheme.

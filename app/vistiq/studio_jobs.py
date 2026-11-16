@@ -838,7 +838,7 @@ class Studio:
                 kind, side, _h = studio.parse_view(self._read(work_path, "view", say) or "")
                 design = self._read(work_path, "design", say) or ""
                 words, target = studio.view_words(kind, side, v.get("yaw", 0), v.get("pitch", 0), float(v.get("dist", 0)),
-                                                   v.get("lens", "normal"), v.get("target"), design)
+                                                   v.get("lens", "normal"), v.get("target"), design, v.get("cabin"))
                 extra = (job.get("text") or "").strip()
                 job = dict(job, text=words + (" " + extra if extra else ""), said=extra,
                            locks=dict(job.get("locks") or {}, camera=False), view=dict(v, kind=kind, seen=side, target=target))

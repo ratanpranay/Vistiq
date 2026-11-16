@@ -19,6 +19,7 @@
   function norm(a) { a = ((a % 360) + 540) % 360 - 180; return a; }
   function target() {
     if (!T.base) return null;
+    if (inCab()) return SIDES[((Math.round(azOf(T.cam) / 45) % 8) + 8) % 8];
     var az = ((SIDES.indexOf(T.base) * 45 - T.yaw) % 360 + 360) % 360;
     return SIDES[Math.round(az / 45) % 8];
   }
@@ -39,7 +40,7 @@
   function cardTurn(f) { var a = Math.abs(f), g = a <= 90 ? a * 0.6 : 180 - (180 - a) * 0.6; return (f < 0 ? -1 : 1) * g; }
   function heightName() { return T.pitch >= 55 ? "high above" : T.pitch >= 15 ? "from above" : T.pitch <= -12 ? "low" : "eye level"; }
   function viewName(side) { return side ? (T.kind === "interior" ? CABIN[side] : NAME[side]) : ""; }
-  function moved() { return Math.abs(T.yaw) >= 10 || Math.abs(T.pitch) >= 8 || Math.abs(T.dist) >= 0.25 || T.lens !== "normal"; }
+  function moved() { return (T.kind === "interior" && T.cam && T.base && (function () { var b = camOf(SIDES.indexOf(T.base) * 45); return Math.hypot(T.cam.x - b.x, T.cam.y - b.y) > 6 || Math.abs(norm(T.cam.look - b.look)) > 10; })()) || Math.abs(T.yaw) >= 10 || Math.abs(T.pitch) >= 8 || Math.abs(T.dist) >= 0.25 || T.lens !== "normal"; }
 
   function build(el) {
     root = el;
@@ -54,7 +55,7 @@
       '<div class="t-empty" id="t-empty">Open a picture from the board, or press 3D in Create</div></div>' +
       '<div class="t-strip" id="t-strip"></div></div>' +
       '<aside class="s-rail t-rail"><div class="s-rh"><h3>3D views</h3></div>' +
-      '<div><div class="s-label">Working on</div><div class="s-work" id="t-work"></div><p class="s-hint t-seenrow"><span id="t-seen"></span><select class="t-seensel" id="t-seensel" title="Which side your picture shows: change it if it was read wrong" hidden></select></p></div>' +
+      '<div><div class="s-label">Working on</div><div class="s-work" id="t-work"></div><p class="s-hint" id="t-seen"></p></div>' +
       '<div><div class="s-label">Show it from</div><div class="t-angles" id="t-angles"></div>' +
       '<div class="t-heights">' + HEIGHTS.map(function (h) { return '<button type="button" data-h="' + h[0] + '">' + h[1] + "</button>"; }).join("") + "</div></div>" +
       '<div><div class="s-label">Or fine-tune</div>' +
@@ -99,11 +100,8 @@
     if (res) tag.textContent = (res.label || "New view") + " · hold to see the original";
     root.querySelector("#t-orbit").hidden = showRes || busy; root.querySelector("#t-tip").hidden = showRes || !has || busy;
     root.querySelector("#t-work").innerHTML = has ? '<img src="' + T.src.preview + '" alt=""><div><b>' + esc(V.short(T.src.name || "")) + "</b><small>" + (T.src.w || "") + " × " + (T.src.h || "") + "</small></div>" : "<small>Nothing yet</small>";
-    root.querySelector("#t-seen").textContent = !has ? "" : T.reading ? "Reading which side we see…" : T.base ? "Your picture shows:" : "";
-    var ss = root.querySelector("#t-seensel"); ss.hidden = !has || !T.base || T.reading;
-    var so = ANGLES.map(function (a) { return '<option value="' + a + '">' + esc(viewName(a)) + "</option>"; }).join("");
-    if (ss.getAttribute("data-k") !== so) { ss.innerHTML = so; ss.setAttribute("data-k", so); }
-    if (T.base) ss.value = T.base;
+    root.querySelector("#t-seen").textContent = !has ? "" : T.reading ? "Reading which side we see…" :
+      T.base ? "Your picture: " + viewName(T.base).toLowerCase() + " (the grey ring on the plan; drag it if that's wrong)" : "";
     // The preview: the picture turns with the camera.
     var c = root.querySelector("#t-card"), s = 1 - T.dist * 0.18;
     // camera above: the top edge comes nearer (wider); below: the bottom edge does
@@ -124,7 +122,7 @@
         esc(viewName(a) || NAME[a]) + "</button>"; }).join("");
     var ae = root.querySelector("#t-angles"); if (ae.getAttribute("data-k") !== ah) { ae.innerHTML = ah; ae.setAttribute("data-k", ah); }
     root.querySelectorAll(".t-heights button").forEach(function (b) { var h = HEIGHTS.filter(function (x) { return x[0] === b.getAttribute("data-h"); })[0]; b.classList.toggle("on", T.pitch === h[2]); });
-    root.querySelector("#t-will").innerHTML = tg && moved() ? "Will show: <b>" + esc(viewName(tg)) + "</b>, " + heightName() : "";
+    root.querySelector("#t-will").innerHTML = tg && moved() ? "Will show: <b>" + esc(inCab() ? cabinLabel(T.cam) : viewName(tg)) + "</b>, " + heightName() : "";
     var go = root.querySelector("#t-go");
     go.disabled = !has || !moved() || busy || !!p.job && !T.running;
     go.textContent = busy ? (p.stage || "Working") + (p.frac ? " · " + Math.round(p.frac * 100) + "%" : "") : "Render this view";
@@ -142,14 +140,29 @@
     var st = root.querySelector("#t-strip"); if (st.getAttribute("data-k") !== sh) { st.innerHTML = sh; st.setAttribute("data-k", sh); }
   }
 
-  // The plan: the design (or the cabin) seen from above, front at the top; the camera is the dot,
-  // the cone shows where it looks; the hollow ring is where your picture was taken from.
-  var PL = { w: 170, h: 220, cx: 85, cy: 122 };
+  // The plan: the design (or the cabin) seen from above, front at the top. The dot is the camera,
+  // the cone where it looks, the grey ring where your picture was taken. Outside, the camera goes
+  // around the design and looks at it. Inside, drag the dot anywhere in the cabin and turn the cone
+  // with its handle.
+  var PL = { w: 170, h: 220, cx: 85, cy: 122 }, CAB = { x: 38, y: 82 };
   function ring() { return T.kind === "interior" ? { rx: 30, ry: 62 } : { rx: 68, ry: 86 }; }
   function camAz() { return (T.base ? SIDES.indexOf(T.base) * 45 : 315) - T.yaw; }
+  function onRing(az) { var a = az * Math.PI / 180, R = ring(); return { x: R.rx * Math.sin(a), y: -R.ry * Math.cos(a) }; }
+  function lookAt(p, q) { return Math.atan2(q.x - p.x, -(q.y - p.y)) * 180 / Math.PI; }     // 0 = toward the front, clockwise
+  function camOf(az) { var p = onRing(az); p.look = lookAt(p, { x: 0, y: 0 }); return p; }
+  function cam() { return T.kind === "interior" && T.cam ? T.cam : camOf(camAz()); }
+  function inCab() { return T.kind === "interior" && !!T.cam; }
+  // Where the camera stands in the cabin, and where it looks: short (labels) and in words (the model).
+  var LOOKS = ["forward", "to the front right", "to the passenger door", "to the rear right", "backward", "to the rear left", "to the driver's door", "to the front left"];
+  function cabinLabel(c) {
+    var v = c.y / CAB.y, u = c.x / CAB.x;
+    var row = v < -0.5 ? "Dashboard" : v < 0.1 ? "Front row" : v < 0.5 ? "Behind the front seats" : "Rear seats";
+    var side = u < -0.35 ? "driver side" : u > 0.35 ? "passenger side" : "middle";
+    return row + ", " + side + " · looking " + LOOKS[((Math.round(c.look / 45) % 8) + 8) % 8];
+  }
   function drawPlan() {
     var cv = root.querySelector("#t-plan"); if (!cv) return;
-    var g = cv.getContext("2d"), k = cv.width / PL.w, inT = T.kind === "interior", R = ring(), cx = PL.cx, cy = PL.cy;
+    var g = cv.getContext("2d"), k = cv.width / PL.w, inT = T.kind === "interior", cx = PL.cx, cy = PL.cy;
     root.querySelector("#t-ph").textContent = (inT ? "Cabin" : "Camera") + " · from above";
     g.setTransform(k, 0, 0, k, 0, 0); g.clearRect(0, 0, PL.w, PL.h);
     function rr(x, y, w, h, r, f, st) { g.beginPath(); g.roundRect(x, y, w, h, r); if (f) { g.fillStyle = f; g.fill(); } if (st) { g.strokeStyle = st; g.lineWidth = 1.5; g.stroke(); } }
@@ -166,25 +179,47 @@
       g.fillText("front", cx, cy - 56);
     }
     if (!T.base) return;
-    function at(az) { var a = az * Math.PI / 180; return [cx + R.rx * Math.sin(a), cy - R.ry * Math.cos(a)]; }
-    var b = at(SIDES.indexOf(T.base) * 45), c = at(camAz()), look = Math.atan2(cy - c[1], cx - c[0]), half = inT ? 0.62 : 0.38, len = inT ? 120 : 70;
-    g.fillStyle = "rgba(109,93,245,.18)"; g.beginPath(); g.moveTo(c[0], c[1]); g.arc(c[0], c[1], len, look - half, look + half); g.closePath(); g.fill();
-    g.beginPath(); g.arc(b[0], b[1], 5.5, 0, 7); g.fillStyle = "#fff"; g.fill(); g.strokeStyle = "#9aa1b2"; g.lineWidth = 2; g.stroke();
-    g.beginPath(); g.arc(c[0], c[1], 7, 0, 7); g.fillStyle = "#6d5df5"; g.fill(); g.strokeStyle = "#fff"; g.lineWidth = 2; g.stroke();
+    var b = camOf(SIDES.indexOf(T.base) * 45), c = cam(), la = (c.look - 90) * Math.PI / 180, half = inT ? 0.55 : 0.38, len = inT ? 110 : 70;
+    g.save(); g.beginPath(); g.rect(0, 0, PL.w, PL.h); g.clip();
+    g.fillStyle = "rgba(109,93,245,.18)"; g.beginPath(); g.moveTo(cx + c.x, cy + c.y); g.arc(cx + c.x, cy + c.y, len, la - half, la + half); g.closePath(); g.fill(); g.restore();
+    g.beginPath(); g.arc(cx + b.x, cy + b.y, 5.5, 0, 7); g.fillStyle = "#fff"; g.fill(); g.strokeStyle = "#9aa1b2"; g.lineWidth = 2; g.stroke();
+    if (inT) {                                                                  // the handle that turns the cone
+      var h = handle(c); g.strokeStyle = "#6d5df5"; g.lineWidth = 1.5; g.beginPath(); g.moveTo(cx + c.x, cy + c.y); g.lineTo(cx + h.x, cy + h.y); g.stroke();
+      g.beginPath(); g.arc(cx + h.x, cy + h.y, 5, 0, 7); g.fillStyle = "#fff"; g.fill(); g.stroke();
+    }
+    g.beginPath(); g.arc(cx + c.x, cy + c.y, 7, 0, 7); g.fillStyle = "#6d5df5"; g.fill(); g.strokeStyle = "#fff"; g.lineWidth = 2; g.stroke();
   }
-  function planDrag(e) {
-    var cv = root.querySelector("#t-plan"), r = cv.getBoundingClientRect(), R = ring();
-    var x = (e.clientX - r.left) / r.width * PL.w - PL.cx, y = (e.clientY - r.top) / r.height * PL.h - PL.cy;
-    var az = Math.atan2(x / R.rx, -y / R.ry) * 180 / Math.PI, snap = Math.round(az / 45) * 45;
-    if (Math.abs(az - snap) < 9) az = snap;                                   // the named views are easy to hit
-    T.yaw = norm(Math.round((T.base ? SIDES.indexOf(T.base) * 45 : 315) - az)); T.sel = -1; render();
+  function handle(c) { var a = c.look * Math.PI / 180; return { x: c.x + 30 * Math.sin(a), y: c.y - 30 * Math.cos(a) }; }
+  var pmode = null, raf = 0;
+  function later() { if (!raf) raf = requestAnimationFrame(function () { raf = 0; render(); }); }
+  function planPoint(e) { var r = root.querySelector("#t-plan").getBoundingClientRect(); return { x: (e.clientX - r.left) / r.width * PL.w - PL.cx, y: (e.clientY - r.top) / r.height * PL.h - PL.cy }; }
+  function azOf(q) { var R = ring(); return Math.atan2(q.x / R.rx, -q.y / R.ry) * 180 / Math.PI; }
+  function planDown(e) {
+    var q = planPoint(e), c = cam(), d = function (p) { return Math.hypot(p.x - q.x, p.y - q.y); }, b = camOf(SIDES.indexOf(T.base) * 45);
+    pmode = T.kind === "interior" && d(handle(c)) < 11 ? "look" : d(c) < 11 ? "move" : d(b) < 9 ? "base" : "move";
+    planMove(e);
+  }
+  function planMove(e) {
+    var q = planPoint(e), c = cam();
+    if (pmode === "look") { T.cam = { x: c.x, y: c.y, look: Math.round(lookAt(c, q)) }; }
+    else if (pmode === "base") {                     // your picture was read wrong: put the ring where it was taken
+      var tg = target(), nb = SIDES[((Math.round(azOf(q) / 45) % 8) + 8) % 8];
+      if (nb !== T.base) { T.base = nb; if (tg && !inCab()) T.yaw = norm(SIDES.indexOf(T.base) * 45 - SIDES.indexOf(tg) * 45); }
+    }
+    else if (T.kind === "interior") { T.cam = { x: clamp(q.x, -CAB.x, CAB.x), y: clamp(q.y, -CAB.y, CAB.y), look: c.look }; }
+    else {
+      var az = azOf(q), snap = Math.round(az / 45) * 45; if (Math.abs(az - snap) < 5) az = snap;   // named views: a gentle snap
+      T.yaw = norm(Math.round((T.base ? SIDES.indexOf(T.base) * 45 : 315) - az));
+    }
+    T.sel = -1; later();
   }
 
   function wire() {
     var pl = root.querySelector("#t-plan"), pd = false;
-    pl.addEventListener("pointerdown", function (e) { if (!T.base || T.running) return; e.stopPropagation(); pd = true; pl.setPointerCapture(e.pointerId); planDrag(e); });
-    pl.addEventListener("pointermove", function (e) { if (pd) planDrag(e); });
-    pl.addEventListener("pointerup", function () { pd = false; });
+    pl.addEventListener("pointerdown", function (e) { if (!T.base || T.running) return; e.stopPropagation(); e.preventDefault(); pd = true; pl.setPointerCapture(e.pointerId); planDown(e); });
+    pl.addEventListener("pointermove", function (e) { if (pd) planMove(e); });
+    pl.addEventListener("pointerup", function () { pd = false; pmode = null; });
+    pl.addEventListener("pointercancel", function () { pd = false; pmode = null; });
     var st = root.querySelector("#t-stage");
     st.addEventListener("pointerdown", function (e) {
       if (!T.src || e.target.closest("button")) return;
@@ -211,21 +246,16 @@
     root.addEventListener("click", function (e) {
       var a = e.target.closest("[data-a]"), l = e.target.closest("[data-l]"), h = e.target.closest("[data-h]"), r = e.target.closest("[data-r]"),
           x = e.target.closest("[data-x]");
-      if (a && T.base) { T.yaw = norm(SIDES.indexOf(T.base) * 45 - SIDES.indexOf(a.getAttribute("data-a")) * 45); T.sel = -1; render(); }
+      if (a && T.base) { T.cam = null; T.yaw = norm(SIDES.indexOf(T.base) * 45 - SIDES.indexOf(a.getAttribute("data-a")) * 45); T.sel = -1; render(); }
       else if (h) { T.pitch = HEIGHTS.filter(function (q) { return q[0] === h.getAttribute("data-h"); })[0][2]; T.sel = -1; render(); }
       else if (l) { T.lens = l.getAttribute("data-l"); render(); }
       else if (r) { var k = +r.getAttribute("data-r"); T.sel = k === T.sel ? -1 : k; render(); }   // again: back to your picture
       else if (x) act(x.getAttribute("data-x"));
-      else if (e.target.closest("#t-reset")) { T.yaw = 0; T.pitch = 0; T.dist = 0; T.lens = "normal"; T.sel = -1; render(); }
+      else if (e.target.closest("#t-reset")) { T.cam = null; T.yaw = 0; T.pitch = 0; T.dist = 0; T.lens = "normal"; T.sel = -1; render(); }
       else if (e.target.closest("#t-go")) go();
     });
-    root.addEventListener("change", function (e) {      // the picture was read wrong: keep the chosen view
-      if (e.target.id !== "t-seensel") return;
-      var tg = target(); T.base = e.target.value; if (tg && moved()) T.yaw = norm(SIDES.indexOf(T.base) * 45 - SIDES.indexOf(tg) * 45); render();
-    });
     root.addEventListener("input", function (e) {
-      if (e.target.id === "t-seensel") return;
-      if (e.target.id === "t-yaw") T.yaw = +e.target.value;
+      if (e.target.id === "t-yaw") { T.yaw = +e.target.value; T.cam = null; }
       else if (e.target.id === "t-pitch") T.pitch = +e.target.value;
       else if (e.target.id === "t-dist") T.dist = +e.target.value;
       else if (e.target.id === "t-text") { T.text = e.target.value; return; }
@@ -258,8 +288,9 @@
     var V = VS(), p = V.S.create;
     if (p.job) { V.toast("Studio is still working on something"); return; }
     V.setImage(p, "src", T.src);
-    T.running = true; T.wantLabel = viewName(target()) + (heightName() === "eye level" ? "" : ", " + heightName());
-    V.job("c", { view: { yaw: T.yaw, pitch: T.pitch, dist: T.dist, lens: T.lens, target: target() }, text: T.text, preset: "",
+    T.running = true; T.wantLabel = (inCab() ? cabinLabel(T.cam) : viewName(target())) + (heightName() === "eye level" ? "" : ", " + heightName());
+    V.job("c", { view: { yaw: T.yaw, pitch: T.pitch, dist: T.dist, lens: T.lens, target: target(),
+                       cabin: inCab() ? { u: T.cam.x / CAB.x, v: T.cam.y / CAB.y, look: T.cam.look } : null }, text: T.text, preset: "",
                  refs: [], mask: null, variations: 1, instant: false });
     render();
   }
@@ -283,7 +314,7 @@
   function open(info, origin) {
     if (!info) return;
     T.origin = origin || null;
-    T.src = info; T.yaw = 0; T.pitch = 0; T.dist = 0; T.lens = "normal"; T.sel = -1; T.results = []; T.base = null; T.kind = ""; T.view = "res";
+    T.src = info; T.cam = null; T.yaw = 0; T.pitch = 0; T.dist = 0; T.lens = "normal"; T.sel = -1; T.results = []; T.base = null; T.kind = ""; T.view = "res";
     VS().go("3d"); render();
     var a = VS().api();
     // Which side the picture shows (the picture reader, a few seconds).

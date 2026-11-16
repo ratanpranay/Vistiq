@@ -795,3 +795,12 @@ class ViewSide(unittest.TestCase):
         self.assertEqual(studio.parse_view("kind=exterior; nose=right; end=rear; side=front")[1], "rear-right")
         self.assertEqual(studio.parse_view("kind=exterior; nose=toward; end=front")[1], "front")
         self.assertEqual(studio.parse_view("kind=interior; nose=left; side=rear")[1], "rear")
+
+
+class CabinCamera(unittest.TestCase):
+    def test_free_camera_in_the_cabin(self):
+        from vistiq import studio
+        w, _ = studio.view_words("interior", "rear", 0, 0, cabin={"u": -0.8, "v": 0.8, "look": 0})
+        self.assertIn("in the rear seats on the driver's side, looking toward the windscreen", w)
+        w, _ = studio.view_words("interior", "rear", 0, 0, cabin={"u": 0, "v": -0.2, "look": 90})
+        self.assertIn("between the front seats, looking toward the passenger door", w)

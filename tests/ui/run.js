@@ -716,15 +716,22 @@ const frame = (n, name) => ({ path: "live://photoshop/" + n, name: name || "flat
     await p.waitForTimeout(200);
     check("the side follows where the nose points", await p.evaluate(() => window.VS3D._state().base) === "right", await p.evaluate(() => window.VS3D._state().base));
     await p.click("#t-angles [data-a=front-left]");
-    await p.selectOption("#t-seensel", "left");
-    check("you can correct which side your picture shows, and the chosen view stays", await p.evaluate(() => window.VS3D._state().base === "left" && document.getElementById("t-will").textContent.includes("Front ¾ left")), await p.text("#t-will"));
-    {
-      const r = await p.evaluate(() => { const b = document.getElementById("t-plan").getBoundingClientRect(); return [b.x, b.y, b.width, b.height]; });
-      // the dot dragged to the right of the design (front at the top) = its right side
-      await p.mouse.move(r[0] + r[2] / 2, r[1] + r[3] * 0.555); await p.mouse.down(); await p.mouse.move(r[0] + r[2] - 4, r[1] + r[3] * 0.555, { steps: 4 }); await p.mouse.up();
-      check("dragging the dot on the plan sets the view", /Right side/.test(await p.text("#t-will")), await p.text("#t-will"));
-      await p.click("#t-angles [data-a=front-left]");
-    }
+    const P = async (x, y) => { const r = await p.evaluate(() => { const b = document.getElementById("t-plan").getBoundingClientRect(); return [b.x, b.y, b.width, b.height]; }); return [r[0] + x / 170 * r[2], r[1] + y / 220 * r[3]]; };
+    const dragPlan = async (a, b) => { const A = await P(a[0], a[1]), B = await P(b[0], b[1]); await p.mouse.move(A[0], A[1]); await p.mouse.down(); await p.mouse.move(B[0], B[1], { steps: 6 }); await p.mouse.up(); await p.waitForTimeout(50); };
+    check("no dropdown for the picture's side", await p.evaluate(() => !document.querySelector("#p-3d select")), "");
+    await dragPlan([85 + 68, 122], [85 - 68, 122]);       // the grey ring (read: right side) dragged to the left side
+    check("dragging the grey ring corrects your picture's side, and the chosen view stays", await p.evaluate(() => window.VS3D._state().base === "left" && document.getElementById("t-will").textContent.includes("Front ¾ left")), await p.text("#t-will") + " " + await p.evaluate(() => window.VS3D._state().base));
+    await dragPlan([85 - 48, 122 - 61], [85 + 68, 122]);   // the dot from front ¾ left round to the right side
+    check("dragging the dot round the design sets the view", /Right side/.test(await p.text("#t-will")), await p.text("#t-will"));
+    // inside: the dot goes anywhere in the cabin, the handle turns the cone
+    await p.evaluate(() => { window.VS3D._state().kind = "interior"; window.VS3D.render(); });
+    await dragPlan([60, 192], [60, 192]);
+    const c1 = await p.evaluate(() => window.VS3D._state().cam);
+    const hx = c1.x + 30 * Math.sin(c1.look * Math.PI / 180), hy = c1.y - 30 * Math.cos(c1.look * Math.PI / 180);
+    await dragPlan([85 + hx, 122 + hy], [85 + c1.x, 122 + c1.y - 40]);
+    check("inside, the camera moves freely and its handle turns it", /Rear seats, driver side · looking forward/.test(await p.text("#t-will")), await p.text("#t-will"));
+    await p.evaluate(() => { window.VS3D._state().kind = "product"; });
+    await p.click("#t-angles [data-a=front-left]");
     await p.click("#p-3d .t-heights [data-h=eye]");
     check("view buttons wait for a view", await p.evaluate(() => [...document.querySelectorAll("#t-acts [data-x]")].every((b) => b.disabled)), "");
     await p.click("#p-3d .t-heights [data-h=high]");
