@@ -458,15 +458,19 @@ def parse_view(answer):
     return kind, side, height
 
 
-def view_words(kind, side, yaw, pitch, dist=0.0, lens="normal", target=None):
+def view_words(kind, side, yaw, pitch, dist=0.0, lens="normal", target=None, design=""):
     """Words for the view after turning the camera by yaw (dragging right brings the
-    picture's left side forward) and pitch degrees, or straight to `target` (a side)."""
+    picture's left side forward) and pitch degrees, or straight to `target` (a side).
+    `design`: the picture reader's description of the design, so the new view keeps it."""
     if target not in SIDES:
         az = (SIDES.index(side) * 45 - float(yaw)) % 360
         target = SIDES[int(round(az / 45.0)) % 8]
     p = float(pitch)
-    height = ("from high above, looking steeply down" if p >= 45 else "from a raised camera, looking down" if p >= 15
-              else "from a low camera, looking up" if p <= -12 else "from eye level")
+    # 50 degrees made an almost top view (tested Nov 2026): "from above" is a raised camera
+    # that still shows the side; only a very high setting looks steeply down.
+    height = ("from high above, looking down at it" if p >= 55 else
+              "from a slightly raised camera, a little above the roof, looking down a little, the side still fully visible" if p >= 15
+              else "from a low camera close to the ground, looking up at it" if p <= -12 else "from eye level")
     if kind == "interior":
         where = CABIN_WORDS[target] + ", " + height
     else:
@@ -480,10 +484,15 @@ def view_words(kind, side, yaw, pitch, dist=0.0, lens="normal", target=None):
         extra.append("wide-angle lens")
     elif lens == "tele":
         extra.append("long lens, flat perspective")
-    return ("Show this exact same design from a new camera: " + where + (", " + ", ".join(extra) if extra else "") +
-            ". Every part stays exactly as designed and keeps its colour and finish; only the camera moves. "
-            "Parts that were hidden are completed to match the design. Add no logos, badges or text that are not "
-            "in the picture."), target
+    design = " ".join((design or "").split()).strip()
+    if design and design[-1] not in ".!?":
+        design += "."
+    return ("Show this exact same design from a new camera: " + where + (", " + ", ".join(extra) if extra else "") + ". " +
+            ("The design: " + design + " " if design else "") +
+            "Keep every part exactly as designed: the same proportions, silhouette, lights, grille, wheels, window "
+            "line, surfaces and colours; only the camera moves. Keep the picture's style: a sketch stays a sketch "
+            "with the same strokes and shading, a render stays a render, a photo stays a photo. Parts that were "
+            "hidden are completed to match the design. Add no logos, badges or text that are not in the picture."), target
 
 
 QE_INSTANT = ("Turn this design sketch into a finished, photorealistic CGI render, like a car maker's studio "

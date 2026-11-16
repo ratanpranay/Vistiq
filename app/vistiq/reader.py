@@ -79,6 +79,9 @@ ASK = {
              "cold; a lit campfire with glow on nearby faces), and say what stays exactly the same (the main "
              "subject's design and colours, the people's poses, the camera). Plain sentences, at most 100 words, "
              "the instruction only."),
+    "design": ("Describe the design in this picture in two short sentences, so someone could draw it again from "
+               "another side: what it is and whether it is a sketch, a render or a photo; its proportions and "
+               "silhouette; its key features (lights, grille, wheels, window line, surfaces, colours). Facts only."),
     "view": ("Look at this picture and answer in exactly this form, nothing else: "
              "kind=<exterior|interior|product>; side=<front|front-right|right|rear-right|rear|rear-left|left|front-left>; "
              "height=<low|eye|high|top>. kind: a car seen from outside, a car's inside (cabin, dashboard, seats), or "

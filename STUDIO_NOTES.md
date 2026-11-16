@@ -1,5 +1,12 @@
 # Vistiq Studio (test build)
 
+## 0.4.32
+- "3D views" moved below Create. Machine stats show on the 3D page too.
+- Rendering a view looks like Create: blurred picture, progress ring, live preview.
+- Tabs fixed: you can click back to any view. Hold on a view to see the original. A gap after Original.
+- Heights fixed: the preview tilts the right way; "From above" is a raised camera (no more near-top views).
+- Better design transfer: the reader describes the design first; the view keeps proportions, parts and the picture's style (a sketch stays a sketch).
+
 ## 0.4.31
 - Board: freeform. New pictures take free space where you're looking, loosely scattered (not a line or a column); drag on the empty board to select a group, Delete removes it; Q or right-click a group to Mix (one main picture, the others give camera, materials, style or light). Organize removed.
 - 3D views gather in a “3D” frame on the board (drag its name to move it), joined to their pictures.

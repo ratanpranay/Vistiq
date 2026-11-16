@@ -703,6 +703,41 @@ const frame = (n, name) => ({ path: "live://photoshop/" + n, name: name || "flat
     await p.close();
   }
 
+  // 3D views: order, tabs, hold, loading, height.
+  {
+    const p = await open(browser);
+    check("3D views sits after Create", await p.evaluate(() => [...document.querySelectorAll(".s-nav button[data-page]")].map((b) => b.dataset.page).join(",")) === "board,create,3d,upscale,library,settings", "");
+    await p.evaluate(() => {
+      const api = window.pywebview.api;
+      api.studio_describe = () => Promise.resolve({ text: "kind=exterior; side=left; height=eye" });
+      api.studio_results_for = () => Promise.resolve([]);
+      window.VS3D.open({ path: "C:/o/car.png", name: "car.png", w: 1600, h: 900, preview: "data:image/gif;base64,R0lGODlhAQABAAAAACw=" });
+    });
+    await p.waitForTimeout(200);
+    await p.click("#p-3d .t-heights [data-h=high]");
+    const tf = await p.evaluate(() => document.getElementById("t-card").style.transform);
+    check("From above tilts the top edge towards you", /rotateX\(-/.test(tf), tf);
+    check("From above is a raised camera, not a top view", await p.evaluate(() => window.VS3D._state().pitch) <= 30, "");
+    await p.click("#t-go");
+    await p.evaluate(() => { window.VS.S.create.job = "j1"; window.VS.S.create.frac = 0.4; window.VS3D.render(); });
+    check("rendering looks like Create: blurred picture and a ring", await p.evaluate(() => document.getElementById("t-card").classList.contains("t-loading") && !document.getElementById("t-ring").hidden), "");
+    await p.evaluate(() => { window.VS.S.create.job = null; window.VS3D.onResult({ path: "C:/o/v1.png", name: "v1.png", preview: "data:image/gif;base64,R0lGODlhAQABAIAAAP///wAAACw=", meta: { view: { target: "left" } } });
+      window.VS3D.onResult({ path: "C:/o/v2.png", name: "v2.png", preview: "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywA", meta: { view: { target: "front" } } }); });
+    check("a gap after Original", await p.evaluate(() => !!document.querySelector("#t-strip .t-orig + .t-gap")), "");
+    await p.click("#t-strip [data-r='-1']");
+    await p.click("#t-strip [data-r='0']");
+    check("clicking back on a view shows it", await p.evaluate(() => window.VS3D._state().sel === 0 && !document.getElementById("t-res").hidden), String(await p.evaluate(() => window.VS3D._state().sel)));
+    await p.click("#t-strip [data-r='1']");
+    check("and another view", await p.evaluate(() => window.VS3D._state().sel === 1), "");
+    const b = await p.evaluate(() => { const r = document.getElementById("t-res").getBoundingClientRect(); return [r.x + r.width / 2, r.y + r.height / 2]; });
+    await p.mouse.move(b[0], b[1]); await p.mouse.down();
+    check("holding a view shows the original", await p.evaluate(() => document.getElementById("t-res").getAttribute("src") === window.VS3D._state().src.preview), "");
+    await p.mouse.up();
+    check("letting go shows the view again", await p.evaluate(() => document.getElementById("t-res").getAttribute("src") !== window.VS3D._state().src.preview && window.VS3D._state().sel === 1), "");
+    check("no page errors on 3D views", p.errors.length === 0, p.errors.join(" | "));
+    await p.close();
+  }
+
   await browser.close();
   console.log(failed ? failed + " screen test(s) failed" : "all screen tests passed");
   process.exit(failed ? 1 : 0);

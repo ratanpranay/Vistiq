@@ -221,8 +221,8 @@
     var nav = document.createElement("nav");
     nav.className = "s-nav";
     nav.innerHTML = '<div class="s-logo" title="Vistiq Studio"><img src="assets/mark.png" alt=""></div>' +
-      ["board", "3d", "create", "upscale", "library"].map(function (p) {
-        return '<button type="button" data-page="' + p + '">' + svg(p) + (p === "3d" ? "3D" : p.charAt(0).toUpperCase() + p.slice(1)) + "</button>";
+      ["board", "create", "3d", "upscale", "library"].map(function (p) {
+        return '<button type="button" data-page="' + p + '">' + svg(p) + (p === "3d" ? "3D views" : p.charAt(0).toUpperCase() + p.slice(1)) + "</button>";
       }).join("") + '<div class="s-sp"></div><button type="button" data-page="settings">' + svg("settings") + "Settings</button>" +
       '<button type="button" class="s-min s-navmin" data-min="nav" title="Collapse / expand"><svg viewBox="0 0 24 24"><path d="M15 6l-6 6 6 6"/></svg></button>';
     document.body.insertBefore(nav, document.body.firstChild);

@@ -771,7 +771,7 @@ body.studio .s-stage>.s-top,body.studio .s-stage>.s-under{position:relative;z-in
 /* the machine line and the zoom box: one line at the bottom, level with the ‹ arrow */
 .s-machine{position:fixed;left:84px;bottom:20px;z-index:30;display:none;gap:10px;align-items:center;padding:4px 10px;border-radius:8px;background:rgba(255,255,255,.92);box-shadow:0 2px 8px rgba(14,16,32,.07);font-size:9.5px;line-height:1.2;color:#8a90a2;white-space:nowrap;pointer-events:none;max-width:calc(100vw - 84px - 470px);overflow:hidden}
 .s-machine:empty{display:none!important}
-body.studio[data-page=create] .s-machine,body.studio[data-page=reference] .s-machine,body.studio[data-page=board] .s-machine,body.studio[data-page=upscale] .s-machine,body.studio[data-page=library] .s-machine{display:flex}
+body.studio[data-page=create] .s-machine,body.studio[data-page=reference] .s-machine,body.studio[data-page=board] .s-machine,body.studio[data-page=upscale] .s-machine,body.studio[data-page=library] .s-machine,body.studio[data-page="3d"] .s-machine{display:flex}
 body.nav-min .s-machine{left:20px}
 .s-machine b{color:#3b4050;font-weight:500}.s-machine b.hot{color:#d97706}
 .s-machine i{display:inline-block;width:22px;height:3px;border-radius:2px;background:#e6e8ef;position:relative;vertical-align:1px;margin:0 3px}
@@ -1049,3 +1049,13 @@ body.studio .s-vars>.s-ph.sel{border-color:var(--ink)}
 .t-angles button{padding:7px 2px;font-size:11.5px;min-height:38px;justify-content:center}
 .b-frame{border-color:#b8bdd0;background:rgba(91,76,224,.03)}
 .b-fh{font-size:18px}
+
+/* 3D views: loading like Create (blurred picture, ring, live preview), hold to see the original, gap after Original */
+.t-card{position:relative}
+.t-card.t-loading{overflow:hidden;border-radius:10px}
+.t-card.t-loading #t-img{filter:blur(var(--blur,16px)) saturate(1.05);transform:scale(1.03);transition:filter .6s}
+.t-dev{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;border-radius:10px;transition:opacity .5s}
+.t-dev[hidden],.t-pring[hidden],.t-busy[hidden]{display:none!important}
+.t-pring{z-index:4}.t-busy{z-index:4}
+.t-stage.hold{cursor:default}
+.t-gap{flex:none;width:1px;align-self:stretch;margin:6px 8px;background:#d9dce5}

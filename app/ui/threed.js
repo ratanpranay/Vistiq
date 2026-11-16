@@ -10,9 +10,9 @@
   var CABIN = { "front": "From the windscreen", "front-right": "Passenger front corner", "right": "Passenger door", "rear-right": "Behind passenger",
                 "rear": "From the rear seat", "rear-left": "Behind driver", "left": "Driver's door", "front-left": "Driver's front corner" };
   var ANGLES = ["front-left", "front", "front-right", "left", "right", "rear-left", "rear", "rear-right"];
-  var HEIGHTS = [["eye", "Eye level", 0], ["high", "From above", 50], ["low", "Low", -20]];
+  var HEIGHTS = [["eye", "Eye level", 0], ["high", "From above", 25], ["low", "Low", -20]];
   var T = { yaw: 0, pitch: 0, dist: 0, lens: "normal", src: null, text: "", base: null, kind: "", reading: false,
-            results: [], sel: -1, cmp: false }, root, drag = null;
+            results: [], sel: -1, cmp: false }, root, drag = null, hold = null;
   function VS() { return window.VS; }
   function esc(t) { return VS().esc(t); }
   function clamp(v, a, b) { return Math.max(a, Math.min(b, v)); }
@@ -22,21 +22,22 @@
     var az = ((SIDES.indexOf(T.base) * 45 - T.yaw) % 360 + 360) % 360;
     return SIDES[Math.round(az / 45) % 8];
   }
-  function heightName() { return T.pitch >= 45 ? "from above" : T.pitch >= 15 ? "raised" : T.pitch <= -12 ? "low" : "eye level"; }
+  function heightName() { return T.pitch >= 55 ? "high above" : T.pitch >= 15 ? "from above" : T.pitch <= -12 ? "low" : "eye level"; }
   function viewName(side) { return side ? (T.kind === "interior" ? CABIN[side] : NAME[side]) : ""; }
   function moved() { return Math.abs(T.yaw) >= 10 || Math.abs(T.pitch) >= 8 || Math.abs(T.dist) >= 0.25 || T.lens !== "normal"; }
 
   function build(el) {
     root = el;
     el.innerHTML =
-      '<div class="t-main"><div class="t-stage" id="t-stage"><div class="t-card" id="t-card"><img id="t-img" alt="" draggable="false"></div>' +
+      '<div class="t-main"><div class="t-stage" id="t-stage"><div class="t-card" id="t-card"><img id="t-img" alt="" draggable="false"><img class="t-dev" id="t-dev" alt="" draggable="false" hidden></div>' +
       '<img class="t-res" id="t-res" alt="" draggable="false" hidden>' +
       '<div class="t-tag" id="t-tag" hidden></div>' +
-      '<div class="t-prog" id="t-prog" hidden></div>' +
+      '<div class="s-pring t-pring" id="t-ring" hidden><svg viewBox="0 0 48 48"><circle cx="24" cy="24" r="20" class="bg"/><circle cx="24" cy="24" r="20" class="fg"/></svg><b></b></div>' +
+      '<div class="s-busy t-busy" id="t-prog" hidden><span></span><i><b></b></i></div>' +
       '<div class="t-orbit" id="t-orbit"><i></i></div><div class="t-tip" id="t-tip">Drag to turn the camera · scroll to move closer</div>' +
       '<div class="t-empty" id="t-empty">Open a picture from the board, or press 3D in Create</div></div>' +
       '<div class="t-strip" id="t-strip"></div></div>' +
-      '<aside class="s-rail t-rail"><div class="s-rh"><h3>3D</h3></div>' +
+      '<aside class="s-rail t-rail"><div class="s-rh"><h3>3D views</h3></div>' +
       '<div><div class="s-label">Working on</div><div class="s-work" id="t-work"></div><p class="s-hint" id="t-seen"></p></div>' +
       '<div><div class="s-label">Show it from</div><div class="t-angles" id="t-angles"></div>' +
       '<div class="t-heights">' + HEIGHTS.map(function (h) { return '<button type="button" data-h="' + h[0] + '">' + h[1] + "</button>"; }).join("") + "</div></div>" +
@@ -67,6 +68,8 @@
   function render() {
     if (!root) return;
     var V = VS(), p = V.S.create, has = !!(T.src && T.src.preview), res = T.sel >= 0 ? T.results[T.sel] : null;
+    var busy = !!(p.job && T.running);
+    if (busy) res = null;
     var showRes = !!res;
     root.querySelector("#t-empty").hidden = has;
     var img = root.querySelector("#t-img");
@@ -75,14 +78,19 @@
     var ri = root.querySelector("#t-res");
     ri.hidden = !showRes; if (res && ri.getAttribute("src") !== (res.preview || "")) ri.src = res.preview || "";
     var tag = root.querySelector("#t-tag"); tag.hidden = !res;
-    if (res) tag.textContent = (res.label || "New view") + " · click it again for your picture";
-    root.querySelector("#t-orbit").hidden = showRes; root.querySelector("#t-tip").hidden = showRes || !has;
+    if (res) tag.textContent = (res.label || "New view") + " · hold to see the original";
+    root.querySelector("#t-orbit").hidden = showRes || busy; root.querySelector("#t-tip").hidden = showRes || !has || busy;
     root.querySelector("#t-work").innerHTML = has ? '<img src="' + T.src.preview + '" alt=""><div><b>' + esc(V.short(T.src.name || "")) + "</b><small>" + (T.src.w || "") + " × " + (T.src.h || "") + "</small></div>" : "<small>Nothing yet</small>";
     root.querySelector("#t-seen").textContent = !has ? "" : T.reading ? "Reading which side we see…" :
       T.base ? "Seen from: " + viewName(T.base).toLowerCase() + " (" + (T.kind || "picture") + ")" : "";
     // The preview: the picture turns with the camera.
     var c = root.querySelector("#t-card"), s = 1 - T.dist * 0.18;
-    c.style.transform = "rotateY(" + (-T.yaw * 0.45) + "deg) rotateX(" + (T.pitch * 0.45) + "deg) scale(" + s + ")";
+    // camera above: the top edge comes nearer (wider); below: the bottom edge does
+    c.style.transform = busy ? "none" : "rotateY(" + (-T.yaw * 0.45) + "deg) rotateX(" + (-T.pitch * 0.45) + "deg) scale(" + s + ")";
+    c.classList.toggle("t-loading", busy);
+    var dv = root.querySelector("#t-dev"), pv = busy && p.preview;
+    dv.hidden = !pv; if (pv) { if (dv.getAttribute("src") !== p.preview) dv.src = p.preview; dv.style.opacity = Math.min(1, 0.35 + 0.13 * (p.previewN || 1)); }
+    if (busy) c.style.setProperty("--blur", Math.max(2, 18 - 2.5 * (p.previewN || 0)) + "px");
     var o = root.querySelector("#t-orbit i");
     o.style.left = (50 + T.yaw / 180 * 46) + "%"; o.style.top = (50 - T.pitch / 75 * 46) + "%";
     root.querySelector("#t-yaw").value = T.yaw; root.querySelector("#t-pitch").value = T.pitch; root.querySelector("#t-dist").value = T.dist;
@@ -94,35 +102,49 @@
     var ah = ANGLES.map(function (a) {
       return '<button type="button" data-a="' + a + '" class="' + (tg === a ? "on" : "") + (T.base === a ? " now" : "") + '"' + (T.base ? "" : " disabled") + ">" +
         esc(viewName(a) || NAME[a]) + "</button>"; }).join("");
-    var ae = root.querySelector("#t-angles"); if (ae.getAttribute("data-h") !== ah) { ae.innerHTML = ah; ae.setAttribute("data-h", ah); }
+    var ae = root.querySelector("#t-angles"); if (ae.getAttribute("data-k") !== ah) { ae.innerHTML = ah; ae.setAttribute("data-k", ah); }
     root.querySelectorAll(".t-heights button").forEach(function (b) { var h = HEIGHTS.filter(function (x) { return x[0] === b.getAttribute("data-h"); })[0]; b.classList.toggle("on", T.pitch === h[2]); });
-    var busy = !!(p.job && T.running);
     root.querySelector("#t-will").innerHTML = tg && moved() ? "Will show: <b>" + esc(viewName(tg)) + "</b>, " + heightName() : "";
     var go = root.querySelector("#t-go");
     go.disabled = !has || !moved() || busy || !!p.job && !T.running;
     go.textContent = busy ? (p.stage || "Working") + (p.frac ? " · " + Math.round(p.frac * 100) + "%" : "") : "Render this view";
     root.querySelector("#t-hint").textContent = busy ? "" : !moved() ? "Pick a view or drag the picture." : "Same design, new camera. About 2 minutes.";
-    var pr = root.querySelector("#t-prog"); pr.hidden = !busy; if (busy) pr.innerHTML = '<span class="t-ring"></span>' + esc(p.stage || "Working") + (p.frac ? " · " + Math.round(p.frac * 100) + "%" : "");
+    var pr = root.querySelector("#t-prog"), rg = root.querySelector("#t-ring"), fr = Math.max(0.02, p.frac || 0);
+    pr.hidden = rg.hidden = !busy;
+    if (busy) {
+      pr.querySelector("span").textContent = (V.S.engine && V.S.engine.state === "starting" ? V.S.engine.message : p.stage) || "Working";
+      pr.querySelector("b").style.width = Math.round((p.frac || 0) * 100) + "%";
+      rg.querySelector(".fg").style.strokeDashoffset = String(125.7 * (1 - fr)); rg.querySelector("b").textContent = Math.round(fr * 100) + "%";
+    }
     root.querySelector("#t-acts").hidden = !res;
     var sh = T.results.map(function (r, i) { return '<button type="button" data-r="' + i + '" class="' + (i === T.sel ? "on" : "") + '"><img src="' + (r.preview || "") + '" alt=""><small>' + esc(r.label || "") + "</small></button>"; }).join("");
-    sh = has ? '<button type="button" data-r="-1" class="t-orig' + (T.sel < 0 ? " on" : "") + '"><img src="' + T.src.preview + '" alt=""><small>Original</small></button>' + sh : "";
-    var st = root.querySelector("#t-strip"); if (st.getAttribute("data-h") !== sh) { st.innerHTML = sh; st.setAttribute("data-h", sh); }
+    sh = has ? '<button type="button" data-r="-1" class="t-orig' + (T.sel < 0 ? " on" : "") + '"><img src="' + T.src.preview + '" alt=""><small>Original</small></button>' + (sh ? '<span class="t-gap"></span>' + sh : "") : "";
+    var st = root.querySelector("#t-strip"); if (st.getAttribute("data-k") !== sh) { st.innerHTML = sh; st.setAttribute("data-k", sh); }
   }
 
   function wire() {
     var st = root.querySelector("#t-stage");
     st.addEventListener("pointerdown", function (e) {
       if (!T.src || e.target.closest("button")) return;
-      if (T.sel >= 0) { T.sel = -1; render(); }
+      var ri = root.querySelector("#t-res");
+      if (!ri.hidden) {                       // a view: hold to see the original, as in Create
+        hold = ri.getAttribute("src"); ri.src = T.src.preview; st.classList.add("hold");
+        root.querySelector("#t-tag").textContent = "Original"; return;
+      }
+      if (T.running) return;
       drag = { x: e.clientX, y: e.clientY, yaw: T.yaw, pitch: T.pitch }; st.setPointerCapture(e.pointerId); st.classList.add("grab");
     });
     st.addEventListener("pointermove", function (e) {
-      if (!drag) return;
+      if (!drag || T.running) return;
       T.yaw = clamp(Math.round(drag.yaw + (e.clientX - drag.x) * 0.35), -180, 180);
       T.pitch = clamp(Math.round(drag.pitch - (e.clientY - drag.y) * 0.25), -30, 75);
       render();
     });
-    st.addEventListener("pointerup", function () { drag = null; st.classList.remove("grab"); });
+    function up() {
+      drag = null; st.classList.remove("grab");
+      if (hold != null) { root.querySelector("#t-res").src = hold; hold = null; st.classList.remove("hold"); render(); }
+    }
+    st.addEventListener("pointerup", up); st.addEventListener("pointerleave", up); st.addEventListener("pointercancel", up);
     st.addEventListener("wheel", function (e) { if (!T.src) return; e.preventDefault(); T.dist = clamp(Math.round((T.dist + e.deltaY * 0.001) * 20) / 20, -1, 1); render(); }, { passive: false });
     root.addEventListener("click", function (e) {
       var a = e.target.closest("[data-a]"), l = e.target.closest("[data-l]"), h = e.target.closest("[data-h]"), r = e.target.closest("[data-r]"),

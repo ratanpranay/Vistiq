@@ -836,8 +836,9 @@ class Studio:
                 # 3D: which side we see, then the view to show, in words.
                 v = job["view"]
                 kind, side, _h = studio.parse_view(self._read(work_path, "view", say) or "")
+                design = self._read(work_path, "design", say) or ""
                 words, target = studio.view_words(kind, side, v.get("yaw", 0), v.get("pitch", 0), float(v.get("dist", 0)),
-                                                   v.get("lens", "normal"), v.get("target"))
+                                                   v.get("lens", "normal"), v.get("target"), design)
                 extra = (job.get("text") or "").strip()
                 job = dict(job, text=words + (" " + extra if extra else ""), said=extra,
                            locks=dict(job.get("locks") or {}, camera=False), view=dict(v, kind=kind, seen=side, target=target))
@@ -882,7 +883,7 @@ class Studio:
                 # Without the design lock, the slider works through the wording.
                 text = text + "\n\n" + follow_words(keep, studio.flux3_ready(s))
             if studio.use_qwenedit(s) and mode == "create" and job.get("view"):
-                text = (job.get("text") or "") + " " + studio.QE_CLEAN
+                text = job.get("text") or ""      # no QE_CLEAN: it pushed sketches to a photo and a new design
             elif studio.use_qwenedit(s) and mode == "create" and not job.get("qwen_refs"):
                 # Qwen Image Edit reads short, direct instructions best (the long
                 # FLUX wording made it muddy and stopped camera moves).
