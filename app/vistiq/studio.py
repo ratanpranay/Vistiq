@@ -324,9 +324,11 @@ def angles_ready(settings=None):
     return qwenedit_ready(settings) and _have("qie_angles", settings)
 
 
-ANGLE_AZ = {"front": "front view", "front-right": "front-right quarter view", "right": "right side view",
-            "rear-right": "back-right quarter view", "rear": "back view", "rear-left": "back-left quarter view",
-            "left": "left side view", "front-left": "front-left quarter view"}
+# Its left and right are the viewer's, mirrored from the car's own (tested Nov 2026: "back-right"
+# showed the car's rear-left).
+ANGLE_AZ = {"front": "front view", "front-right": "front-left quarter view", "right": "left side view",
+            "rear-right": "back-left quarter view", "rear": "back view", "rear-left": "back-right quarter view",
+            "left": "right side view", "front-left": "front-right quarter view"}
 
 
 def angles_text(target, pitch=0.0, dist=0.0):
@@ -562,7 +564,10 @@ def view_words(kind, side, yaw, pitch, dist=0.0, lens="normal", target=None, des
     if kind == "interior" and cabin:
         where = cabin_words(cabin.get("u", 0), cabin.get("v", 0), cabin.get("look", 0)) + ", " + height
     elif kind == "interior":
-        where = CABIN_WORDS[target] + ", " + height
+        # a named spot: on the ring round the cabin, looking across it (as the plan draws it)
+        import math
+        az = math.radians(SIDES.index(target) * 45)
+        where = cabin_words(math.sin(az) * 30 / 38.0, -math.cos(az) * 62 / 82.0, (SIDES.index(target) * 45 + 180) % 360) + ", " + height
     else:
         where = "the " + SIDE_WORDS[target] + ", " + height
     extra = []

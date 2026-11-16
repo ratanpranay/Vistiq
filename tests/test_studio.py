@@ -809,7 +809,7 @@ class CabinCamera(unittest.TestCase):
 class CameraAngles(unittest.TestCase):
     def test_wording_and_graph(self):
         from vistiq import studio
-        self.assertEqual(studio.angles_text("rear-left", 30, 0), "<sks> back-left quarter view elevated shot medium shot")
+        self.assertEqual(studio.angles_text("rear-left", 30, 0), "<sks> back-right quarter view elevated shot medium shot")
         self.assertEqual(studio.angles_text("front", -20, -0.5), "<sks> front view low-angle shot close-up")
         with mock.patch.object(studio, "find", lambda k, s=None: "/m/" + k + ".safetensors"):
             p = studio.qwenedit_prompt(None, ["a.png"], "x", seed=1, angles=0.9, ref_latent=False)

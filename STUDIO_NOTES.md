@@ -1,5 +1,9 @@
 # Vistiq Studio (test build)
 
+## 0.4.43
+- Camera angles: left and right the right way round (rear ¾ right showed the rear ¾ left).
+- Cabin view buttons use the same full description as the plan (where the camera stands, where it looks, what it shows).
+
 ## 0.4.42
 - Camera angles downloads by itself (0.3 GB) when Qwen Image Edit is in use; nothing to click.
 
