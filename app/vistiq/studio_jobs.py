@@ -888,6 +888,8 @@ class Studio:
                 text = text + "\n\n" + follow_words(keep, studio.flux3_ready(s))
             if studio.use_qwenedit(s) and mode == "create" and job.get("view"):
                 text = job.get("text") or ""      # no QE_CLEAN: it pushed sketches to a photo and a new design
+                if lab.get("text"):               # lab: try other camera wordings
+                    text = lab["text"].replace("{auto}", text)
             elif studio.use_qwenedit(s) and mode == "create" and not job.get("qwen_refs"):
                 # Qwen Image Edit reads short, direct instructions best (the long
                 # FLUX wording made it muddy and stopped camera moves).

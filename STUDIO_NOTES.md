@@ -1,5 +1,8 @@
 # Vistiq Studio (test build)
 
+## 0.4.44
+- (testing) 3D views can try other camera wordings from lab.json.
+
 ## 0.4.43
 - Camera angles: left and right the right way round (rear ¾ right showed the rear ¾ left).
 - Cabin view buttons use the same full description as the plan (where the camera stands, where it looks, what it shows).
