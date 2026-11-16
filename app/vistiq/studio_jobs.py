@@ -1134,6 +1134,8 @@ class Studio:
             self._reader.stop()
         if not self.settings.get("keep_engine", True):
             self.engine.stop()
+        else:
+            self.engine.free()        # stays ready, but lets go of the models (tens of GB of RAM)
 
 
 def _is_blank(data):
