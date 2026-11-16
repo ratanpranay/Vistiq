@@ -1,5 +1,8 @@
 # Vistiq Studio (test build)
 
+## 0.4.42
+- Camera angles downloads by itself (0.3 GB) when Qwen Image Edit is in use; nothing to click.
+
 ## 0.4.41
 - Camera angles (Settings, 0.3 GB): a small add-on trained on camera moves; outside 3D views follow the chosen view far more often.
 - Inside a cabin, the words also say what the new view shows (e.g. the steering wheel and driver's door seen across the cabin).

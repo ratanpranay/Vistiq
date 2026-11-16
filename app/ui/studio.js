@@ -390,6 +390,10 @@
       S.status = st; S.engine = st.engine || S.engine;
       markSizes();
       if (st.setup_running && !S.setup.run) S.setup.run = { label: "Setting up", fraction: null };
+      // Camera angles: small, fetched by itself once Qwen is there (no button to find).
+      if (st.qwenedit && st.engine_choice === "qwenedit" && st.angles === false && !st.setup_running && !S.anglesAsked && api().studio_get_qwenedit) {
+        S.anglesAsked = true; api().studio_get_qwenedit();
+      }
       render();
     });
   }
