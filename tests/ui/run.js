@@ -208,16 +208,15 @@ const frame = (n, name) => ({ path: "live://photoshop/" + n, name: name || "flat
     check("right-click shows the actions", /Upscale/.test(await p.text("#b-menu")) && /Save a copy/.test(await p.text("#b-menu")), await p.text("#b-menu"));
     await p.keyboard.press("Escape");
     check("Escape closes the menu", await p.evaluate(() => document.getElementById("b-menu").hidden), "still open");
-    await p.click(".b-bar [data-b=organize]");
-    await p.waitForTimeout(500);
-    check("Organize lays out to the right: Live left-most, result right of its source", await p.evaluate(() => {
+    check("no Organize button (freeform board)", await p.evaluate(() => !document.querySelector(".b-bar [data-b=organize]")), "");
+    check("a result sits to the right of its source", await p.evaluate(() => {
       const t = window.VSBoard._state().tiles, live = t.find((x) => x.id === "live"), s = t.find((x) => x.path === "C:/a/sketch.png"), r = t.find((x) => x.path === "C:/o/r1.png");
-      return live.x < s.x && r.x > s.x && r.y === s.y;
+      return live.x < s.x && r.x > s.x;
     }), JSON.stringify(await p.evaluate(() => window.VSBoard._state().tiles.map((x) => [x.id, x.x, x.y]))));
     check("the board is saved", await p.evaluate(() => !!(window.__board && window.__board.tiles.length === 3)), "not saved");
     // Opening another tile must not lose the results made from the first one.
     await p.evaluate(() => { const S = window.VS.S.create; ["r1", "r2", "r3"].forEach((n, i) => { if (!S.results[i]) S.results[i] = {}; Object.assign(S.results[i], { path: "C:/o/" + n + ".png", name: n + ".png", w: 1600, h: 900, preview: "x", srcKey: "C:/a/sketch.png" }); }); });
-    await p.click(".b-bar [data-b=organize]"); await p.waitForTimeout(400);
+    await p.click(".b-bar [data-b=fit]"); await p.waitForTimeout(300);
     await p.dblclick('.b-tile[data-id="' + await p.evaluate(() => window.VSBoard._state().tiles.find((x) => x.path === "C:/o/r1.png").id) + '"]');
     await p.waitForTimeout(250);
     await p.click(".s-nav button[data-page=board]");
@@ -623,6 +622,7 @@ const frame = (n, name) => ({ path: "live://photoshop/" + n, name: name || "flat
       return t.every((a) => t.every((b) => a === b || Math.abs(a.x - b.x) >= 300 || Math.abs(a.y - b.y) >= 199)); }), await p.evaluate(() => JSON.stringify(window.VSBoard._state().tiles.map((x) => [x.x, x.y]))));
     // Drag on the empty board selects with a box; Delete removes them all.
     await p.keyboard.press("Escape"); await p.keyboard.press("Escape");
+    await p.click(".b-bar [data-b=fit]"); await p.waitForTimeout(300);
     const box = await p.evaluate(() => { const r = [...document.querySelectorAll(".b-tile:not(.b-live)")].map((n) => n.getBoundingClientRect());
       return { x0: Math.min(...r.map((q) => q.left)) - 20, y0: Math.min(...r.map((q) => q.top)) - 20, x1: Math.max(...r.map((q) => q.right)) + 20, y1: Math.max(...r.map((q) => q.bottom)) + 20 }; });
     await p.mouse.move(box.x0, box.y0); await p.mouse.down(); await p.mouse.move((box.x0 + box.x1) / 2, (box.y0 + box.y1) / 2, { steps: 4 }); await p.mouse.move(box.x1, box.y1, { steps: 4 }); await p.mouse.up();

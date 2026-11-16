@@ -41,8 +41,6 @@
       '<div class="b-top"><div class="b-title">Board</div></div>' +
       '<div class="b-bar"><button type="button" class="b-plus" data-b="plus" title="Add: blank canvas, image, paste, phone">' +
       '<svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></button><span class="b-sep"></span>' +
-      '<button type="button" data-b="organize" title="Lay the board out neatly, in the order things were made">' +
-      '<svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="5" rx="1"/><rect x="14" y="3" width="7" height="5" rx="1"/><rect x="3" y="12" width="7" height="5" rx="1"/><rect x="14" y="12" width="7" height="9" rx="1"/></svg>Organize</button>' +
       '<button type="button" data-b="fit">Fit</button><span class="b-zoom" id="b-zoom">80%</span></div>' +
       '<div class="b-hint" id="b-hint">Click + for a blank canvas, an image or your phone · paste with Ctrl V or drop images here. Double-click a tile to work on it. Drag to select · hold Space or the middle button to pan.</div>' +
       '<div class="b-menu" id="b-menu" hidden></div><div class="b-group" id="b-group" hidden></div>' +
@@ -66,6 +64,11 @@
   // Several tiles picked together (Ctrl or Shift click, up to 4): numbered in the order picked.
   var multi = [];
   function tileHTML(t) {
+    if (t.kind === "frame") {
+      var fb = frameBox(t);
+      return '<div class="b-frame" data-fid="' + t.id + '" style="left:' + t.x + "px;top:" + t.y + "px;width:" + fb.w + "px;height:" + fb.h + 'px">' +
+        '<div class="b-fh" data-fid="' + t.id + '">' + esc(t.title || "") + "</div></div>";
+    }
     var mi = multi.indexOf(t.id), sel = (t.id === B.sel && !multi.length ? " sel" : "") + (mi >= 0 ? " msel" : "");
     var badge = mi >= 0 ? '<b class="b-no">' + (mi + 1) + "</b>" : "";
     if (t.kind === "live") {
@@ -100,7 +103,7 @@
     var h = B.tiles.map(tileHTML).join("");
     if (h !== lastHTML) {
       lastHTML = h;
-      world.querySelectorAll(".b-tile").forEach(function (n) { n.remove(); });
+      world.querySelectorAll(".b-tile,.b-frame").forEach(function (n) { n.remove(); });
       world.insertAdjacentHTML("beforeend", h);
     }
     svgEl.innerHTML = linksSVG();
@@ -232,33 +235,60 @@
   // ---------------------------------------------------------------- tiles
 
   function place(t, from) {
+    // Freeform: a new picture goes into free space to the right of what's there (a result
+    // next to what it was made from), loosely scattered rather than in a line or a column.
     var p = from && byId(from);
-    // A new picture lands where you are looking: right of the selected tile when it's
-    // on screen, else in the middle of the view; never on top of another tile.
     var v = B.view, cv = root && root.querySelector("#b-cv"), r = cv ? cv.getBoundingClientRect() : { width: 1200, height: 800 };
     var vx0 = -v.x / v.z, vy0 = -v.y / v.z, vx1 = vx0 + r.width / v.z, vy1 = vy0 + r.height / v.z;
-    var s = B.sel && byId(B.sel);
-    var lv = live(), minX = lv ? lv.x + W + GAP_X : -1e9;
-    // Target: right of the selected tile when it's on screen, else the middle of the view.
+    var s = B.sel && byId(B.sel), lv = live(), minX = lv ? lv.x + W + GAP_X : -1e9;
     var tx, ty;
-    if (p) { tx = p.x + W + GAP_X; ty = p.y; }        // a result: next to what it was made from
-    else if (s && s !== t && s.x < vx1 && s.x + W > vx0 && s.y < vy1 && s.y + tileH(s) > vy0) { tx = s.x + W + GAP_X; ty = s.y; }
-    else { tx = Math.round((vx0 + vx1) / 2 - W / 2); ty = Math.round((vy0 + vy1) / 2 - tileH(t) / 2); }
-    // Then the nearest free spot around it, in every direction (a grid of tile-sized cells).
+    if (p) { tx = p.x + W + GAP_X; ty = p.y; }
+    else if (s && userSel && s !== t && s.kind !== "frame" && s.x < vx1 && s.x + W > vx0 && s.y < vy1 && s.y + tileH(s) > vy0) { tx = s.x + W + GAP_X; ty = s.y; }
+    else { tx = Math.round((vx0 + vx1) / 2 - W / 2); ty = Math.round((vy0 + vy1) / 2 - tileH(t) / 2); }   // where you look
     var sx = W + GAP_X, sy = tileH(t) + GAP_Y, best = null;
     function free(x, y) {
-      return x >= minX && !B.tiles.some(function (k) { return k !== t && k.x < x + W + 24 && k.x + W + 24 > x && k.y < y + tileH(k) + 24 && k.y + tileH(k) + 24 > y; });
+      return x >= minX && !B.tiles.some(function (k) { return k !== t && k.kind !== "frame" && k.x < x + W + 30 && k.x + W + 30 > x && k.y < y + tileH(k) + 30 && k.y + tileH(k) + 30 > y; });
     }
-    for (var r = 0; r < 14 && !best; r++) {
-      for (var i = -r; i <= r; i++) for (var j = -r; j <= r; j++) {
-        if (Math.max(Math.abs(i), Math.abs(j)) !== r) continue;
+    for (var rr = 0; rr < 14 && (!best || rr < 3); rr++) {      // weigh the nearby spots too, not just the first free one
+      for (var i = -rr; i <= rr; i++) for (var j = -rr; j <= rr; j++) {
+        if (Math.max(Math.abs(i), Math.abs(j)) !== rr) continue;
         var x = tx + i * sx, y = ty + j * sy;
         if (!free(x, y)) continue;
-        var d = (i * sx) * (i * sx) + (j * sy) * (j * sy) * 1.4 + (!p && (x < vx0 || x + W > vx1) ? 1e7 : 0) + (p && i < 0 ? 1e6 : 0);
+        // nearest free spot, a bit to the right rather than the left, picked loosely: scattered, not a line
+        var d = (p && i < 0 ? 1e6 : 0) + Math.abs(i) * sx * (i < 0 ? 1.6 : 0.8) + Math.abs(j) * sy * 1.3 + Math.random() * sx * 0.9;
         if (!best || d < best[2]) best = [x, y, d];
       }
     }
     t.x = best ? best[0] : tx; t.y = best ? best[1] : ty;
+    // a little loose, like pictures put down by hand
+    var jx = Math.round((Math.random() - 0.5) * 60), jy = Math.round((Math.random() - 0.5) * 70);
+    if (free(t.x + jx, t.y + jy)) { t.x += jx; t.y += jy; }
+  }
+  // Keep a new picture in view.
+  function show(t) {
+    var cv = root && root.querySelector("#b-cv"); if (!cv) return;
+    var r = cv.getBoundingClientRect(), v = B.view, sx = t.x * v.z + v.x, sy = t.y * v.z + v.y;
+    if (sx < 0 || sy < 0 || sx + W * v.z > r.width || sy + tileH(t) * v.z > r.height) {
+      v.x = r.width / 2 - (t.x + W / 2) * v.z; v.y = r.height / 2 - (t.y + tileH(t) / 2) * v.z; applyView();
+    }
+  }
+
+  // ---------------------------------------------------------------- the 3D frame
+  // Views made in 3D gather in a frame named "3D", in rows, joined to their picture.
+  var F3D = "f3d", FPAD = 40, FCOLS = 3;
+  function frame3d() {
+    var f = byId(F3D);
+    if (!f) {
+      var xs = B.tiles.map(function (k) { return k.x + W; }), ys = B.tiles.map(function (k) { return k.y; });
+      f = { id: F3D, kind: "frame", title: "3D", x: (xs.length ? Math.max.apply(null, xs) : 0) + GAP_X * 2, y: ys.length ? Math.min.apply(null, ys) : 0 };
+      B.tiles.push(f);
+    }
+    return f;
+  }
+  function frameBox(f) {
+    var kids = B.tiles.filter(function (k) { return k.frame === f.id; });
+    var n = Math.max(1, kids.length), cols = Math.min(FCOLS, n), rows = Math.ceil(n / FCOLS);
+    return { w: FPAD * 2 + cols * W + (cols - 1) * GAP_X, h: FPAD + 34 + rows * tileH() + (rows - 1) * GAP_Y + FPAD };
   }
 
   function add(info, from) {
@@ -267,7 +297,7 @@
               from: from || null, made: Date.now() };
     place(t, from);
     if (info.preview) thumbs[t.path] = info.preview;
-    B.tiles.push(t); B.sel = t.id; save(); render();
+    B.tiles.push(t); B.sel = t.id; save(); render(); show(t);
     return t;
   }
 
@@ -381,7 +411,7 @@
 
   // ---------------------------------------------------------------- input
 
-  var spaceDown = false;
+  var spaceDown = false, userSel = false;     // a tile picked by the user (not just the newest)
   function wire() {
     var cv = root.querySelector("#b-cv"), drag = null;
     document.addEventListener("keyup", function (e) { if (e.key === " ") { spaceDown = false; cv.classList.remove("pan"); } });
@@ -436,6 +466,13 @@
       if (e.button !== 0 && e.button !== 1) return;
       if (e.target.closest("button")) return;
       menu.hidden = true;
+      var fh = e.button === 0 && e.target.closest(".b-fh");
+      if (fh) {                      // the frame's name: drag the frame and everything in it
+        var fr = byId(fh.getAttribute("data-fid"));
+        var mem = [fr].concat(B.tiles.filter(function (k) { return k.frame === fr.id; }));
+        drag = { t: null, group: mem.map(function (k) { return { k: k, x: k.x, y: k.y }; }), sx: e.clientX, sy: e.clientY, moved: false, frame: fr };
+        cv.setPointerCapture(e.pointerId); return;
+      }
       var el = e.button === 0 && e.target.closest(".b-tile");
       var t = el && byId(el.getAttribute("data-id"));
       if (t && (e.ctrlKey || e.shiftKey || e.metaKey) && t.kind !== "live") {
@@ -446,6 +483,7 @@
         lastHTML = ""; render(); return;
       }
       if (t && multi.length && multi.indexOf(t.id) < 0) { multi = []; lastHTML = ""; }
+      if (t) userSel = true;
       if (t) { B.sel = t.id; el.parentNode && world.querySelectorAll(".b-tile.sel").forEach(function (n) { n.classList.remove("sel"); }); el.classList.add("sel"); }
       // Empty canvas: drag selects (a box); Space or the middle button pans.
       var pan = !t && (e.button === 1 || spaceDown);
@@ -465,7 +503,7 @@
         var ax = Math.min(drag.sx, e.clientX) - r.left, ay = Math.min(drag.sy, e.clientY) - r.top, bw = Math.abs(dx), bh = Math.abs(dy);
         mq.hidden = false; mq.style.left = ax + "px"; mq.style.top = ay + "px"; mq.style.width = bw + "px"; mq.style.height = bh + "px";
         var wx0 = (ax - v.x) / v.z, wy0 = (ay - v.y) / v.z, wx1 = (ax + bw - v.x) / v.z, wy1 = (ay + bh - v.y) / v.z;
-        var inBox = B.tiles.filter(function (k) { return k.kind !== "live" && k.x < wx1 && k.x + W > wx0 && k.y < wy1 && k.y + tileH(k) > wy0; }).map(function (k) { return k.id; });
+        var inBox = B.tiles.filter(function (k) { return k.kind !== "live" && k.kind !== "frame" && k.x < wx1 && k.x + W > wx0 && k.y < wy1 && k.y + tileH(k) > wy0; }).map(function (k) { return k.id; });
         var next = drag.add ? drag.keep.concat(inBox.filter(function (id) { return drag.keep.indexOf(id) < 0; })) : inBox;
         if (next.join() !== multi.join()) { multi = next; lastHTML = ""; render(); }
         return;
@@ -473,7 +511,7 @@
       if (drag.group) {
         drag.group.forEach(function (g) {
           g.k.x = Math.round(g.x + dx / B.view.z); g.k.y = Math.round(g.y + dy / B.view.z);
-          var n = world.querySelector('.b-tile[data-id="' + g.k.id + '"]'); if (n) { n.style.left = g.k.x + "px"; n.style.top = g.k.y + "px"; }
+          var n = world.querySelector('[data-id="' + g.k.id + '"],.b-frame[data-fid="' + g.k.id + '"]'); if (n) { n.style.left = g.k.x + "px"; n.style.top = g.k.y + "px"; }
         });
         svgEl.innerHTML = linksSVG(); lastHTML = "";
       } else if (drag.t) {
@@ -523,12 +561,16 @@
   // A new picture from the + menu in Focus view: on the board, and open it.
   // A sketch branched off another tile (Live): sits next to it, joined by a line.
   function refreshThumb(path) { if (thumbs[path] !== undefined) { delete thumbs[path]; lastHTML = ""; render(); } }
-  // A 3D view: next to the picture it was made from (put on the board too, if it isn't).
+  // A 3D view: into the "3D" frame, joined by a line to the picture it was made from.
   function addBeside(res, src) {
     if (!res || has(res.path)) return;
-    var t = B.tiles.filter(function (k) { return k.path === src.path; })[0];
-    if (!t) t = add({ path: src.path, name: src.name, w: src.w, h: src.h, preview: src.preview }, null);
-    add({ path: res.path, name: res.name, w: res.w, h: res.h, preview: res.preview }, t ? t.id : null);
+    var t0 = B.tiles.filter(function (k) { return k.path === src.path; })[0];
+    if (!t0) t0 = add({ path: src.path, name: src.name, w: src.w, h: src.h, preview: src.preview }, null);
+    var f = frame3d(), n = B.tiles.filter(function (k) { return k.frame === F3D; }).length;
+    var t = { id: uid(), kind: "result", path: res.path, name: res.name, w: res.w, h: res.h, from: t0 ? t0.id : null, frame: F3D, made: Date.now(),
+              x: f.x + FPAD + (n % FCOLS) * (W + GAP_X), y: f.y + FPAD + 34 + Math.floor(n / FCOLS) * (tileH() + GAP_Y) };
+    if (res.preview) thumbs[t.path] = res.preview;
+    B.tiles.push(t); save(); lastHTML = ""; render();
   }
   function addFrom(info, fromId) { return add(info, byId(fromId) ? fromId : null); }
   function addAndOpen(info) { var t = add(info, null); if (t) open(t); return t; }

@@ -31,8 +31,7 @@
     el.innerHTML =
       '<div class="t-main"><div class="t-stage" id="t-stage"><div class="t-card" id="t-card"><img id="t-img" alt="" draggable="false"></div>' +
       '<img class="t-res" id="t-res" alt="" draggable="false" hidden>' +
-      '<div class="t-seg" id="t-seg" hidden><button type="button" data-v="orig">Original</button><button type="button" data-v="res">New view</button><button type="button" data-v="both">Side by side</button></div>' +
-      '<div class="t-both" id="t-both" hidden><figure><img id="t-b1" alt=""><figcaption>Original</figcaption></figure><figure><img id="t-b2" alt=""><figcaption>New view</figcaption></figure></div>' +
+      '<div class="t-tag" id="t-tag" hidden></div>' +
       '<div class="t-prog" id="t-prog" hidden></div>' +
       '<div class="t-orbit" id="t-orbit"><i></i></div><div class="t-tip" id="t-tip">Drag to turn the camera · scroll to move closer</div>' +
       '<div class="t-empty" id="t-empty">Open a picture from the board, or press 3D in Create</div></div>' +
@@ -49,7 +48,8 @@
       '<div><div class="s-label">Anything else <em class="s-opt">optional</em></div><textarea id="t-text" rows="2" placeholder="e.g. evening light, doors open"></textarea></div>' +
       '<div class="t-go"><div class="t-will" id="t-will"></div><button type="button" class="s-go" id="t-go">Render this view</button><button type="button" class="s-btn t-reset" id="t-reset">Reset</button>' +
       '<p class="s-hint" id="t-hint"></p></div>' +
-      '<div class="t-acts" id="t-acts" hidden><button type="button" class="s-btn" data-x="ps"><span class="m-ico ps">Ps</span><span>As a layer</span></button>' +
+      '<div class="t-acts" id="t-acts" hidden><button type="button" class="s-btn" data-x="layer"><span>Add as layer</span></button>' +
+      '<button type="button" class="s-btn" data-x="ps"><span class="m-ico ps">Ps</span><span>Photoshop</span></button>' +
       '<button type="button" class="s-btn" data-x="create"><span>Open in Create</span></button><button type="button" class="s-btn" data-x="up"><span>Upscale</span></button></div></aside>';
     wire();
     setInterval(tick, 600);
@@ -67,17 +67,15 @@
   function render() {
     if (!root) return;
     var V = VS(), p = V.S.create, has = !!(T.src && T.src.preview), res = T.sel >= 0 ? T.results[T.sel] : null;
-    var showRes = !!res && T.view !== "orig", both = !!res && T.view === "both";
+    var showRes = !!res;
     root.querySelector("#t-empty").hidden = has;
     var img = root.querySelector("#t-img");
     if (has && img.getAttribute("src") !== T.src.preview) img.src = T.src.preview;
     root.querySelector("#t-card").hidden = !has || showRes;
     var ri = root.querySelector("#t-res");
-    ri.hidden = !showRes || both; if (res && ri.getAttribute("src") !== (res.preview || "")) ri.src = res.preview || "";
-    root.querySelector("#t-both").hidden = !both;
-    if (both) { root.querySelector("#t-b1").src = T.src.preview; root.querySelector("#t-b2").src = res.preview || ""; }
-    root.querySelector("#t-seg").hidden = !res;
-    root.querySelectorAll("#t-seg button").forEach(function (b) { b.classList.toggle("on", b.getAttribute("data-v") === (T.view || "res")); });
+    ri.hidden = !showRes; if (res && ri.getAttribute("src") !== (res.preview || "")) ri.src = res.preview || "";
+    var tag = root.querySelector("#t-tag"); tag.hidden = !res;
+    if (res) tag.textContent = (res.label || "New view") + " · click it again for your picture";
     root.querySelector("#t-orbit").hidden = showRes; root.querySelector("#t-tip").hidden = showRes || !has;
     root.querySelector("#t-work").innerHTML = has ? '<img src="' + T.src.preview + '" alt=""><div><b>' + esc(V.short(T.src.name || "")) + "</b><small>" + (T.src.w || "") + " × " + (T.src.h || "") + "</small></div>" : "<small>Nothing yet</small>";
     root.querySelector("#t-seen").textContent = !has ? "" : T.reading ? "Reading which side we see…" :
@@ -95,7 +93,7 @@
     var tg = target();
     var ah = ANGLES.map(function (a) {
       return '<button type="button" data-a="' + a + '" class="' + (tg === a ? "on" : "") + (T.base === a ? " now" : "") + '"' + (T.base ? "" : " disabled") + ">" +
-        '<span class="t-ico" style="--y:' + (-(SIDES.indexOf(a) * 45 + 180) % 360) + 'deg"><i></i></span>' + esc(viewName(a) || NAME[a]) + "</button>"; }).join("");
+        esc(viewName(a) || NAME[a]) + "</button>"; }).join("");
     var ae = root.querySelector("#t-angles"); if (ae.getAttribute("data-h") !== ah) { ae.innerHTML = ah; ae.setAttribute("data-h", ah); }
     root.querySelectorAll(".t-heights button").forEach(function (b) { var h = HEIGHTS.filter(function (x) { return x[0] === b.getAttribute("data-h"); })[0]; b.classList.toggle("on", T.pitch === h[2]); });
     var busy = !!(p.job && T.running);
@@ -114,7 +112,7 @@
   function wire() {
     var st = root.querySelector("#t-stage");
     st.addEventListener("pointerdown", function (e) {
-      if (!T.src || e.target.closest("button,.t-both")) return;
+      if (!T.src || e.target.closest("button")) return;
       if (T.sel >= 0) { T.sel = -1; render(); }
       drag = { x: e.clientX, y: e.clientY, yaw: T.yaw, pitch: T.pitch }; st.setPointerCapture(e.pointerId); st.classList.add("grab");
     });
@@ -128,12 +126,11 @@
     st.addEventListener("wheel", function (e) { if (!T.src) return; e.preventDefault(); T.dist = clamp(Math.round((T.dist + e.deltaY * 0.001) * 20) / 20, -1, 1); render(); }, { passive: false });
     root.addEventListener("click", function (e) {
       var a = e.target.closest("[data-a]"), l = e.target.closest("[data-l]"), h = e.target.closest("[data-h]"), r = e.target.closest("[data-r]"),
-          v = e.target.closest("#t-seg [data-v]"), x = e.target.closest("[data-x]");
+          x = e.target.closest("[data-x]");
       if (a && T.base) { T.yaw = norm(SIDES.indexOf(T.base) * 45 - SIDES.indexOf(a.getAttribute("data-a")) * 45); T.sel = -1; render(); }
       else if (h) { T.pitch = HEIGHTS.filter(function (q) { return q[0] === h.getAttribute("data-h"); })[0][2]; T.sel = -1; render(); }
       else if (l) { T.lens = l.getAttribute("data-l"); render(); }
-      else if (r) { T.sel = +r.getAttribute("data-r"); T.view = "res"; render(); }
-      else if (v) { T.view = v.getAttribute("data-v"); render(); }
+      else if (r) { var k = +r.getAttribute("data-r"); T.sel = k === T.sel ? -1 : k; render(); }   // again: back to your picture
       else if (x) act(x.getAttribute("data-x"));
       else if (e.target.closest("#t-reset")) { T.yaw = 0; T.pitch = 0; T.dist = 0; T.lens = "normal"; T.sel = -1; render(); }
       else if (e.target.closest("#t-go")) go();
@@ -149,7 +146,15 @@
 
   function act(x) {
     var V = VS(), r = T.results[T.sel]; if (!r) return;
-    if (x === "ps") V.sendPS(r.path);
+    if (x === "layer") {           // a layer over the picture (in Create's layers, as there)
+      V.api().studio_image(r.path).then(function (info) {
+        if (!info || !window.VSSketch) return;
+        V.setImage(V.S.create, "src", T.src);
+        window.VSSketch.addImageLayer(V.S.create.src, info.preview, V.short(r.name || ""));
+        V.toast("Added as a layer over your picture (Create › Layers)");
+      });
+    }
+    else if (x === "ps") V.sendPS(r.path);
     else if (x === "up") V.api().studio_to_upscale(r.path).then(function () { V.go("upscale"); });
     else if (x === "create") V.api().studio_image(r.path).then(function (info) { if (info) { V.setImage(V.S.create, "src", info); V.go("create"); } });
   }
@@ -169,7 +174,7 @@
   function onResult(res) {
     if (!res || !res.meta || !res.meta.view) return false;
     var r = Object.assign({}, res, { label: T.wantLabel || viewName(res.meta.view.target) });
-    T.results.push(r); T.sel = T.results.length - 1; T.view = "res";
+    T.results.push(r); T.sel = T.results.length - 1;
     if (window.VSBoard && T.src) window.VSBoard.addBeside(r, T.src);
     render();
     return true;

@@ -1,5 +1,10 @@
 # Vistiq Studio (test build)
 
+## 0.4.31
+- Board: freeform. New pictures take free space where you're looking, loosely scattered (not a line or a column); drag on the empty board to select a group, Delete removes it; Q or right-click a group to Mix (one main picture, the others give camera, materials, style or light). Organize removed.
+- 3D views gather in a “3D” frame on the board (drag its name to move it), joined to their pictures.
+- 3D page works like Create: the original and each new view are tabs below; click a view again for your picture; Add as layer, Photoshop, Open in Create, Upscale.
+
 ## 0.4.30
 - 3D renders on the 3D page: results stay there (compare Original / New view / Side by side), and land on the board next to their picture. Buttons: as a Photoshop layer, Open in Create, Upscale.
 - 3D reads which side the picture shows first, then asks for a named view (e.g. rear ¾ left, low) instead of degrees; no invented logos or badges. Angles are now absolute: Front, Front ¾ left/right, sides, Rear ¾ left/right, Rear, plus Eye level / From above / Low.
