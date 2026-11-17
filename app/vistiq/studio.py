@@ -830,10 +830,19 @@ NIGHT_WORDS = re.compile(r"\b(night|nighttime|night-time|evening|dusk|after dark
 NIGHT_OWN = re.compile(r"\b(neon|stars?|starry|starlight|cyberpunk)\b", re.I)
 
 
-def night_clause(words):
-    """The calm press-photo night, when the words ask for night and don't describe their own look."""
+QE_NIGHT_EXT = ("Make it a night photo like a premium car maker's launch image: the same car and setting at night, "
+                "lit by soft studio and street lights, headlamps and tail lamps glowing with crisp graphics, long clean "
+                "reflections along the body and on the wet-looking ground, a deep blue night sky; balanced exposure, "
+                "the whole design and its colour clearly visible, not dark or murky.")
+
+
+def night_clause(words, kind=""):
+    """The calm press-photo night, when the words ask for night and don't describe their own look
+    (outside views get their own: the cabin's ambient lines don't belong on a car body)."""
     w = words or ""
-    return QE_NIGHT if NIGHT_WORDS.search(w) and not NIGHT_OWN.search(w) else ""
+    if not (NIGHT_WORDS.search(w) and not NIGHT_OWN.search(w)):
+        return ""
+    return QE_NIGHT_EXT if kind and kind != "interior" else QE_NIGHT
 
 
 def juice_pick(text, k):
@@ -878,7 +887,7 @@ def qwen_text(words, instant=False, scene="", locks=None, ref_head="", sketch=Fa
             parts.append(ref_head)
         if sketch and not ref_head:
             parts.append("Turn this sketch into a photorealistic render.")
-        night = night_clause(said if said is not None else words)
+        night = night_clause(said if said is not None else words, kind)
         if said and (night or locks.get("camera") is False):
             # the reader's rewrite keeps the camera and adds starry skies: use the person's words
             words = " ".join(clean_prompt(said).split())

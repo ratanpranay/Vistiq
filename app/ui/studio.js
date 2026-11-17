@@ -694,6 +694,14 @@
       j.locks.design = true; j.keep = 1;    // the design always follows the sketch exactly; words change only what they name
       j.refs = (p.refs || []).map(function (r) { return { path: r.path, use: r.use, desc: (r.desc || "").trim() }; });
     }
+    // Words on a result in view work on that result (sketch → Instant render → "night" on the render);
+    // click Original first to start again from your picture.
+    var cur = id === "c" && !extra ? current(p) : null;
+    if (cur && !p.viewing && (p.text || "").trim()) {
+      j.image = cur.path; j.name = cur.name || j.name; j.live_app = ""; j.preset = "photo"; j.from_result = true;
+      delete j.layers; delete j.instant;
+      j.locks = Object.assign(defaultLocks(cur), { design: true, camera: (j.locks || {}).camera !== false });
+    }
     Object.assign(j, extra || {});
     p.error = ""; p.stage = "Starting"; p.frac = 0; p.raw = null; p.rawAt = 0; p.stepSize = 0; p.stepDur = 0; p.pending = j.variations; p.started = Date.now(); p.estimate = 0;
     p.jobKey = srcKey(p.src);

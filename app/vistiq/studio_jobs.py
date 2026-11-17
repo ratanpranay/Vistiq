@@ -908,7 +908,7 @@ class Studio:
                         user_words = job.get("text")
                         job = dict(job, text=more, said=user_words)
                 text = studio.build_text(job.get("preset") or "", job.get("text"))
-                if studio.use_q21(s) and (job.get("preset") or "") == "sketch" and not refs:
+                if studio.use_qwenedit(s) and not refs:
                     kind = studio.parse_view(self._read(work_path, "view", say) or "")[0]   # interior or exterior wording
                     cam_words = studio.instant_camera("", "") if kind != "interior" else ""
                 if job.get("locks"):
@@ -1002,7 +1002,10 @@ class Studio:
                     prompt = studio.metaview_prompt(s, image, reframe.get("yaw", 0), reframe.get("pitch", 0), seed + v,
                                                     int(reframe.get("w", 0)), int(reframe.get("h", 0)), int(reframe.get("steps", 8)))
                 elif (sys.platform != "darwin" and studio.use_q21(s) and mode == "create" and not job.get("view")
-                      and not cam_i and not (studio.qwenedit_ready(s) and (job.get("locks") or {}).get("camera") is False)):
+                      and not cam_i and not (studio.qwenedit_ready(s) and (job.get("locks") or {}).get("camera") is False)
+                      and not (studio.qwenedit_ready(s) and (job.get("from_result") or (job.get("preset") or "") != "sketch")
+                               and not job.get("instant"))):
+                    # (a CGI render with words, e.g. "night", goes to 2511 below: it keeps the render's CGI look)
                     # Qwen-Image 2.1 (Nov 2026): Create and Instant render. The Consistency LoRA keeps the frame;
                     # for an Instant render the ControlNet also holds the sketch's lines.
                     imgs = [image] + list(ref_images or ([ref_image] if ref_image else []))

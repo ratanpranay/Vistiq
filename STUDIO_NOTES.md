@@ -1,5 +1,9 @@
 # Vistiq Studio (test build)
 
+## 0.4.69
+- Sketch → Instant render → words: with a result in view, typing (e.g. "night") and Create changes that CGI result, not the sketch. It uses Qwen Image Edit 2511, which keeps the CGI look.
+- Night for outside views has its own look (lamps glowing, reflections, deep blue sky) instead of the cabin's ambient lines.
+
 ## 0.4.68
 - Faster: a picture already read isn't read again, and the shape pass draws at 1.4 MP (the CGI finish adds the detail at 3.2 MP).
 
