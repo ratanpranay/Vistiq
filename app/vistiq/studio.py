@@ -671,9 +671,11 @@ QE_JUICE_INT = [
     ("Premium car-maker interior photograph in bright natural daylight: sun streams through the windows and glass roof, "
      "crisp sun patches and soft shadows across the seats and dashboard, clean airy contrast, fine leather grain and "
      "stitching, satin metal, glossy trims; outside, a bright, softly blurred mountain and desert landscape."),
-    ("Premium car-maker interior photograph in the evening: soft warm ambient light lines glow along the dashboard and "
-     "doors, gentle pools of light on leather and metal, screens glowing, deep calm shadows; through the windows a "
-     "dusky landscape under a deep blue sky."),
+    ("Premium car-maker interior photograph at night, like a brand's launch photo: thin, subtle warm ambient light "
+     "lines (only a few millimetres wide) trace the dashboard and door trims, soft warm downlights from the roof console "
+     "pool on the seats and console so every material and colour stays clearly visible, speaker grilles and switches "
+     "softly lit, screens glowing with crisp graphics; outside, a calm desert night with mountains under a deep blue "
+     "sky; balanced exposure, rich detail, not dark or murky."),
 ]
 QE_JUICE_EXT = [
     ("Cinematic premium car-maker launch photograph: the car stands on a polished, slightly wet stone floor that mirrors it, "
@@ -688,11 +690,11 @@ QE_JUICE_EXT = [
 QE_CLEAN = ("Clean, brand-new surfaces: leather and fabric smooth and evenly coloured, no stains, smudges, "
             "fingerprints, blotches or mottled texture; crisp, sharp detail.")
 # Plain "night" made a starry, blue-washed, neon look (tested Nov 2026). This reads like a real press photo.
-QE_NIGHT = ("Make it an evening press photo shot at blue hour in a city, like a premium car maker's "
-            "brochure: the cabin is gently lit by soft, warm interior lights, so the seats, dashboard and trims are "
-            "clearly visible with their true colours and fine texture; a thin, warm white ambient light line "
-            "glows along the dashboard and doors; the screens glow; through the windows, softly blurred city "
-            "lights and buildings; elegant, calm and realistic, gentle contrast, clean reflections.")
+QE_NIGHT = ("Make it a night photo like a premium car maker's launch image: thin, subtle warm ambient light lines "
+            "(only a few millimetres wide) trace the dashboard and door trims, soft warm downlights pool on the seats "
+            "and console so every material and colour stays clearly visible, screens glow with crisp graphics; outside "
+            "the windows a calm landscape under a deep blue night sky; balanced exposure, rich detail, clean "
+            "reflections, not dark or murky.")
 NIGHT_WORDS = re.compile(r"\b(night|nighttime|night-time|evening|dusk|after dark|midnight)\b", re.I)
 NIGHT_OWN = re.compile(r"\b(neon|stars?|starry|starlight|cyberpunk)\b", re.I)
 

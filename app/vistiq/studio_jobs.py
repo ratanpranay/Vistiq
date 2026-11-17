@@ -947,7 +947,9 @@ class Studio:
                 elif sys.platform != "darwin" and studio.use_qwenedit(s):
                     imgs = [image] + list(ref_images or ([ref_image] if ref_image else []))
                     fr = cam_i if refs else (1 if mode == "reference" and (job.get("preset") or "camera") == "camera" else 0)
-                    real = float(lab.get("realism", 0.0)) if studio.find("qie_real", s) else 0.0
+                    # Photo realism on by default for Instant render once it's here (tested Nov 2026: photographic,
+                    # follows the sketch)
+                    real = float(lab.get("realism", 0.8)) if studio.find("qie_real", s) else 0.0
                     if real and job.get("instant"):      # Anything2Real's own wording first
                         text = "Change picture 1 to a realistic photograph. " + text
                     prompt = studio.qwenedit_prompt(s, imgs, studio.juice_pick(text, int(job.get("look", seed % 3)) + v), seed + v, frame=fr,

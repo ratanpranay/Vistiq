@@ -1381,7 +1381,7 @@
     $(id + "-err").hidden = !p.error; $(id + "-err").textContent = p.error;
     $(id + "-vars-n").textContent = p.vars;
     var cons = hasConsistency();
-    $(id + "-keep-w").hidden = false;
+    $(id + "-keep-w").hidden = id === "c";   // Create: always exact, no slider
   }
 
   var APPS = { photoshop: ["Ps", "Photoshop", "ps"], affinity: ["Af", "Affinity", "af"] };
