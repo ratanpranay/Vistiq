@@ -952,7 +952,7 @@ class Studio:
                     real = float(lab.get("realism", 0.8)) if studio.find("qie_real", s) else 0.0
                     if real and job.get("instant"):      # Anything2Real's own wording first
                         text = "Change picture 1 to a realistic photograph. " + text
-                    prompt = studio.qwenedit_prompt(s, imgs, studio.juice_pick(text, int(job.get("look", seed % 3)) + v), seed + v, frame=fr,
+                    prompt = studio.qwenedit_prompt(s, imgs, studio.juice_pick(text, int(job.get("look", seed % 60)) + v), seed + v, frame=fr,
                                                     realism=real if job.get("instant") else 0.0,
                                                     megapixels=float(lab.get("qe_mp", min(studio.QE_MP, max(
                                                         studio.QE_MP_MIN, work.size[0] * work.size[1] / 1e6)))),

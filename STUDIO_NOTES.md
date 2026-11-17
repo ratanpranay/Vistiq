@@ -1,5 +1,8 @@
 # Vistiq Studio (test build)
 
+## 0.4.55
+- More render looks from your CGI references: salt flat noon, parking-deck light shaft, golden haze, dark hall (exterior); overcast high-key and cinematic street (interior).
+
 ## 0.4.54
 - Photo realism on for Instant render (photographic results that follow the sketch).
 - Night looks tuned: thin warm ambient lines, soft downlights so materials stay visible, calm blue night outside (was thick glowing tubes in a murky cabin).

@@ -676,6 +676,15 @@ QE_JUICE_INT = [
      "pool on the seats and console so every material and colour stays clearly visible, speaker grilles and switches "
      "softly lit, screens glowing with crisp graphics; outside, a calm desert night with mountains under a deep blue "
      "sky; balanced exposure, rich detail, not dark or murky."),
+    # Nov 2026: after the person's Unreal/press CGI references (Lincoln, Rivian, Hummer, concept cabin).
+    ("Premium car-maker interior photograph in soft overcast daylight, like an Unreal Engine press render: bright, even "
+     "light floods in through the windscreen and side glass, gentle shadows, clean high-key contrast; quilted and "
+     "perforated leather with fine stitching, soft-touch dashboard skins, satin and brushed metal accents with crisp edge "
+     "highlights, glossy black screens; outside, a bright, softly blurred green landscape."),
+    ("Cinematic car-maker interior film frame, like a real-time CGI concept film: sunlight from one side catches the "
+     "steering wheel, console and dashboard edges, the rest falls into soft shade; fine grain on leather and fabric, "
+     "satin metal with long soft reflections, faint reflections in the glass; outside, a softly blurred city street "
+     "with stone buildings; shallow depth of field."),
 ]
 QE_JUICE_EXT = [
     ("Cinematic premium car-maker launch photograph: the car stands on a polished, slightly wet stone floor that mirrors it, "
@@ -686,6 +695,19 @@ QE_JUICE_EXT = [
      "glass, rich detail in wheels and lamps."),
     ("Premium car-maker studio photograph at dusk: the car on a vast glossy floor that reflects it, under a soft gradient "
      "sky from warm horizon to blue, gentle rim light tracing the body lines, glowing lamps, deep contact shadow."),
+    # Nov 2026: after the person's Unreal/press CGI references (salt flat, parking deck, golden haze, warehouse).
+    ("Premium car-maker press photograph on a vast white salt flat under hard midday sun and a deep blue sky with thin "
+     "clouds, low mountains on the horizon: crisp dark shadow under the car, sharp sky reflections on the paint and "
+     "glass, deep metallic flake in the paint, bright lamp graphics, rich detail in wheels and tyres."),
+    ("Moody car-maker campaign photograph in a concrete parking deck: low-key light, one hard shaft of daylight falls "
+     "across the floor and catches the front of the car, the rest in deep shade, glowing lamp graphics, crisp highlights "
+     "along the body lines, glossy paint, dark concrete pillars and ceiling."),
+    ("Car-maker launch film frame in warm, hazy golden backlight: low sun behind the car blooms over the roofline, soft "
+     "golden haze, a long soft shadow toward the camera, satin paint with smooth warm gradients, a wall of tall "
+     "vertical metal fins and distant hills fading into the haze behind."),
+    ("Dramatic car-maker CGI render in a dark industrial hall: a large softly lit wall panel behind the car and a few "
+     "overhead spotlights, a warm glow on the floor under the car, crisp silver-blue reflections running along the "
+     "body, polished dark concrete floor with soft reflections, deep contrast."),
 ]
 QE_CLEAN = ("Clean, brand-new surfaces: leather and fabric smooth and evenly coloured, no stains, smudges, "
             "fingerprints, blotches or mottled texture; crisp, sharp detail.")
