@@ -1,5 +1,9 @@
 # Vistiq Studio (test build)
 
+## 0.4.65
+- Qwen-Image 2.1: a sketch with words ("night") also becomes a photo with the CGI finish (it kept the pencil hatching).
+- The picture reader calls a side view a side view more often (it read side views as rear three-quarters).
+
 ## 0.4.64
 - Instant render no longer names the view it read (a misread turned a side view into a rear three-quarter): it keeps the drawn viewpoint.
 

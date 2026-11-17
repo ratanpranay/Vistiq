@@ -92,7 +92,7 @@ ASK = {
              "nose: which way the front of the car (or object) points in the picture: to the left edge of the "
              "picture, to the right edge, or (only when the front or the rear faces the camera straight on, with no side "
              "visible) toward the camera or away from it; in a three-quarter view the nose points left or right. end: which end we also see, its front "
-             "end (headlights, grille), its rear end (tail lights), or none (a pure side view). side: for an "
+             "end (headlights, grille), its rear end (tail lights), or none (a side view: the whole length of the car is seen and its ends only at a sharp angle; most side views are none). Answer front or rear only when that end's face is clearly turned toward the camera. side: for an "
              "interior, where the camera stands in the cabin (front = at the windscreen looking back, rear = behind "
              "the front seats looking forward, left or right = at that door; if the dashboard and windscreen are ahead of "
              "the camera, it is side=rear); otherwise your best guess. "

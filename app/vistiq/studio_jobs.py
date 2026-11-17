@@ -892,6 +892,9 @@ class Studio:
                         user_words = job.get("text")
                         job = dict(job, text=more, said=user_words)
                 text = studio.build_text(job.get("preset") or "", job.get("text"))
+                if studio.use_q21(s) and (job.get("preset") or "") == "sketch" and not refs:
+                    kind = studio.parse_view(self._read(work_path, "view", say) or "")[0]   # interior or exterior wording
+                    cam_words = studio.instant_camera("", "") if kind != "interior" else ""
                 if job.get("locks"):
                     text = studio.with_locks(text, job["locks"], (job.get("preset") or "") == "sketch")
             # Lab (testing only): %APPDATA%\VistiqStudio\lab.json tries other wordings
@@ -991,7 +994,10 @@ class Studio:
                     ctrl = float(lab.get("q21_ctrl", studio.Q21_CTRL if job.get("instant") else 0.0))
                     q21_used = True
                     t21 = text
-                    if job.get("instant") and not lab.get("text"):
+                    # A sketch (any picture that isn't a Studio render) becomes a photo also when words are given:
+                    # without this "night" on a sketch kept the pencil hatching (tested Nov 2026).
+                    photo21 = bool(job.get("instant") or ((job.get("preset") or "") == "sketch" and not refs and mask is None))
+                    if photo21 and not lab.get("text"):
                         inside = (locals().get("kind") or "") == "interior"
                         t21 = studio.Q21_PHOTO.format(
                             what="car interior" if inside else "car",
@@ -1005,7 +1011,7 @@ class Studio:
                                                control=0.0 if free else ctrl,
                                                control_end=float(lab.get("q21_ctrl_end", studio.Q21_CTRL_END)),
                                                control_mode=lab.get("q21_ctrl_mode", "canny"))
-                    if job.get("instant") and studio.qwenedit_ready(s) and lab.get("q21_finish", True):
+                    if photo21 and studio.qwenedit_ready(s) and lab.get("q21_finish", True):
                         # Every shape first, then every CGI finish: the two models swap once, not per variation.
                         if v not in q21_pre:
                             for vv in range(v, n):
@@ -1073,7 +1079,7 @@ class Studio:
                     data = self.engine.run(prompt, prog, self._cancel.is_set, on_preview=preview)
                 else:                      # an engine without previews (the Mac one)
                     data = self.engine.run(prompt, prog, self._cancel.is_set)
-                if (locals().get("q21_used") and job.get("instant") and studio.qwenedit_ready(s)
+                if (locals().get("q21_used") and locals().get("photo21") and studio.qwenedit_ready(s)
                         and lab.get("q21_finish", True)):
                     # CGI finish (Nov 2026): Qwen-Image 2.1 gets the sketch's shape exactly but renders soft, like
                     # a clay model; Qwen Image Edit 2511 with Photo realism turns that into crisp press-photo CGI
