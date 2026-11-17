@@ -1,5 +1,8 @@
 # Vistiq Studio (test build)
 
+## 0.4.67
+- Interiors bright and readable: soft bounce light fills the cabin so the whole design shows (no dark CGI); the night look only when you ask for night.
+
 ## 0.4.66
 - Faster Instant render with Qwen-Image 2.1: one model at a time on the graphics card (the CGI finish ran at 15 s a step with both there, 4 s alone).
 

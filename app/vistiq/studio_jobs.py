@@ -1099,6 +1099,8 @@ class Studio:
                     # Materials only: a new scene here made 2511 turn the car (tested Nov 2026), so the setting,
                     # light and camera of the 2.1 picture stay.
                     ftext = (studio.QE_FINISH + " " + studio.QE_FINISH_KEEP + " " + (locals().get("cam_words") or "")).strip()
+                    if (locals().get("kind") or "") == "interior" and not studio.night_clause(job.get("said") or job.get("text") or ""):
+                        ftext += " " + studio.QE_INT_BRIGHT
                     if real2:
                         ftext = "Change picture 1 to a realistic photograph. " + ftext
                     fp = studio.qwenedit_prompt(s, [fimg], ftext,

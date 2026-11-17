@@ -773,28 +773,26 @@ QE_INSTANT = ("Turn this design sketch into a finished, photorealistic CGI rende
 # after the person's own references; each render takes one (variations differ). The design stays.
 QE_KEEP_DRAWN = ("The design is exactly the picture's: same proportions, silhouette, lamp graphics, grille, wheels, "
                  "surfaces and every line; only light, materials and setting are added.")
+# Nov 2026: interiors bright and readable (the person: "avoid dark CGI, the whole design visible with soft bounce
+# light"). The night look only comes when asked for (QE_NIGHT).
+QE_INT_BRIGHT = ("Bright, airy exposure: soft bounce light from the windows and pale surfaces fills every corner of the "
+                 "cabin, open shadows, the whole design and every material clearly visible; never dark, moody or murky.")
 QE_JUICE_INT = [
-    ("Cinematic premium car-maker interior photograph at golden hour: warm low sunlight rakes across the cabin, glowing "
-     "highlights on leather and brushed metal, deep soft shadows, rich warm contrast, shallow depth of field; perforated, "
-     "stitched leather with visible grain, knurled and brushed aluminium, glossy black glass screens with reflections; "
-     "through the windows a softly blurred warm landscape."),
+    ("Premium car-maker interior photograph at golden hour: warm low sunlight streams in and glows on leather and "
+     "brushed metal, soft warm bounce light fills the cabin; perforated, stitched leather with visible grain, knurled "
+     "and brushed aluminium, glossy glass screens with reflections; through the windows a softly blurred warm landscape."),
     ("Premium car-maker interior photograph in bright natural daylight: sun streams through the windows and glass roof, "
-     "crisp sun patches and soft shadows across the seats and dashboard, clean airy contrast, fine leather grain and "
+     "soft sun patches and light bouncing off the seats and dashboard, clean airy contrast, fine leather grain and "
      "stitching, satin metal, glossy trims; outside, a bright, softly blurred mountain and desert landscape."),
-    ("Premium car-maker interior photograph at night, like a brand's launch photo: thin, subtle warm ambient light "
-     "lines (only a few millimetres wide) trace the dashboard and door trims, soft warm downlights from the roof console "
-     "pool on the seats and console so every material and colour stays clearly visible, speaker grilles and switches "
-     "softly lit, screens glowing with crisp graphics; outside, a calm desert night with mountains under a deep blue "
-     "sky; balanced exposure, rich detail, not dark or murky."),
-    # Nov 2026: after the person's Unreal/press CGI references (Lincoln, Rivian, Hummer, concept cabin).
+    # after the person's Unreal/press CGI references (Lincoln, Rivian, Hummer, concept cabin)
     ("Premium car-maker interior photograph in soft overcast daylight, like an Unreal Engine press render: bright, even "
      "light floods in through the windscreen and side glass, gentle shadows, clean high-key contrast; quilted and "
      "perforated leather with fine stitching, soft-touch dashboard skins, satin and brushed metal accents with crisp edge "
      "highlights, glossy black screens; outside, a bright, softly blurred green landscape."),
-    ("Cinematic car-maker interior film frame, like a real-time CGI concept film: sunlight from one side catches the "
-     "steering wheel, console and dashboard edges, the rest falls into soft shade; fine grain on leather and fabric, "
-     "satin metal with long soft reflections, faint reflections in the glass; outside, a softly blurred city street "
-     "with stone buildings; shallow depth of field."),
+    ("Car-maker interior film frame, like a real-time CGI concept film: soft sunlight from one side catches the steering "
+     "wheel, console and dashboard edges while gentle bounce light keeps the rest of the cabin bright and readable; fine "
+     "grain on leather and fabric, satin metal with long soft reflections; outside, a softly blurred city street with "
+     "stone buildings; shallow depth of field."),
 ]
 QE_JUICE_EXT = [
     ("Cinematic premium car-maker launch photograph: the car stands on a polished, slightly wet stone floor that mirrors it, "
@@ -840,7 +838,7 @@ def night_clause(words):
 def juice_pick(text, k):
     """Fill the juicy look for render k (variations get different ones)."""
     return (text.replace("{JUICE_EXT}", QE_JUICE_EXT[k % len(QE_JUICE_EXT)] + " Light, not colour: every part keeps its colour. Same camera, framing and crop as the picture.")
-                .replace("{JUICE_INT}", QE_JUICE_INT[k % len(QE_JUICE_INT)] + " Light, not colour: every part keeps its colour. Same camera, framing and crop as the picture."))
+                .replace("{JUICE_INT}", QE_JUICE_INT[k % len(QE_JUICE_INT)] + " " + QE_INT_BRIGHT + " Light, not colour: every part keeps its colour. Same camera, framing and crop as the picture."))
 
 
 def instant_camera(side, height):
