@@ -1,5 +1,8 @@
 # Vistiq Studio (test build)
 
+## 0.4.47
+- Settings: the Image model choice (Qwen Image Edit download) shows even when FLUX isn't installed.
+
 ## 0.4.46
 - 3D views: "Loading view navigator…" while the picture is read; the plan and buttons wait until it's ready.
 - Views made earlier show full size (they showed as small thumbnails).

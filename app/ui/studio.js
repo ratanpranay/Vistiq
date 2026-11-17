@@ -1971,7 +1971,7 @@
   // Which image model makes the pictures: FLUX 3, or Qwen Image Edit (experimental).
   function engineChoice(st, running) {
     var q = st.engine_choice === "qwenedit" && st.qwenedit;
-    return '<div class="s-engines"><button type="button" class="s-tier' + (q ? "" : " on") + '" data-su="engine" data-e="flux3"><b>FLUX 3</b><small>Fast, follows the drawing closely</small></button>' +
+    return '<div class="s-engines"><button type="button" class="s-tier' + (q ? "" : " on") + '" data-su="engine" data-e="flux3"' + (st.flux3 ? "" : " disabled") + '><b>FLUX 3</b><small>' + (st.flux3 ? "Fast, follows the drawing closely" : "Not downloaded (Image model below)") + '</small></button>' +
       '<button type="button" class="s-tier' + (q ? " on" : "") + '" data-su="engine" data-e="qwenedit"' + (st.qwenedit ? "" : " disabled") + '><b>Qwen Image Edit <em class="s-opt">experimental</em></b><small>' +
       (st.qwenedit ? "Understands context: new views, scene changes" : "Not downloaded yet") + "</small></button></div>" +
       (st.qwenedit ? "" : '<div class="s-row"><div class="n"><b>Qwen Image Edit 2511</b><small>Reads the picture itself, so it understands what a sketch shows and what a change means. About a minute a picture.</small></div><span class="s-pill">31 GB</span>' +
@@ -2100,7 +2100,8 @@
       progressHTML() +
       (st.mac ? '<div class="s-sec">This Mac</div><p class="s-hint">' + esc(st.mac.chip) + " · " + st.mac.ram + " GB memory · creates at up to " + st.mac.work_side + " px, upscales up to " + st.mac.max_side + " px" +
         (st.mac.can_generate ? "" : " · image generation needs 16 GB or more") + '</p><div class="s-list">' + fileRows(st.files) + selectRow + helperRow + readerRow + "</div>" : "") +
-      (st.mac || !st.flux3 ? "" : '<div class="s-sec">Image model</div><p class="s-hint">FLUX 3 Klein, the newest model: results at about 2400 × 1300 with clean, refined lines and materials, about 40 seconds a picture. Below is the earlier model, used if FLUX 3 is removed.</p>' + engineChoice(st, running)) +
+      // shown even without FLUX 3: a PC can run on Qwen Image Edit alone (Nov 2026, new office PC)
+      (st.mac ? "" : '<div class="s-sec">Image model</div><p class="s-hint">Qwen Image Edit makes Create, Instant render and 3D views. FLUX 3 is optional.</p>' + engineChoice(st, running)) +
       (st.mac ? "" : '<div class="s-sec">Quality</div><div class="s-tiers">' + ["best", "good"].map(function (k) {
         var tt = st.chosen || st.tier;
         return '<button type="button" class="s-tier' + (tt === k ? " on" : "") + '" data-su="tier" data-t="' + k + '"' + (running ? " disabled" : "") + "><b>" + TIER_TEXT[k][0] +
