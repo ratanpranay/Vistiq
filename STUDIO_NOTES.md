@@ -1,5 +1,8 @@
 # Vistiq Studio (test build)
 
+## 0.4.72
+- Night ambient light is subtle and indirect: a soft wash from hidden sources, never visible light lines.
+
 ## 0.4.71
 - Night interiors: lit by soft roof downlights and the screens' glow; no glowing light strips unless they are part of the design.
 

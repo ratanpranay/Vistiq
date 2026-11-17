@@ -827,11 +827,13 @@ QE_JUICE_EXT = [
 QE_CLEAN = ("Clean, brand-new surfaces: leather and fabric smooth and evenly coloured, no stains, smudges, "
             "fingerprints, blotches or mottled texture; crisp, sharp detail.")
 # Plain "night" made a starry, blue-washed, neon look (tested Nov 2026). This reads like a real press photo.
-QE_NIGHT = ("Make it a night photo like a premium car maker's launch image: the cabin softly lit from within by "
-            "warm roof downlights and the glow of the screens, gentle bounce light so every material and colour stays "
-            "clearly visible; no glowing light strips or ambient light lines unless they are already part of the design; "
-            "outside the windows a calm landscape under a deep blue night sky; balanced exposure, rich detail, clean "
-            "reflections, not dark or murky.")
+# Ambient light is never direct (the person, Nov 2026): a soft, indirect wash from hidden sources, never a lit line.
+QE_NIGHT = ("Make it a night photo like a premium car maker's launch image: subtle, indirect ambient light, soft warm "
+            "light washing gently onto the door panels, dashboard and footwells from sources hidden behind the trims; the "
+            "light sources themselves are never visible, no glowing strips, lines or tubes. Soft roof downlights and the "
+            "screens' glow add gentle bounce light so every material and colour stays clearly visible; outside the "
+            "windows a calm landscape under a deep blue night sky; balanced exposure, rich detail, clean reflections, "
+            "not dark or murky.")
 NIGHT_WORDS = re.compile(r"\b(night|nighttime|night-time|evening|dusk|after dark|midnight)\b", re.I)
 NIGHT_OWN = re.compile(r"\b(neon|stars?|starry|starlight|cyberpunk)\b", re.I)
 
