@@ -1,5 +1,8 @@
 # Vistiq Studio (test build)
 
+## 0.4.66
+- Faster Instant render with Qwen-Image 2.1: one model at a time on the graphics card (the CGI finish ran at 15 s a step with both there, 4 s alone).
+
 ## 0.4.65
 - Qwen-Image 2.1: a sketch with words ("night") also becomes a photo with the CGI finish (it kept the pencil hatching).
 - The picture reader calls a side view a side view more often (it read side views as rear three-quarters).

@@ -1294,11 +1294,12 @@ class ImageEngine:
         self.settings.set("studio_port", 0)
         self.state, self.message = "idle", "Image engine stopped"
 
-    def free(self):
-        """Let go of the graphics card, so the upscaler can have it."""
+    def free(self, keep_ram=False):
+        """Let go of the graphics card, so the upscaler can have it. keep_ram: models leave the graphics card
+        but stay loaded (switching between two image models in one run)."""
         if self.url:
             try:
-                _local.post(self.url + "/free", json={"unload_models": True, "free_memory": True}, timeout=10)
+                _local.post(self.url + "/free", json={"unload_models": True, "free_memory": not keep_ram}, timeout=10)
             except Exception:
                 pass
 

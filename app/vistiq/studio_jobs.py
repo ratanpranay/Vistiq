@@ -1014,6 +1014,9 @@ class Studio:
                     if photo21 and studio.qwenedit_ready(s) and lab.get("q21_finish", True):
                         # Every shape first, then every CGI finish: the two models swap once, not per variation.
                         if v not in q21_pre:
+                            # One model at a time on the graphics card: with 2511 still there the shape took 41 s
+                            # instead of 20, and the finish after it 80 s instead of 25 (15 s a step, Nov 2026).
+                            self.engine.free(keep_ram=True)
                             for vv in range(v, n):
                                 if self._cancel.is_set():
                                     raise RuntimeError("Cancelled")
@@ -1089,6 +1092,9 @@ class Studio:
                     with open(fpath, "wb") as fh:
                         fh.write(data)
                     fimg = self.engine.upload(fpath)
+                    if not locals().get("freed21"):
+                        self.engine.free(keep_ram=True)  # the shapes are made: let 2511 have the card
+                        freed21 = True
                     real2 = float(lab.get("realism", 0.8)) if studio.find("qie_real", s) else 0.0
                     # Materials only: a new scene here made 2511 turn the car (tested Nov 2026), so the setting,
                     # light and camera of the 2.1 picture stay.
