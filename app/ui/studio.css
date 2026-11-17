@@ -1080,3 +1080,4 @@ body.studio .s-vars>.s-ph.sel{border-color:var(--ink)}
 .t-pload[hidden]{display:none}
 .t-pload i{width:22px;height:22px;border-radius:50%;border:2.5px solid #e6e8ef;border-top-color:#6d5df5;animation:s-spin 1s linear infinite}
 #p-3d.t-reading .t-angles,#p-3d.t-reading .t-heights,#p-3d.t-reading .t-sl,#p-3d.t-reading .t-lens{opacity:.4;pointer-events:none}
+.s-locks button[hidden]{display:none}

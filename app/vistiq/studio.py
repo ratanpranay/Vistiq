@@ -329,11 +329,10 @@ def angles_ready(settings=None):
     return qwenedit_ready(settings) and _have("qie_angles", settings)
 
 
-# Its left and right are the viewer's, mirrored from the car's own (tested Nov 2026: "back-right"
-# showed the car's rear-left).
-ANGLE_AZ = {"front": "front view", "front-right": "front-left quarter view", "right": "left side view",
-            "rear-right": "back-left quarter view", "rear": "back view", "rear-left": "back-right quarter view",
-            "left": "right side view", "front-left": "front-right quarter view"}
+# The car's own left and right (tested Nov 2026 on a Kia: "front-right" and "back-right" showed those corners).
+ANGLE_AZ = {"front": "front view", "front-right": "front-right quarter view", "right": "right side view",
+            "rear-right": "back-right quarter view", "rear": "back view", "rear-left": "back-left quarter view",
+            "left": "left side view", "front-left": "front-left quarter view"}
 
 
 def angles_text(target, pitch=0.0, dist=0.0):
@@ -722,7 +721,8 @@ def qwen_text(words, instant=False, scene="", locks=None, ref_head="", sketch=Fa
         if scene:
             parts.append("In the picture: " + scene)
         if words:
-            parts.append("The scene: " + words)
+            parts.append("The scene: " + words + " Change only what these words name; everything else follows the "
+                         "picture exactly.")
         if not night_clause(words):
             if kind:
                 ext = kind != "interior"

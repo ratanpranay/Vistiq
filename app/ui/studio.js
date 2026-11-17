@@ -691,8 +691,8 @@
       if (lay) j.layers = lay;
       j.lora = p.lora || null;
       j.locks = effLocks(p);
+      j.locks.design = true; j.keep = 1;    // the design always follows the sketch exactly; words change only what they name
       j.refs = (p.refs || []).map(function (r) { return { path: r.path, use: r.use, desc: (r.desc || "").trim() }; });
-      if (!j.locks.design) j.keep = Math.min(j.keep, 0.35);        // design unlocked: free to change shapes
     }
     Object.assign(j, extra || {});
     p.error = ""; p.stage = "Starting"; p.frac = 0; p.raw = null; p.rawAt = 0; p.stepSize = 0; p.stepDur = 0; p.pending = j.variations; p.started = Date.now(); p.estimate = 0;
@@ -1614,7 +1614,8 @@
     p.preset = presetFor(p);
     showWords(p);
     $("c-prompt-l").textContent = isRender(w) ? "Describe the change" : "Describe the result";
-    $("c-keep-w").hidden = !LK.design;
+    $("c-keep-w").hidden = true;          // no strictness slider: always exact
+    var dl = $("c-locks").querySelector('[data-v="design"]'); if (dl) dl.hidden = true;   // no Design lock: always kept
     $("c-keep-l").firstChild.textContent = "How strictly · Design ";
     renderWarn();
     var cur = p.viewing && current(p), cm = cur && cur.meta;

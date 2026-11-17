@@ -1,5 +1,9 @@
 # Vistiq Studio (test build)
 
+## 0.4.52
+- No Design lock or strictness slider: the design always follows the sketch exactly. With words, only what the words name changes.
+- 3D views (outside): left and right the right way round again (front ¾ right showed front ¾ left).
+
 ## 0.4.51
 - Instant render tells cars from cabins by reading the picture (car sketches were treated as interiors, so doors were opened to show seats).
 - Photo realism add-on (Anything2Real, 0.6 GB) downloads by itself; in testing.
