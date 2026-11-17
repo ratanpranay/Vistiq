@@ -431,6 +431,8 @@ QE_FINISH = ("Picture 1 already has the exact design: keep its shape, proportion
              "and part exactly. Make it a crisp, realistic CGI press photograph: real materials with crisp "
              "reflections (deep clear-coat paint, leather, glass, metal, rubber), sharp highlights along every edge and "
              "line, rich contrast.")
+QE_FINISH_KEEP = ("Keep the setting, background, light direction and camera of picture 1 exactly; do not turn, move "
+                  "or mirror the car. Add no logos or text that are not in picture 1.")
 Q21_CTRL_END = 0.7    # the lines lead the first 70 % of the steps; the finish stays free
 
 

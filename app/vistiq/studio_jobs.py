@@ -1063,12 +1063,12 @@ class Studio:
                         fh.write(data)
                     fimg = self.engine.upload(fpath)
                     real2 = float(lab.get("realism", 0.8)) if studio.find("qie_real", s) else 0.0
-                    ftext = ((studio.QE_FINISH + " ") +
-                             studio.qwen_text("", instant=True, scene=locals().get("scene") or "",
-                                              kind=locals().get("kind") or "", camera=locals().get("cam_words") or ""))
+                    # Materials only: a new scene here made 2511 turn the car (tested Nov 2026), so the setting,
+                    # light and camera of the 2.1 picture stay.
+                    ftext = (studio.QE_FINISH + " " + studio.QE_FINISH_KEEP + " " + (locals().get("cam_words") or "")).strip()
                     if real2:
                         ftext = "Change picture 1 to a realistic photograph. " + ftext
-                    fp = studio.qwenedit_prompt(s, [fimg], studio.juice_pick(ftext, int(job.get("look", seed % 60)) + v),
+                    fp = studio.qwenedit_prompt(s, [fimg], ftext,
                                                 seed + v, realism=real2,
                                                 megapixels=float(lab.get("qe_mp", min(studio.QE_MP, max(
                                                     studio.QE_MP_MIN, work.size[0] * work.size[1] / 1e6)))),

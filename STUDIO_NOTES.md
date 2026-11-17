@@ -1,5 +1,8 @@
 # Vistiq Studio (test build)
 
+## 0.4.62
+- CGI finish only upgrades the materials: it keeps the scene, light and camera (a new scene there could turn the car).
+
 ## 0.4.61
 - Qwen-Image 2.1 Instant render gets a CGI finish: 2.1 draws the exact shape, then Qwen Image Edit 2511 with Photo realism makes it crisp press-photo CGI.
 
