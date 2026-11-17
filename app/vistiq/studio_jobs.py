@@ -909,8 +909,18 @@ class Studio:
                         job = dict(job, text=more, said=user_words)
                 text = studio.build_text(job.get("preset") or "", job.get("text"))
                 if studio.use_qwenedit(s) and not refs:
-                    kind = studio.parse_view(self._read(work_path, "view", say) or "")[0]   # interior or exterior wording
+                    va = self._read(work_path, "view", say) or ""
+                    kind = studio.parse_view(va)[0]                    # interior or exterior wording
                     cam_words = studio.instant_camera("", "") if kind != "interior" else ""
+                    # Scenarios and lighting are easiest on a resolved CGI design (the person, Nov 2026): a
+                    # picture that is already CGI is changed directly (2511); a sketch first becomes CGI (the
+                    # Instant render), then the words change that.
+                    if (studio.use_q21(s) and studio.qwenedit_ready(s) and (job.get("preset") or "") == "sketch"
+                            and not job.get("from_result") and mask is None and (job.get("said") or job.get("text") or "").strip()):
+                        if studio.parse_medium(va) == "render":
+                            cgi_direct = True
+                        else:
+                            chain = True
                 if job.get("locks"):
                     text = studio.with_locks(text, job["locks"], (job.get("preset") or "") == "sketch")
             # Lab (testing only): %APPDATA%\VistiqStudio\lab.json tries other wordings
@@ -1003,7 +1013,8 @@ class Studio:
                                                     int(reframe.get("w", 0)), int(reframe.get("h", 0)), int(reframe.get("steps", 8)))
                 elif (sys.platform != "darwin" and studio.use_q21(s) and mode == "create" and not job.get("view")
                       and not cam_i and not (studio.qwenedit_ready(s) and (job.get("locks") or {}).get("camera") is False)
-                      and not (studio.qwenedit_ready(s) and (job.get("from_result") or (job.get("preset") or "") != "sketch")
+                      and not (studio.qwenedit_ready(s) and (job.get("from_result") or (job.get("preset") or "") != "sketch"
+                                                               or locals().get("cgi_direct"))
                                and not job.get("instant"))):
                     # (a CGI render with words, e.g. "night", goes to 2511 below: it keeps the render's CGI look)
                     # Qwen-Image 2.1 (Nov 2026): Create and Instant render. The Consistency LoRA keeps the frame;
@@ -1018,10 +1029,14 @@ class Studio:
                     photo21 = bool(job.get("instant") or ((job.get("preset") or "") == "sketch" and not refs and mask is None))
                     if photo21 and not lab.get("text"):
                         inside = (locals().get("kind") or "") == "interior"
+                        base21 = text
+                        if locals().get("chain"):          # the plain Instant render first; the words come after
+                            base21 = studio.qwen_text("", instant=True, kind=locals().get("kind") or "",
+                                                      camera=locals().get("cam_words") or "")
                         t21 = studio.Q21_PHOTO.format(
                             what="car interior" if inside else "car",
                             surf=("real leather, fabric, soft-touch trims and satin metal" if inside else
-                                  "smooth glossy painted bodywork, real rubber tyres and machined wheels")) + text
+                                  "smooth glossy painted bodywork, real rubber tyres and machined wheels")) + base21
                     mk21 = lambda vv, t21=t21, imgs=imgs, ctrl=ctrl, free=free: studio.q21_prompt(s, imgs, studio.juice_pick(t21, int(job.get("look", seed % 60)) + vv), seed + vv,
                                                megapixels=float(lab.get("q21_mp", min(
                                                    studio.Q21_MP_SHAPE if (photo21 and studio.qwenedit_ready(s)) else studio.Q21_MP, max(
@@ -1131,6 +1146,23 @@ class Studio:
                     finished = self.engine.run(fp, None, self._cancel.is_set)
                     if not _is_blank(finished):
                         data = finished
+                    if locals().get("chain"):
+                        # The words on the CGI it just made (lighting, scene, materials), with 2511.
+                        say("Your change · " + label.lower(), (v + 0.85) / n)
+                        cpath = os.path.join(tmp_dir, "cgi_%s_%d.png" % (job_id, v))
+                        with open(cpath, "wb") as fh:
+                            fh.write(data)
+                        cimg = self.engine.upload(cpath)
+                        words = job.get("said") or job.get("text") or ""
+                        ctext = studio.qwen_text(words, locks={"design": True, "camera": True},
+                                                 kind=locals().get("kind") or "", said=job.get("said"))
+                        cp = studio.qwenedit_prompt(s, [cimg], ctext, seed + v,
+                                                    megapixels=float(lab.get("qe_mp", min(studio.QE_MP, max(
+                                                        studio.QE_MP_MIN, work.size[0] * work.size[1] / 1e6)))),
+                                                    steps=int(lab.get("qe_steps", studio.QE_STEPS)), ref_latent=True)
+                        changed = self.engine.run(cp, None, self._cancel.is_set)
+                        if not _is_blank(changed):
+                            data = changed
                 if sys.platform != "darwin" and job.get("juice") and studio.status(s)["juice_ready"] and job.get("juice_lora"):
                     say("Finishing pass · " + label.lower(), (v + 0.9) / n)
                     jpath = os.path.join(tmp_dir, "juice_%s_%d.png" % (job_id, v))

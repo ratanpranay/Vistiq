@@ -1,5 +1,8 @@
 # Vistiq Studio (test build)
 
+## 0.4.70
+- Words on a picture: if it is already CGI (a render or photo), the change (night, a new scene, materials) is made on it directly; if it is a sketch, Studio first makes it CGI (the Instant render, so the design looks resolved) and then makes the change on that.
+
 ## 0.4.69
 - Sketch → Instant render → words: with a result in view, typing (e.g. "night") and Create changes that CGI result, not the sketch. It uses Qwen Image Edit 2511, which keeps the CGI look.
 - Night for outside views has its own look (lamps glowing, reflections, deep blue sky) instead of the cabin's ambient lines.

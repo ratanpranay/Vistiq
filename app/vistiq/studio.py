@@ -617,6 +617,12 @@ CABIN_WORDS = {"front": "from the windscreen, looking back into the cabin over t
                "front-left": "from the driver's front corner, looking across the cabin"}
 
 
+def parse_medium(answer):
+    """sketch or render, from the picture reader's view answer ("" when it didn't say)."""
+    m = re.search(r"medium\s*=\s*([a-z]+)", (answer or "").lower())
+    return m.group(1) if m and m.group(1) in ("sketch", "render") else ""
+
+
 def parse_view(answer):
     """The picture reader's answer: (kind, side, height), with safe defaults.
     Outside a cabin the side comes from where the nose points in the picture: a car whose

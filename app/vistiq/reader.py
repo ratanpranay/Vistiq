@@ -86,9 +86,11 @@ ASK = {
     # Car-left/right was often mirrored (Nov 2026); which way the nose points in the picture is
     # read reliably, and the side follows from it (see studio.parse_view).
     "view": ("Look at this picture and answer in exactly this form, nothing else: "
-             "kind=<exterior|interior|product>; nose=<left|right|toward|away>; end=<front|rear|none>; "
+             "kind=<exterior|interior|product>; medium=<sketch|render>; nose=<left|right|toward|away>; end=<front|rear|none>; "
              "side=<front|front-right|right|rear-right|rear|rear-left|left|front-left>; height=<low|eye|high|top>. "
              "kind: a car seen from outside, a car's inside (cabin, dashboard, seats), or anything else. "
+             "medium: sketch for a drawing (pencil, pen, marker or digital sketch, line art, visible strokes or hatching, "
+             "flat or unfinished shading); render for a photograph or a finished, photorealistic CGI render. "
              "nose: which way the front of the car (or object) points in the picture: to the left edge of the "
              "picture, to the right edge, or (only when the front or the rear faces the camera straight on, with no side "
              "visible) toward the camera or away from it; in a three-quarter view the nose points left or right. end: which end we also see, its front "

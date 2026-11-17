@@ -855,3 +855,13 @@ class InstantCamera(unittest.TestCase):
         self.assertNotIn("rear", w)                 # never names a view the reader may have misread
         t = studio.qwen_text("", instant=True, kind="exterior", camera=w)
         self.assertIn("Do not turn", t)
+
+
+class Medium(unittest.TestCase):
+    def test_parse(self):
+        from vistiq import studio
+        self.assertEqual(studio.parse_medium("kind=exterior; medium=render; nose=left"), "render")
+        self.assertEqual(studio.parse_medium("kind=interior; medium=sketch"), "sketch")
+        self.assertEqual(studio.parse_medium("kind=interior"), "")
+        self.assertIn("lamps glowing", studio.night_clause("night", "exterior"))
+        self.assertIn("ambient light lines", studio.night_clause("night", "interior"))
