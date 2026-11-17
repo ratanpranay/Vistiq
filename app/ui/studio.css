@@ -857,9 +857,12 @@ body.s-rot .s-view,body.s-rot .s-view *{cursor:alias!important}
 /* Create panel: even, fixed gaps; the prompt box takes the spare height */
 body.studio #p-create .s-rail-body>*{margin-top:0}
 body.studio #p-create .s-rail-body{gap:22px}
-body.studio #p-create .s-rail-body>.s-grow{flex:1 0 auto;display:flex;flex-direction:column}
-body.studio #p-create .s-rail-body>.s-grow .s-pbox{flex:1;display:flex;flex-direction:column}
-body.studio #p-create .s-rail-body>.s-grow .s-prompt{flex:1;min-height:110px;max-height:none}
+/* Nov 2026: a compact prompt; references and Keep move up with room to breathe */
+body.studio #p-create .s-rail-body>.s-grow{flex:0 0 auto;display:flex;flex-direction:column}
+body.studio #p-create .s-rail-body>.s-grow .s-pbox{display:flex;flex-direction:column}
+body.studio #p-create .s-rail-body>.s-grow .s-prompt{height:140px;min-height:110px;max-height:260px;resize:vertical}
+body.studio #p-create #c-refs-w{margin-top:14px}
+body.studio #p-create #c-refs-w+div{margin-top:14px}
 
 /* Create: reference images, each giving one thing */
 .s-label .s-opt{font-style:normal;color:var(--dim,#80869a);font-weight:400;margin-left:2px}

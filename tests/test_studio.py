@@ -820,3 +820,14 @@ class CameraAngles(unittest.TestCase):
             self.assertEqual(p["6"]["inputs"]["strength_model"], 0.9)
             self.assertNotIn("6", studio.qwenedit_prompt(None, ["a.png"], "x", seed=1))
 
+
+
+class InstantCamera(unittest.TestCase):
+    def test_words(self):
+        from vistiq import studio
+        self.assertIn("side-on profile", studio.instant_camera("left", "eye"))
+        self.assertIn("rear three-quarter", studio.instant_camera("rear-left", "eye"))
+        self.assertIn("picture's left", studio.instant_camera("rear-left", "eye"))
+        self.assertEqual(studio.instant_camera("", "eye"), "")
+        t = studio.qwen_text("", instant=True, kind="exterior", camera=studio.instant_camera("right", "low"))
+        self.assertIn("Do not turn", t)

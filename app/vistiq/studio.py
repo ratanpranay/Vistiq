@@ -733,7 +733,26 @@ def juice_pick(text, k):
                 .replace("{JUICE_INT}", QE_JUICE_INT[k % len(QE_JUICE_INT)] + " Light, not colour: every part keeps its colour. Same camera, framing and crop as the picture."))
 
 
-def qwen_text(words, instant=False, scene="", locks=None, ref_head="", sketch=False, said=None, kind=""):
+def instant_camera(side, height):
+    """The view the picture reader saw, as a camera instruction for Instant render (exteriors).
+    Without it a render could turn the car (a side view became a front three-quarter, Nov 2026)."""
+    h = {"low": "from a low camera", "high": "from slightly above", "top": "from high above"}.get(height, "at eye level")
+    if side in ("left", "right"):
+        v = "a straight side-on profile view, the car's nose pointing to the picture's %s" % side
+    elif side == "front":
+        v = "a head-on front view"
+    elif side == "rear":
+        v = "a straight rear view"
+    elif "-" in side:
+        end, nose = side.split("-", 1)
+        v = ("a %s three-quarter view: we see the car's %s and one side, the nose pointing to the picture's %s"
+             % (end, "front" if end == "front" else "back", nose))
+    else:
+        return ""
+    return "Camera exactly as drawn: %s, %s. Do not turn, rotate or mirror the car." % (v, h)
+
+
+def qwen_text(words, instant=False, scene="", locks=None, ref_head="", sketch=False, said=None, kind="", camera=""):
     """Short, direct instructions for Qwen Image Edit."""
     words = " ".join(clean_prompt(words).split())
     if words and words[-1] not in ".!?":
@@ -742,6 +761,8 @@ def qwen_text(words, instant=False, scene="", locks=None, ref_head="", sketch=Fa
     parts = []
     if instant:
         parts.append(QE_INSTANT)
+        if camera:
+            parts.append(camera)
         if scene:
             parts.append("In the picture: " + scene)
         if words:

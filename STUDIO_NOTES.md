@@ -1,5 +1,10 @@
 # Vistiq Studio (test build)
 
+## 0.4.57
+- Instant render keeps the view of the sketch: Studio tells the model the camera it read (side-on, three-quarter, which way the nose points) and not to turn the car.
+- Viewing an Instant render result, the button stays Instant render (it ran as a plain Create without the look).
+- Create panel: smaller prompt box, references and Keep move up with more space.
+
 ## 0.4.56
 - Every render look keeps the sketch's camera framing (the dark-hall look zoomed out).
 

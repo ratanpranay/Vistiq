@@ -850,7 +850,8 @@ class Studio:
             elif job.get("instant"):
                 scene = self._read(work_path, "scene", say)
                 # inside or outside: the reliable reading (the scene words made cars look like cabins)
-                kind = studio.parse_view(self._read(work_path, "view", say) or "")[0] if studio.use_qwenedit(s) else ""
+                kind, vside, vh = studio.parse_view(self._read(work_path, "view", say) or "") if studio.use_qwenedit(s) else ("", "", "")
+                cam_words = studio.instant_camera(vside, vh) if kind and kind != "interior" else ""
                 text = studio.instant_text(job.get("text") or "", scene)
             else:
                 # Words: the picture reader spells out everything the change means in this picture
@@ -896,7 +897,7 @@ class Studio:
                 # Qwen Image Edit reads short, direct instructions best (the long
                 # FLUX wording made it muddy and stopped camera moves).
                 text = studio.qwen_text(job.get("text") or "", instant=bool(job.get("instant")),
-                                        scene=locals().get("scene") or "", locks=job.get("locks"), kind=locals().get("kind") or "",
+                                        scene=locals().get("scene") or "", locks=job.get("locks"), kind=locals().get("kind") or "", camera=locals().get("cam_words") or "",
                                         ref_head=(text.split("\n\n")[0] if refs else ""),
                                         sketch=(job.get("preset") or "") == "sketch", said=job.get("said"))
                 if lab.get("text"):               # lab: try other wordings ({auto} = Studio's own)

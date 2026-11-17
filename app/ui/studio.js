@@ -83,7 +83,7 @@
   }
   // No words and no references: Create becomes Instant render (a studio CGI render
   // that follows the sketch as it is; words then only set the scene).
-  function instantMode(p) { return !(p.text || "").trim() && !(p.refs || []).length && !p.viewing; }
+  function instantMode(p) { return !(p.text || "").trim() && !(p.refs || []).length; }
   function defaultLocks(src) { var r = isRender(src); return { design: true, materials: r, light: r, camera: true }; }
   // Reference images in Create: each gives exactly one thing.
   var RUSE = {
