@@ -981,11 +981,18 @@ class Studio:
                     imgs = [image] + list(ref_images or ([ref_image] if ref_image else []))
                     free = (job.get("locks") or {}).get("camera") is False
                     ctrl = float(lab.get("q21_ctrl", studio.Q21_CTRL if job.get("instant") else 0.0))
-                    prompt = studio.q21_prompt(s, imgs, studio.juice_pick(text, int(job.get("look", seed % 60)) + v), seed + v,
+                    t21 = text
+                    if job.get("instant") and not lab.get("text"):
+                        inside = (locals().get("kind") or "") == "interior"
+                        t21 = studio.Q21_PHOTO.format(
+                            what="car interior" if inside else "car",
+                            surf=("real leather, fabric, soft-touch trims and satin metal" if inside else
+                                  "smooth glossy painted bodywork, real rubber tyres and machined wheels")) + text
+                    prompt = studio.q21_prompt(s, imgs, studio.juice_pick(t21, int(job.get("look", seed % 60)) + v), seed + v,
                                                megapixels=float(lab.get("q21_mp", min(studio.Q21_MP, max(
                                                    1.0, work.size[0] * work.size[1] / 1e6)))),
                                                steps=lab.get("q21_steps"), fast=bool(lab.get("q21_fast", True)),
-                                               consistency=0.0 if free else float(lab.get("q21_cons", 1.0)),
+                                               consistency=0.0 if free else float(lab.get("q21_cons", studio.Q21_CONS)),
                                                control=0.0 if free else ctrl,
                                                control_end=float(lab.get("q21_ctrl_end", studio.Q21_CTRL_END)),
                                                control_mode=lab.get("q21_ctrl_mode", "canny"))

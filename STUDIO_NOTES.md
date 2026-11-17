@@ -1,5 +1,8 @@
 # Vistiq Studio (test build)
 
+## 0.4.60
+- Qwen-Image 2.1 Instant render tuned on your sketches: exact shape and framing, photographic, no pencil lines (Consistency 0.6 plus a plain sketch-to-photo instruction).
+
 ## 0.4.59
 - Qwen-Image 2.1: the image engine restarts by itself to see the new sketch ControlNet folder.
 

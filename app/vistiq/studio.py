@@ -421,7 +421,12 @@ def use_q21(settings=None):
 
 
 Q21_MP = 2.0          # native up to 2K; the picture is drawn at its own shape
-Q21_CTRL = 0.8        # ControlNet strength on the sketch's lines (Instant render)
+Q21_CTRL = 0.0        # ControlNet on the sketch's lines: off (Consistency + wording already hold the shape, tested Nov 2026)
+Q21_CONS = 0.6        # Consistency LoRA: 1.0 kept the pencil hatching, 0.75 sometimes returned the sketch; 0.6 exact and clean
+# Qwen-Image 2.1 keeps a sketch a sketch unless told plainly (tested Nov 2026: with this, exact shape and photographic)
+Q21_PHOTO = ("Turn this pencil sketch into a photorealistic photograph of the real, finished {what}: {surf}, real glass "
+             "and real lamps. Remove every pencil line, hatching stroke, "
+             "signature and paper texture. ")
 Q21_CTRL_END = 0.7    # the lines lead the first 70 % of the steps; the finish stays free
 
 
