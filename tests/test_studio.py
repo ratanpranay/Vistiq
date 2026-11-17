@@ -850,9 +850,8 @@ class CameraAngles(unittest.TestCase):
 class InstantCamera(unittest.TestCase):
     def test_words(self):
         from vistiq import studio
-        self.assertIn("side-on profile", studio.instant_camera("left", "eye"))
-        self.assertIn("rear three-quarter", studio.instant_camera("rear-left", "eye"))
-        self.assertIn("picture's left", studio.instant_camera("rear-left", "eye"))
-        self.assertEqual(studio.instant_camera("", "eye"), "")
-        t = studio.qwen_text("", instant=True, kind="exterior", camera=studio.instant_camera("right", "low"))
+        w = studio.instant_camera("rear-left", "eye")
+        self.assertIn("Do not turn", w)
+        self.assertNotIn("rear", w)                 # never names a view the reader may have misread
+        t = studio.qwen_text("", instant=True, kind="exterior", camera=w)
         self.assertIn("Do not turn", t)

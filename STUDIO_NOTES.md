@@ -1,5 +1,8 @@
 # Vistiq Studio (test build)
 
+## 0.4.64
+- Instant render no longer names the view it read (a misread turned a side view into a rear three-quarter): it keeps the drawn viewpoint.
+
 ## 0.4.63
 - Faster: the picture reader lets go of the graphics card before rendering (renders were up to 3x slower with it there), and with Qwen-Image 2.1 every shape is made first, then every CGI finish (the models swap once).
 

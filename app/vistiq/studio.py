@@ -844,22 +844,10 @@ def juice_pick(text, k):
 
 
 def instant_camera(side, height):
-    """The view the picture reader saw, as a camera instruction for Instant render (exteriors).
-    Without it a render could turn the car (a side view became a front three-quarter, Nov 2026)."""
-    h = {"low": "from a low camera", "high": "from slightly above", "top": "from high above"}.get(height, "at eye level")
-    if side in ("left", "right"):
-        v = "a straight side-on profile view, the car's nose pointing to the picture's %s" % side
-    elif side == "front":
-        v = "a head-on front view"
-    elif side == "rear":
-        v = "a straight rear view"
-    elif "-" in side:
-        end, nose = side.split("-", 1)
-        v = ("a %s three-quarter view: we see the car's %s and one side, the nose pointing to the picture's %s"
-             % (end, "front" if end == "front" else "back", nose))
-    else:
-        return ""
-    return "Camera exactly as drawn: %s, %s. Do not turn, rotate or mirror the car." % (v, h)
+    """Instant render: keep the drawn view. It used to name the view the picture reader saw, but a misread
+    (a side view read as a rear three-quarter, Nov 2026) then turned the car; the picture itself is the camera."""
+    return ("Camera exactly as drawn: the very same viewpoint, angle, height and framing as picture 1. "
+            "Do not turn, rotate or mirror the car.")
 
 
 def qwen_text(words, instant=False, scene="", locks=None, ref_head="", sketch=False, said=None, kind="", camera=""):
