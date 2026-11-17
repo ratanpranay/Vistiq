@@ -981,6 +981,7 @@ class Studio:
                     imgs = [image] + list(ref_images or ([ref_image] if ref_image else []))
                     free = (job.get("locks") or {}).get("camera") is False
                     ctrl = float(lab.get("q21_ctrl", studio.Q21_CTRL if job.get("instant") else 0.0))
+                    q21_used = True
                     t21 = text
                     if job.get("instant") and not lab.get("text"):
                         inside = (locals().get("kind") or "") == "interior"
@@ -1051,6 +1052,30 @@ class Studio:
                     data = self.engine.run(prompt, prog, self._cancel.is_set, on_preview=preview)
                 else:                      # an engine without previews (the Mac one)
                     data = self.engine.run(prompt, prog, self._cancel.is_set)
+                if (locals().get("q21_used") and job.get("instant") and studio.qwenedit_ready(s)
+                        and lab.get("q21_finish", True)):
+                    # CGI finish (Nov 2026): Qwen-Image 2.1 gets the sketch's shape exactly but renders soft, like
+                    # a clay model; Qwen Image Edit 2511 with Photo realism turns that into crisp press-photo CGI
+                    # and keeps the shape (the picture it gets is already right).
+                    say("CGI finish · " + label.lower(), (v + 0.6) / n)
+                    fpath = os.path.join(tmp_dir, "q21_%s_%d.png" % (job_id, v))
+                    with open(fpath, "wb") as fh:
+                        fh.write(data)
+                    fimg = self.engine.upload(fpath)
+                    real2 = float(lab.get("realism", 0.8)) if studio.find("qie_real", s) else 0.0
+                    ftext = ((studio.QE_FINISH + " ") +
+                             studio.qwen_text("", instant=True, scene=locals().get("scene") or "",
+                                              kind=locals().get("kind") or "", camera=locals().get("cam_words") or ""))
+                    if real2:
+                        ftext = "Change picture 1 to a realistic photograph. " + ftext
+                    fp = studio.qwenedit_prompt(s, [fimg], studio.juice_pick(ftext, int(job.get("look", seed % 60)) + v),
+                                                seed + v, realism=real2,
+                                                megapixels=float(lab.get("qe_mp", min(studio.QE_MP, max(
+                                                    studio.QE_MP_MIN, work.size[0] * work.size[1] / 1e6)))),
+                                                steps=int(lab.get("qe_steps", studio.QE_STEPS)), ref_latent=True)
+                    finished = self.engine.run(fp, None, self._cancel.is_set)
+                    if not _is_blank(finished):
+                        data = finished
                 if sys.platform != "darwin" and job.get("juice") and studio.status(s)["juice_ready"] and job.get("juice_lora"):
                     say("Finishing pass · " + label.lower(), (v + 0.9) / n)
                     jpath = os.path.join(tmp_dir, "juice_%s_%d.png" % (job_id, v))

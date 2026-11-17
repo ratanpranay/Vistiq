@@ -1,5 +1,8 @@
 # Vistiq Studio (test build)
 
+## 0.4.61
+- Qwen-Image 2.1 Instant render gets a CGI finish: 2.1 draws the exact shape, then Qwen Image Edit 2511 with Photo realism makes it crisp press-photo CGI.
+
 ## 0.4.60
 - Qwen-Image 2.1 Instant render tuned on your sketches: exact shape and framing, photographic, no pencil lines (Consistency 0.6 plus a plain sketch-to-photo instruction).
 

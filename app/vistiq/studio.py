@@ -427,6 +427,10 @@ Q21_CONS = 0.6        # Consistency LoRA: 1.0 kept the pencil hatching, 0.75 som
 Q21_PHOTO = ("Turn this pencil sketch into a photorealistic photograph of the real, finished {what}: {surf}, real glass "
              "and real lamps. Remove every pencil line, hatching stroke, "
              "signature and paper texture. ")
+QE_FINISH = ("Picture 1 already has the exact design: keep its shape, proportions, framing, every line, opening "
+             "and part exactly. Make it a crisp, realistic CGI press photograph: real materials with crisp "
+             "reflections (deep clear-coat paint, leather, glass, metal, rubber), sharp highlights along every edge and "
+             "line, rich contrast.")
 Q21_CTRL_END = 0.7    # the lines lead the first 70 % of the steps; the finish stays free
 
 
