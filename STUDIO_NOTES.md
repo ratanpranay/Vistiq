@@ -1,5 +1,8 @@
 # Vistiq Studio (test build)
 
+## 0.4.68
+- Faster: a picture already read isn't read again, and the shape pass draws at 1.4 MP (the CGI finish adds the detail at 3.2 MP).
+
 ## 0.4.67
 - Interiors bright and readable: soft bounce light fills the cabin so the whole design shows (no dark CGI); the night look only when you ask for night.
 

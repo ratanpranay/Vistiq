@@ -421,6 +421,7 @@ def use_q21(settings=None):
 
 
 Q21_MP = 2.0          # native up to 2K; the picture is drawn at its own shape
+Q21_MP_SHAPE = 1.4    # with the CGI finish after it (which draws at 3.2 MP), the shape needs less: faster
 Q21_CTRL = 0.0        # ControlNet on the sketch's lines: off (Consistency + wording already hold the shape, tested Nov 2026)
 Q21_CONS = 0.6        # Consistency LoRA: 1.0 kept the pencil hatching, 0.75 sometimes returned the sketch; 0.6 exact and clean
 # Qwen-Image 2.1 keeps a sketch a sketch unless told plainly (tested Nov 2026: with this, exact shape and photographic)

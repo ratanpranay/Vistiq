@@ -318,11 +318,27 @@ class Studio:
         if sys.platform == "darwin" or not studio.reader_installed(self.settings):
             return ""
         try:
+            # The same picture read again (another render of the same sketch) answers from memory: the reader
+            # restarts for every run (it leaves the graphics card to the image model), about 20 s each time.
+            try:
+                import hashlib
+                with open(path, "rb") as fh:          # by content: each run writes its own copy of the picture
+                    key = (hashlib.md5(fh.read()).hexdigest(), use, req or "")
+            except OSError:
+                key = None
+            memo = self.__dict__.setdefault("_read_memo", {})
+            if key in memo:
+                return memo[key]
             say("Reading your picture", None)
             from . import reader
             if not hasattr(self, "_reader"):
                 self._reader = reader.Reader(lambda: studio.models_dir(self.settings))
-            return self._reader.describe(path, use, req)
+            out = self._reader.describe(path, use, req)
+            if key and out:
+                if len(memo) > 200:
+                    memo.clear()
+                memo[key] = out
+            return out
         except Exception as e:                       # never block a run over this
             log.warning("picture reader: %s", e)
             return ""
@@ -1004,7 +1020,8 @@ class Studio:
                             surf=("real leather, fabric, soft-touch trims and satin metal" if inside else
                                   "smooth glossy painted bodywork, real rubber tyres and machined wheels")) + text
                     mk21 = lambda vv, t21=t21, imgs=imgs, ctrl=ctrl, free=free: studio.q21_prompt(s, imgs, studio.juice_pick(t21, int(job.get("look", seed % 60)) + vv), seed + vv,
-                                               megapixels=float(lab.get("q21_mp", min(studio.Q21_MP, max(
+                                               megapixels=float(lab.get("q21_mp", min(
+                                                   studio.Q21_MP_SHAPE if (photo21 and studio.qwenedit_ready(s)) else studio.Q21_MP, max(
                                                    1.0, work.size[0] * work.size[1] / 1e6)))),
                                                steps=lab.get("q21_steps"), fast=bool(lab.get("q21_fast", True)),
                                                consistency=0.0 if free else float(lab.get("q21_cons", studio.Q21_CONS)),
