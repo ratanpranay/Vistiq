@@ -944,6 +944,7 @@
       else if (a === "outputs") api().studio_open_outputs();
       else if (a === "refresh") refresh();
       else if (a === "get-metaview") { S.setup.error = ""; api().studio_get_metaview(); S.setup.run = { label: "MetaView", fraction: null }; render(); }
+      else if (a === "get-qwen21") { S.setup.error = ""; api().studio_get_qwen21(); S.setup.run = { label: "Qwen-Image 2.1", fraction: null }; render(); }
       else if (a === "get-qwenedit") { S.setup.error = ""; api().studio_get_qwenedit(); S.setup.run = { label: "Qwen Image Edit", fraction: null }; render(); }
       else if (a === "engine") { api().studio_set_engine(b.getAttribute("data-e")).then(function (st2) { if (st2) S.status = Object.assign(S.status || {}, st2); render(); }); }
       else if (a === "get-reader-xl") { S.setup.error = ""; api().studio_get_reader_xl(); S.setup.run = { label: "Picture reader XL", fraction: null }; render(); }
@@ -1971,10 +1972,14 @@
 
   // Which image model makes the pictures: FLUX 3, or Qwen Image Edit (experimental).
   function engineChoice(st, running) {
-    var q = st.engine_choice === "qwenedit" && st.qwenedit;
-    return '<div class="s-engines"><button type="button" class="s-tier' + (q ? "" : " on") + '" data-su="engine" data-e="flux3"' + (st.flux3 ? "" : " disabled") + '><b>FLUX 3</b><small>' + (st.flux3 ? "Fast, follows the drawing closely" : "Not downloaded (Image model below)") + '</small></button>' +
-      '<button type="button" class="s-tier' + (q ? " on" : "") + '" data-su="engine" data-e="qwenedit"' + (st.qwenedit ? "" : " disabled") + '><b>Qwen Image Edit <em class="s-opt">experimental</em></b><small>' +
-      (st.qwenedit ? "Understands context: new views, scene changes" : "Not downloaded yet") + "</small></button></div>" +
+    var e = st.engine_choice === "qwen21" && st.qwen21 ? "qwen21" : st.engine_choice === "qwenedit" && st.qwenedit ? "qwenedit" : "flux3";
+    return '<div class="s-engines s-engines3"><button type="button" class="s-tier' + (e === "flux3" ? " on" : "") + '" data-su="engine" data-e="flux3"' + (st.flux3 ? "" : " disabled") + '><b>FLUX 3</b><small>' + (st.flux3 ? "Fast, follows the drawing closely" : "Not downloaded (Image model below)") + '</small></button>' +
+      '<button type="button" class="s-tier' + (e === "qwenedit" ? " on" : "") + '" data-su="engine" data-e="qwenedit"' + (st.qwenedit ? "" : " disabled") + '><b>Qwen Image Edit 2511</b><small>' +
+      (st.qwenedit ? "Understands context: new views, scene changes" : "Not downloaded yet") + "</small></button>" +
+      '<button type="button" class="s-tier' + (e === "qwen21" ? " on" : "") + '" data-su="engine" data-e="qwen21"' + (st.qwen21 ? "" : " disabled") + '><b>Qwen-Image 2.1 <em class="s-opt">new</em></b><small>' +
+      (st.qwen21 ? "Renders that stay on your sketch. 3D views use 2511" : "Not downloaded yet") + "</small></button></div>" +
+      (st.qwen21 ? "" : '<div class="s-row"><div class="n"><b>Qwen-Image 2.1</b><small>Newer Qwen with a Consistency LoRA and a sketch ControlNet: the render keeps your sketch\'s lines, proportions and frame.</small></div><span class="s-pill">22 GB</span>' +
+        '<button type="button" class="s-btn p" data-su="get-qwen21"' + (running ? " disabled" : "") + ">Download</button></div>") +
       (st.qwenedit ? "" : '<div class="s-row"><div class="n"><b>Qwen Image Edit 2511</b><small>Reads the picture itself, so it understands what a sketch shows and what a change means. About a minute a picture.</small></div><span class="s-pill">31 GB</span>' +
         '<button type="button" class="s-btn p" data-su="get-qwenedit"' + (running ? " disabled" : "") + ">Download</button></div>") +
       (!st.qwenedit ? "" : st.angles ? '<div class="s-row"><div class="n"><b>Camera angles</b><small>Helps 3D views turn to the view you chose. Ready.</small></div></div>' :

@@ -686,6 +686,31 @@ class Flux3(unittest.TestCase):
         self.assertNotIn("launch image", studio.qwen_text("Golden hour.", locks={}))
 
     @unittest.skipIf(sys.platform == "darwin", "the Mac has its own image engine")
+    def test_qwen_image_21(self):
+        with tempfile.TemporaryDirectory() as t:
+            s = self._settings(t, ("q21", "q21_te", "q21_vae", "q21_fast", "q21_cons", "q21_ctrl"))
+            self.assertTrue(studio.q21_ready(s))
+            self.assertFalse(studio.use_q21(s))
+            s.set("studio_engine", "qwen21")
+            self.assertTrue(studio.use_q21(s) and studio.use_qwenedit(s))
+            p = studio.q21_prompt(s, ["a.png", "r.png"], "render", seed=1, control=0.8)
+            self.assertEqual(p["20"]["class_type"], "TextEncodeQwenImage21")
+            self.assertEqual(p["20"]["inputs"]["images.image_1"], ["11", 0])
+            self.assertEqual(p["20"]["inputs"]["images.image_2"], ["13", 0])
+            self.assertEqual(p["20"]["inputs"]["resolution"], 0)                 # the picture's own size
+            self.assertEqual(p["40"]["inputs"]["latent_image"], ["20", 2])
+            self.assertEqual(p["40"]["inputs"]["negative"], ["20", 1])
+            self.assertEqual(p["40"]["inputs"]["steps"], 8)
+            self.assertEqual(p["40"]["inputs"]["model"], ["33", 0])              # ControlNet last
+            self.assertEqual(p["33"]["inputs"]["model"], ["6", 0])               # after Consistency
+            self.assertEqual(p["6"]["inputs"]["model"], ["4", 0])                # after the speed-up
+            self.assertEqual(p["31"]["class_type"], "Canny")
+            q = studio.q21_prompt(s, ["a.png"], "x", seed=1, fast=False, consistency=0)
+            self.assertEqual(q["40"]["inputs"]["model"], ["1", 0])
+            self.assertEqual(q["40"]["inputs"]["steps"], 25)
+            self.assertEqual(studio.status(s)["qwen21"], True)
+
+    @unittest.skipIf(sys.platform == "darwin", "the Mac has its own image engine")
     def test_qwen_image_edit(self):
         with tempfile.TemporaryDirectory() as t:
             s = self._settings(t, ("qie", "qie_te", "qie_vae", "qie_fast"))

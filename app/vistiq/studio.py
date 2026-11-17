@@ -86,7 +86,7 @@ def portable_dir():
     return os.path.join(engine_dir(), "ComfyUI_windows_portable")
 
 
-SUBFOLDERS = ("diffusion_models", "text_encoders", "vae", "loras", "controlnet", "depthanything3")
+SUBFOLDERS = ("diffusion_models", "text_encoders", "vae", "loras", "controlnet", "depthanything3", "model_patches")
 
 
 # -- the model files ------------------------------------------------------
@@ -162,6 +162,34 @@ FILES = [
      "names": ["anything2real_2601.safetensors"], "gb": 0.6, "optional": True,
      "url": HF % ("jdmontegue/Anything2RealLCL", "anything2real_2601.safetensors"),
      "page": "https://huggingface.co/jdmontegue/Anything2RealLCL", "about": "Apache-2.0. Sketch to photograph."},
+    # Qwen-Image 2.1 (Sep 2026) for Create and Instant render (Nov 2026): a newer Qwen that edits and
+    # draws natively at up to 2K; with the Consistency LoRA an edit stays on the original frame, and its
+    # ControlNet holds the lines of a sketch. 3D views keep Qwen Image Edit 2511 (its camera LoRA).
+    {"key": "q21", "part": "qwen21", "folder": "diffusion_models", "label": "Qwen-Image 2.1 model",
+     "names": ["qwen_image_2.1_int8_convrot.safetensors", "qwen_image_2.1_bf16.safetensors"], "gb": 7.3, "optional": True,
+     "url": HF % ("Comfy-Org/Qwen-Image-2.1", "diffusion_models/qwen_image_2.1_int8_convrot.safetensors"),
+     "page": "https://huggingface.co/Comfy-Org/Qwen-Image-2.1", "about": "Draws the render, follows the sketch."},
+    {"key": "q21_te", "part": "qwen21", "folder": "text_encoders", "label": "Qwen-Image 2.1 reader",
+     "names": ["qwen3vl_8b_int8_convrot.safetensors", "qwen3vl_8b_bf16.safetensors"], "gb": 9.4, "optional": True,
+     "url": HF % ("Comfy-Org/Qwen-Image-2.1", "text_encoders/qwen3vl_8b_int8_convrot.safetensors"),
+     "page": "https://huggingface.co/Comfy-Org/Qwen-Image-2.1", "about": "Sees your picture and reads your words."},
+    {"key": "q21_vae", "part": "qwen21", "folder": "vae", "label": "Qwen-Image 2.1 decoder",
+     "names": ["qwen_image_2.1_vae_bf16.safetensors"], "gb": 0.68, "optional": True,
+     "url": HF % ("Comfy-Org/Qwen-Image-2.1", "vae/qwen_image_2.1_vae_bf16.safetensors"),
+     "page": "https://huggingface.co/Comfy-Org/Qwen-Image-2.1", "about": "Turns its work into a picture."},
+    {"key": "q21_fast", "part": "qwen21", "folder": "loras", "label": "Qwen-Image 2.1 speed-up",
+     "names": ["p_q_image_2.1_8_steps_v0.1_comfyui_bf16.safetensors"], "gb": 0.34, "optional": True,
+     "url": HF % ("Comfy-Org/Qwen-Image-2.1", "loras/p_q_image_2.1_8_steps_v0.1_comfyui_bf16.safetensors"),
+     "page": "https://huggingface.co/Comfy-Org/Qwen-Image-2.1", "about": "8 steps instead of 25."},
+    {"key": "q21_cons", "part": "qwen21", "folder": "loras", "label": "Consistency",
+     "names": ["qwen-image-2.1-consistency.safetensors"], "gb": 0.16, "optional": True,
+     "url": HF % ("ausboss/Qwen-Image-2.1-Consistency-LoRA", "qwen-image-2.1-consistency.safetensors"),
+     "page": "https://huggingface.co/ausboss/Qwen-Image-2.1-Consistency-LoRA", "about": "Keeps the render on your sketch's frame."},
+    {"key": "q21_ctrl", "part": "qwen21", "folder": "model_patches", "label": "Sketch lines (ControlNet)",
+     "names": ["qwen_image_2.1_fun_controlnet_union_int8_convrot.safetensors",
+               "qwen_image_2.1_fun_controlnet_union_bf16.safetensors"], "gb": 3.8, "optional": True,
+     "url": HF % ("Comfy-Org/Qwen-Image-2.1", "model_patches/qwen_image_2.1_fun_controlnet_union_int8_convrot.safetensors"),
+     "page": "https://huggingface.co/Comfy-Org/Qwen-Image-2.1", "about": "Holds the lines and proportions of your sketch."},
     # MetaView (experimental, Nov 2026): one picture + a camera move (yaw, pitch) renders the
     # scene from the new viewpoint. Built on Qwen Image Edit (shares its reader and decoder).
     # Its depth models (Depth-Anything-3) are non-commercial (CC BY-NC 4.0).
@@ -377,8 +405,79 @@ def metaview_prompt(settings, image, yaw, pitch, seed=None, width=0, height=0, s
 
 
 def use_qwenedit(settings=None):
-    """Qwen Image Edit makes the pictures when it is here and chosen in Settings."""
-    return bool(settings and settings.get("studio_engine") == "qwenedit") and qwenedit_ready(settings)
+    """Qwen makes the pictures when it is here and chosen in Settings (Qwen Image Edit 2511, or
+    Qwen-Image 2.1, which uses the same wording; 3D views always use 2511)."""
+    e = settings.get("studio_engine") if settings else ""
+    return (e == "qwenedit" and qwenedit_ready(settings)) or (e == "qwen21" and q21_ready(settings))
+
+
+def q21_ready(settings=None):
+    return sys.platform != "darwin" and all(_have(k, settings) for k in ("q21", "q21_te", "q21_vae"))
+
+
+def use_q21(settings=None):
+    """Qwen-Image 2.1 draws Create and Instant render (chosen in Settings)."""
+    return bool(settings and settings.get("studio_engine") == "qwen21") and q21_ready(settings)
+
+
+Q21_MP = 2.0          # native up to 2K; the picture is drawn at its own shape
+Q21_CTRL = 0.8        # ControlNet strength on the sketch's lines (Instant render)
+Q21_CTRL_END = 0.7    # the lines lead the first 70 % of the steps; the finish stays free
+
+
+def q21_prompt(settings, images, text, seed=None, megapixels=Q21_MP, steps=None, consistency=1.0, fast=True,
+               control=0.0, control_end=Q21_CTRL_END, control_mode="canny"):
+    """Qwen-Image 2.1 edit (ComfyUI's template, without the prompt enhancer). images[0] is the picture
+    worked on (the result takes its exact size); up to two more are references.
+    consistency: the Consistency LoRA (keeps the edit on the original frame).
+    control: the Fun ControlNet on the picture's lines (canny edges, or the sketch inverted)."""
+    s = settings
+    fast = fast and bool(find("q21_fast", s))
+    p = {
+        "1": {"class_type": "UNETLoader", "inputs": {"unet_name": os.path.basename(find("q21", s)), "weight_dtype": "default"}},
+        "2": {"class_type": "CLIPLoader", "inputs": {"clip_name": os.path.basename(find("q21_te", s)), "type": "qwen_image",
+                                                       "device": "default"}},
+        "3": {"class_type": "VAELoader", "inputs": {"vae_name": os.path.basename(find("q21_vae", s))}},
+    }
+    model = ["1", 0]
+    if fast:
+        p["4"] = {"class_type": "LoraLoaderModelOnly", "inputs": {"model": model, "lora_name": os.path.basename(find("q21_fast", s)),
+                                                                    "strength_model": 1.0}}
+        model = ["4", 0]
+    if consistency and find("q21_cons", s):
+        p["6"] = {"class_type": "LoraLoaderModelOnly", "inputs": {"model": model, "lora_name": os.path.basename(find("q21_cons", s)),
+                                                                    "strength_model": float(consistency)}}
+        model = ["6", 0]
+    enc = {"clip": ["2", 0], "prompt": text, "negative_prompt": "", "vae": ["3", 0], "resolution": 0}
+    imgs = images[:3]
+    for i, im in enumerate(imgs):
+        load, scale = str(10 + 2 * i), str(11 + 2 * i)
+        p[load] = {"class_type": "LoadImage", "inputs": {"image": im}}
+        p[scale] = {"class_type": "ImageScaleToTotalPixels",
+                    "inputs": {"image": [load, 0], "upscale_method": "lanczos",
+                               "megapixels": float(megapixels if i == 0 else min(megapixels, 1.0)), "resolution_steps": 32}}
+        enc["images.image_%d" % (i + 1)] = [scale, 0]
+    if control and find("q21_ctrl", s):
+        if control_mode == "invert":
+            p["31"] = {"class_type": "ImageInvert", "inputs": {"image": ["11", 0]}}
+        else:
+            p["31"] = {"class_type": "Canny", "inputs": {"image": ["11", 0], "low_threshold": 0.2, "high_threshold": 0.5}}
+        p["32"] = {"class_type": "ModelPatchLoader", "inputs": {"name": os.path.basename(find("q21_ctrl", s))}}
+        p["33"] = {"class_type": "QwenImageDiffsynthControlnet",
+                   "inputs": {"model": model, "model_patch": ["32", 0], "vae": ["3", 0], "image": ["31", 0],
+                              "strength": float(control), "start_percent": 0.0, "end_percent": float(control_end)}}
+        model = ["33", 0]
+    p["20"] = {"class_type": "TextEncodeQwenImage21", "inputs": enc}
+    p.update({
+        "40": {"class_type": "KSampler",
+               "inputs": {"model": model, "positive": ["20", 0], "negative": ["20", 1], "latent_image": ["20", 2],
+                          "seed": int(seed if seed is not None else random.randint(1, 2**48)),
+                          "steps": int(steps or (8 if fast else 25)), "cfg": 1.0, "sampler_name": "euler",
+                          "scheduler": "simple", "denoise": 1.0}},
+        "41": {"class_type": "VAEDecode", "inputs": {"samples": ["40", 0], "vae": ["3", 0]}},
+        "42": {"class_type": "SaveImage", "inputs": {"images": ["41", 0], "filename_prefix": "VistiqStudio"}},
+    })
+    return p
 
 
 QE_MP = 3.2          # tested Nov 2026: 3.2 MP is crisp (logos, edges, textures) and still whole; 1.4 was soft
@@ -872,7 +971,7 @@ def status(settings=None):
             "select_ready": select_installed(settings), "helper_ready": helper_installed(settings),
             "reader_ready": reader_installed(settings), "reader_xl_ready": reader_xl_installed(settings),
             "home": home(settings), "comfy_models": guess_comfy_models(settings),
-            "flux3": flux3_ready(settings), "qwenedit": qwenedit_ready(settings), "metaview": metaview_ready(settings),
+            "flux3": flux3_ready(settings), "qwenedit": qwenedit_ready(settings), "qwen21": q21_ready(settings), "metaview": metaview_ready(settings),
             "angles": angles_ready(settings), "realism": qwenedit_ready(settings) and _have("qie_real", settings),
             "engine_choice": (settings.get("studio_engine") if settings else "") or "flux3"}
 

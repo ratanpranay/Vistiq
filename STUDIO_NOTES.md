@@ -1,5 +1,8 @@
 # Vistiq Studio (test build)
 
+## 0.4.58
+- New image model choice: Qwen-Image 2.1 (Settings, about 22 GB). Create and Instant render use it with a Consistency LoRA (keeps the sketch's frame) and a sketch ControlNet (holds its lines and proportions). 3D views keep Qwen Image Edit 2511.
+
 ## 0.4.57
 - Instant render keeps the view of the sketch: Studio tells the model the camera it read (side-on, three-quarter, which way the nose points) and not to turn the car.
 - Viewing an Instant render result, the button stays Instant render (it ran as a plain Create without the look).

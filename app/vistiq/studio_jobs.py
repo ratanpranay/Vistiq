@@ -463,7 +463,7 @@ class Studio:
                 for f in studio.FILES:
                     if f["part"] == "juice" and not juice:
                         continue
-                    if f["part"] in ("qwenedit", "metaview"):
+                    if f["part"] in ("qwenedit", "metaview", "qwen21"):
                         continue                     # only on request (Settings)
                     if f["part"] == "create" and not studio.in_tier(f, t):
                         continue
@@ -556,6 +556,31 @@ class Studio:
                 self.emit("studio-setup", {"state": "done", "status": studio.status(self.settings)})
             except Exception as exc:
                 log.exception("Qwen Image Edit download failed")
+                self.emit("studio-setup", {"state": "cancelled" if str(exc).lower() == "cancelled" else "error",
+                                           "message": str(exc)})
+        self._setup = threading.Thread(target=run, daemon=True)
+        self._setup.start()
+        return True
+
+    def get_qwen21(self):
+        """Download Qwen-Image 2.1 (about 22 GB with its Consistency LoRA and sketch ControlNet) and
+        switch Create to it (3D views keep Qwen Image Edit 2511)."""
+        if self._setup and self._setup.is_alive():
+            return False
+        self._cancel.clear()
+
+        def run():
+            prog = lambda label, f: self.emit("studio-setup", {"state": "running", "label": label, "fraction": f})
+            try:
+                for f in studio.FILES:
+                    if f["part"] == "qwen21" and not studio.find(f["key"], self.settings):
+                        dst = os.path.join(studio.models_dir(self.settings), f["folder"], f["names"][0])
+                        studio.download(f["url"], dst, prog, f["label"], self._cancel.is_set)
+                studio.write_model_paths(self.settings)
+                self.settings.set("studio_engine", "qwen21")
+                self.emit("studio-setup", {"state": "done", "status": studio.status(self.settings)})
+            except Exception as exc:
+                log.exception("Qwen-Image 2.1 download failed")
                 self.emit("studio-setup", {"state": "cancelled" if str(exc).lower() == "cancelled" else "error",
                                            "message": str(exc)})
         self._setup = threading.Thread(target=run, daemon=True)
@@ -917,7 +942,7 @@ class Studio:
             # seconds per variation, plus the model loading of a session's first run.
             times = dict(s.get("studio_times") or {})
             # Each image model learns its own time (Qwen at 3.2 MP takes far longer than FLUX).
-            tk = "_qe" if (sys.platform != "darwin" and studio.use_qwenedit(s)) else ""
+            tk = ("_q21" if studio.use_q21(s) and not job.get("view") else "_qe") if (sys.platform != "darwin" and studio.use_qwenedit(s)) else ""
             per, load = times.get("per" + tk), times.get("load" + tk)
             first = not getattr(self, "_warm", False)
             if per:
@@ -945,6 +970,21 @@ class Studio:
                     # MetaView (testing): the same scene from a camera turned by yaw / pitch degrees.
                     prompt = studio.metaview_prompt(s, image, reframe.get("yaw", 0), reframe.get("pitch", 0), seed + v,
                                                     int(reframe.get("w", 0)), int(reframe.get("h", 0)), int(reframe.get("steps", 8)))
+                elif (sys.platform != "darwin" and studio.use_q21(s) and mode == "create" and not job.get("view")
+                      and not cam_i and not (studio.qwenedit_ready(s) and (job.get("locks") or {}).get("camera") is False)):
+                    # Qwen-Image 2.1 (Nov 2026): Create and Instant render. The Consistency LoRA keeps the frame;
+                    # for an Instant render the ControlNet also holds the sketch's lines.
+                    imgs = [image] + list(ref_images or ([ref_image] if ref_image else []))
+                    free = (job.get("locks") or {}).get("camera") is False
+                    ctrl = float(lab.get("q21_ctrl", studio.Q21_CTRL if job.get("instant") else 0.0))
+                    prompt = studio.q21_prompt(s, imgs, studio.juice_pick(text, int(job.get("look", seed % 60)) + v), seed + v,
+                                               megapixels=float(lab.get("q21_mp", min(studio.Q21_MP, max(
+                                                   1.0, work.size[0] * work.size[1] / 1e6)))),
+                                               steps=lab.get("q21_steps"), fast=bool(lab.get("q21_fast", True)),
+                                               consistency=0.0 if free else float(lab.get("q21_cons", 1.0)),
+                                               control=0.0 if free else ctrl,
+                                               control_end=float(lab.get("q21_ctrl_end", studio.Q21_CTRL_END)),
+                                               control_mode=lab.get("q21_ctrl_mode", "canny"))
                 elif sys.platform != "darwin" and studio.use_qwenedit(s):
                     imgs = [image] + list(ref_images or ([ref_image] if ref_image else []))
                     fr = cam_i if refs else (1 if mode == "reference" and (job.get("preset") or "camera") == "camera" else 0)

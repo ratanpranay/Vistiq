@@ -947,6 +947,7 @@ body.studio .s-vars>.s-ph.sel{border-color:var(--ink)}
 
 .s-engines{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:6px 0 10px}
 .s-engines .s-tier[disabled]{opacity:.55;cursor:default}
+.s-engines.s-engines3{grid-template-columns:1fr 1fr 1fr}
 
 /* 3D: turn the camera around a picture */
 #p-3d{display:none}
