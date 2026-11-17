@@ -849,6 +849,8 @@ class Studio:
                 text = job["text"]
             elif job.get("instant"):
                 scene = self._read(work_path, "scene", say)
+                # inside or outside: the reliable reading (the scene words made cars look like cabins)
+                kind = studio.parse_view(self._read(work_path, "view", say) or "")[0] if studio.use_qwenedit(s) else ""
                 text = studio.instant_text(job.get("text") or "", scene)
             else:
                 # Words: the picture reader spells out everything the change means in this picture
@@ -894,7 +896,7 @@ class Studio:
                 # Qwen Image Edit reads short, direct instructions best (the long
                 # FLUX wording made it muddy and stopped camera moves).
                 text = studio.qwen_text(job.get("text") or "", instant=bool(job.get("instant")),
-                                        scene=locals().get("scene") or "", locks=job.get("locks"),
+                                        scene=locals().get("scene") or "", locks=job.get("locks"), kind=locals().get("kind") or "",
                                         ref_head=(text.split("\n\n")[0] if refs else ""),
                                         sketch=(job.get("preset") or "") == "sketch", said=job.get("said"))
                 if lab.get("text"):               # lab: try other wordings ({auto} = Studio's own)
@@ -945,7 +947,11 @@ class Studio:
                 elif sys.platform != "darwin" and studio.use_qwenedit(s):
                     imgs = [image] + list(ref_images or ([ref_image] if ref_image else []))
                     fr = cam_i if refs else (1 if mode == "reference" and (job.get("preset") or "camera") == "camera" else 0)
+                    real = float(lab.get("realism", 0.0)) if studio.find("qie_real", s) else 0.0
+                    if real and job.get("instant"):      # Anything2Real's own wording first
+                        text = "Change picture 1 to a realistic photograph. " + text
                     prompt = studio.qwenedit_prompt(s, imgs, studio.juice_pick(text, int(job.get("look", seed % 3)) + v), seed + v, frame=fr,
+                                                    realism=real if job.get("instant") else 0.0,
                                                     megapixels=float(lab.get("qe_mp", min(studio.QE_MP, max(
                                                         studio.QE_MP_MIN, work.size[0] * work.size[1] / 1e6)))),
                                                     steps=int(lab.get("qe_steps", studio.QE_STEPS)),

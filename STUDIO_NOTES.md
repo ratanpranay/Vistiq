@@ -1,5 +1,9 @@
 # Vistiq Studio (test build)
 
+## 0.4.51
+- Instant render tells cars from cabins by reading the picture (car sketches were treated as interiors, so doors were opened to show seats).
+- Photo realism add-on (Anything2Real, 0.6 GB) downloads by itself; in testing.
+
 ## 0.4.50
 - Instant render: juicy press-photo looks after your references; each render takes one, variations differ. Exteriors: golden architecture on a wet floor, a mountain lake in daylight, a glossy floor at dusk. Interiors: golden hour, bright daylight, evening ambient light.
 - The design stays exactly the drawing's (proportions, lamps, grille, every line); only light, materials and setting are added.

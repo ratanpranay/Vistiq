@@ -157,6 +157,11 @@ FILES = [
      "names": ["qwen-image-edit-2511-multiple-angles-lora.safetensors"], "gb": 0.3, "optional": True,
      "url": HF % ("fal/Qwen-Image-Edit-2511-Multiple-Angles-LoRA", "qwen-image-edit-2511-multiple-angles-lora.safetensors"),
      "page": "https://huggingface.co/fal/Qwen-Image-Edit-2511-Multiple-Angles-LoRA", "about": "Apache-2.0. Better 3D views."},
+    # Anything2Real (Nov 2026, testing): sketches and illustrations to photographs, keeps the composition.
+    {"key": "qie_real", "part": "qwenedit", "folder": "loras", "label": "Photo realism",
+     "names": ["anything2real_2601.safetensors"], "gb": 0.6, "optional": True,
+     "url": HF % ("jdmontegue/Anything2RealLCL", "anything2real_2601.safetensors"),
+     "page": "https://huggingface.co/jdmontegue/Anything2RealLCL", "about": "Apache-2.0. Sketch to photograph."},
     # MetaView (experimental, Nov 2026): one picture + a camera move (yaw, pitch) renders the
     # scene from the new viewpoint. Built on Qwen Image Edit (shares its reader and decoder).
     # Its depth models (Depth-Anything-3) are non-commercial (CC BY-NC 4.0).
@@ -383,7 +388,7 @@ QE_STEPS = 4
 
 
 def qwenedit_prompt(settings, images, text, seed=None, frame=0, megapixels=QE_MP, steps=QE_STEPS, ref_latent=True,
-                    ref_mp=1.0, angles=0.0):
+                    ref_mp=1.0, angles=0.0, realism=0.0):
     """Qwen Image Edit 2511 with its 4-step speed-up (ComfyUI's own template,
     minus the extras). images[0] is the picture worked on; up to two more are
     references. `frame`: the image whose size the result takes.
@@ -404,6 +409,11 @@ def qwenedit_prompt(settings, images, text, seed=None, frame=0, megapixels=QE_MP
         p["6"] = {"class_type": "LoraLoaderModelOnly", "inputs": {"model": ["4", 0], "lora_name": os.path.basename(find("qie_angles", s)),
                                                                     "strength_model": float(angles)}}
         p["5"]["inputs"]["model"] = ["6", 0]
+    if realism:      # Anything2Real: sketches and illustrations to photographs, composition kept
+        prev = p["5"]["inputs"]["model"]
+        p["7"] = {"class_type": "LoraLoaderModelOnly", "inputs": {"model": prev, "lora_name": os.path.basename(find("qie_real", s)),
+                                                                    "strength_model": float(realism)}}
+        p["5"]["inputs"]["model"] = ["7", 0]
     enc = {"clip": ["2", 0], "prompt": text}
     if not ref_latent:
         enc["vae"] = ["3", 0]
@@ -700,7 +710,7 @@ def juice_pick(text, k):
                 .replace("{JUICE_INT}", QE_JUICE_INT[k % len(QE_JUICE_INT)] + " Light, not colour: every part keeps its colour."))
 
 
-def qwen_text(words, instant=False, scene="", locks=None, ref_head="", sketch=False, said=None):
+def qwen_text(words, instant=False, scene="", locks=None, ref_head="", sketch=False, said=None, kind=""):
     """Short, direct instructions for Qwen Image Edit."""
     words = " ".join(clean_prompt(words).split())
     if words and words[-1] not in ".!?":
@@ -714,8 +724,11 @@ def qwen_text(words, instant=False, scene="", locks=None, ref_head="", sketch=Fa
         if words:
             parts.append("The scene: " + words)
         if not night_clause(words):
-            ext = bool(re.search(r"\b(exterior|outside of|body|bodywork|wheels? arches?|bonnet|hood|seen from (the )?(front|side|rear))\b",
-                                 scene or "", re.I)) and not re.search(r"\b(interior|cabin|dashboard|seats?)\b", scene or "", re.I)
+            if kind:
+                ext = kind != "interior"
+            else:
+                ext = bool(re.search(r"\b(exterior|outside of|body|bodywork|wheels? arches?|bonnet|hood|seen from (the )?(front|side|rear))\b",
+                                     scene or "", re.I)) and not re.search(r"\b(interior|cabin|dashboard|seats?)\b", scene or "", re.I)
             parts.append("{JUICE_EXT}" if ext else "{JUICE_INT}")      # one look per render (see juice_pick)
         parts.append(QE_KEEP_DRAWN)
     else:
@@ -815,7 +828,7 @@ def status(settings=None):
             "reader_ready": reader_installed(settings), "reader_xl_ready": reader_xl_installed(settings),
             "home": home(settings), "comfy_models": guess_comfy_models(settings),
             "flux3": flux3_ready(settings), "qwenedit": qwenedit_ready(settings), "metaview": metaview_ready(settings),
-            "angles": angles_ready(settings),
+            "angles": angles_ready(settings), "realism": qwenedit_ready(settings) and _have("qie_real", settings),
             "engine_choice": (settings.get("studio_engine") if settings else "") or "flux3"}
 
 
