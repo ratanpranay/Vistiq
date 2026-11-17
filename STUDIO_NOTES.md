@@ -1,5 +1,8 @@
 # Vistiq Studio (test build)
 
+## 0.4.63
+- Faster: the picture reader lets go of the graphics card before rendering (renders were up to 3x slower with it there), and with Qwen-Image 2.1 every shape is made first, then every CGI finish (the models swap once).
+
 ## 0.4.62
 - CGI finish only upgrades the materials: it keeps the scene, light and camera (a new scene there could turn the car).
 

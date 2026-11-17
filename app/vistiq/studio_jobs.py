@@ -961,7 +961,15 @@ class Studio:
             detail_src = (locks_.get("camera", True) and locks_.get("design", True) and not cam_i
                           and (job.get("preset") or "") != "sketch" and not job.get("instant")
                           and "style" not in uses)
+            # The picture reader (llama.cpp) keeps several GB on the graphics card; with it there the image
+            # model spills to system memory and runs about 3x slower (12 s a step instead of 4, Nov 2026).
+            if sys.platform != "darwin" and hasattr(self, "_reader"):
+                try:
+                    self._reader.stop()
+                except Exception:
+                    pass
             t_start = time.time()
+            q21_pre = {}
             for v in range(n):
                 if self._cancel.is_set():
                     raise RuntimeError("Cancelled")
@@ -989,7 +997,7 @@ class Studio:
                             what="car interior" if inside else "car",
                             surf=("real leather, fabric, soft-touch trims and satin metal" if inside else
                                   "smooth glossy painted bodywork, real rubber tyres and machined wheels")) + text
-                    prompt = studio.q21_prompt(s, imgs, studio.juice_pick(t21, int(job.get("look", seed % 60)) + v), seed + v,
+                    mk21 = lambda vv, t21=t21, imgs=imgs, ctrl=ctrl, free=free: studio.q21_prompt(s, imgs, studio.juice_pick(t21, int(job.get("look", seed % 60)) + vv), seed + vv,
                                                megapixels=float(lab.get("q21_mp", min(studio.Q21_MP, max(
                                                    1.0, work.size[0] * work.size[1] / 1e6)))),
                                                steps=lab.get("q21_steps"), fast=bool(lab.get("q21_fast", True)),
@@ -997,6 +1005,17 @@ class Studio:
                                                control=0.0 if free else ctrl,
                                                control_end=float(lab.get("q21_ctrl_end", studio.Q21_CTRL_END)),
                                                control_mode=lab.get("q21_ctrl_mode", "canny"))
+                    if job.get("instant") and studio.qwenedit_ready(s) and lab.get("q21_finish", True):
+                        # Every shape first, then every CGI finish: the two models swap once, not per variation.
+                        if v not in q21_pre:
+                            for vv in range(v, n):
+                                if self._cancel.is_set():
+                                    raise RuntimeError("Cancelled")
+                                say("Shape · variation %d of %d" % (vv + 1, n) if n > 1 else "Shape", (vv * 0.5) / n)
+                                q21_pre[vv] = self.engine.run(mk21(vv), None, self._cancel.is_set)
+                        prompt = None
+                    else:
+                        prompt = mk21(v)
                 elif sys.platform != "darwin" and studio.use_qwenedit(s):
                     imgs = [image] + list(ref_images or ([ref_image] if ref_image else []))
                     fr = cam_i if refs else (1 if mode == "reference" and (job.get("preset") or "camera") == "camera" else 0)
@@ -1042,13 +1061,15 @@ class Studio:
                     prompt = studio.create_prompt(s, image, text, min(keep, 0.9), WORK_MP, seed + v)
                 else:
                     prompt = studio.create_prompt(s, image, text, keep, WORK_MP, seed + v)
-                if sys.platform != "darwin":
+                if sys.platform != "darwin" and prompt is not None:
                     _add_lora(prompt, job.get("lora"), job.get("lora_strength", 0.8))
                 def preview(pic, v=v):
                     self.emit("studio-preview", {"id": job_id, "index": v,
                                                  "preview": "data:image/jpeg;base64," + base64.b64encode(pic).decode()})
                 import inspect
-                if "on_preview" in inspect.signature(self.engine.run).parameters:
+                if prompt is None:
+                    data = q21_pre.pop(v)          # made above, with the other variations
+                elif "on_preview" in inspect.signature(self.engine.run).parameters:
                     data = self.engine.run(prompt, prog, self._cancel.is_set, on_preview=preview)
                 else:                      # an engine without previews (the Mac one)
                     data = self.engine.run(prompt, prog, self._cancel.is_set)
