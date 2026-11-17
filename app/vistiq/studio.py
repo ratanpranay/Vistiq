@@ -729,8 +729,8 @@ def night_clause(words):
 
 def juice_pick(text, k):
     """Fill the juicy look for render k (variations get different ones)."""
-    return (text.replace("{JUICE_EXT}", QE_JUICE_EXT[k % len(QE_JUICE_EXT)] + " Light, not colour: every part keeps its colour.")
-                .replace("{JUICE_INT}", QE_JUICE_INT[k % len(QE_JUICE_INT)] + " Light, not colour: every part keeps its colour."))
+    return (text.replace("{JUICE_EXT}", QE_JUICE_EXT[k % len(QE_JUICE_EXT)] + " Light, not colour: every part keeps its colour. Same camera, framing and crop as the picture.")
+                .replace("{JUICE_INT}", QE_JUICE_INT[k % len(QE_JUICE_INT)] + " Light, not colour: every part keeps its colour. Same camera, framing and crop as the picture."))
 
 
 def qwen_text(words, instant=False, scene="", locks=None, ref_head="", sketch=False, said=None, kind=""):

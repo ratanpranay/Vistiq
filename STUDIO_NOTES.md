@@ -1,5 +1,8 @@
 # Vistiq Studio (test build)
 
+## 0.4.56
+- Every render look keeps the sketch's camera framing (the dark-hall look zoomed out).
+
 ## 0.4.55
 - More render looks from your CGI references: salt flat noon, parking-deck light shaft, golden haze, dark hall (exterior); overcast high-key and cinematic street (interior).
 
