@@ -945,7 +945,7 @@ class Studio:
                 elif sys.platform != "darwin" and studio.use_qwenedit(s):
                     imgs = [image] + list(ref_images or ([ref_image] if ref_image else []))
                     fr = cam_i if refs else (1 if mode == "reference" and (job.get("preset") or "camera") == "camera" else 0)
-                    prompt = studio.qwenedit_prompt(s, imgs, text, seed + v, frame=fr,
+                    prompt = studio.qwenedit_prompt(s, imgs, studio.juice_pick(text, int(job.get("look", seed % 3)) + v), seed + v, frame=fr,
                                                     megapixels=float(lab.get("qe_mp", min(studio.QE_MP, max(
                                                         studio.QE_MP_MIN, work.size[0] * work.size[1] / 1e6)))),
                                                     steps=int(lab.get("qe_steps", studio.QE_STEPS)),

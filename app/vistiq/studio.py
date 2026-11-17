@@ -650,16 +650,32 @@ QE_INSTANT = ("Turn this design sketch into a finished, photorealistic CGI rende
               "add no wood, chrome or colours that are not in the picture. Where the picture is only lines, use a "
               "calm, premium two-tone scheme. Add no logos, badges, brand marks or text that are not drawn; the "
               "steering wheel hub stays plain.")
-# The renders came out clean but flat and static (Nov 2026, next to Vizcom): give it light and life.
-QE_JUICE = ("Make it a juicy, premium car-maker press photo: bright natural daylight streams in, with warm sun "
-            "patches and soft shadows falling across the seats and dashboard, rich contrast and depth; materials "
-            "look real and touchable (leather grain and stitching, soft sheen on leather, satin metal, glossy "
-            "trims, clear glass with gentle reflections); outside the windows a bright, softly blurred landscape. "
-            "Light, not colour: every part keeps its colour.")
-QE_JUICE_EXT = ("Make it a juicy, premium car-maker press photo: bright natural daylight with a soft sun, crisp "
-                "reflections flowing along the body, deep contact shadow under the car, rich contrast and depth, "
-                "real glossy paint, glass and wheels, on a clean, softly lit studio floor. Light, not colour: every part "
-                "keeps its colour.")
+# The renders came out clean but flat and static (Nov 2026, next to Vizcom). Juicy press-photo looks,
+# after the person's own references; each render takes one (variations differ). The design stays.
+QE_KEEP_DRAWN = ("The design is exactly the picture's: same proportions, silhouette, lamp graphics, grille, wheels, "
+                 "surfaces and every line; only light, materials and setting are added.")
+QE_JUICE_INT = [
+    ("Cinematic premium car-maker interior photograph at golden hour: warm low sunlight rakes across the cabin, glowing "
+     "highlights on leather and brushed metal, deep soft shadows, rich warm contrast, shallow depth of field; perforated, "
+     "stitched leather with visible grain, knurled and brushed aluminium, glossy black glass screens with reflections; "
+     "through the windows a softly blurred warm landscape."),
+    ("Premium car-maker interior photograph in bright natural daylight: sun streams through the windows and glass roof, "
+     "crisp sun patches and soft shadows across the seats and dashboard, clean airy contrast, fine leather grain and "
+     "stitching, satin metal, glossy trims; outside, a bright, softly blurred mountain and desert landscape."),
+    ("Premium car-maker interior photograph in the evening: soft warm ambient light lines glow along the dashboard and "
+     "doors, gentle pools of light on leather and metal, screens glowing, deep calm shadows; through the windows a "
+     "dusky landscape under a deep blue sky."),
+]
+QE_JUICE_EXT = [
+    ("Cinematic premium car-maker launch photograph: the car stands on a polished, slightly wet stone floor that mirrors it, "
+     "in front of a modern architectural wall of tall panels glowing with warm golden light; crisp, long reflections flow "
+     "along the body, glowing lamp graphics, a deep soft contact shadow, rich contrast and depth."),
+    ("Premium car-maker press photograph in clear daylight by a calm mountain lake: snow-capped peaks reflected in still "
+     "water behind, the car on a pale concrete apron with a crisp sun shadow, clean bright reflections on the paint and "
+     "glass, rich detail in wheels and lamps."),
+    ("Premium car-maker studio photograph at dusk: the car on a vast glossy floor that reflects it, under a soft gradient "
+     "sky from warm horizon to blue, gentle rim light tracing the body lines, glowing lamps, deep contact shadow."),
+]
 QE_CLEAN = ("Clean, brand-new surfaces: leather and fabric smooth and evenly coloured, no stains, smudges, "
             "fingerprints, blotches or mottled texture; crisp, sharp detail.")
 # Plain "night" made a starry, blue-washed, neon look (tested Nov 2026). This reads like a real press photo.
@@ -678,6 +694,12 @@ def night_clause(words):
     return QE_NIGHT if NIGHT_WORDS.search(w) and not NIGHT_OWN.search(w) else ""
 
 
+def juice_pick(text, k):
+    """Fill the juicy look for render k (variations get different ones)."""
+    return (text.replace("{JUICE_EXT}", QE_JUICE_EXT[k % len(QE_JUICE_EXT)] + " Light, not colour: every part keeps its colour.")
+                .replace("{JUICE_INT}", QE_JUICE_INT[k % len(QE_JUICE_INT)] + " Light, not colour: every part keeps its colour."))
+
+
 def qwen_text(words, instant=False, scene="", locks=None, ref_head="", sketch=False, said=None):
     """Short, direct instructions for Qwen Image Edit."""
     words = " ".join(clean_prompt(words).split())
@@ -694,7 +716,8 @@ def qwen_text(words, instant=False, scene="", locks=None, ref_head="", sketch=Fa
         if not night_clause(words):
             ext = bool(re.search(r"\b(exterior|outside of|body|bodywork|wheels? arches?|bonnet|hood|seen from (the )?(front|side|rear))\b",
                                  scene or "", re.I)) and not re.search(r"\b(interior|cabin|dashboard|seats?)\b", scene or "", re.I)
-            parts.append(QE_JUICE_EXT if ext else QE_JUICE)
+            parts.append("{JUICE_EXT}" if ext else "{JUICE_INT}")      # one look per render (see juice_pick)
+        parts.append(QE_KEEP_DRAWN)
     else:
         if ref_head:
             parts.append(ref_head)

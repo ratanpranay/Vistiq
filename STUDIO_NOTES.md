@@ -1,5 +1,9 @@
 # Vistiq Studio (test build)
 
+## 0.4.50
+- Instant render: juicy press-photo looks after your references; each render takes one, variations differ. Exteriors: golden architecture on a wet floor, a mountain lake in daylight, a glossy floor at dusk. Interiors: golden hour, bright daylight, evening ambient light.
+- The design stays exactly the drawing's (proportions, lamps, grille, every line); only light, materials and setting are added.
+
 ## 0.4.49
 - Instant render has light and life: daylight with sun patches and soft shadows, real material sheen, a bright landscape outside (interiors); crisp reflections and contact shadow (exteriors). Colours and framing stay.
 
