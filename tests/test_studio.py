@@ -680,10 +680,10 @@ class Flux3(unittest.TestCase):
         self.assertIn("launch image", t)
         self.assertNotIn("star", t)
         self.assertNotIn("the lighting", t)
-        self.assertNotIn("press photo", studio.qwen_text("night with neon", locks={}))
-        self.assertIn("press photo", studio.qwen_text("starry night sky", locks={}, said="make it night"))
+        self.assertNotIn("launch image", studio.qwen_text("night with neon", locks={}))
+        self.assertIn("launch image", studio.qwen_text("starry night sky", locks={}, said="make it night"))
         self.assertNotIn("starry", studio.qwen_text("starry night sky", locks={}, said="make it night"))
-        self.assertNotIn("press photo", studio.qwen_text("Golden hour.", locks={}))
+        self.assertNotIn("launch image", studio.qwen_text("Golden hour.", locks={}))
 
     @unittest.skipIf(sys.platform == "darwin", "the Mac has its own image engine")
     def test_qwen_image_edit(self):
