@@ -1,5 +1,8 @@
 # Vistiq Studio (test build)
 
+## 0.4.73
+- Word changes (night, scenes) keep the exact viewpoint (a night change turned a head-on view into a three-quarter); outside night without the noisy wet floor.
+
 ## 0.4.72
 - Night ambient light is subtle and indirect: a soft wash from hidden sources, never visible light lines.
 

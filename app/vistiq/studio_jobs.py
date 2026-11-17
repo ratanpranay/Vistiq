@@ -911,7 +911,7 @@ class Studio:
                 if studio.use_qwenedit(s) and not refs:
                     va = self._read(work_path, "view", say) or ""
                     kind = studio.parse_view(va)[0]                    # interior or exterior wording
-                    cam_words = studio.instant_camera("", "") if kind != "interior" else ""
+                    cam_words = studio.instant_camera("", "")         # words never move the camera unless asked
                     # Scenarios and lighting are easiest on a resolved CGI design (the person, Nov 2026): a
                     # picture that is already CGI is changed directly (2511); a sketch first becomes CGI (the
                     # Instant render), then the words change that.
@@ -1155,7 +1155,8 @@ class Studio:
                         cimg = self.engine.upload(cpath)
                         words = job.get("said") or job.get("text") or ""
                         ctext = studio.qwen_text(words, locks={"design": True, "camera": True},
-                                                 kind=locals().get("kind") or "", said=job.get("said"))
+                                                 kind=locals().get("kind") or "", said=job.get("said"),
+                                                 camera=studio.instant_camera("", ""))
                         cp = studio.qwenedit_prompt(s, [cimg], ctext, seed + v,
                                                     megapixels=float(lab.get("qe_mp", min(studio.QE_MP, max(
                                                         studio.QE_MP_MIN, work.size[0] * work.size[1] / 1e6)))),

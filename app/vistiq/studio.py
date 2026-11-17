@@ -840,7 +840,7 @@ NIGHT_OWN = re.compile(r"\b(neon|stars?|starry|starlight|cyberpunk)\b", re.I)
 
 QE_NIGHT_EXT = ("Make it a night photo like a premium car maker's launch image: the same car and setting at night, "
                 "lit by soft studio and street lights, headlamps and tail lamps glowing with crisp graphics, long clean "
-                "reflections along the body and on the wet-looking ground, a deep blue night sky; balanced exposure, "
+                "reflections along the body and on the smooth ground, a deep blue night sky; balanced exposure, "
                 "the whole design and its colour clearly visible, not dark or murky.")
 
 
@@ -917,6 +917,8 @@ def qwen_text(words, instant=False, scene="", locks=None, ref_head="", sketch=Fa
             keep.append("the camera view")
         if keep and not ref_head:
             parts.append("Keep " + ", ".join(keep[:-1]) + (" and " if len(keep) > 1 else "") + keep[-1] + " exactly as they are.")
+        if camera and locks.get("camera", True) and not ref_head:
+            parts.append(camera)          # a night change turned a head-on view into a three-quarter (Nov 2026)
         elif not locks.get("camera", True) and not ref_head:
             pass
     parts.append(QE_CLEAN)
