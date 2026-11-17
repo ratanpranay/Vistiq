@@ -1,5 +1,8 @@
 # Vistiq Studio (test build)
 
+## 0.4.48
+- Create works on a PC with Qwen Image Edit only (it asked to set up FLUX first).
+
 ## 0.4.47
 - Settings: the Image model choice (Qwen Image Edit download) shows even when FLUX isn't installed.
 

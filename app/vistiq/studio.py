@@ -770,7 +770,8 @@ def status(settings=None):
         return bool(tt) and all(r["ready"] for r in rows if r["part"] == "create" and in_tier(r, tt)
                                 and not r["optional"])
     juice_ok = all(r["ready"] for r in rows if r["part"] == "juice")
-    return {"files": rows, "create_ready": ready(t), "juice_ready": juice_ok, "tier": t, "chosen": chosen,
+    # A PC can run on Qwen Image Edit alone (no FLUX files): Create is ready then too.
+    return {"files": rows, "create_ready": ready(t) or use_qwenedit(settings), "juice_ready": juice_ok, "tier": t, "chosen": chosen,
             "tiers": {k: {"label": v, "ready": ready(k)} for k, v in TIERS.items()},
             "engine_installed": engine_installed(), "loras": loras(settings),
             "select_ready": select_installed(settings), "helper_ready": helper_installed(settings),
