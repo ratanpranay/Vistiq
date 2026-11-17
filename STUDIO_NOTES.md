@@ -1,5 +1,8 @@
 # Vistiq Studio (test build)
 
+## 0.4.49
+- Instant render has light and life: daylight with sun patches and soft shadows, real material sheen, a bright landscape outside (interiors); crisp reflections and contact shadow (exteriors). Colours and framing stay.
+
 ## 0.4.48
 - Create works on a PC with Qwen Image Edit only (it asked to set up FLUX first).
 

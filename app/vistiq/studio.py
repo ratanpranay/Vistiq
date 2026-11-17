@@ -650,6 +650,16 @@ QE_INSTANT = ("Turn this design sketch into a finished, photorealistic CGI rende
               "add no wood, chrome or colours that are not in the picture. Where the picture is only lines, use a "
               "calm, premium two-tone scheme. Add no logos, badges, brand marks or text that are not drawn; the "
               "steering wheel hub stays plain.")
+# The renders came out clean but flat and static (Nov 2026, next to Vizcom): give it light and life.
+QE_JUICE = ("Make it a juicy, premium car-maker press photo: bright natural daylight streams in, with warm sun "
+            "patches and soft shadows falling across the seats and dashboard, rich contrast and depth; materials "
+            "look real and touchable (leather grain and stitching, soft sheen on leather, satin metal, glossy "
+            "trims, clear glass with gentle reflections); outside the windows a bright, softly blurred landscape. "
+            "Light, not colour: every part keeps its colour.")
+QE_JUICE_EXT = ("Make it a juicy, premium car-maker press photo: bright natural daylight with a soft sun, crisp "
+                "reflections flowing along the body, deep contact shadow under the car, rich contrast and depth, "
+                "real glossy paint, glass and wheels, on a clean, softly lit studio floor. Light, not colour: every part "
+                "keeps its colour.")
 QE_CLEAN = ("Clean, brand-new surfaces: leather and fabric smooth and evenly coloured, no stains, smudges, "
             "fingerprints, blotches or mottled texture; crisp, sharp detail.")
 # Plain "night" made a starry, blue-washed, neon look (tested Nov 2026). This reads like a real press photo.
@@ -681,6 +691,10 @@ def qwen_text(words, instant=False, scene="", locks=None, ref_head="", sketch=Fa
             parts.append("In the picture: " + scene)
         if words:
             parts.append("The scene: " + words)
+        if not night_clause(words):
+            ext = bool(re.search(r"\b(exterior|outside of|body|bodywork|wheels? arches?|bonnet|hood|seen from (the )?(front|side|rear))\b",
+                                 scene or "", re.I)) and not re.search(r"\b(interior|cabin|dashboard|seats?)\b", scene or "", re.I)
+            parts.append(QE_JUICE_EXT if ext else QE_JUICE)
     else:
         if ref_head:
             parts.append(ref_head)

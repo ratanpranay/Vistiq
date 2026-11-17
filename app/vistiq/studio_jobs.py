@@ -897,6 +897,8 @@ class Studio:
                                         scene=locals().get("scene") or "", locks=job.get("locks"),
                                         ref_head=(text.split("\n\n")[0] if refs else ""),
                                         sketch=(job.get("preset") or "") == "sketch", said=job.get("said"))
+                if lab.get("text"):               # lab: try other wordings ({auto} = Studio's own)
+                    text = lab["text"].replace("{auto}", text).replace("{user}", user_text)
             stem = os.path.splitext(os.path.basename(job.get("name") or src_path))[0]
             if stem.lower().startswith("vistiq_"):
                 stem = stem[7:]
