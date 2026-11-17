@@ -864,4 +864,4 @@ class Medium(unittest.TestCase):
         self.assertEqual(studio.parse_medium("kind=interior; medium=sketch"), "sketch")
         self.assertEqual(studio.parse_medium("kind=interior"), "")
         self.assertIn("lamps glowing", studio.night_clause("night", "exterior"))
-        self.assertIn("ambient light lines", studio.night_clause("night", "interior"))
+        self.assertIn("roof downlights", studio.night_clause("night", "interior"))
