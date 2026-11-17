@@ -1,5 +1,8 @@
 # Vistiq Studio (test build)
 
+## 0.4.59
+- Qwen-Image 2.1: the image engine restarts by itself to see the new sketch ControlNet folder.
+
 ## 0.4.58
 - New image model choice: Qwen-Image 2.1 (Settings, about 22 GB). Create and Instant render use it with a Consistency LoRA (keeps the sketch's frame) and a sketch ControlNet (holds its lines and proportions). 3D views keep Qwen Image Edit 2511.
 

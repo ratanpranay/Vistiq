@@ -1183,6 +1183,28 @@ def _preview_bytes(raw):
     return None
 
 
+def _sees_folders(url, settings=None):
+    """A running engine reads the model folders when it starts: one started before a new folder
+    (model_patches, Nov 2026) can't see its files. False when it misses files that are here
+    (the engine is then started again)."""
+    for sub in ("model_patches",):
+        folder = os.path.join(models_dir(settings), sub)
+        here = [n for n in (os.listdir(folder) if os.path.isdir(folder) else []) if n.endswith(".safetensors")]
+        if not here:
+            continue
+        try:
+            r = _local.get(url + "/models/" + sub, timeout=3)
+            seen = r.json() if r.ok else []
+        except Exception:
+            return True
+        if not any(n in seen for n in here):
+            pid = _own_pid_on_port(int(url.rsplit(":", 1)[1])) if sys.platform == "win32" else None
+            if pid:
+                _kill_tree(pid)
+            return False
+    return True
+
+
 class ImageEngine:
     """Vistiq Studio's second, private ComfyUI."""
 
@@ -1217,7 +1239,7 @@ class ImageEngine:
             if port and (sys.platform != "win32" or _own_pid_on_port(port)):
                 url = "http://127.0.0.1:%d" % port
                 try:
-                    if _local.get(url + "/system_stats", timeout=2).ok:
+                    if _local.get(url + "/system_stats", timeout=2).ok and _sees_folders(url, self.settings):
                         self.url = url
                         self.state, self.message = "ready", "Image engine ready"
                         say(self.state, self.message)

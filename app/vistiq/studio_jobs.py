@@ -577,6 +577,10 @@ class Studio:
                         dst = os.path.join(studio.models_dir(self.settings), f["folder"], f["names"][0])
                         studio.download(f["url"], dst, prog, f["label"], self._cancel.is_set)
                 studio.write_model_paths(self.settings)
+                try:
+                    self.engine.stop()               # it reads the new model folder (model_patches) on its next start
+                except Exception:
+                    pass
                 self.settings.set("studio_engine", "qwen21")
                 self.emit("studio-setup", {"state": "done", "status": studio.status(self.settings)})
             except Exception as exc:
