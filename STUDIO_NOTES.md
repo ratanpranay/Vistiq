@@ -1,6 +1,6 @@
 # Vistiq Studio (test build)
 
-## 0.4.53
+## 0.4.54
 - Photo realism on for Instant render (photographic results that follow the sketch).
 - Night looks tuned: thin warm ambient lines, soft downlights so materials stay visible, calm blue night outside (was thick glowing tubes in a murky cabin).
 - Create: the strictness slider is gone (always exact).
