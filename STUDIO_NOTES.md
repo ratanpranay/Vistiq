@@ -1,5 +1,8 @@
 # Vistiq Studio (test build)
 
+## 0.4.77
+- Adding an object in a selected area: the object stays whole even where it runs a little past the selection's edge (it was cut off).
+
 ## 0.4.76
 - Lasso: smooth curves instead of jagged steps.
 - Changing a selected area: the model is shown exactly where the selection is, so an added object sits whole inside it (it was cut off at the edge).

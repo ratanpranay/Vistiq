@@ -69,14 +69,32 @@ def feather(mask, px):
     return mask.filter(ImageFilter.GaussianBlur(px / 2.0))
 
 
-def composite(original, result, mask, box, blend_px):
+def composite(original, result, mask, box, blend_px, grow=False):
     """Put the model's result back into the original: inside the paint only,
-    with soft edges. Outside the paint the original's pixels are untouched."""
+    with soft edges. Outside the paint the original's pixels are untouched.
+    grow: something was added; where the result clearly differs from the original next to the
+    paint (the added object running past its edge) it is kept too, so the object is whole."""
     out = original.copy()
     region = result.convert(original.mode).resize((box[2] - box[0], box[3] - box[1]), Image.LANCZOS)
-    m = feather(mask.crop(box), blend_px)
+    mc = mask.crop(box).convert("L")
+    if grow:
+        try:
+            import numpy as np
+            a = np.asarray(original.crop(box).convert("L")).astype(np.int16)
+            b = np.asarray(region.convert("L")).astype(np.int16)
+            diff = Image.fromarray((np.abs(a - b) > 28).astype(np.uint8) * 255).filter(ImageFilter.MaxFilter(7))
+            small = mc.resize((max(1, mc.size[0] // 8), max(1, mc.size[1] // 8)))      # only near the paint
+            reach = small.filter(ImageFilter.MaxFilter(max(3, (max(small.size) // 6) | 1))).resize(mc.size)
+            extra = Image.fromarray(np.minimum(np.asarray(diff), np.asarray(reach)).astype(np.uint8))
+            mc = Image.fromarray(np.maximum(np.asarray(mc), np.asarray(extra)).astype(np.uint8))
+        except Exception:
+            pass
+    m = feather(mc, blend_px)
     out.paste(region, box[:2], m)
     return out
+
+
+ADD_WORDS = re.compile(r"\b(add|adds|adding|place|put|insert|with a|include)\b", re.I)
 
 
 def finish(im, clarity=0.0, sharp=0.35):
@@ -1216,7 +1234,8 @@ class Studio:
                     result = finish(result)        # a style reference keeps its own look
                 if mask is not None:
                     blend = int(float(job.get("blend", 0.35)) * 0.06 * max(box[2] - box[0], box[3] - box[1])) + 2
-                    result = composite(original, result, mask, box, blend)
+                    result = composite(original, result, mask, box, blend,
+                                       grow=bool(ADD_WORDS.search(job.get("said") or job.get("text") or "")))
                 buf = io.BytesIO()
                 result.save(buf, "PNG")
                 path, w, h = imaging.save(buf.getvalue(), stem + ".png", out_dir, "PNG",
