@@ -1,5 +1,8 @@
 # Vistiq Studio (test build)
 
+## 0.4.78
+- Relighting a CGI with Materials locked keeps the original colours: the new light and shadows stay, every material's colour comes back (coral red was going dull).
+
 ## 0.4.77
 - Adding an object in a selected area: the object stays whole even where it runs a little past the selection's edge (it was cut off).
 

@@ -1225,6 +1225,14 @@ class Studio:
                     else:
                         data = juiced
                 result = Image.open(io.BytesIO(data)).convert("RGB")
+                if (sys.platform != "darwin" and mode == "create" and not job.get("instant") and not job.get("view")
+                        and not refs and (job.get("locks") or {}).get("materials") and (job.get("text") or "").strip()
+                        and lab.get("keep_cmf", True)):
+                    try:
+                        night = bool(studio.night_clause(job.get("said") or job.get("text") or ""))
+                        result = keep_cmf(work, result, strength=0.6 if night else 0.75)
+                    except Exception:
+                        log.exception("keeping the CMF failed; the picture as the model made it")
                 if detail_on and mask is None:
                     result = self._detail(result, work if detail_src else None, s, seed + v, tmp_dir, job_id,
                                           lambda f, v=v: say("Adding detail · " + label.lower(), (v + 0.6 + 0.4 * f) / n),
@@ -1429,6 +1437,34 @@ def follow_words(keep, f3=False):
     if keep >= 0.3:
         return "Use the input image as the base, but feel free to refine shapes and details."
     return "Use the input image only as loose inspiration; reinterpret it creatively."
+
+
+# Relighting a CGI with Materials locked dulled its colours (coral red went brown, Nov 2026): the new
+# light and shadows stay, the original colour of every material comes back.
+
+def keep_cmf(original, result, strength=0.75, light_tint=0.5):
+    """Put the original's colours (hue and saturation of every material) back under the new light:
+    the result's brightness (light, shadows) stays; its colour per unit brightness is pulled back to the
+    original's, softly blurred so small shifts don't fringe. light_tint keeps part of the light's colour cast."""
+    import numpy as np
+    res = result.convert("RGB")
+    org = original.convert("RGB").resize(res.size, Image.LANCZOS)
+    r = np.asarray(res).astype(np.float32) / 255
+    o = np.asarray(org).astype(np.float32) / 255
+    w = np.array([0.299, 0.587, 0.114], np.float32)
+    lr = (r * w).sum(-1, keepdims=True) + 1e-3
+    lo = (o * w).sum(-1, keepdims=True) + 1e-3
+    nr, no = r / lr, o / lo                                     # colour per unit brightness
+    rad = max(2, res.size[0] // 300)
+    def blur(a):
+        im = Image.fromarray(np.clip(a / 4 * 255, 0, 255).astype(np.uint8))
+        return np.asarray(im.filter(ImageFilter.GaussianBlur(rad))).astype(np.float32) / 255 * 4
+    bno, bnr = blur(no), blur(nr)
+    tint = (nr.reshape(-1, 3).mean(0) / no.reshape(-1, 3).mean(0)) ** light_tint   # the light's colour, kept in part
+    target = nr + (bno * tint - bnr)                             # original colour, the result's fine detail
+    n = nr + strength * (target - nr)
+    out = np.clip(n * lr, 0, 1)
+    return Image.fromarray((out * 255 + 0.5).astype(np.uint8))
 
 
 def _still_sketch(work, data):
