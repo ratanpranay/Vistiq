@@ -1,5 +1,10 @@
 # Vistiq Studio (test build)
 
+## 0.4.75
+- Select an area on a render: picking a selection tool while a render is in view makes it the picture worked on, so you can mask a part of the CGI and change its CMF or add something there.
+- Faster with Qwen-Image 2.1: one picture read instead of two (about 20 s less for every new sketch).
+- If a render comes back looking like the sketch, the shape is made again, held less.
+
 ## 0.4.74
 - Create: Size button, 512 / 1K / 2K / 4K. Smaller draws faster (512 for quickest tries); 4K is a 2K render that goes to Upscale ×2.
 

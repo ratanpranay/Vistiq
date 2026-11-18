@@ -893,7 +893,9 @@ class Studio:
                            locks=dict(job.get("locks") or {}, camera=False), view=dict(v, kind=kind, seen=side, target=target))
                 text = job["text"]
             elif job.get("instant"):
-                scene = self._read(work_path, "scene", say)
+                # Qwen-Image 2.1 sees the picture itself: the scene description only cost a second read
+                # (about 20 s for every new picture, Nov 2026); the view read says inside or outside.
+                scene = "" if studio.use_q21(s) else self._read(work_path, "scene", say)
                 # inside or outside: the reliable reading (the scene words made cars look like cabins)
                 kind, vside, vh = studio.parse_view(self._read(work_path, "view", say) or "") if studio.use_qwenedit(s) else ("", "", "")
                 cam_words = studio.instant_camera(vside, vh) if kind and kind != "interior" else ""
@@ -1057,6 +1059,17 @@ class Studio:
                                     raise RuntimeError("Cancelled")
                                 say("Shape · variation %d of %d" % (vv + 1, n) if n > 1 else "Shape", (vv * 0.5) / n)
                                 q21_pre[vv] = self.engine.run(studio.cap_megapixels(mk21(vv), job.get("res")), None, self._cancel.is_set)
+                                if _still_sketch(work, q21_pre[vv]):
+                                    # A dense pencil sketch can hold the Consistency LoRA to its strokes: the shape
+                                    # came back as the sketch (Nov 2026). Again, held less, with another seed.
+                                    say("Shape · trying again", (vv * 0.5) / n)
+                                    p2 = mk21(vv)
+                                    for node in p2.values():
+                                        if node.get("class_type") == "LoraLoaderModelOnly" and "consistency" in str(node["inputs"].get("lora_name", "")):
+                                            node["inputs"]["strength_model"] = 0.3
+                                        if node.get("class_type") == "KSampler":
+                                            node["inputs"]["seed"] = int(node["inputs"]["seed"]) + 7919
+                                    q21_pre[vv] = self.engine.run(studio.cap_megapixels(p2, job.get("res")), None, self._cancel.is_set)
                         prompt = None
                     else:
                         prompt = mk21(v)
@@ -1385,6 +1398,21 @@ def follow_words(keep, f3=False):
     if keep >= 0.3:
         return "Use the input image as the base, but feel free to refine shapes and details."
     return "Use the input image only as loose inspiration; reinterpret it creatively."
+
+
+def _still_sketch(work, data):
+    """True when a render came back looking like the sketch it was made from: nearly the same grey picture
+    (no colour, little change from the input)."""
+    try:
+        out = Image.open(io.BytesIO(data)).convert("RGB")
+        a = work.convert("L").resize((96, 96))
+        b = out.convert("L").resize((96, 96))
+        diff = sum(abs(x - y) for x, y in zip(a.getdata(), b.getdata())) / (96 * 96)
+        hsv = out.resize((96, 96)).convert("HSV")
+        sat = sum(px[1] for px in hsv.getdata()) / (96 * 96)
+        return diff < 22 and sat < 28
+    except Exception:
+        return False
 
 
 def _add_lora(prompt, lora, strength):

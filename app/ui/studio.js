@@ -894,7 +894,16 @@
       zoom.wire(view);
       // Layers and sketch tools always work: touching them while a result shows goes back to your picture.
       if (id === "c") view.addEventListener("pointerdown", function (e) {
-        if (p.sel !== -1 && view.querySelector(".s-pane") && e.target.closest(".sk-bar,.sk-opts,.sk-panel")) { p.sel = -1; render(); }
+        if (p.sel === -1 || !view.querySelector(".s-pane") || !e.target.closest(".sk-bar,.sk-opts,.sk-panel")) return;
+        // A selection tool on a render in view: that render becomes the picture worked on, so the
+        // selection (and Create) apply to the CGI (mask a part, change its CMF or add something there).
+        var c = current(p), sb = e.target.closest('[data-k="sel"],[data-sel]');
+        if (c && sb && c.path) {
+          setImage(p, "src", { path: c.path, name: c.name, w: c.w, h: c.h, preview: c.preview });
+          toast("Working on this render: select the area to change");
+          return;
+        }
+        p.sel = -1; render();
       }, true);
       view.addEventListener("pointerdown", function (e) { if (e.button !== 0 || zoom.space || zoom.pan || e.target.closest(".s-zpill,.s-paintbtn,.s-ra")) return; var img = view.querySelector("img.s-res"), c = current(p), o = (c && c.orig) || (p.src && p.src.preview); if (img && o) { img.src = o; view.classList.add("hold"); } });
       var up = function () { var img = view.querySelector("img.s-res"), c = current(p); if (img && c) img.src = c.preview; };
