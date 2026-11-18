@@ -223,11 +223,12 @@
       ["Sketch with colours", "coral red nappa seats and door panels, dark navy dash, brushed aluminium trim", { materials: false }, "", true]
     ]],
     ["light", "Lighting (CGI)", "On a CGI or render. Keeps materials and view; only the light changes.", [
-      ["Golden hour sun", "cinematic golden hour sun low through the side window, warm sun patches and soft shadows on seats and dash, cool sky fill in the shadows", { materials: true, camera: true, light: false }, "", true],
+      ["Golden hour sun", "cinematic golden hour sun low through the side window, warm sun patches and soft shadows on seats and dash, soft neutral fill in the shadows, windows clear", { materials: true, camera: true, light: false }, "", true],
       ["Night interior", "night, calm indirect ambient glow under the dashboard and doors, city lights outside", { materials: true, camera: true, light: false }, "", true],
       ["Night exterior", "night, car lit by soft street light, lamps on, wet ground reflections", { materials: true, camera: true, light: false }, "", true],
       ["Soft overcast", "soft overcast daylight, gentle even light, no hard shadows, every surface visible", { materials: true, camera: true, light: false }, "", false],
-      ["Studio light", "studio lighting: large soft key light from above, clean highlights along the body, dark gradient background", { materials: true, camera: true, light: false }, "", false]
+      ["Bright studio (interior)", "bright soft studio light filling the cabin, every surface visible, clean light background outside the windows", { materials: true, camera: true, light: false }, "", false],
+      ["Studio light (exterior)", "studio lighting: large soft key light overhead, clean highlights along the body, dark gradient background", { materials: true, camera: true, light: false }, "", false]
     ]],
     ["cmf", "Material change", "Changes colours and materials. Tip: select an area first to change only that part.", [
       ["Seat leather", "seats in tan aniline leather with fine perforation and contrast stitching", { materials: false, camera: true, light: true }, "", true],

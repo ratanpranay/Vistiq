@@ -863,16 +863,16 @@ QE_NIGHT_EXT = ("Make it a night photo like a premium car maker's launch image: 
 # Golden-hour sun for a CGI (Nov 2026), after the person's Nano Banana references: sun in frame with bloom
 # and haze, warm soft-edged patches, cool sky fill in the shadows, bright exposure, crisp material detail.
 QE_SUN_INT = ("Light it like a premium car maker's launch photo at golden hour: the low sun sits just outside the "
-              "window near the edge of the frame with a soft glow around it, warm haze glowing over the landscape outside; "
-              "warm sunlight falls through the glass in soft-edged patches across the seats, console and door panels, "
-              "and the window frames and pillars cast soft shadows; cool blue light from the sky fills the shadows and "
-              "footwells so every surface stays visible; bright, balanced exposure; crisp material detail, the "
-              "perforation and stitching sharp; the bloom stays at the sun only: no lens flare rings, ghost orbs or "
-              "hazy circles over the dashboard or trim.")
+              "window near the edge of the frame with a soft glow around it; the view through the windows stays clear "
+              "and sharp, no haze or fog over the glass; warm sunlight falls through the glass in soft-edged patches "
+              "across the seats, console and door panels, and the window frames and pillars cast soft shadows; soft, "
+              "neutral daylight from the sky fills the shadows and footwells so every surface stays visible, without a "
+              "blue cast; bright, balanced exposure; crisp material detail, the perforation and stitching sharp; the "
+              "glow stays at the sun only: no lens flare rings, ghost orbs or hazy circles over the dashboard or trim.")
 QE_SUN_EXT = ("Light it like a premium car maker's launch photo at golden hour: the low sun near the edge of the frame "
-              "with a soft glow around it and warm haze in the air; warm light rakes along the body and glows on its edges, "
-              "long soft shadows on the ground, cool blue sky light in the shadows; bright, balanced exposure; crisp "
-              "detail in lamps, wheels and panel lines; the bloom stays at the sun only: no lens flare rings or ghost "
+              "with a soft glow around it, the air clear; warm light rakes along the body and glows on its edges, "
+              "long soft shadows on the ground, soft sky light in the shadows; bright, balanced exposure; crisp "
+              "detail in lamps, wheels and panel lines; the glow stays at the sun only: no lens flare rings or ghost "
               "orbs over the car.")
 SUN_WORDS = re.compile(r"\b(sun|sunny|sunlight|sunlit|golden hour|sunset|sunrise|cinematic|outdoor light)\b", re.I)
 # Soft, even light: not the golden-hour sun look.

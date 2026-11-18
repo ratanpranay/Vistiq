@@ -930,3 +930,19 @@ class NoNewParts(unittest.TestCase):
         ImageDraw.Draw(r).rectangle([0, 0, 1200, 1200], fill=(110, 50, 35))      # a large shadow
         out = sj.no_new_parts(o, r)
         self.assertLess(out.getpixel((600, 600))[0], 130)
+
+
+class TextureGate(unittest.TestCase):
+    def test_haze_over_detail_gets_no_texture(self):
+        import random
+        rnd = random.Random(1)
+        o = Image.new("L", (1400, 700), 128)
+        px = o.load()
+        for y in range(700):
+            for x in range(1400):
+                px[x, y] = 128 + rnd.randint(-40, 40)
+        r = o.copy()
+        r.paste(Image.new("L", (700, 700), 200), (0, 0))            # left half turned to flat haze
+        g = sj.texture_gate(o.convert("RGB"), r.convert("RGB"))
+        self.assertLess(float(g[300:400, 100:600].mean()), 0.2)
+        self.assertGreater(float(g[300:400, 800:1300].mean()), 0.8)

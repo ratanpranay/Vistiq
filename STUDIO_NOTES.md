@@ -1,5 +1,10 @@
 # Vistiq Studio (test build)
 
+## 0.4.87
+- Relight texture: your original's fine detail goes back only where the result still shows the same surface. Where the light changed what is there (a hazy window, a new reflection) it is left alone: no more "embossed" ghost rocks on the glass or mottled seats.
+- Golden-hour look: windows stay clear (no haze/fog), shadows filled with neutral light (no blue cast).
+- Prompt library: "Studio light" is marked for exteriors; new "Bright studio (interior)".
+
 ## 0.4.86
 - Prompt library: its prompts no longer show a "would change Materials" warning (they set their own locks).
 

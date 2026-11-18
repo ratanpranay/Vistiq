@@ -1483,19 +1483,41 @@ def keep_cmf(original, result, strength=0.75, light_tint=0.5):
 
 # Relighting a CGI softened its fine texture (perforation, stitching, screen graphics, Nov 2026): the light
 # comes from the model, the texture from the original, at the original's full size.
+def texture_gate(original, result, width=1400):
+    """Where the original's fine detail may go onto the result (0..1): where both show the same thing.
+    Off where the result changed what is there (a window turned to haze, a new reflection): copying
+    the original's detail there embossed ghost rocks onto foggy glass (Nov 2026)."""
+    import numpy as np
+    w = min(width, original.size[0]); h = max(8, round(w * original.size[1] / original.size[0]))
+    lum = lambda im: np.asarray(im.convert("L").resize((w, h), Image.BOX)).astype(np.float32) / 255
+    o, r = lum(original), lum(result)
+    bo, br = o - _blur(o, 2), r - _blur(r, 2)
+    eo, er = _blur(bo * bo, 6) + 1e-6, _blur(br * br, 6) + 1e-6
+    ncc = _blur(bo * br, 6) / np.sqrt(eo * er)
+    busy = np.clip((np.sqrt(eo) - 0.006) / 0.01, 0, 1)          # the original has visible detail here
+    # the result lost the detail (haze, fog, a blurred view) -> off; a texture in a different phase
+    # (perforation drawn again by the model) still counts as the same surface
+    same = np.clip((np.sqrt(er / eo) - 0.25) / 0.3, 0, 1) * (0.6 + 0.4 * np.clip((ncc - 0.2) / 0.4, 0, 1))
+    g = (1 - busy) + busy * same
+    return _blur(g, 3)
+
+
 def keep_texture(original, result, radius=None, strength=1.0):
     """At the original's full size: the light and colour from the result, the fine texture (perforation,
-    stitching, grain, edges) from the original. Multiplicative, so texture follows the new light and shadow."""
+    stitching, grain, edges) from the original, where the result still shows the same thing (texture_gate).
+    Multiplicative, so texture follows the new light and shadow."""
     import numpy as np
     org = original.convert("RGB")
     res = result.convert("RGB").resize(org.size, Image.LANCZOS)
+    gate = texture_gate(org, result)
+    G = np.asarray(Image.fromarray(gate.astype(np.float32), "F").resize(org.size, Image.BILINEAR))[..., None]
     rad = radius or max(2, org.size[0] // 900)
     o = np.asarray(org).astype(np.float32) + 1
     bo = np.asarray(org.filter(ImageFilter.GaussianBlur(rad))).astype(np.float32) + 1
     r = np.asarray(res).astype(np.float32)
     br = np.asarray(res.filter(ImageFilter.GaussianBlur(rad))).astype(np.float32)
-    ratio = (o / bo) ** strength
-    out = np.clip(br * ratio, 0, 255)
+    ratio = (o / bo) ** (strength * G)
+    out = np.clip(br * ratio + (r - br) * (1 - G), 0, 255)
     return Image.fromarray((out + 0.5).astype(np.uint8))
 
 def _blur(a, sigma):
