@@ -207,7 +207,74 @@
 
   function promptBox(id, ph, extraStyle) {
     return '<div class="s-pbox"><textarea class="s-prompt" id="' + id + '-text"' + (extraStyle || "") + ' placeholder="' + ph + '"></textarea>' +
-      '<div class="s-pbar" id="' + id + '-imp" hidden><button type="button" class="s-impb">✨ Improve</button><span class="s-impn"></span></div></div>';
+      '<div class="s-pbar" id="' + id + '-imp"' + (id === "c" ? "" : " hidden") + '><button type="button" class="s-impb">✨ Improve</button>' +
+      (id === "c" ? '<button type="button" class="s-impb s-libb" id="c-libb" title="Tested prompts, by task">📚 Prompts</button>' : "") +
+      '<span class="s-impn"></span></div></div>' + (id === "c" ? '<div class="s-plib" id="c-plib" hidden></div>' : "");
+  }
+
+  // Prompt library: prompts tested in Studio, by task. Picking one fills the words and sets the Keep locks
+  // it was tested with (null = leave that lock as it is).
+  var PLIB = [
+    ["sketch", "Sketch → render", "On a sketch. Empty words = Instant render (CGI that follows the sketch).", [
+      ["Instant CGI", "", null, "Leave the words empty and press Instant render", true],
+      ["Bright premium interior", "bright premium interior CGI, soft bounce light from the windows, every surface visible, leather grain and stitching sharp", { light: false }, "", true],
+      ["Studio exterior", "photoreal CGI in a minimal white studio, seamless floor, soft top light, crisp reflections on the paint", { light: false }, "", true],
+      ["Juicy showroom", "juicy showroom render: glossy paint with deep reflections, soft studio floor, crisp lamps and wheels", { light: false }, "", false],
+      ["Sketch with colours", "coral red nappa seats and door panels, dark navy dash, brushed aluminium trim", { materials: false }, "", true]
+    ]],
+    ["light", "Lighting (CGI)", "On a CGI or render. Keeps materials and view; only the light changes.", [
+      ["Golden hour sun", "cinematic golden hour sun low through the side window, warm sun patches and soft shadows on seats and dash, cool blue sky fill", { materials: true, camera: true, light: false }, "", true],
+      ["Night interior", "night, calm indirect ambient glow under the dashboard and doors, city lights outside", { materials: true, camera: true, light: false }, "", true],
+      ["Night exterior", "night, car lit by soft street light, lamps on, wet ground reflections", { materials: true, camera: true, light: false }, "", true],
+      ["Soft overcast", "soft overcast daylight, gentle even light, no hard shadows, every surface visible", { materials: true, camera: true, light: false }, "", false],
+      ["Studio light", "studio lighting: large soft key light from above, clean highlights along the body, dark gradient background", { materials: true, camera: true, light: false }, "", false]
+    ]],
+    ["cmf", "Material change", "Changes colours and materials. Tip: select an area first to change only that part.", [
+      ["Seat leather", "seats in tan aniline leather with fine perforation and contrast stitching", { materials: false, camera: true, light: true }, "", true],
+      ["Dash & trim", "dashboard top in dark grey alcantara, trim in open-pore walnut", { materials: false, camera: true, light: true }, "", false],
+      ["Pearl white paint", "body paint in satin pearl white, black roof and mirror caps", { materials: false, camera: true, light: true }, "", false],
+      ["Matte graphite", "matte graphite paint, gloss black lower trims, bronze wheels", { materials: false, camera: true, light: true }, "", false],
+      ["Selected area", "brushed aluminium", { materials: false, camera: true, light: true }, "Select the part with the selection tool first", true]
+    ]],
+    ["bg", "Background & scene", "Puts the design somewhere else; the car or cabin stays.", [
+      ["City street at night", "parked on a wet city street at night, neon reflections on the ground", { materials: true, camera: true, light: false }, "", false],
+      ["Desert road", "on a desert road at sunset, warm dust in the air", { materials: true, camera: true, light: false }, "", false],
+      ["Mountain pass", "on an alpine mountain pass, crisp morning light", { materials: true, camera: true, light: false }, "", false],
+      ["White studio", "minimal white studio, seamless floor, soft shadow under the car", { materials: true, camera: true, light: false }, "", true],
+      ["View outside windows", "desert landscape with red rocks outside the windows", { materials: true, camera: true, light: true }, "", true]
+    ]],
+    ["view", "View change", "Turns the camera. For several angles at once, use 3D views.", [
+      ["Front three-quarter", "front three-quarter view", { materials: true, camera: false }, "", false],
+      ["Rear three-quarter", "rear three-quarter view", { materials: true, camera: false }, "", false],
+      ["Side view", "side view", { materials: true, camera: false }, "", false],
+      ["Close-up detail", "close-up of the seat stitching and perforation", { materials: true, camera: false }, "", false]
+    ]],
+    ["add", "Add objects", "Select an area first; the object is placed there.", [
+      ["Phone on charger", "a phone lying on the wireless charger", { materials: true, camera: true, light: true }, "Select the charger area first", true],
+      ["Bag on seat", "a leather handbag on the passenger seat", { materials: true, camera: true, light: true }, "Select the seat area first", false]
+    ]]
+  ];
+  function plibHtml(cat) {
+    var c = PLIB.filter(function (x) { return x[0] === cat; })[0] || PLIB[0];
+    return '<div class="s-plt">' + PLIB.map(function (x) { return '<button type="button" data-plc="' + x[0] + '"' + (x[0] === c[0] ? ' class="on"' : "") + ">" + x[1] + "</button>"; }).join("") + "</div>" +
+      '<p class="s-plh">' + c[2] + "</p>" +
+      c[3].map(function (it, i) {
+        return '<button type="button" class="s-pli" data-pli="' + i + '"><b>' + it[0] + (it[4] ? ' <em>tested</em>' : "") + "</b>" +
+          "<span>" + (it[1] || it[3]) + "</span>" + (it[1] && it[3] ? "<small>" + it[3] + "</small>" : "") + "</button>";
+      }).join("");
+  }
+  function plibUse(cat, i) {
+    var c = PLIB.filter(function (x) { return x[0] === cat; })[0], it = c && c[3][i]; if (!it) return;
+    var p = S.create, box = $("c-text");
+    p.text = it[1]; box.value = it[1]; p.viewing = false;
+    if (it[2]) {
+      p.locks = Object.assign({}, p.locks || defaultLocks(p.src));
+      Object.keys(it[2]).forEach(function (k) { p.locks[k] = it[2][k]; });
+      p.locksFor = keyOfSrc(p.src);
+    }
+    $("c-plib").hidden = true; $("c-libb").classList.remove("on");
+    if (it[3]) toast(it[3]);
+    box.dispatchEvent(new Event("input")); box.focus(); render();
   }
 
   function stage(id, extra) {
@@ -937,6 +1004,17 @@
         api().studio_install_panel().then(function (r) { S.live.msg = r ? r.message : ""; render(); });
       }
     });
+    S.plibCat = "sketch";
+    $("c-libb").addEventListener("click", function () {
+      var el = $("c-plib"), open = el.hidden;
+      if (open) { S.plibCat = isRender(S.create.src) ? (S.plibCat === "sketch" ? "light" : S.plibCat) : S.plibCat; el.innerHTML = plibHtml(S.plibCat); }
+      el.hidden = !open; this.classList.toggle("on", open);
+    });
+    $("c-plib").addEventListener("click", function (e) {
+      var b = e.target.closest("[data-plc]");
+      if (b) { S.plibCat = b.getAttribute("data-plc"); this.innerHTML = plibHtml(S.plibCat); return; }
+      b = e.target.closest("[data-pli]"); if (b) plibUse(S.plibCat, +b.getAttribute("data-pli"));
+    });
     ["c", "r"].forEach(function (id) {
       $(id + "-imp").querySelector(".s-impb").addEventListener("click", function () {
         var p = P(id), box = $(id + "-text"), note = $(id + "-imp").querySelector(".s-impn"), btn = this;
@@ -1624,7 +1702,7 @@
 
   function renderCreate() {
     var p = S.create, st = S.status;
-    $("c-imp").hidden = !(st && st.helper_ready);
+    $("c-imp").querySelector(".s-impb").hidden = !(st && st.helper_ready);
     // One part failing to draw must not leave the rest of the panel stale.
     try { renderPS(); } catch (e) {
       report("renderPS", e);
@@ -1672,7 +1750,7 @@
     if (cur && cm && !(cm.text || "").trim()) $("c-text").placeholder = madeWith(cm);
     else $("c-text").placeholder = isRender(p.src) ? "What should change? (e.g. make the seats red leather). Leave empty for an Instant render."
       : "What should it look like? (e.g. yellow nappa seats, soft morning light). Leave empty for an Instant render.";
-    $("c-imp").hidden = !(st && st.helper_ready);
+    $("c-imp").querySelector(".s-impb").hidden = !(st && st.helper_ready);
     if ($("c-text").value !== p.text && document.activeElement !== $("c-text")) $("c-text").value = p.text;
     $("c-blend-w").hidden = !painter.any;
     var looks = st ? st.loras.filter(function (l) { return l.family === "klein9b" && !l.builtin && !/klein-consistency|distill/i.test(l.name); }) : [];

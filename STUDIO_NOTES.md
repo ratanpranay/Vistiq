@@ -1,5 +1,8 @@
 # Vistiq Studio (test build)
 
+## 0.4.82
+- Prompt library in Create: "📚 Prompts" next to Improve. Prompts by task (Sketch → render, Lighting, Material change, Background & scene, View change, Add objects); tested ones are marked. Picking one fills the words and sets the Keep locks it works best with.
+
 ## 0.4.81
 - Relighting a CGI (Materials and Camera kept): the model is told not to add handles, buttons, seams or lines, so no blurry new parts appear (e.g. on the lower dash).
 

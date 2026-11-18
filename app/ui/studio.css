@@ -1087,3 +1087,18 @@ body.studio .s-vars>.s-ph.sel{border-color:var(--ink)}
 .s-locks button[hidden]{display:none}
 .s-k[hidden]{display:none}
 .s-sz{flex:1;min-width:0}
+
+/* Prompt library (Create): tested prompts by task, under the prompt box */
+.s-libb.on{background:var(--ink);color:#fff}
+.s-plib{margin-top:8px;border:1px solid var(--line);border-radius:12px;background:#fff;padding:8px;max-height:340px;overflow:auto}
+.s-plib[hidden]{display:none}
+.s-plt{display:flex;flex-wrap:wrap;gap:4px;margin-bottom:6px}
+.s-plt button{height:24px;padding:0 8px;border-radius:7px;font-size:11.5px;color:var(--dim);background:var(--field)}
+.s-plt button.on{background:var(--ink);color:#fff}
+.s-plh{margin:2px 2px 6px;font-size:11.5px;color:var(--dim);line-height:1.35}
+.s-pli{display:block;width:100%;text-align:left;padding:7px 8px;border-radius:9px;background:none;border:1px solid transparent}
+.s-pli:hover{background:var(--field);border-color:var(--line)}
+.s-pli b{display:block;font-size:12.5px;font-weight:600;color:var(--ink)}
+.s-pli b em{font-style:normal;font-size:10px;font-weight:600;color:#1a7f4b;background:#e6f6ec;border-radius:5px;padding:1px 5px;margin-left:4px;vertical-align:1px}
+.s-pli span{display:block;font-size:11.5px;color:var(--dim);line-height:1.35;margin-top:2px}
+.s-pli small{display:block;font-size:11px;color:#9a6a00;margin-top:2px}

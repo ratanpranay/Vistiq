@@ -797,6 +797,21 @@ const frame = (n, name) => ({ path: "live://photoshop/" + n, name: name || "flat
     await p.close();
   }
 
+  // Prompt library: opens from the prompt bar, switches category, fills the words and sets the locks.
+  {
+    const p = await open(browser);
+    await p.click("#c-libb");
+    check("prompt library opens", await p.isVisible("#c-plib"), "hidden");
+    await p.click('#c-plib [data-plc="light"]');
+    await p.click('#c-plib [data-pli="0"]');
+    const t = await p.inputValue("#c-text");
+    check("prompt library fills words", /golden hour/.test(t), t);
+    check("prompt library closes", !(await p.isVisible("#c-plib")), "still open");
+    const on = await p.evaluate(() => { const o = {}; document.querySelectorAll('#c-locks button').forEach((b) => { o[b.dataset.v] = b.classList.contains('on'); }); return o; });
+    check("prompt library sets locks", on.materials && on.camera && !on.light, JSON.stringify(on));
+    check("prompt library no errors", !p.errors.length, p.errors.join("; "));
+    await p.close();
+  }
   await browser.close();
   console.log(failed ? failed + " screen test(s) failed" : "all screen tests passed");
   process.exit(failed ? 1 : 0);
