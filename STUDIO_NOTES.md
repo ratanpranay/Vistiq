@@ -1,5 +1,8 @@
 # Vistiq Studio (test build)
 
+## 0.4.80
+- Sun look: no more lens-flare rings or hazy ghost circles over the dashboard and trim; the glow stays at the sun.
+
 ## 0.4.79
 - Relighting a CGI (Materials locked): the fine texture of the original (perforation, stitching, grain, screen graphics, badges) is kept, and the result comes out at the original's full size.
 - Cinematic sun look for words like "sun", "golden hour", "cinematic": low sun in frame with soft bloom and haze, warm soft-edged sun patches, cool sky fill in the shadows, bright exposure.
