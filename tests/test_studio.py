@@ -912,3 +912,21 @@ class RelightHoldQwen(unittest.TestCase):
         self.assertIn("no new handles", t)
         t = studio.qwen_text("red leather seats", locks={"materials": False, "camera": True})
         self.assertNotIn("no new handles", t)
+
+
+class NoNewParts(unittest.TestCase):
+    def test_new_handle_on_plain_panel_goes_back(self):
+        o = Image.new("RGB", (2400, 1200), (200, 80, 60))
+        r = Image.new("RGB", (2400, 1200), (220, 100, 70))      # brighter light everywhere
+        ImageDraw.Draw(r).rectangle([1140, 585, 1260, 605], fill=(60, 20, 15))   # an invented handle
+        out = sj.no_new_parts(o, r)
+        px = out.getpixel((1200, 595))
+        self.assertGreater(px[0], 180, px)
+        self.assertLess(abs(out.getpixel((300, 300))[0] - 220), 6)
+
+    def test_big_shadow_stays(self):
+        o = Image.new("RGB", (2400, 1200), (200, 80, 60))
+        r = Image.new("RGB", (2400, 1200), (220, 100, 70))
+        ImageDraw.Draw(r).rectangle([0, 0, 1200, 1200], fill=(110, 50, 35))      # a large shadow
+        out = sj.no_new_parts(o, r)
+        self.assertLess(out.getpixel((600, 600))[0], 130)

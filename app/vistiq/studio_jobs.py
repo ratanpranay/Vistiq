@@ -1239,6 +1239,11 @@ class Studio:
                         # the sun look's cool sky fill in the shadows is part of it: held a little less there
                         result = keep_cmf(work, result, strength=0.6 if (night or sun) else 0.75)
                         if (job.get("locks") or {}).get("camera", True) and lab.get("keep_texture", True) and aligned(work, result):
+                            lw = job.get("said") or job.get("text") or ""
+                            # only for a relight: added objects (a phone, a bag) are meant to be new
+                            if (lab.get("no_new_parts", True) and mask is None
+                                    and (night or sun or studio.SOFT_WORDS.search(lw))):
+                                result = no_new_parts(work, result)
                             result = keep_texture(work, result, strength=0.6 if night else 1.0)
                     except Exception:
                         log.exception("keeping the CMF failed; the picture as the model made it")
@@ -1492,6 +1497,59 @@ def keep_texture(original, result, radius=None, strength=1.0):
     ratio = (o / bo) ** strength
     out = np.clip(br * ratio, 0, 255)
     return Image.fromarray((out + 0.5).astype(np.uint8))
+
+def _blur(a, sigma):
+    """Gaussian-like blur of a float array (three box blurs), numpy only."""
+    import numpy as np
+    r = max(1, int(round(sigma * 0.9)))
+    out = a.astype(np.float32)
+    for _ in range(3):
+        for ax in (0, 1):
+            pad = [(0, 0)] * out.ndim
+            pad[ax] = (r + 1, r)
+            c = np.cumsum(np.pad(out, pad, mode="edge"), axis=ax, dtype=np.float64)
+            hi = np.take(c, range(2 * r + 1, c.shape[ax]), axis=ax)
+            lo = np.take(c, range(0, c.shape[ax] - 2 * r - 1), axis=ax)
+            out = ((hi - lo) / (2 * r + 1)).astype(np.float32)
+    return out
+
+
+def no_new_parts(original, result, thresh=0.06):
+    """A relight must not add parts (Qwen kept adding a glovebox handle that was never there, Nov 2026):
+    where the original surface is plain and the result shows a small new feature, the original goes back,
+    lit like its surroundings in the result. Shadows and sun patches (large or long) stay as they are."""
+    import numpy as np
+    org = original.convert("RGB")
+    res = result.convert("RGB").resize(org.size, Image.LANCZOS)
+    w, h = org.size
+    sw, sh = max(8, w // 4), max(8, h // 4)
+    o = np.asarray(org.resize((sw, sh), Image.BOX)).astype(np.float32) / 255
+    r = np.asarray(res.resize((sw, sh), Image.BOX)).astype(np.float32) / 255
+    lum = lambda a: a[..., 0] * 0.299 + a[..., 1] * 0.587 + a[..., 2] * 0.114
+    lo, lr = np.log(lum(o) + 0.02), np.log(lum(r) + 0.02)
+    g = np.clip(lr - lo, -2, 2)
+    k = max(5, (sw // 40) | 1)      # features under about 1/80 of the width count as "small"
+    u = Image.fromarray(((g + 2) / 4 * 255 + 0.5).astype(np.uint8)).filter(ImageFilter.MedianFilter(k))
+    gm = np.asarray(u).astype(np.float32) / 255 * 4 - 2
+    resid = np.abs(_blur(g - gm, 1.0))
+    detail = _blur(np.abs(lo - _blur(lo, 3)), 4)
+    m = ((resid > thresh) & (detail < 0.03)).astype(np.uint8) * 255
+    if not m.any():
+        return res
+    mi = Image.fromarray(m).filter(ImageFilter.MinFilter(3)).filter(ImageFilter.MaxFilter(3)).filter(ImageFilter.MaxFilter(9))
+    mf = _blur(np.asarray(mi).astype(np.float32) / 255, 2.5)
+    up = lambda a: np.asarray(Image.fromarray(a.astype(np.float32), "F").resize((w, h), Image.BILINEAR))
+    G = np.exp(up(gm))
+    cr, co = _blur(r, 6) + 0.02, _blur(o, 6) + 0.02
+    tint = (cr / co) / np.exp(_blur(g, 6))[..., None]
+    T = np.stack([up(tint[..., c]) for c in range(3)], axis=-1)
+    M = up(mf)[..., None]
+    O = np.asarray(org).astype(np.float32)
+    R = np.asarray(res).astype(np.float32)
+    put = np.clip(O * G[..., None] * T, 0, 255)
+    out = R * (1 - M) + put * M
+    return Image.fromarray((out + 0.5).astype(np.uint8))
+
 
 def aligned(original, result, need=0.55):
     """True when the result shows the same picture in the same place (a relight, not a new view): the

@@ -1,5 +1,8 @@
 # Vistiq Studio (test build)
 
+## 0.4.85
+- Relighting a CGI: if the model still adds a small new part on a plain surface (e.g. a glovebox handle), your original surface is put back, lit to match. Sun patches and shadows stay.
+
 ## 0.4.84
 - Relighting a CGI: the "no new parts" rule now reaches the model (a glovebox handle kept appearing on the lower dash).
 - Prompt library: the list grows with the panel instead of scrolling inside it.
