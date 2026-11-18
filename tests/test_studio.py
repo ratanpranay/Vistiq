@@ -890,3 +890,17 @@ class RelightHold(unittest.TestCase):
     def test_other_edits_free(self):
         t = studio.with_locks("make the seats sportier", {"materials": True, "camera": True}, False)
         self.assertNotIn("no new handles", t)
+
+
+class OvercastNotSun(unittest.TestCase):
+    def test_overcast_daylight_no_sun_look(self):
+        self.assertEqual(studio.sun_clause("soft overcast daylight, gentle even light, no hard shadows"), "")
+        self.assertTrue(studio.sun_clause("cinematic golden hour sun"))
+
+    def test_rewrite_adding_snow_is_refused(self):
+        self.assertTrue(studio.adds_scene("soft overcast daylight", "overcast winter light, add subtle snow on the seats"))
+        self.assertFalse(studio.adds_scene("snowy mountain scene", "snow on the ground and the roof"))
+
+    def test_overcast_relight_holds_parts(self):
+        t = studio.with_locks("soft overcast daylight", {"materials": True, "camera": True}, False)
+        self.assertIn("no new handles", t)

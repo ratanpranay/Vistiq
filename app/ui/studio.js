@@ -58,7 +58,7 @@
     design: /\b(redesign|reshape|new shape|change the (shape|form|design)|add (a|an|the)?\s*\w+|remove|bigger|smaller|wider|narrower|taller|shorter|more aggressive|sportier)\b/i,
     camera: /\b(angle|view from|side view|front view|rear view|top view|from above|from below|camera|zoom out|zoom in|close-?up|wide shot|perspective)\b/i
   };
-  function isRender(src) { return !!src && !src.live && !src.frozen && /_(create|refine|paint|camera|cmf|style|reference|variation)/i.test(src.name || src.path || ""); }
+  function isRender(src) { return !!src && !src.live && !src.frozen && /_(create|refine|paint|camera|cmf|style|reference|variation)|_[248]x\b|upscal/i.test(src.name || src.path || ""); }
   // A result in view: Describe shows the words it was made with (edit them and
   // Create again); back on your picture, what you had typed comes back.
   // What a result was made with, when it had no words of its own.

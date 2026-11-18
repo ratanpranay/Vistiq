@@ -921,8 +921,13 @@ class Studio:
             else:
                 # Words: the picture reader spells out everything the change means in this picture
                 # (snow on the ground and on the truck, winter clothes…), the way a person would.
-                if (job.get("text") or "").strip() and not job.get("refine_of"):
+                lk = job.get("locks") or {}
+                # Materials and view kept (a relight): the words go as written. The reader's fuller
+                # version once turned "soft overcast daylight" into winter light with snow (Nov 2026).
+                if (job.get("text") or "").strip() and not job.get("refine_of") and not (lk.get("materials") and lk.get("camera")):
                     more = self._read(work_path, "edit", say, job.get("text"))
+                    if more and studio.adds_scene(job.get("text"), more):
+                        more = None
                     if more:
                         # The fuller instruction replaces the words; the result still shows yours.
                         user_words = job.get("text")

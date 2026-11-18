@@ -874,13 +874,23 @@ QE_SUN_EXT = ("Light it like a premium car maker's launch photo at golden hour: 
               "long soft shadows on the ground, cool blue sky light in the shadows; bright, balanced exposure; crisp "
               "detail in lamps, wheels and panel lines; the bloom stays at the sun only: no lens flare rings or ghost "
               "orbs over the car.")
-SUN_WORDS = re.compile(r"\b(sun|sunny|sunlight|sunlit|golden hour|sunset|sunrise|cinematic|outdoor light|daylight)\b", re.I)
+SUN_WORDS = re.compile(r"\b(sun|sunny|sunlight|sunlit|golden hour|sunset|sunrise|cinematic|outdoor light)\b", re.I)
+# Soft, even light: not the golden-hour sun look.
+SOFT_WORDS = re.compile(r"\b(overcast|cloudy|diffuse\w*|even light|soft light|no hard shadows|studio light\w*|softbox)\b", re.I)
+# Weather and time a fuller rewrite must not add on its own.
+SCENE_WORDS = re.compile(r"\b(snow\w*|winter|frost\w*|ice|icy|rain\w*|wet|puddles?|fog\w*|mist\w*|storm\w*|night\w*|sunset|sunrise|dusk|dawn|autumn|leaves|sand|dust\w*|neon)\b", re.I)
+
+
+def adds_scene(words, rewrite):
+    """True when the rewrite brings weather or time the person never asked for."""
+    said = {m.lower()[:4] for m in SCENE_WORDS.findall(words or "")}
+    return any(m.lower()[:4] not in said for m in SCENE_WORDS.findall(rewrite or ""))
 
 
 def sun_clause(words, kind=""):
     """The cinematic golden-hour light, when the words ask for sun (and not for night)."""
     w = words or ""
-    if not SUN_WORDS.search(w) or NIGHT_WORDS.search(w):
+    if not SUN_WORDS.search(w) or NIGHT_WORDS.search(w) or SOFT_WORDS.search(w):
         return ""
     return QE_SUN_EXT if kind and kind != "interior" else QE_SUN_INT
 
@@ -2062,7 +2072,7 @@ def with_locks(text, locks, sketch):
         rules = [LOCK_TEXT[k] for k in ("design", "materials", "light", "camera") if locks.get(k)]
         free = [k for k in ("design", "materials", "light", "camera") if not locks.get(k)]
         if (not locks.get("design") and locks.get("materials") and locks.get("camera")
-                and (SUN_WORDS.search(text) or NIGHT_WORDS.search(text))):
+                and (SUN_WORDS.search(text) or NIGHT_WORDS.search(text) or SOFT_WORDS.search(text))):
             rules.append(RELIGHT_HOLD)
         if free:
             rules.append("Change only what the instructions below describe.")

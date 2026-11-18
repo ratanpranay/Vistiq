@@ -1,5 +1,11 @@
 # Vistiq Studio (test build)
 
+## 0.4.83
+- Relighting a CGI (Materials and Camera kept): your words go to the model as written. The prompt helper had turned "soft overcast daylight" into winter light with snow, which came out as blotchy dots on the leather.
+- The helper may no longer add weather or time (snow, rain, night, fog…) you did not ask for.
+- "Overcast", "soft light", "no hard shadows" no longer pull in the golden-hour sun look.
+- Upscaled CGIs (…_2x, _4x) count as renders: Materials and Light stay locked after a restart.
+
 ## 0.4.82
 - Prompt library in Create: "📚 Prompts" next to Improve. Prompts by task (Sketch → render, Lighting, Material change, Background & scene, View change, Add objects); tested ones are marked. Picking one fills the words and sets the Keep locks it works best with.
 
