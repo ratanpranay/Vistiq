@@ -860,6 +860,29 @@ QE_NIGHT_EXT = ("Make it a night photo like a premium car maker's launch image: 
                 "the whole design and its colour clearly visible, not dark or murky.")
 
 
+# Golden-hour sun for a CGI (Nov 2026), after the person's Nano Banana references: sun in frame with bloom
+# and haze, warm soft-edged patches, cool sky fill in the shadows, bright exposure, crisp material detail.
+QE_SUN_INT = ("Light it like a premium car maker's launch photo at golden hour: the low sun sits just outside the "
+              "window near the edge of the frame with a soft lens bloom, warm haze glowing over the landscape outside; "
+              "warm sunlight falls through the glass in soft-edged patches across the seats, console and door panels, "
+              "and the window frames and pillars cast soft shadows; cool blue light from the sky fills the shadows and "
+              "footwells so every surface stays visible; bright, balanced exposure; crisp material detail, the "
+              "perforation and stitching sharp.")
+QE_SUN_EXT = ("Light it like a premium car maker's launch photo at golden hour: the low sun near the edge of the frame "
+              "with a soft lens bloom and warm haze in the air; warm light rakes along the body and glows on its edges, "
+              "long soft shadows on the ground, cool blue sky light in the shadows; bright, balanced exposure; crisp "
+              "detail in lamps, wheels and panel lines.")
+SUN_WORDS = re.compile(r"\b(sun|sunny|sunlight|sunlit|golden hour|sunset|sunrise|cinematic|outdoor light|daylight)\b", re.I)
+
+
+def sun_clause(words, kind=""):
+    """The cinematic golden-hour light, when the words ask for sun (and not for night)."""
+    w = words or ""
+    if not SUN_WORDS.search(w) or NIGHT_WORDS.search(w):
+        return ""
+    return QE_SUN_EXT if kind and kind != "interior" else QE_SUN_INT
+
+
 def night_clause(words, kind=""):
     """The calm press-photo night, when the words ask for night and don't describe their own look
     (outside views get their own: the cabin's ambient lines don't belong on a car body)."""
@@ -921,6 +944,10 @@ def qwen_text(words, instant=False, scene="", locks=None, ref_head="", sketch=Fa
             parts.append(words)
         if night:
             parts.append(night)
+            locks["light"] = False
+        sun = sun_clause(said if said is not None else words, kind)
+        if sun:
+            parts.append(sun)
             locks["light"] = False
         keep = []
         if locks.get("design", True):

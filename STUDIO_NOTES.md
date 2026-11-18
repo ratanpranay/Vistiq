@@ -1,5 +1,9 @@
 # Vistiq Studio (test build)
 
+## 0.4.79
+- Relighting a CGI (Materials locked): the fine texture of the original (perforation, stitching, grain, screen graphics, badges) is kept, and the result comes out at the original's full size.
+- Cinematic sun look for words like "sun", "golden hour", "cinematic": low sun in frame with soft bloom and haze, warm soft-edged sun patches, cool sky fill in the shadows, bright exposure.
+
 ## 0.4.78
 - Relighting a CGI with Materials locked keeps the original colours: the new light and shadows stay, every material's colour comes back (coral red was going dull).
 

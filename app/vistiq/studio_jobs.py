@@ -1230,7 +1230,11 @@ class Studio:
                         and lab.get("keep_cmf", True)):
                     try:
                         night = bool(studio.night_clause(job.get("said") or job.get("text") or ""))
-                        result = keep_cmf(work, result, strength=0.6 if night else 0.75)
+                        sun = bool(studio.sun_clause(job.get("said") or job.get("text") or ""))
+                        # the sun look's cool sky fill in the shadows is part of it: held a little less there
+                        result = keep_cmf(work, result, strength=0.6 if (night or sun) else 0.75)
+                        if (job.get("locks") or {}).get("camera", True) and lab.get("keep_texture", True) and aligned(work, result):
+                            result = keep_texture(work, result, strength=0.6 if night else 1.0)
                     except Exception:
                         log.exception("keeping the CMF failed; the picture as the model made it")
                 if detail_on and mask is None:
@@ -1465,6 +1469,35 @@ def keep_cmf(original, result, strength=0.75, light_tint=0.5):
     n = nr + strength * (target - nr)
     out = np.clip(n * lr, 0, 1)
     return Image.fromarray((out * 255 + 0.5).astype(np.uint8))
+
+
+# Relighting a CGI softened its fine texture (perforation, stitching, screen graphics, Nov 2026): the light
+# comes from the model, the texture from the original, at the original's full size.
+def keep_texture(original, result, radius=None, strength=1.0):
+    """At the original's full size: the light and colour from the result, the fine texture (perforation,
+    stitching, grain, edges) from the original. Multiplicative, so texture follows the new light and shadow."""
+    import numpy as np
+    org = original.convert("RGB")
+    res = result.convert("RGB").resize(org.size, Image.LANCZOS)
+    rad = radius or max(2, org.size[0] // 900)
+    o = np.asarray(org).astype(np.float32) + 1
+    bo = np.asarray(org.filter(ImageFilter.GaussianBlur(rad))).astype(np.float32) + 1
+    r = np.asarray(res).astype(np.float32)
+    br = np.asarray(res.filter(ImageFilter.GaussianBlur(rad))).astype(np.float32)
+    ratio = (o / bo) ** strength
+    out = np.clip(br * ratio, 0, 255)
+    return Image.fromarray((out + 0.5).astype(np.uint8))
+
+def aligned(original, result, need=0.55):
+    """True when the result shows the same picture in the same place (a relight, not a new view): the
+    edges of both, small, correlate."""
+    import numpy as np
+    def edges(im):
+        g = np.asarray(im.convert("L").resize((256, 144), Image.LANCZOS)).astype(np.float32)
+        e = np.abs(np.diff(g, axis=0))[:, :-1] + np.abs(np.diff(g, axis=1))[:-1, :]
+        return (e - e.mean()) / (e.std() + 1e-6)
+    a, b = edges(original), edges(result)
+    return float((a * b).mean()) >= need
 
 
 def _still_sketch(work, data):
