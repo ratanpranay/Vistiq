@@ -1,5 +1,8 @@
 # Vistiq Studio (test build)
 
+## 0.4.74
+- Create: Size button, 512 / 1K / 2K / 4K. Smaller draws faster (512 for quickest tries); 4K is a 2K render that goes to Upscale ×2.
+
 ## 0.4.73
 - Word changes (night, scenes) keep the exact viewpoint (a night change turned a head-on view into a three-quarter); outside night without the noisy wet floor.
 

@@ -157,7 +157,7 @@
     page: "create", status: null, engine: { state: "idle", message: "" },
     setup: { run: null, error: "", done: "" },
     lib: { items: [], filter: "all", loading: false },
-    create: page({ source: load("c.source", "image"), area: "whole", preset: ["sketch", "cmf", "lighting", "photo"].indexOf(load("c.preset", "sketch")) >= 0 ? load("c.preset", "sketch") : "sketch", text: "", keep: load("c.keep", 0.8), vars: load("c.vars", 2),
+    create: page({ source: load("c.source", "image"), area: "whole", preset: ["sketch", "cmf", "lighting", "photo"].indexOf(load("c.preset", "sketch")) >= 0 ? load("c.preset", "sketch") : "sketch", text: "", keep: load("c.keep", 0.8), vars: load("c.vars", 2), res: load("c.res", "2k"),
                    blend: load("c.blend2", 0.15), lora: load("c.lora", ""), juice: load("c.juice", 0), juiceLora: load("c.juiceLora", ""), refs: [] }),
     ref: page({ refimg: null, preset: load("r.preset", "camera"), text: "", keep: load("r.keep", 0.8), vars: load("r.vars", 1) }),
     dropSlot: "", liveApp: load("liveApp", ""),
@@ -192,7 +192,15 @@
 
   function varsChips(id) {
     return '<div class="s-v"><div class="s-label">Variations</div><div class="s-step" id="' + id + '-vars">' +
-      '<button type="button" data-d="-1" aria-label="Fewer">−</button><b id="' + id + '-vars-n">2</b><button type="button" data-d="1" aria-label="More">+</button></div></div>';
+      '<button type="button" data-d="-1" aria-label="Fewer">−</button><b id="' + id + '-vars-n">2</b><button type="button" data-d="1" aria-label="More">+</button></div></div>' +
+      (id === "c" ? sizeSeg(id) : "");
+  }
+  // Output size: smaller draws faster (512 for quick tries). 4K = a 2K render, then Upscale ×2.
+  var SIZES = [["512", "512", "Quickest tries"], ["1k", "1K", "Fast"], ["2k", "2K", "Full quality"], ["4k", "4K", "2K render, then Upscale ×2"]];
+  var SIZE_TIME = { "512": 0.35, "1k": 0.55, "2k": 1, "4k": 1 };
+  function sizeSeg(id) {
+    return '<div class="s-sz"><div class="s-label">Size</div><div class="s-seg s-size" id="' + id + '-res">' +
+      SIZES.map(function (z) { return '<button type="button" data-v="' + z[0] + '" title="' + z[2] + '">' + z[1] + "</button>"; }).join("") + "</div></div>";
   }
 
   function optionsRow(id) { return '<div class="s-opts">' + keepSlider(id) + varsChips(id) + "</div>"; }
@@ -679,6 +687,7 @@
       // An improved prompt already is the whole instruction: send it as it is.
       preset: p.improved && p.text === p.improved ? "" : p.preset, text: p.text, keep: p.keep, variations: p.vars
     };
+    if (id === "c") j.res = p.res || "2k";
     if (id === "r") j.reference = p.refimg.path;
     if (id === "c" && !extra && instantMode(p)) j.instant = true;
     if (id === "c") {
@@ -704,7 +713,7 @@
     }
     Object.assign(j, extra || {});
     p.error = ""; p.stage = "Starting"; p.frac = 0; p.raw = null; p.rawAt = 0; p.stepSize = 0; p.stepDur = 0; p.pending = j.variations; p.started = Date.now(); p.estimate = 0;
-    p.jobKey = srcKey(p.src);
+    p.jobKey = srcKey(p.src); p.jobRes = j.res || "";
     // Create works on the sketch as it is now: freeze a copy. Live keeps
     // updating in the background and comes back when the run is done.
     p.jobOrig = (id === "c" && window.VSSketch && window.VSSketch.look && window.VSSketch.look(p.src)) || p.src.preview; p.preview = null; p.previewN = 0;
@@ -819,6 +828,10 @@
       $(id + "-vars").addEventListener("click", function (e) {
         var b = e.target.closest("button"); if (!b) return;
         p.vars = Math.max(1, Math.min(4, p.vars + +b.getAttribute("data-d"))); keep(pre + "vars", p.vars); render();
+      });
+      if ($(id + "-res")) $(id + "-res").addEventListener("click", function (e) {
+        var b = e.target.closest("button"); if (!b) return;
+        p.res = b.getAttribute("data-v"); keep(pre + "res", p.res); render();
       });
       $(id + "-go").addEventListener("click", function () { job(id); });
       $(id + "-cancel").addEventListener("click", function () { api().studio_cancel(); });
@@ -1384,11 +1397,12 @@
     var meta = "", t = st && st.times;
     if (busy && S.engine.state === "starting") meta = S.engine.message;
     else if (!ready) meta = st ? "Set up image generation first" : "";
-    else if (t && t.per) meta = "About " + mmss(t.per * p.vars + (t.warm ? 0 : (t.load || 0))) + " for " + p.vars + (p.vars > 1 ? " variations" : " variation");
+    else if (t && t.per) meta = "About " + mmss(t.per * (id === "c" ? (SIZE_TIME[p.res] || 1) : 1) * p.vars + (t.warm ? 0 : (t.load || 0))) + " for " + p.vars + (p.vars > 1 ? " variations" : " variation");
     else meta = "The first run loads the models, so it takes a little longer";
     $(id + "-meta").textContent = meta;
     $(id + "-err").hidden = !p.error; $(id + "-err").textContent = p.error;
     $(id + "-vars-n").textContent = p.vars;
+    if ($(id + "-res")) [].forEach.call($(id + "-res").children, function (b) { b.classList.toggle("on", b.getAttribute("data-v") === (p.res || "2k")); });
     var cons = hasConsistency();
     $(id + "-keep-w").hidden = id === "c";   // Create: always exact, no slider
   }
@@ -2242,6 +2256,10 @@
         q.preview = null; q.previewN = 0; q.pending = Math.max(0, q.pending - 1); q.jobDone = (q.jobDone || 0) + 1;
         // Watching the run: each new result comes into view as it lands.
         if (q.follow !== false) q.sel = q.results.length - 1;
+        // 4K: the 2K render goes to Upscale (×2) to finish at 4K.
+        if (q === S.create && q.jobRes === "4k" && q.jobDone === 1 && api().studio_to_upscale) {
+          api().studio_to_upscale(data.result.path); toast("4K: the render is in Upscale, ready to finish at 4K");
+        }
       } else if (kind === "studio-setup") {
         if (data.state === "running") { S.setup.run = { label: data.label, fraction: data.fraction }; S.setup.error = ""; S.setup.done = ""; }
         else {

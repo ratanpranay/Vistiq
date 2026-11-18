@@ -1056,7 +1056,7 @@ class Studio:
                                 if self._cancel.is_set():
                                     raise RuntimeError("Cancelled")
                                 say("Shape · variation %d of %d" % (vv + 1, n) if n > 1 else "Shape", (vv * 0.5) / n)
-                                q21_pre[vv] = self.engine.run(mk21(vv), None, self._cancel.is_set)
+                                q21_pre[vv] = self.engine.run(studio.cap_megapixels(mk21(vv), job.get("res")), None, self._cancel.is_set)
                         prompt = None
                     else:
                         prompt = mk21(v)
@@ -1114,9 +1114,9 @@ class Studio:
                 if prompt is None:
                     data = q21_pre.pop(v)          # made above, with the other variations
                 elif "on_preview" in inspect.signature(self.engine.run).parameters:
-                    data = self.engine.run(prompt, prog, self._cancel.is_set, on_preview=preview)
+                    data = self.engine.run(studio.cap_megapixels(prompt, job.get("res")), prog, self._cancel.is_set, on_preview=preview)
                 else:                      # an engine without previews (the Mac one)
-                    data = self.engine.run(prompt, prog, self._cancel.is_set)
+                    data = self.engine.run(studio.cap_megapixels(prompt, job.get("res")), prog, self._cancel.is_set)
                 if (locals().get("q21_used") and locals().get("photo21") and studio.qwenedit_ready(s)
                         and lab.get("q21_finish", True)):
                     # CGI finish (Nov 2026): Qwen-Image 2.1 gets the sketch's shape exactly but renders soft, like
@@ -1143,7 +1143,7 @@ class Studio:
                                                 megapixels=float(lab.get("qe_mp", min(studio.QE_MP, max(
                                                     studio.QE_MP_MIN, work.size[0] * work.size[1] / 1e6)))),
                                                 steps=int(lab.get("qe_steps", studio.QE_STEPS)), ref_latent=True)
-                    finished = self.engine.run(fp, None, self._cancel.is_set)
+                    finished = self.engine.run(studio.cap_megapixels(fp, job.get("res")), None, self._cancel.is_set)
                     if not _is_blank(finished):
                         data = finished
                     if locals().get("chain"):
@@ -1161,7 +1161,7 @@ class Studio:
                                                     megapixels=float(lab.get("qe_mp", min(studio.QE_MP, max(
                                                         studio.QE_MP_MIN, work.size[0] * work.size[1] / 1e6)))),
                                                     steps=int(lab.get("qe_steps", studio.QE_STEPS)), ref_latent=True)
-                        changed = self.engine.run(cp, None, self._cancel.is_set)
+                        changed = self.engine.run(studio.cap_megapixels(cp, job.get("res")), None, self._cancel.is_set)
                         if not _is_blank(changed):
                             data = changed
                 if sys.platform != "darwin" and job.get("juice") and studio.status(s)["juice_ready"] and job.get("juice_lora"):
@@ -1213,7 +1213,8 @@ class Studio:
                     # The first variation includes loading the models: learn both parts.
                     times["load" + tk] = round(max(0.0, took - (per or took * 0.5)), 1) if per else round(took * 0.5, 1)
                     took = took - times["load" + tk]
-                times["per" + tk] = round(took if not times.get("per" + tk) else times["per" + tk] * 0.6 + took * 0.4, 1)
+                if job.get("res") not in studio.RES_CAP:   # the estimate is for full size; Create scales it per size
+                    times["per" + tk] = round(took if not times.get("per" + tk) else times["per" + tk] * 0.6 + took * 0.4, 1)
                 try:
                     s.set("studio_times", times)
                 except Exception:

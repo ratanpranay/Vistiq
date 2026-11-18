@@ -865,3 +865,18 @@ class Medium(unittest.TestCase):
         self.assertEqual(studio.parse_medium("kind=interior"), "")
         self.assertIn("lamps glowing", studio.night_clause("night", "exterior"))
         self.assertIn("roof downlights", studio.night_clause("night", "interior"))
+
+
+class OutputSize(unittest.TestCase):
+    def test_cap(self):
+        from vistiq import studio
+        p = {"11": {"class_type": "ImageScaleToTotalPixels", "inputs": {"megapixels": 3.2}},
+             "13": {"class_type": "ImageScaleToTotalPixels", "inputs": {"megapixels": 0.8}}}
+        studio.cap_megapixels(p, "1k")
+        self.assertEqual(p["11"]["inputs"]["megapixels"], 1.05)
+        self.assertEqual(p["13"]["inputs"]["megapixels"], 0.8)
+        studio.cap_megapixels(p, "512")
+        self.assertEqual(p["11"]["inputs"]["megapixels"], 0.27)
+        q = {"11": {"class_type": "ImageScaleToTotalPixels", "inputs": {"megapixels": 3.2}}}
+        studio.cap_megapixels(q, "2k")
+        self.assertEqual(q["11"]["inputs"]["megapixels"], 3.2)
