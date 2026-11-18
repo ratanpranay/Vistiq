@@ -2030,6 +2030,9 @@ LOCK_TEXT = {
     "light": "Keep the lighting exactly as it is: the same direction, softness, brightness and time of day.",
     "camera": "Keep the camera exactly: the same viewpoint, angle, lens and framing.",
 }
+# A relight (materials and camera kept, words about light): the model likes to invent handles and seams.
+RELIGHT_HOLD = ("Only the light changes: do not add, remove or reshape any part - no new handles, buttons, vents, "
+                "seams, panel lines, stitching or logos; every panel and surface keeps its exact shape and detail.")
 SKETCH_LOCK_TEXT = {
     "materials": "Use the colours and materials exactly as drawn in the sketch.",
     "light": "Keep the light and shading as drawn in the sketch.",
@@ -2058,6 +2061,9 @@ def with_locks(text, locks, sketch):
     else:
         rules = [LOCK_TEXT[k] for k in ("design", "materials", "light", "camera") if locks.get(k)]
         free = [k for k in ("design", "materials", "light", "camera") if not locks.get(k)]
+        if (not locks.get("design") and locks.get("materials") and locks.get("camera")
+                and (SUN_WORDS.search(text) or NIGHT_WORDS.search(text))):
+            rules.append(RELIGHT_HOLD)
         if free:
             rules.append("Change only what the instructions below describe.")
     return ("\n".join(rules) + "\n\n" + text) if rules else text

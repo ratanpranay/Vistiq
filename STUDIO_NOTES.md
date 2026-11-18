@@ -1,5 +1,8 @@
 # Vistiq Studio (test build)
 
+## 0.4.81
+- Relighting a CGI (Materials and Camera kept): the model is told not to add handles, buttons, seams or lines, so no blurry new parts appear (e.g. on the lower dash).
+
 ## 0.4.80
 - Sun look: no more lens-flare rings or hazy ghost circles over the dashboard and trim; the glow stays at the sun.
 

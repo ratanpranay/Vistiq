@@ -880,3 +880,13 @@ class OutputSize(unittest.TestCase):
         q = {"11": {"class_type": "ImageScaleToTotalPixels", "inputs": {"megapixels": 3.2}}}
         studio.cap_megapixels(q, "2k")
         self.assertEqual(q["11"]["inputs"]["megapixels"], 3.2)
+
+
+class RelightHold(unittest.TestCase):
+    def test_relight_words_hold_parts(self):
+        t = studio.with_locks("cinematic golden hour sun", {"materials": True, "camera": True}, False)
+        self.assertIn("no new handles", t)
+
+    def test_other_edits_free(self):
+        t = studio.with_locks("make the seats sportier", {"materials": True, "camera": True}, False)
+        self.assertNotIn("no new handles", t)
