@@ -1,5 +1,9 @@
 # Vistiq Studio (test build)
 
+## 0.4.76
+- Lasso: smooth curves instead of jagged steps.
+- Changing a selected area: the model is shown exactly where the selection is, so an added object sits whole inside it (it was cut off at the edge).
+
 ## 0.4.75
 - Select an area on a render: picking a selection tool while a render is in view makes it the picture worked on, so you can mask a part of the CGI and change its CMF or add something there.
 - Faster with Qwen-Image 2.1: one picture read instead of two (about 20 s less for every new sketch).

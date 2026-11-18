@@ -1217,8 +1217,26 @@
       var P = this.path, d = "";
       if (!P) return "";
       if (P.kind === "lasso") {
-        var pts = P.pts.concat(P.live.slice(1));
-        d = pts.map(function (q, i) { return (i ? "L" : "M") + q[0].toFixed(1) + " " + q[1].toFixed(1); }).join("");
+        // The snapped path runs on a coarse edge map, in pixel steps: smoothed into a clean curve
+        // (it looked jagged, Nov 2026), drawn through the midpoints with quadratic curves.
+        var raw = P.pts.concat(P.live.slice(1)), pts = [], W = 4;
+        for (var j = 0; j < raw.length; j++) {
+          var sx = 0, sy = 0, c = 0;
+          for (var o = -W; o <= W; o++) {
+            var q2 = closed ? raw[(j + o + raw.length) % raw.length] : raw[Math.max(0, Math.min(raw.length - 1, j + o))];
+            sx += q2[0]; sy += q2[1]; c++;
+          }
+          pts.push(j === 0 && !closed ? raw[0] : [sx / c, sy / c]);
+        }
+        if (pts.length < 3) d = pts.map(function (q, i) { return (i ? "L" : "M") + q[0].toFixed(1) + " " + q[1].toFixed(1); }).join("");
+        else {
+          d = "M" + pts[0][0].toFixed(1) + " " + pts[0][1].toFixed(1);
+          for (var k2 = 1; k2 < pts.length - 1; k2++) {
+            var mx2 = (pts[k2][0] + pts[k2 + 1][0]) / 2, my2 = (pts[k2][1] + pts[k2 + 1][1]) / 2;
+            d += "Q" + pts[k2][0].toFixed(1) + " " + pts[k2][1].toFixed(1) + " " + mx2.toFixed(1) + " " + my2.toFixed(1);
+          }
+          d += "L" + pts[pts.length - 1][0].toFixed(1) + " " + pts[pts.length - 1][1].toFixed(1);
+        }
       } else {
         var N = P.nodes;
         d = "M" + N[0].x + " " + N[0].y;
