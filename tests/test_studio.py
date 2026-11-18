@@ -904,3 +904,11 @@ class OvercastNotSun(unittest.TestCase):
     def test_overcast_relight_holds_parts(self):
         t = studio.with_locks("soft overcast daylight", {"materials": True, "camera": True}, False)
         self.assertIn("no new handles", t)
+
+
+class RelightHoldQwen(unittest.TestCase):
+    def test_qwen_relight_holds_parts(self):
+        t = studio.qwen_text("soft overcast daylight", locks={"materials": True, "camera": True})
+        self.assertIn("no new handles", t)
+        t = studio.qwen_text("red leather seats", locks={"materials": False, "camera": True})
+        self.assertNotIn("no new handles", t)

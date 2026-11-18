@@ -1,5 +1,9 @@
 # Vistiq Studio (test build)
 
+## 0.4.84
+- Relighting a CGI: the "no new parts" rule now reaches the model (a glovebox handle kept appearing on the lower dash).
+- Prompt library: the list grows with the panel instead of scrolling inside it.
+
 ## 0.4.83
 - Relighting a CGI (Materials and Camera kept): your words go to the model as written. The prompt helper had turned "soft overcast daylight" into winter light with snow, which came out as blotchy dots on the leather.
 - The helper may no longer add weather or time (snow, rain, night, fog…) you did not ask for.

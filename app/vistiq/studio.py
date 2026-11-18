@@ -972,6 +972,10 @@ def qwen_text(words, instant=False, scene="", locks=None, ref_head="", sketch=Fa
             keep.append("the camera view")
         if keep and not ref_head:
             parts.append("Keep " + ", ".join(keep[:-1]) + (" and " if len(keep) > 1 else "") + keep[-1] + " exactly as they are.")
+        lw = said if said is not None else words
+        if (not sketch and not ref_head and locks.get("materials") and locks.get("camera", True)
+                and (SUN_WORDS.search(lw) or NIGHT_WORDS.search(lw) or SOFT_WORDS.search(lw))):
+            parts.append(RELIGHT_HOLD)     # a relight added a glovebox handle that was never there (Nov 2026)
         if camera and locks.get("camera", True) and not ref_head:
             parts.append(camera)          # a night change turned a head-on view into a three-quarter (Nov 2026)
         elif not locks.get("camera", True) and not ref_head:
