@@ -809,6 +809,7 @@ const frame = (n, name) => ({ path: "live://photoshop/" + n, name: name || "flat
     check("prompt library closes", !(await p.isVisible("#c-plib")), "still open");
     const on = await p.evaluate(() => { const o = {}; document.querySelectorAll('#c-locks button').forEach((b) => { o[b.dataset.v] = b.classList.contains('on'); }); return o; });
     check("prompt library sets locks", on.materials && on.camera && !on.light, JSON.stringify(on));
+    check("prompt library: no lock warning for its own prompt", !(await p.isVisible("#c-warn")), "warning shown");
     check("prompt library no errors", !p.errors.length, p.errors.join("; "));
     await p.close();
   }

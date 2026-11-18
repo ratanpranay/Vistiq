@@ -223,7 +223,7 @@
       ["Sketch with colours", "coral red nappa seats and door panels, dark navy dash, brushed aluminium trim", { materials: false }, "", true]
     ]],
     ["light", "Lighting (CGI)", "On a CGI or render. Keeps materials and view; only the light changes.", [
-      ["Golden hour sun", "cinematic golden hour sun low through the side window, warm sun patches and soft shadows on seats and dash, cool blue sky fill", { materials: true, camera: true, light: false }, "", true],
+      ["Golden hour sun", "cinematic golden hour sun low through the side window, warm sun patches and soft shadows on seats and dash, cool sky fill in the shadows", { materials: true, camera: true, light: false }, "", true],
       ["Night interior", "night, calm indirect ambient glow under the dashboard and doors, city lights outside", { materials: true, camera: true, light: false }, "", true],
       ["Night exterior", "night, car lit by soft street light, lamps on, wet ground reflections", { materials: true, camera: true, light: false }, "", true],
       ["Soft overcast", "soft overcast daylight, gentle even light, no hard shadows, every surface visible", { materials: true, camera: true, light: false }, "", false],
@@ -266,7 +266,7 @@
   function plibUse(cat, i) {
     var c = PLIB.filter(function (x) { return x[0] === cat; })[0], it = c && c[3][i]; if (!it) return;
     var p = S.create, box = $("c-text");
-    p.text = it[1]; box.value = it[1]; p.viewing = false;
+    p.text = it[1]; box.value = it[1]; p.viewing = false; p.libText = it[1];
     if (it[2]) {
       p.locks = Object.assign({}, p.locks || defaultLocks(p.src));
       Object.keys(it[2]).forEach(function (k) { p.locks[k] = it[2][k]; });
@@ -1693,6 +1693,7 @@
     Object.keys(LOCK_WORDS).forEach(function (k) { var m = L[k] && t.match(LOCK_WORDS[k]); if (m) hit.push([k, m[0]]); });
     // A sketch is rendered: describing its materials and light is the point, not a clash.
     if (!isRender(p.src)) hit = hit.filter(function (h) { return h[0] === "camera"; });
+    if (p.libText && p.libText === t) hit = [];      // a library prompt comes with its own locks
     var names = { design: "Design", materials: "Materials", light: "Light", camera: "Camera" };
     var h = hit.length ? svg("lock") + '<span><b>"' + hit.map(function (x) { return esc(x[1]); }).join('", "') + '"</b> would change ' +
       hit.map(function (x) { return names[x[0]]; }).join(" and ") + ', which ' + (hit.length > 1 ? "are" : "is") + ' locked. <button type="button" class="s-link" data-unlock="' +

@@ -1,5 +1,8 @@
 # Vistiq Studio (test build)
 
+## 0.4.86
+- Prompt library: its prompts no longer show a "would change Materials" warning (they set their own locks).
+
 ## 0.4.85
 - Relighting a CGI: if the model still adds a small new part on a plain surface (e.g. a glovebox handle), your original surface is put back, lit to match. Sun patches and shadows stay.
 
