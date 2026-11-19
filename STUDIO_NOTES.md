@@ -1,5 +1,9 @@
 # Vistiq Studio (test build)
 
+## 0.4.88
+- Scene changes with Materials kept ("on a city road at sunset, foggy weather"): what the model draws outside now stays. Studio's keep steps (colour, texture, no new parts) only work where the result is still your picture under new light, never over a new view, so the old desert is no longer painted back over the city.
+- Words that set a place or weather no longer get Studio's own golden-hour look added (it said "no fog" under "foggy"), nor "only the light changes".
+
 ## 0.4.87
 - Relight texture: your original's fine detail goes back only where the result still shows the same surface. Where the light changed what is there (a hazy window, a new reflection) it is left alone: no more "embossed" ghost rocks on the glass or mottled seats.
 - Golden-hour look: windows stay clear (no haze/fog), shadows filled with neutral light (no blue cast).

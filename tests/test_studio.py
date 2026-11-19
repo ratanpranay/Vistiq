@@ -946,3 +946,39 @@ class TextureGate(unittest.TestCase):
         g = sj.texture_gate(o.convert("RGB"), r.convert("RGB"))
         self.assertLess(float(g[300:400, 100:600].mean()), 0.2)
         self.assertGreater(float(g[300:400, 800:1300].mean()), 0.8)
+
+
+class SceneChange(unittest.TestCase):
+    def test_city_sunset_fog_no_sun_look(self):
+        t = studio.qwen_text("on a city road at sunset, foggy weather", locks={"materials": True, "camera": True})
+        self.assertNotIn("no haze or fog", t)
+        self.assertNotIn("Only the light changes", t)
+        self.assertIn("scene outside changes", t)
+
+    def test_relight_keeps_relight_rule(self):
+        t = studio.qwen_text("cinematic golden hour sun", locks={"materials": True, "camera": True})
+        self.assertIn("Only the light changes", t)
+
+    def test_same_place_sees_new_scene_not_new_light(self):
+        import random
+        rnd = random.Random(2)
+        o = Image.new("RGB", (720, 400))
+        px = o.load()
+        for y in range(400):
+            for x in range(720):
+                v = 100 + rnd.randint(-50, 50)
+                px[x, y] = (v, v // 2, v // 3)
+        relit = o.point(lambda c: min(255, int(c * 1.4)))
+        a = sj.same_place(o, relit)
+        self.assertGreater(float(a.mean()), 0.9)
+        new = o.copy()
+        other = Image.new("RGB", (360, 400))
+        po = other.load()
+        for y in range(400):
+            for x in range(360):
+                v = 100 + rnd.randint(-50, 50)
+                po[x, y] = (v // 3, v, v // 2)
+        new.paste(other, (0, 0))
+        a = sj.same_place(o, new)
+        self.assertLess(float(a[:, :100].mean()), 0.3)
+        self.assertGreater(float(a[:, -100:].mean()), 0.8)

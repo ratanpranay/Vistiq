@@ -877,6 +877,14 @@ QE_SUN_EXT = ("Light it like a premium car maker's launch photo at golden hour: 
 SUN_WORDS = re.compile(r"\b(sun|sunny|sunlight|sunlit|golden hour|sunset|sunrise|cinematic|outdoor light)\b", re.I)
 # Soft, even light: not the golden-hour sun look.
 SOFT_WORDS = re.compile(r"\b(overcast|cloudy|diffuse\w*|even light|soft light|no hard shadows|studio light\w*|softbox)\b", re.I)
+# Words that set the scene (a place, weather): the person describes the world outside, so Studio adds no
+# light look of its own (the golden-hour look said "no haze or fog" under "foggy weather", Nov 2026).
+PLACE_WORDS = re.compile(r"\b(road|street|city|town|village|downtown|skyline|highway|motorway|avenue|traffic|forest|woods|"
+                         r"jungle|beach|coast|sea|ocean|lake|river|mountains?|alps|alpine|desert|canyon|field|countryside|"
+                         r"snow\w*|rain\w*|fog\w*|mist\w*|storm\w*|parking|garage|tunnel|bridge|showroom|harbou?r|port|"
+                         r"airport|race ?track|track|neon|background|outside|scenery|landscape)\b", re.I)
+SCENE_HOLD = ("The scene outside changes as described. Inside the car, do not add, remove or reshape any part - no new "
+              "handles, buttons, vents, seams, panel lines, stitching or logos; every panel keeps its exact shape and detail.")
 # Weather and time a fuller rewrite must not add on its own.
 SCENE_WORDS = re.compile(r"\b(snow\w*|winter|frost\w*|ice|icy|rain\w*|wet|puddles?|fog\w*|mist\w*|storm\w*|night\w*|sunset|sunrise|dusk|dawn|autumn|leaves|sand|dust\w*|neon)\b", re.I)
 
@@ -890,7 +898,7 @@ def adds_scene(words, rewrite):
 def sun_clause(words, kind=""):
     """The cinematic golden-hour light, when the words ask for sun (and not for night)."""
     w = words or ""
-    if not SUN_WORDS.search(w) or NIGHT_WORDS.search(w) or SOFT_WORDS.search(w):
+    if not SUN_WORDS.search(w) or NIGHT_WORDS.search(w) or SOFT_WORDS.search(w) or PLACE_WORDS.search(w):
         return ""
     return QE_SUN_EXT if kind and kind != "interior" else QE_SUN_INT
 
@@ -973,9 +981,11 @@ def qwen_text(words, instant=False, scene="", locks=None, ref_head="", sketch=Fa
         if keep and not ref_head:
             parts.append("Keep " + ", ".join(keep[:-1]) + (" and " if len(keep) > 1 else "") + keep[-1] + " exactly as they are.")
         lw = said if said is not None else words
-        if (not sketch and not ref_head and locks.get("materials") and locks.get("camera", True)
-                and (SUN_WORDS.search(lw) or NIGHT_WORDS.search(lw) or SOFT_WORDS.search(lw))):
-            parts.append(RELIGHT_HOLD)     # a relight added a glovebox handle that was never there (Nov 2026)
+        if not sketch and not ref_head and locks.get("materials") and locks.get("camera", True):
+            if PLACE_WORDS.search(lw):
+                parts.append(SCENE_HOLD)
+            elif SUN_WORDS.search(lw) or NIGHT_WORDS.search(lw) or SOFT_WORDS.search(lw):
+                parts.append(RELIGHT_HOLD)     # a relight added a glovebox handle that was never there (Nov 2026)
         if camera and locks.get("camera", True) and not ref_head:
             parts.append(camera)          # a night change turned a head-on view into a three-quarter (Nov 2026)
         elif not locks.get("camera", True) and not ref_head:
@@ -2075,9 +2085,11 @@ def with_locks(text, locks, sketch):
     else:
         rules = [LOCK_TEXT[k] for k in ("design", "materials", "light", "camera") if locks.get(k)]
         free = [k for k in ("design", "materials", "light", "camera") if not locks.get(k)]
-        if (not locks.get("design") and locks.get("materials") and locks.get("camera")
-                and (SUN_WORDS.search(text) or NIGHT_WORDS.search(text) or SOFT_WORDS.search(text))):
-            rules.append(RELIGHT_HOLD)
+        if not locks.get("design") and locks.get("materials") and locks.get("camera"):
+            if PLACE_WORDS.search(text):
+                rules.append(SCENE_HOLD)
+            elif SUN_WORDS.search(text) or NIGHT_WORDS.search(text) or SOFT_WORDS.search(text):
+                rules.append(RELIGHT_HOLD)
         if free:
             rules.append("Change only what the instructions below describe.")
     return ("\n".join(rules) + "\n\n" + text) if rules else text

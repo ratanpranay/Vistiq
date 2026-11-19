@@ -1234,6 +1234,7 @@ class Studio:
                         and not refs and (job.get("locks") or {}).get("materials") and (job.get("text") or "").strip()
                         and lab.get("keep_cmf", True)):
                     try:
+                        model_pic = result
                         night = bool(studio.night_clause(job.get("said") or job.get("text") or ""))
                         sun = bool(studio.sun_clause(job.get("said") or job.get("text") or ""))
                         # the sun look's cool sky fill in the shadows is part of it: held a little less there
@@ -1245,6 +1246,8 @@ class Studio:
                                     and (night or sun or studio.SOFT_WORDS.search(lw))):
                                 result = no_new_parts(work, result)
                             result = keep_texture(work, result, strength=0.6 if night else 1.0)
+                        if lab.get("same_place", True):
+                            result = _blend_kept(model_pic, result, same_place(work, model_pic))
                     except Exception:
                         log.exception("keeping the CMF failed; the picture as the model made it")
                 if detail_on and mask is None:
@@ -1571,6 +1574,71 @@ def no_new_parts(original, result, thresh=0.06):
     put = np.clip(O * G[..., None] * T, 0, 255)
     out = R * (1 - M) + put * M
     return Image.fromarray((out + 0.5).astype(np.uint8))
+
+
+def same_place(original, result, width=360):
+    """0..1 per spot: is the result there still the original, only under other light (brighter, darker,
+    hazier, tinted), or does it show something else? Locally the result is fitted as gain x original +
+    offset: a relight fits (shadows, sun patches, haze), a new scene does not (a city instead of the
+    desert outside the windows). Studio's keep steps work only where this is 1 (Nov 2026: they painted
+    the desert back over a city road the model had drawn). Small misfits (an invented handle) count as
+    the same place, so the no-new-parts guard still removes them."""
+    import numpy as np
+    w = min(width, original.size[0]); h = max(8, round(w * original.size[1] / original.size[0]))
+    arr = lambda im: np.asarray(im.convert("RGB").resize((w, h), Image.BOX)).astype(np.float32) / 255
+    O, R = arr(original), arr(result)
+    fit = []
+    for c in range(3):
+        o, r = O[..., c], R[..., c]
+        mo, mr = _blur(o, 5), _blur(r, 5)
+        vo = np.maximum(_blur(o * o, 5) - mo * mo, 0)
+        vr = np.maximum(_blur(r * r, 5) - mr * mr, 0)
+        cv = _blur(o * r, 5) - mo * mr
+        r2 = (cv * cv) / ((vo + 1e-5) * (vr + 1e-5))            # how much of the result the original explains
+        busy = np.clip((np.sqrt(vr) - 0.01) / 0.02, 0, 1)       # flat in the result: nothing to say
+        fit.append(1 - busy * (1 - r2))
+    a = np.clip((np.mean(fit, axis=0) - 0.2) / 0.3, 0, 1)
+    # changed only counts in large areas (a window view, a background), not spots (a sun patch, a handle)
+    a = np.where(_big_areas(a < 0.5, 0.03), a, 1.0)
+    return np.clip(_blur(a, 2), 0, 1)
+
+
+def _big_areas(mask, min_frac):
+    """Keep only the connected areas of a small boolean mask covering at least min_frac of it."""
+    import numpy as np
+    from collections import deque
+    h, w = mask.shape
+    lab = np.zeros((h, w), np.int32)
+    keep = np.zeros((h, w), bool)
+    need = min_frac * h * w
+    n = 0
+    for y0, x0 in zip(*np.nonzero(mask)):
+        if lab[y0, x0]:
+            continue
+        n += 1
+        lab[y0, x0] = n
+        q, pts = deque([(y0, x0)]), []
+        while q:
+            y, x = q.popleft()
+            pts.append((y, x))
+            for yy, xx in ((y + 1, x), (y - 1, x), (y, x + 1), (y, x - 1)):
+                if 0 <= yy < h and 0 <= xx < w and mask[yy, xx] and not lab[yy, xx]:
+                    lab[yy, xx] = n
+                    q.append((yy, xx))
+        if len(pts) >= need:
+            ys, xs = zip(*pts)
+            keep[list(ys), list(xs)] = True
+    return keep
+
+
+def _blend_kept(changed, kept, agree):
+    """The model's picture where it changed things, Studio's kept version where it did not."""
+    import numpy as np
+    size = kept.size
+    A = np.asarray(Image.fromarray(agree.astype(np.float32), "F").resize(size, Image.BILINEAR))[..., None]
+    c = np.asarray(changed.convert("RGB").resize(size, Image.LANCZOS)).astype(np.float32)
+    k = np.asarray(kept.convert("RGB")).astype(np.float32)
+    return Image.fromarray((c * (1 - A) + k * A + 0.5).clip(0, 255).astype(np.uint8))
 
 
 def aligned(original, result, need=0.55):
