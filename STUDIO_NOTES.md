@@ -1,5 +1,9 @@
 # Vistiq Studio (test build)
 
+## 0.4.91
+- Live (Photoshop / Affinity) is its own page: opening the Live tile never shows the last picture you had open. Until a file is connected it shows the steps: 1 install the Photoshop plugin (or turn on Affinity's connection), 2 Connect, 3 open a file. Once connected, only your live file is there and Create's results go back into it.
+- Right-click any layer in the Layers panel: "Send to board" puts that layer on the board as its own picture.
+
 ## 0.4.90
 - A finished render with any file name (e.g. a FLUX or Midjourney output) is now recognised as a render: the picture reader looks at the picture itself, not the file name. Before, such a render was treated as a sketch and re-drawn from scratch ("turn this sketch into a render"), losing its detail and getting patchy colours.
 - Its Keep locks start as for a render (Materials and Light kept), unless you already set them.

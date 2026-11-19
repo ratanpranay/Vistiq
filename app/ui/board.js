@@ -318,8 +318,8 @@
   function open(t) {
     var V = VS(), S = V.S;
     if (t.kind === "live") {
-      S.create.source = "live";
-      var src = S.create.liveSrc; if (src) V.setImage(S.create, "src", src);
+      // The Live page: only the live file, or the steps to connect (never the last picture you had open).
+      V.useSource("live");
       S.boardFrom = "live"; V.go("create"); return;
     }
     call("studio_image", t.path).then(function (info) {

@@ -595,7 +595,26 @@ class Api:
     def studio_install_panel(self):
         from . import bridge
         ok, msg = bridge.install_panel(self._app.app_dir, os.path.join(data_dir(), "photoshop"))
+        if ok:
+            self._app.settings.set("ps_panel", True)
         return {"ok": ok, "message": msg}
+
+    def studio_save_layer(self, png, name=""):
+        """One layer of a picture as its own PNG (for the board): saved with the sketches."""
+        try:
+            import base64
+            st = self._app.studio
+            folder = os.path.join(st.home_dir(), "Sketches")
+            os.makedirs(folder, exist_ok=True)
+            raw = base64.b64decode(png.split(",", 1)[1] if "," in png else png)
+            safe = "".join(c if c.isalnum() or c in " -_." else "_" for c in (name or "layer")).strip() or "layer"
+            dest = os.path.join(folder, "%s · %s.png" % (safe, time.strftime("%Y%m%d_%H%M%S")))
+            with open(dest, "wb") as fh:
+                fh.write(raw)
+            return _image_info(dest)
+        except Exception as exc:
+            log.warning("couldn't save the layer: %s", exc)
+            return None
 
     def studio_get_helper(self):
         return self._app.studio.get_helper()

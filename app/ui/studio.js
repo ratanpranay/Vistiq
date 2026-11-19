@@ -1012,7 +1012,7 @@
       else if (act === "edit") api().studio_image(path).then(function (info) { setImage(S.create, "src", info); go("create"); });
       else if (act === "ref") api().studio_image(path).then(function (info) { addRef(info); go("create"); });
     });
-    $("c-ps").addEventListener("click", function (e) {
+    var psClick = function (e) {
       var b = e.target.closest("[data-ps]"); if (!b) return;
       var a = b.getAttribute("data-ps");
       if (a === "app") { S.liveApp = b.getAttribute("data-app"); keep("liveApp", S.liveApp); if (S.live.on && S.live.app !== S.liveApp) {
@@ -1022,10 +1022,16 @@
       else if (a === "off") api().studio_live(false, S.live.app).then(function () { S.live.on = false; S.live.stopped = true; S.live.msg = ""; S.create.liveSrc = null; if (S.create.source === "live") S.create.src = null; render(); });
       else if (a === "back") useSource("live");
       else if (a === "install") {
-        S.live.msg = "Installing the panel…"; render();
-        api().studio_install_panel().then(function (r) { S.live.msg = r ? r.message : ""; render(); });
+        S.live.msg = "Installing the plugin…"; S.live.installing = true; render();
+        api().studio_install_panel().then(function (r) {
+          S.live.installing = false; S.live.msg = r ? r.message : "";
+          if (r && r.ok && S.status) S.status.ps_panel = true;
+          render();
+        });
       }
-    });
+    };
+    $("c-ps").addEventListener("click", psClick);
+    $("c-gate").addEventListener("click", psClick);
     S.plibCat = "sketch";
     $("c-libb").addEventListener("click", function () {
       var el = $("c-plib"), open = el.hidden;
@@ -1743,7 +1749,8 @@
       $("c-work").setAttribute("data-k", wk);
       $("c-work").innerHTML = w ? '<img src="' + w.preview + '" alt=""><span><b>' + esc(short(w.name || "")) + "</b><small>" +
         (w.live ? "Live from " + ((APPS[w.app] || APPS.photoshop)[1]) : isRender(w) ? "Render · " + w.w + " × " + w.h : (/sketch \d/i.test(w.name) ? "Sketch · " : "Picture · ") + w.w + " × " + w.h) +
-        '</small></span><button type="button" class="s-link" data-w="board">← Board</button>' : '<span class="s-none">Open a tile on the board, or click here to pick a picture</span>';
+        '</small></span><button type="button" class="s-link" data-w="board">← Board</button>' :
+        (p.source === "live" ? '<span class="s-none">Live: not connected yet. Follow the steps beside.</span>' : '<span class="s-none">Open a tile on the board, or click here to pick a picture</span>');
     }
     $("c-ps").hidden = !(w && w.live);
     if (w && p.resultsFor !== keyOfSrc(w)) { p.resultsFor = keyOfSrc(w); loadResultsFor(p, w); }
@@ -1806,9 +1813,38 @@
   function gate(id) {
     var st = S.status, g = $(id + "-gate"), stg = $(id + "-stage");
     var show = st && (!st.create_ready || !st.engine_installed);
-    g.hidden = !show; stg.hidden = !!show;
-    if (show) { var h = setupCard(); if (g.getAttribute("data-h") !== h) { g.innerHTML = h; g.setAttribute("data-h", h); } }
-    return show;
+    // Live is its own page: only your Photoshop / Affinity file, once connected (Nov 2026: it showed the
+    // last picture you had open, as if that were live).
+    var livePage = !show && id === "c" && S.create.source === "live" && !S.create.src;
+    g.hidden = !(show || livePage); stg.hidden = !!(show || livePage);
+    g.classList.toggle("s-livepage", !!livePage);
+    if (show || livePage) { var h = show ? setupCard() : liveSetup(); if (g.getAttribute("data-h") !== h) { g.innerHTML = h; g.setAttribute("data-h", h); } }
+    return show || livePage;
+  }
+
+  // The Live page before a file shows up: install the plugin, connect, open a file.
+  function liveSetup() {
+    var L = S.live, st = S.status || {}, apps = st.apps || {};
+    var have = Object.keys(APPS).filter(function (k) { return apps[k]; }); if (!have.length) have = Object.keys(APPS);
+    var cur = L.on && L.app ? L.app : (have.indexOf(S.liveApp) >= 0 ? S.liveApp : have[0]);
+    var nm = APPS[cur][1], ps = cur === "photoshop", inst = !ps || !!st.ps_panel;
+    var step = function (n, state, title, sub, btn) {
+      return '<li class="s-lstep ' + state + '"><i>' + (state === "done" ? "✓" : n) + "</i><span><b>" + title + "</b><small>" + sub + "</small></span>" + (btn || "") + "</li>";
+    };
+    var h = '<div class="s-livecard"><div class="s-lhd"><span class="s-live-dot' + (L.on ? "" : " off") + '"></span><b>Live from ' + nm + "</b></div>" +
+      "<p>Your open " + nm + " file appears here and updates as you draw. Create works on it, and the results go back into your file as layers.</p>" +
+      '<div class="m-apps">' + have.map(function (k) {
+        return '<button type="button" data-ps="app" data-app="' + k + '" class="' + (k === cur ? "on" : "") + '"><span class="m-ico ' + APPS[k][2] + '">' + APPS[k][0] + "</span>" + APPS[k][1] + "</button>";
+      }).join("") + "</div><ol>";
+    if (ps) h += step(1, inst ? "done" : "now", "Install the Studio plugin for Photoshop",
+      inst ? "Installed. In Photoshop: Window → Plugins → Vistiq Studio." : "One time. Then restart Photoshop and open Window → Plugins → Vistiq Studio.",
+      '<button type="button" class="s-btn' + (inst ? "" : " p") + '" data-ps="install"' + (L.installing ? " disabled" : "") + ">" + (L.installing ? "Installing…" : inst ? "Reinstall" : "Install plugin") + "</button>");
+    else h += step(1, "now", "Turn on Affinity's connection", "In Affinity: Settings → Model Context Protocol → Enable Affinity MCP.", "");
+    h += step(2, L.on ? "done" : inst ? "now" : "", "Connect", L.on ? "Connected. Waiting for " + nm + "…" : "Links Studio to " + nm + ".",
+      L.on ? '<button type="button" class="s-btn" data-ps="off">Stop</button>' : '<button type="button" class="s-btn' + (inst ? " p" : "") + '" data-ps="on" data-app="' + cur + '">Connect</button>');
+    h += step(3, L.on ? "now" : "", "Open a file in " + nm, esc(L.state || "It shows up here by itself."), "");
+    h += "</ol>" + (L.msg ? '<p class="s-hint">' + esc(L.msg) + "</p>" : "") + "</div>";
+    return h;
   }
 
   function renderStage(id) {
@@ -2428,7 +2464,7 @@
   }
 
   // For the board (board.js): the shared state and the actions it reuses.
-  window.VS = { currentFile: currentFile, addRef: addRef, local: function (e, f) { return zoom.local(e, f); }, layout: function () { layout(); }, zoomSpace: function () { return zoom.space || !!zoom.pan; }, plusMenu: plusMenu, pop: pop, closePop: closePop, painter: painter, S: S, api: api, esc: esc, short: short, go: go, render: render, setImage: setImage, sendPS: sendPS,
+  window.VS = { useSource: function (v) { useSource(v); }, currentFile: currentFile, addRef: addRef, local: function (e, f) { return zoom.local(e, f); }, layout: function () { layout(); }, zoomSpace: function () { return zoom.space || !!zoom.pan; }, plusMenu: plusMenu, pop: pop, closePop: closePop, painter: painter, S: S, api: api, esc: esc, short: short, go: go, render: render, setImage: setImage, sendPS: sendPS,
                 toast: toast, refresh: refresh, current: current, P: P, job: job, readRef: readRef };
 
   function start() {

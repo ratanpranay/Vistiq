@@ -722,6 +722,12 @@
       if (act === "op" || act === "drag") return;
       doc.active = L.id; order(); panel();
     });
+    // Right-click any layer: its menu (with Send to board).
+    el.addEventListener("contextmenu", function (e) {
+      var row = e.target.closest("[data-l]"); if (!row) return;
+      e.preventDefault();
+      var L = byId(doc, row.getAttribute("data-l")); if (L) layerMenu(L, row.querySelector("[data-a=menu]") || row);
+    });
     el.addEventListener("dblclick", function (e) {
       var b = e.target.closest("[data-a=name]"), row = e.target.closest("[data-l]"); if (!b || !row) return;
       rename(byId(doc, row.getAttribute("data-l")), b);
@@ -767,11 +773,12 @@
   function layerMenu(L, anchor) {
     var base = L.kind === "base", i = doc.layers.indexOf(L), under = doc.layers[i - 1];
     var it = function (v, label, dis, key, cls) { return '<button type="button" class="it' + (cls ? " " + cls : "") + '" data-p="' + v + '"' + (dis ? " disabled" : "") + "><span>" + label + "</span>" + (key ? '<span class="k">' + key + "</span>" : "") + "</button>"; };
-    var html = it("rename", "Rename") + it("dup", "Duplicate", base, "Ctrl J") + it("merge", "Merge down", base || !under || under.kind === "base" && false, "Ctrl E") +
+    var html = it("board", "Send to board") + "<hr>" + it("rename", "Rename") + it("dup", "Duplicate", base, "Ctrl J") + it("merge", "Merge down", base || !under || under.kind === "base" && false, "Ctrl E") +
       "<hr><div class=\"ttl\">Blend mode</div>" + BLENDS.map(function (b) { return '<button type="button" class="it' + (L.blend === b[0] ? " on" : "") + '" data-p="blend:' + b[0] + '"><span class="ck">' + (L.blend === b[0] ? ic("check", 14) : "") + "</span><span>" + b[1] + "</span></button>"; }).join("") +
       "<hr>" + it("lock", L.locked ? "Unlock" : "Lock", base) + it("fh", "Flip horizontal", base) + it("fv", "Flip vertical", base) + it("clear", "Clear layer", base) +
       "<hr>" + it("del", "Delete", base, "Del", "red");
     V().pop(anchor, html, function (v) {
+      if (v === "board") { toBoard(L); return; }
       if (v === "rename") { var row = view.querySelector('#sk-panel [data-l="' + L.id + '"] [data-a=name]'); if (row) rename(L, row); }
       else if (v === "dup") { var n = addLayer(doc, L.name + " copy"); n.canvas.getContext("2d").drawImage(L.canvas, 0, 0); n.opacity = L.opacity; n.blend = L.blend; n.canvas.className = "sk-layer"; fit.appendChild(n.canvas); }
       else if (v === "merge") mergeDown(L);
@@ -782,6 +789,23 @@
       else if (v === "del") delLayer(L);
       order(); panel(); thumbs(); V().render();
     }, "right");
+  }
+  // One layer out on the board as its own picture: the picture itself (a still copy when it is live),
+  // or a paint / result layer saved as a PNG.
+  function toBoard(L) {
+    var api = V().api(), src = V().S.create.src, done = function (info) {
+      if (!info) { V().toast("Couldn't put that layer on the board."); return; }
+      if (window.VSBoard) window.VSBoard.addResult(info, null);
+      V().toast("“" + L.name + "” is on the board");
+    };
+    if (L.kind === "base") {
+      if (!src) return;
+      if (src.live || src.frozen || /^live:/.test(src.path || "")) api.studio_freeze(src.path, src.name || L.name).then(done);
+      else done({ path: src.path, name: src.name, w: src.w, h: src.h });
+      return;
+    }
+    if (!hasPaint(L)) { V().toast("That layer is empty."); return; }
+    api.studio_save_layer(L.canvas.toDataURL("image/png"), L.name).then(done);
   }
   function flipLayer(L, h) {
     var c = L.canvas, ctx = c.getContext("2d"), before = ctx.getImageData(0, 0, c.width, c.height), t = document.createElement("canvas");

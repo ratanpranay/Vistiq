@@ -850,6 +850,43 @@ const frame = (n, name) => ({ path: "live://photoshop/" + n, name: name || "flat
     check("render with a foreign name keeps Materials and Light", on.materials && on.light, JSON.stringify(on));
     await p.close();
   }
+  // The Live tile is its own page: the steps to connect, never the last picture; then only the live file.
+  {
+    const p = await open(browser, null, { board: true });
+    await p.waitForTimeout(150);
+    await p.ev("studio-dropped", { target: "board", images: [{ path: "C:/a/old.png", name: "old.png", w: 1600, h: 900, preview: img }] });
+    await p.waitForTimeout(150);
+    await p.dblclick('.b-tile:not([data-id="live"])'); await p.waitForTimeout(250);
+    await p.click(".s-nav button[data-page=board]"); await p.waitForTimeout(150);
+    await p.dblclick('.b-tile[data-id="live"]'); await p.waitForTimeout(250);
+    const gateTxt = await p.text("#c-gate");
+    check("Live page: steps instead of the last picture", (await p.isVisible("#c-gate")) && !(await p.isVisible("#c-stage")) && /Install plugin/.test(gateTxt) && /Connect/.test(gateTxt), gateTxt.slice(0, 120));
+    check("Live page: the old picture isn't working-on", !/old/.test(await p.text("#c-work")), await p.text("#c-work"));
+    await p.ev("studio-live", frame(1));
+    await p.waitForTimeout(150);
+    check("Live page: the Photoshop file shows once connected", !(await p.isVisible("#c-gate")) && (await p.isVisible("#c-stage")) && /flat 2\.psd/.test(await p.text("#c-work")), await p.text("#c-work"));
+    check("Live page: no page errors", !p.errors.length, p.errors.join("; "));
+    await p.close();
+  }
+  // Right-click any layer: Send to board.
+  {
+    const p = await open(browser);
+    await p.evaluate((g) => { const api = window.pywebview.api; window.__saved = 0;
+      api.studio_save_layer = (png, name) => { window.__saved++; return Promise.resolve({ path: "C:/s/" + name + ".png", name: name + ".png", w: 800, h: 450, preview: g }); };
+      window.VS.setImage(window.VS.S.create, "src", { path: "C:/a/pic.png", name: "pic.png", w: 1600, h: 900, preview: g }); }, img);
+    await p.waitForTimeout(250);
+    const fb = await p.locator("#c-view .s-fit").boundingBox(), at = (u, v) => [fb.x + fb.width * u, fb.y + fb.height * v];
+    await p.keyboard.press("b");
+    await p.mouse.move(...at(0.3, 0.5)); await p.mouse.down(); await p.mouse.move(...at(0.6, 0.5), { steps: 8 }); await p.mouse.up(); await p.waitForTimeout(100);
+    await p.hover("#sk-panel"); await p.waitForTimeout(200);
+    await p.click("#sk-panel .row.on", { button: "right" }); await p.waitForTimeout(150);
+    check("layer right-click shows Send to board", await p.isVisible('[data-p="board"]'), "no menu");
+    await p.click('[data-p="board"]'); await p.waitForTimeout(200);
+    const onBoard = await p.evaluate(() => window.VSBoard._state().tiles.some((t) => /Layer/.test(t.name || "")));
+    check("Send to board saves the layer and puts it on the board", (await p.evaluate(() => window.__saved)) === 1 && onBoard, "saved " + (await p.evaluate(() => window.__saved)));
+    check("layer to board: no page errors", !p.errors.length, p.errors.join("; "));
+    await p.close();
+  }
   await browser.close();
   console.log(failed ? failed + " screen test(s) failed" : "all screen tests passed");
   process.exit(failed ? 1 : 0);

@@ -436,6 +436,11 @@ class Studio:
             f["preview"] = imaging.preview(data if data is not None else f["path"])
         except Exception:
             return
+        if f.get("app", "photoshop") == "photoshop" and not self.settings.get("ps_panel"):
+            try:
+                self.settings.set("ps_panel", True)        # the plugin is there: it sent a picture
+            except Exception:
+                pass
         self.emit("studio-live", f)
 
     def emit(self, kind, data):
@@ -450,6 +455,7 @@ class Studio:
         st = studio.status(self.settings)
         st["engine"] = {"state": self.engine.state, "message": self.engine.message}
         st["apps"] = installed_apps()
+        st["ps_panel"] = bool(self.settings.get("ps_panel"))
         st["sizes"] = recommended_sizes()
         t = dict(self.settings.get("studio_times") or {})
         if sys.platform != "darwin" and studio.use_qwenedit(self.settings):
