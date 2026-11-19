@@ -836,6 +836,20 @@ const frame = (n, name) => ({ path: "live://photoshop/" + n, name: name || "flat
     check("strip: progress doesn't snap the strip back", Math.abs(x1 - x0) < 2, x0 + " -> " + x1);
     await p.close();
   }
+  // A finished render with a foreign file name: the picture reader says "render", Studio treats it as one.
+  {
+    const p = await open(browser);
+    await p.evaluate(() => { const api = window.pywebview.api;
+      api.studio_pick = () => Promise.resolve({ path: "D:/x/Flux2_dev_00121_.png", name: "Flux2_dev_00121_.png", w: 1450, h: 1800, preview: "data:image/gif;base64,R0lGODlhAQABAAAAACw=" });
+      api.studio_medium = () => Promise.resolve("render"); });
+    await p.click("#c-work");
+    await p.waitForTimeout(300);
+    const t = await p.text("#c-work");
+    check("render with a foreign name reads as Render", /Render/.test(t), t);
+    const on = await p.evaluate(() => { const o = {}; document.querySelectorAll('#c-locks button').forEach((b) => { o[b.dataset.v] = b.classList.contains('on'); }); return o; });
+    check("render with a foreign name keeps Materials and Light", on.materials && on.light, JSON.stringify(on));
+    await p.close();
+  }
   await browser.close();
   console.log(failed ? failed + " screen test(s) failed" : "all screen tests passed");
   process.exit(failed ? 1 : 0);

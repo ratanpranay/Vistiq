@@ -526,6 +526,14 @@ class Api:
     def studio_drop_target(self, target):
         self._app.drop_target = target or ""
 
+    def studio_medium(self, path):
+        """Sketch or render, read from the picture itself (not its file name)."""
+        try:
+            return self._app.studio.medium(path)
+        except Exception as exc:
+            log.warning("medium: %s", exc)
+            return ""
+
     def studio_run(self, job):
         return self._app.studio.run(job)
 

@@ -58,7 +58,23 @@
     design: /\b(redesign|reshape|new shape|change the (shape|form|design)|add (a|an|the)?\s*\w+|remove|bigger|smaller|wider|narrower|taller|shorter|more aggressive|sportier)\b/i,
     camera: /\b(angle|view from|side view|front view|rear view|top view|from above|from below|camera|zoom out|zoom in|close-?up|wide shot|perspective)\b/i
   };
-  function isRender(src) { return !!src && !src.live && !src.frozen && /_(create|refine|paint|camera|cmf|style|reference|variation)|_[248]x\b|upscal/i.test(src.name || src.path || ""); }
+  var MADE_HERE = /_(create|refine|paint|camera|cmf|style|reference|variation)|_[248]x\b|upscal/i;
+  // A render: one of Studio's own results, or a picture the picture reader saw as a render (any file
+  // name: a FLUX output read as a sketch was re-drawn from scratch and lost its detail, Nov 2026).
+  function isRender(src) { return !!src && !src.live && !src.frozen && (MADE_HERE.test(src.name || src.path || "") || src.medium === "render"); }
+  // Ask the picture reader once per opened picture; until it answers, the file name decides.
+  function askMedium(p) {
+    var m = p.src;
+    if (!m || m.live || m.frozen || !m.path || m.medium !== undefined || MADE_HERE.test(m.name || m.path || "")) return;
+    if (!api().studio_medium) return;
+    m.medium = null;
+    api().studio_medium(m.path).then(function (r) {
+      m.medium = r || "";
+      if (r !== "render") return;
+      if (p.src === m && p.locksAuto) p.locks = defaultLocks(m);   // its own Keep, unless you set them already
+      render();
+    }, function () { m.medium = ""; });
+  }
   // A result in view: Describe shows the words it was made with (edit them and
   // Create again); back on your picture, what you had typed comes back.
   // What a result was made with, when it had no words of its own.
@@ -271,7 +287,7 @@
     if (it[2]) {
       p.locks = Object.assign({}, p.locks || defaultLocks(p.src));
       Object.keys(it[2]).forEach(function (k) { p.locks[k] = it[2][k]; });
-      p.locksFor = keyOfSrc(p.src);
+      p.locksFor = keyOfSrc(p.src); p.locksAuto = false;
     }
     $("c-plib").hidden = true; $("c-libb").classList.remove("on");
     if (it[3]) toast(it[3]);
@@ -829,7 +845,7 @@
     $("c-locks").addEventListener("click", function (e) {
       var b = e.target.closest("button"); if (!b) return;
       var p = S.create, k = b.getAttribute("data-v");
-      p.locks = Object.assign({}, p.locks || defaultLocks(p.src)); p.locks[k] = !p.locks[k]; p.locksFor = keyOfSrc(p.src); render();
+      p.locks = Object.assign({}, p.locks || defaultLocks(p.src)); p.locks[k] = !p.locks[k]; p.locksFor = keyOfSrc(p.src); p.locksAuto = false; render();
     });
     $("c-refs").addEventListener("click", function (e) {
       var p = S.create, b;
@@ -869,7 +885,7 @@
     $("c-warn").addEventListener("click", function (e) {
       var b = e.target.closest("[data-unlock]"); if (!b) return;
       var p = S.create; p.locks = Object.assign({}, p.locks || defaultLocks(p.src));
-      b.getAttribute("data-unlock").split(",").forEach(function (k) { p.locks[k] = false; }); p.locksFor = keyOfSrc(p.src); render();
+      b.getAttribute("data-unlock").split(",").forEach(function (k) { p.locks[k] = false; }); p.locksFor = keyOfSrc(p.src); p.locksAuto = false; render();
     });
     $("c-work").addEventListener("click", function (e) {
       if (e.target.closest("[data-w=board]")) { go("board"); return; }
@@ -1709,6 +1725,7 @@
 
   function renderCreate() {
     var p = S.create, st = S.status;
+    askMedium(p);
     $("c-imp").querySelector(".s-impb").hidden = !(st && st.helper_ready);
     // One part failing to draw must not leave the rest of the panel stale.
     try { renderPS(); } catch (e) {
@@ -1721,7 +1738,7 @@
     on($("c-area"), "data-v", p.area);
     on($("c-presets"), "data-v", p.preset);
     // Working on: what is open, where it came from.
-    var w = p.src, wk = w ? keyOfSrc(w) + (w.preview || "").length : "";
+    var w = p.src, wk = w ? keyOfSrc(w) + (w.preview || "").length + ":" + (w.medium || "") : "";
     if ($("c-work").getAttribute("data-k") !== wk) {
       $("c-work").setAttribute("data-k", wk);
       $("c-work").innerHTML = w ? '<img src="' + w.preview + '" alt=""><span><b>' + esc(short(w.name || "")) + "</b><small>" +
@@ -1730,7 +1747,7 @@
     }
     $("c-ps").hidden = !(w && w.live);
     if (w && p.resultsFor !== keyOfSrc(w)) { p.resultsFor = keyOfSrc(w); loadResultsFor(p, w); }
-    if (p.locksFor !== keyOfSrc(w)) { p.locks = defaultLocks(w); p.locksFor = keyOfSrc(w); }
+    if (p.locksFor !== keyOfSrc(w)) { p.locks = defaultLocks(w); p.locksFor = keyOfSrc(w); p.locksAuto = true; }
     // Each picture keeps its own words: another picture starts with its own (empty when new).
     var tk = w && (w.live || w.frozen) ? "live" : keyOfSrc(w);
     if (p.textFor !== tk) {

@@ -349,9 +349,12 @@ class Studio:
                 return memo[key]
             say("Reading your picture", None)
             from . import reader
-            if not hasattr(self, "_reader"):
-                self._reader = reader.Reader(lambda: studio.models_dir(self.settings))
-            out = self._reader.describe(path, use, req)
+            with self.__dict__.setdefault("_read_lock", threading.Lock()):   # one reader, two callers (medium + a run)
+                if key in memo:
+                    return memo[key]
+                if not hasattr(self, "_reader"):
+                    self._reader = reader.Reader(lambda: studio.models_dir(self.settings))
+                out = self._reader.describe(path, use, req)
             if key and out:
                 if len(memo) > 200:
                     memo.clear()
@@ -359,6 +362,17 @@ class Studio:
             return out
         except Exception as e:                       # never block a run over this
             log.warning("picture reader: %s", e)
+            return ""
+
+    def medium(self, path):
+        """"render" or "sketch" for a picture just opened (the picture reader's view, the same read a run
+        uses, so the run answers from memory), or "" when it can't tell or a run is busy."""
+        if self._job and self._job.is_alive():
+            return ""
+        try:
+            return studio.parse_medium(self._read(self.real_path(path), "view", lambda *a: None) or "")
+        except Exception as e:
+            log.warning("medium: %s", e)
             return ""
 
     def _next_seq(self):
@@ -936,6 +950,13 @@ class Studio:
                 if studio.use_qwenedit(s) and not refs:
                     va = self._read(work_path, "view", say) or ""
                     kind = studio.parse_view(va)[0]                    # interior or exterior wording
+                    # A finished render opened as a sketch (Studio guessed from the file name, e.g. a
+                    # FLUX output): the reader sees it is a render, so it is changed as one. As a sketch it
+                    # was re-drawn from scratch ("Turn this sketch into a render") and lost its detail (Nov 2026).
+                    if ((job.get("preset") or "") == "sketch" and not job.get("instant")
+                            and studio.parse_medium(va) == "render"):
+                        job = dict(job, preset="render")
+                        text = studio.build_text("render", job.get("text"))
                     cam_words = studio.instant_camera("", "")         # words never move the camera unless asked
                     # Scenarios and lighting are easiest on a resolved CGI design (the person, Nov 2026): a
                     # picture that is already CGI is changed directly (2511); a sketch first becomes CGI (the

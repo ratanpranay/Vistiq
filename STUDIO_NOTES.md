@@ -1,5 +1,9 @@
 # Vistiq Studio (test build)
 
+## 0.4.90
+- A finished render with any file name (e.g. a FLUX or Midjourney output) is now recognised as a render: the picture reader looks at the picture itself, not the file name. Before, such a render was treated as a sketch and re-drawn from scratch ("turn this sketch into a render"), losing its detail and getting patchy colours.
+- Its Keep locks start as for a render (Materials and Light kept), unless you already set them.
+
 ## 0.4.89
 - Results strip: with many results (30+) the mouse wheel scrolls all the way through, also while a render runs; the strip no longer jumps back to the running tile on every progress update. Wheel scrolling is a bit faster.
 
