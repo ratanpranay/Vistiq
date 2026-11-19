@@ -813,6 +813,29 @@ const frame = (n, name) => ({ path: "live://photoshop/" + n, name: name || "flat
     check("prompt library no errors", !p.errors.length, p.errors.join("; "));
     await p.close();
   }
+  // Many results: the strip scrolls with the wheel and stays put while a render's progress updates.
+  {
+    const p = await open(browser);
+    await p.ev("studio-live", frame(1));
+    for (let r = 0; r < 16; r++) {
+      await p.fill("#c-text", "x" + r); await p.click("#c-go"); await p.waitForTimeout(20);
+      for (let i = 0; i < 2; i++) await p.ev("studio-result", { id: "j1", index: i, of: 2, result: { path: "C:/o/m" + r + "_" + i + ".png", name: "m" + r + ".png", w: 1600, h: 900, preview: img } });
+      await p.ev("studio-job", { id: "j1", state: "done", count: 2 });
+    }
+    await p.fill("#c-text", "again"); await p.click("#c-go"); await p.waitForTimeout(50);
+    await p.ev("studio-job", { id: "j1", state: "running", stage: "Creating", fraction: 0.1 });
+    const box = await p.evaluate(() => { const r = document.getElementById("c-strip").getBoundingClientRect(); return { x: r.left + 300, y: r.top + r.height / 2 }; });
+    await p.mouse.move(box.x, box.y);
+    for (let i = 0; i < 10; i++) await p.mouse.wheel(0, -100);
+    await p.waitForTimeout(100);
+    const x0 = await p.evaluate(() => document.getElementById("c-strip").scrollLeft);
+    for (let f = 2; f < 8; f++) { await p.ev("studio-job", { id: "j1", state: "running", stage: "Creating", fraction: f / 10 }); await p.waitForTimeout(30); }
+    const x1 = await p.evaluate(() => document.getElementById("c-strip").scrollLeft);
+    const max = await p.evaluate(() => { const s = document.getElementById("c-strip"); return s.scrollWidth - s.clientWidth; });
+    check("strip: wheel scrolls back through many results during a run", max > 0 && x0 < max - 200, x0 + " of " + max);
+    check("strip: progress doesn't snap the strip back", Math.abs(x1 - x0) < 2, x0 + " -> " + x1);
+    await p.close();
+  }
   await browser.close();
   console.log(failed ? failed + " screen test(s) failed" : "all screen tests passed");
   process.exit(failed ? 1 : 0);

@@ -1,5 +1,8 @@
 # Vistiq Studio (test build)
 
+## 0.4.89
+- Results strip: with many results (30+) the mouse wheel scrolls all the way through, also while a render runs; the strip no longer jumps back to the running tile on every progress update. Wheel scrolling is a bit faster.
+
 ## 0.4.88
 - Scene changes with Materials kept ("on a city road at sunset, foggy weather"): what the model draws outside now stays. Studio's keep steps (colour, texture, no new parts) only work where the result is still your picture under new light, never over a new view, so the old desert is no longer painted back over the city.
 - Words that set a place or weather no longer get Studio's own golden-hour look added (it said "no fog" under "foggy"), nor "only the light changes".

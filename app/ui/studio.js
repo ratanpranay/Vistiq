@@ -949,9 +949,14 @@
       };
       // The mouse wheel slides the results sideways.
       $(id + "-strip").addEventListener("wheel", function (e) {
-        var el = this; if (el.scrollWidth <= el.clientWidth || Math.abs(e.deltaX) > Math.abs(e.deltaY)) return;
-        e.preventDefault(); el.scrollLeft += e.deltaY;
+        var el = this; el.__userAt = Date.now();
+        if (el.scrollWidth <= el.clientWidth || Math.abs(e.deltaX) > Math.abs(e.deltaY)) return;
+        e.preventDefault(); e.stopPropagation();
+        el.scrollLeft += e.deltaY * (e.deltaMode === 1 ? 40 : 1.6);   // lines (some mice) or pixels, a bit faster
       }, { passive: false });
+      ["pointerdown", "touchstart", "keydown"].forEach(function (k) {
+        $(id + "-strip").addEventListener(k, function () { this.__userAt = Date.now(); }, { passive: true });
+      });
       $(id + "-strip").addEventListener("click", function (e) {
         var t = e.target.closest("[data-i]"); if (t) { pickResult(p, +t.getAttribute("data-i")); return; }
         if (e.target.closest(".s-more")) job(id, { variations: 1 });
@@ -1943,11 +1948,19 @@
     // Results of other pictures stay in the Library (no "Earlier" fold here).
     var sk = $(id + "-strip");
     if (sk.getAttribute("data-h") !== strip) {
+      // Progress redraws the strip many times a second: keep where the person scrolled to, and only
+      // bring a tile into view when the pick or the run changes, never while they scroll (Nov 2026:
+      // with 30 results the strip kept jumping back while a render ran).
+      var keepX = sk.scrollLeft, busy = Date.now() - (sk.__userAt || 0) < 5000;
       sk.innerHTML = strip; sk.setAttribute("data-h", strip);
-      var on = sk.querySelector("img.sel,.s-miss.sel,.s-ph.sel"); if (on && on.scrollIntoView) on.scrollIntoView({ block: "nearest", inline: "nearest" });
-      // A run in progress: bring its tiles into view.
+      sk.scrollLeft = keepX;
+      var on = sk.querySelector("img.sel,.s-miss.sel,.s-ph.sel");
+      var selk = on ? (on.getAttribute("data-i") || "") + ":" + (p.sel) : "";
+      if (on && !busy && sk.getAttribute("data-selk") !== selk && on.scrollIntoView) on.scrollIntoView({ block: "nearest", inline: "nearest" });
+      sk.setAttribute("data-selk", selk);
+      // A run in progress: bring its tiles into view when it starts or a result lands.
       var rk = p.job ? (p.jobKey || "") + ":" + (p.jobDone || 0) + ":" + (p.pending || 0) : "";
-      if (rk && sk.getAttribute("data-run") !== rk) { var lastPh = sk.querySelector(".s-ph:last-of-type") || sk.lastElementChild; if (lastPh && lastPh.scrollIntoView) lastPh.scrollIntoView({ block: "nearest", inline: "end" }); }
+      if (rk && !busy && sk.getAttribute("data-run") !== rk) { var lastPh = sk.querySelector(".s-ph:last-of-type") || sk.lastElementChild; if (lastPh && lastPh.scrollIntoView) lastPh.scrollIntoView({ block: "nearest", inline: "end" }); }
       sk.setAttribute("data-run", rk);
     }
     layout();
