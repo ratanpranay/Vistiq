@@ -1031,19 +1031,26 @@ def tier(settings=None):
 def _mac_status(settings):
     from . import macos
     md = models_dir(settings)
-    parts = macos.parts(md)
+    t = macos.tier(settings)
+    parts = macos.parts(md, t)
     rows = [{"key": p["key"], "part": "create", "tier": "good", "label": p["label"], "about": p["about"],
              "gb": p["gb"], "ready": p["ready"], "file": "", "can_download": True, "page": "",
              "optional": False} for p in parts]
     ram = macos.ram_gb()
     gen = macos.can_generate(ram)
     ready = all(r["ready"] for r in rows) and gen
+    rec = macos.recommended_tier(ram)
+    tiers = [dict(x, allowed=macos.tier_allowed(x["key"], ram) and (x["engine"] != "mage" or macos.mage_supported()),
+                  recommended=x["key"] == rec, ready=all(p["ready"] for p in macos.parts(md, x["key"])))
+             for x in macos.TIERS]
     return {"files": rows, "create_ready": ready, "juice_ready": False, "tier": "good", "chosen": "good",
             "tiers": {"best": {"label": "Best quality", "ready": False}, "good": {"label": "Good quality", "ready": ready}},
             "engine_installed": rows[0]["ready"], "loras": [], "select_ready": select_installed(settings),
             "helper_ready": helper_installed(settings), "reader_ready": reader_installed(settings),
             "home": home(settings), "comfy_models": "",
-            "mac": {"chip": macos.chip(), "ram": ram, "can_generate": gen, "max_side": macos.max_side(ram), "work_side": macos.work_side(ram)}}
+            "mac": {"chip": macos.chip(), "ram": ram, "can_generate": gen, "max_side": macos.max_side(ram),
+                    "work_side": macos.work_side(ram), "tier": t, "tiers": tiers, "chosen": bool(settings and settings.get("mac_tier")),
+                    "mage_supported": macos.mage_supported()}}
 
 
 def status(settings=None):

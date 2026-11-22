@@ -1190,3 +1190,21 @@ body.studio .s-vars>.s-ph.sel{border-color:var(--ink)}
 .s-btn.s-danger:disabled{opacity:.45}
 .s-danger-h{color:var(--bad)}
 .wipe-err{color:var(--bad)!important;min-height:0;margin:0!important}
+
+/* Mac setups: Light / Studio / Pro */
+.m-tiers{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin:14px 0 16px}
+.m-tier{position:relative;text-align:left;background:#fff;border:1px solid var(--line);border-radius:14px;padding:16px 14px 12px;display:flex;flex-direction:column;gap:2px;font:inherit;color:var(--ink);cursor:pointer}
+.m-tier.on{border:2px solid transparent;background:linear-gradient(#fff,#fff) padding-box,var(--brand) border-box;box-shadow:0 8px 24px rgba(59,84,233,.12)}
+.m-tier.off{background:var(--field);color:var(--faint);cursor:default}
+.m-tier.off *{color:var(--faint)!important}
+.m-tier b{font-size:17px}
+.m-tier small{font-size:12px;color:var(--dim)}
+.m-tier .m-range{font-size:10.5px;font-weight:700;letter-spacing:.05em;text-transform:uppercase}
+.m-rec{position:absolute;top:-9px;left:12px;font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;padding:3px 8px;border-radius:999px;background:var(--brand);color:#fff!important}
+.m-tier ul{list-style:none;padding:0;margin:8px 0 10px;font-size:12.5px;line-height:1.4}
+.m-tier li{padding:3px 0 3px 16px;position:relative;color:var(--ink-2)}
+.m-tier li:before{content:"";position:absolute;left:2px;top:9px;width:6px;height:6px;border-radius:50%;background:var(--ok)}
+.m-tier li.no{color:var(--faint)}
+.m-tier li.no:before,.m-tier.off li:before{background:var(--line-2)}
+.m-foot{margin-top:auto;display:flex;justify-content:space-between;border-top:1px solid var(--line);padding-top:8px;font-size:12px;color:var(--dim)}
+@media (max-width:760px){.m-tiers{grid-template-columns:1fr}}

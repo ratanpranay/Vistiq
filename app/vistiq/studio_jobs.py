@@ -198,7 +198,7 @@ class Studio:
         from .settings import data_dir
         if sys.platform == "darwin":
             from . import macos
-            self.engine = macos.MlxEngine(lambda: studio.models_dir(app.settings))
+            self.engine = macos.MacEngine(app.settings, lambda: studio.models_dir(app.settings))
         else:
             self.engine = studio.ImageEngine(app.settings, os.path.join(data_dir(), "logs"))
         self._cancel = threading.Event()
@@ -496,7 +496,7 @@ class Studio:
                 if sys.platform == "darwin":
                     from . import macos
                     macos.install(studio.models_dir(self.settings), studio.download, prog, self._cancel.is_set,
-                                  want_generate=macos.can_generate())
+                                  want_generate=macos.can_generate(), t=macos.tier(self.settings))
                     if not studio.select_installed(self.settings):
                         try:
                             studio.install_select(self.settings, prog, self._cancel.is_set)

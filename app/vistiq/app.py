@@ -909,6 +909,8 @@ class Api:
         return self._app.studio.get_select()
 
     def studio_set_tier(self, tier):
+        if tier in ("light", "studio", "pro"):
+            self._app.settings.set("mac_tier", tier)      # a Mac setup (Settings › This Mac)
         if tier in ("best", "good"):
             self._app.settings.set("studio_tier", tier)
         return self._app.studio.status()

@@ -2419,18 +2419,38 @@
   // First run: pick the quality, then one button. It takes what is already on
   // this PC (a ComfyUI, the Downloads folder), sets up the engine and downloads
   // the rest. Only "Best quality" leaves one file to fetch by hand.
+  // Mac: Light / Studio / Pro by memory. A Mac's memory never changes, so the
+  // setups above it are greyed out; the highest one that fits is suggested.
+  function macPick(st) {
+    var p = S.pickTier, ok = (st.mac.tiers || []).filter(function (x) { return x.key === p && x.allowed; })[0];
+    return ok ? p : st.mac.tier;
+  }
+  function macTierCards(st) {
+    var pick = macPick(st);
+    return '<div class="m-tiers">' + (st.mac.tiers || []).map(function (x) {
+      var off = !x.allowed;
+      return '<button type="button" class="m-tier' + (x.key === pick ? " on" : "") + (off ? " off" : "") + '" data-su="tier" data-t="' + x.key + '"' + (off ? " disabled" : "") + ">" +
+        (x.recommended ? '<span class="m-rec">Recommended</span>' : "") +
+        '<small class="m-range">' + esc(x.range) + "</small><b>" + esc(x.name) + "</b><small>" + esc(x.speed) + "</small>" +
+        "<ul>" + x.has.map(function (t) { return "<li>" + esc(t) + "</li>"; }).join("") + x["not"].map(function (t) { return '<li class="no">' + esc(t) + "</li>"; }).join("") + "</ul>" +
+        '<span class="m-foot"><span>' + (x.ready ? "Downloaded" : gb(x.gb) + " download") + "</span><span>" +
+        (off ? (x.engine === "mage" && !st.mac.mage_supported && st.mac.ram >= x.min ? "Needs macOS 26.2+" : "Needs more memory") : x.key === st.mac.tier && st.create_ready ? "In use" : "Fits") + "</span></span></button>";
+    }).join("") + "</div>";
+  }
+
   function setupCard() {
     var st = S.status, running = !!S.setup.run;
     var t = S.pickTier || st.chosen || st.tier || "";
     var err = S.setup.error ? '<div class="s-err">' + esc(S.setup.error) + "</div>" : "";
     var h = '<div class="s-su"><h1>Set up Vistiq Studio</h1>';
     if (st.mac && !running) {
-      var need = st.files.filter(function (f) { return !f.ready; }).reduce(function (a, f) { return a + f.gb; }, 0);
-      h += '<div class="m-hw"><span>' + esc(st.mac.chip) + "</span><span>" + st.mac.ram + " GB memory</span></div>" +
-        "<p>A one-time download of about " + gb(need + (st.select_ready ? 0 : 0.1)) + ". After that everything runs on this Mac, also without internet.</p>" +
-        '<div class="s-list">' + fileRows(st.files) + "</div>" +
+      var mt = macPick(st), cur = (st.mac.tiers || []).filter(function (x) { return x.key === mt; })[0] || {};
+      var need = cur.ready ? 0 : st.files.filter(function (f) { return !f.ready; }).reduce(function (a, f) { return a + f.gb; }, 0);
+      h += "<p>We checked your Mac and suggest the fastest setup it can run. Only that setup's files are downloaded; after that everything runs on this Mac, also without internet.</p>" +
+        '<div class="m-hw"><span>' + esc(st.mac.chip) + "</span><span>" + st.mac.ram + " GB memory</span></div>" +
+        macTierCards(st) +
         (st.mac.can_generate ? "" : '<div class="s-err">Image generation needs a Mac with 16 GB of memory or more. Upscaling and the rest still work.</div>') +
-        '<button type="button" class="s-go" style="height:50px" data-su="download"><span>Set up</span></button>' + err +
+        '<button type="button" class="s-go" style="height:50px" data-su="download"><span>Download ' + esc(cur.name || "") + " · " + gb(need + (st.select_ready ? 0 : 0.1)) + "</span></button>" + err +
         "</div>";
       return h;
     }
@@ -2498,6 +2518,7 @@
       '<button type="button" class="s-btn" data-su="take-other"' + (running ? " disabled" : "") + ">Take files from a folder…</button>" +
       (st.comfy_models ? '<button type="button" class="s-btn" data-su="take" data-path="' + esc(st.comfy_models) + '"' + (running ? " disabled" : "") + ">Take from my ComfyUI</button>" : "") + "</div>" +
       progressHTML() +
+      (st.mac ? '<div class="s-sec">Setup</div><p class="s-hint">Pick another setup to switch; a setup that isn\'t downloaded yet opens the setup page.</p>' + macTierCards(st) : "") +
       (st.mac ? '<div class="s-sec">This Mac</div><p class="s-hint">' + esc(st.mac.chip) + " · " + st.mac.ram + " GB memory · creates at up to " + st.mac.work_side + " px, upscales up to " + st.mac.max_side + " px" +
         (st.mac.can_generate ? "" : " · image generation needs 16 GB or more") + '</p><div class="s-list">' + fileRows(st.files) + selectRow + helperRow + readerRow + "</div>" : "") +
       // shown even without FLUX 3: a PC can run on Qwen Image Edit alone (Nov 2026, new office PC)

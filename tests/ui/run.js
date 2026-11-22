@@ -971,6 +971,28 @@ const frame = (n, name) => ({ path: "live://photoshop/" + n, name: name || "flat
     await p.click('#pj-modal [data-dlg="go"]'); await p.waitForTimeout(150);
     check("wipe: sends DELETE and says it's closing", (await p.evaluate(() => window.__wiped)) === "DELETE" && /closing/.test(await p.text("#pj-modal")), await p.text("#pj-modal"));
     check("projects: no page errors", !p.errors.length, p.errors.join("; "));
+    await p.evaluate(() => { const m = document.getElementById("pj-modal"); if (m) m.remove(); });
+    // Mac setup: Light / Studio / Pro by memory; higher ones greyed out, best one that fits suggested.
+    await p.evaluate(() => {
+      const T = (k, n, min, eng, ready) => ({ key: k, name: n, range: k, min, engine: eng, speed: "fast", gb: 9.9, has: ["a"], not: [], allowed: min <= 16, recommended: k === "studio", ready });
+      const st = Object.assign({}, window.VS.S.status, { create_ready: false,
+        files: [{ key: "mlxserve", label: "Engine", about: "", gb: 0.1, ready: false, can_download: true, part: "create" }, { key: "mageflow", label: "Image model", about: "", gb: 9.7, ready: false, can_download: true, part: "create" }],
+        mac: { chip: "Apple M3", ram: 16, can_generate: true, max_side: 4096, work_side: 1080, tier: "studio", mage_supported: true,
+               tiers: [T("light", "Light", 0, "klein", true), T("studio", "Studio", 10, "mage", false), T("pro", "Pro", 20.5, "mage", false)] } });
+      window.VS.S.status = st; window.VS.S.pickTier = "";
+      window.pywebview.api.studio_set_tier = (t) => { window.__tier = t; return Promise.resolve(null); };
+      window.pywebview.api.studio_status = () => Promise.resolve(st);
+    });
+    await p.click(".s-nav button[data-page=create]"); await p.waitForTimeout(300);
+    const tiers = await p.evaluate(() => [...document.querySelectorAll(".m-tier")].map((b) => (b.classList.contains("on") ? "*" : "") + b.getAttribute("data-t") + (b.disabled ? "-off" : "")).join(","));
+    check("mac setup: three setups, Studio picked, Pro greyed out", tiers === "light,*studio,pro-off", tiers);
+    check("mac setup: Studio is the recommended one", /recommended/i.test(await p.text('.m-tier[data-t="studio"]')), "");
+    if (process.env.SHOTS) await p.screenshot({ path: process.env.SHOTS + "/mac-setup.png" });
+    await p.click('.m-tier[data-t="light"]'); await p.waitForTimeout(150);
+    check("mac setup: picking Light asks for it", (await p.evaluate(() => window.__tier)) === "light", await p.evaluate(() => window.__tier));
+    await p.click('.m-tier[data-t="pro"]', { force: true }); await p.waitForTimeout(100);
+    check("mac setup: a greyed-out setup can't be picked", (await p.evaluate(() => window.__tier)) === "light", "");
+    check("mac setup: no page errors", !p.errors.length, p.errors.join("; "));
     await p.close();
   }
   await browser.close();

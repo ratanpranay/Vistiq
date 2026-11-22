@@ -1,7 +1,10 @@
 """Vistiq Studio on a Mac (Apple Silicon).
 
-Image generation: FLUX.2 Klein 4B, 4-bit, on Apple's MLX (the mflux tool),
-in a private Python made with uv. Upscaling: a classic upscaler
+Image generation, by memory (Settings › This Mac):
+- Light: FLUX.2 Klein 4B, 4-bit, on Apple's MLX (the mflux tool), in a private
+  Python made with uv.
+- Studio / Pro: Microsoft Mage-Flow Edit Turbo (8-bit MLX), run by mlx-serve,
+  a small native server that stays in memory between pictures. Upscaling: a classic upscaler
 (Real-ESRGAN x4plus) on onnxruntime, using the Mac's CoreML when it can.
 Everything lives in ~/Library/Application Support/VistiqStudio and the
 Vistiq Studio folder in Documents.
@@ -30,6 +33,75 @@ MFLUX = "mflux==0.24.0"
 KLEIN_REPO = "Runpod/FLUX.2-klein-4B-mflux-4bit"
 UPSCALER = ("https://github.com/ratanpranay/Vistiq/releases/download/studio-assets/"
             "realesrgan-x4plus.onnx")
+
+#: mlx-serve (MIT), pinned: the plain macOS arm64 build, checked by its sha256.
+MLXS_VERSION = "26.11.3"
+MLXS_URL = ("https://github.com/ddalcu/mlx-serve/releases/download/v%s/mlx-serve-bin-macos-arm64.tar.gz" % MLXS_VERSION)
+MLXS_SHA256 = "a45db31a0a670dc551ed2f220719dc991a2ca13aaae9ec7d2a857625da7f32e4"
+MLXS_MIN_MACOS = (26, 2)
+#: Microsoft Mage-Flow Edit Turbo (MIT), 8-bit for mlx-serve. The folder name
+#: must say "mage-flow-edit": that is how mlx-serve knows it may edit.
+MAGE_REPO = "ddalcu/Mage-Flow-Edit-Turbo-MLX-Serve-8bit"
+MAGE_GB = 9.7
+
+#: The three setups, by memory. A Mac's memory never changes, so the ones
+#: above it are shown greyed out and the highest one that fits is suggested.
+TIERS = [
+    {"key": "light", "name": "Light", "range": "Under 10 GB memory", "min": 0, "engine": "klein",
+     "speed": "about 60 s a picture", "gb": 5.1,
+     "has": ["Sketch → render (FLUX.2 Klein 4B)", "Material & light changes", "3D views: basic, by prompt", "Upscale"],
+     "not": ["Mage-Flow quality"]},
+    {"key": "studio", "name": "Studio", "range": "10 – 20 GB memory", "min": 10, "engine": "mage",
+     "speed": "fast, 4 steps", "gb": MAGE_GB + 0.2,
+     "has": ["Sketch → render & CGI edits (Microsoft Mage-Flow Edit)", "Follows instructions closely",
+             "3D views: by prompt", "Upscale up to 4K"],
+     "not": ["Bigger working size"]},
+    {"key": "pro", "name": "Pro", "range": "Over 20 GB memory", "min": 20.5, "engine": "mage",
+     "speed": "fast, 4 steps", "gb": MAGE_GB + 0.2,
+     "has": ["Everything in Studio", "Works at a bigger size (up to 1600 px)", "Upscale up to 8K"],
+     "not": []},
+]
+
+
+def tier_by_key(key):
+    return next((t for t in TIERS if t["key"] == key), None)
+
+
+def tier_allowed(key, ram=None):
+    ram = ram if ram is not None else ram_gb()
+    t = tier_by_key(key)
+    return bool(t) and ram >= t["min"]
+
+
+def recommended_tier(ram=None):
+    ram = ram if ram is not None else ram_gb()
+    return [t for t in TIERS if ram >= t["min"]][-1]["key"]
+
+
+def macos_version():
+    try:
+        v = platform.mac_ver()[0] or "0"
+        return tuple(int(x) for x in (v.split(".") + ["0"])[:2])
+    except Exception:
+        return (0, 0)
+
+
+def mage_supported():
+    return not MAC or macos_version() >= MLXS_MIN_MACOS
+
+
+def tier(settings=None):
+    """The setup in use: the one chosen, else the suggested one. Studio and Pro
+    need macOS 26.2 or later (mlx-serve); older Macs stay on Light."""
+    chosen = (settings.get("mac_tier") if settings else "") or ""
+    t = chosen if tier_allowed(chosen) else recommended_tier()
+    if tier_by_key(t)["engine"] == "mage" and not mage_supported():
+        t = "light"
+    return t
+
+
+def engine_of(settings=None):
+    return tier_by_key(tier(settings))["engine"]
 
 
 def support_dir():
@@ -89,7 +161,30 @@ def upscaler_path(models_dir):
     return os.path.join(models_dir, "upscaler", "realesrgan-x4plus.onnx")
 
 
-def parts(models_dir):
+def mlxs_dir():
+    return os.path.join(support_dir(), "mlx-serve")
+
+
+def mlxs_bin():
+    return os.path.join(mlxs_dir(), "mlx-serve-macos-arm64", "mlx-serve")
+
+
+def mage_dir(models_dir):
+    return os.path.join(models_dir, "Mage-Flow-Edit-Turbo-8bit")
+
+
+def parts(models_dir, t="light"):
+    up = {"key": "upscaler", "label": "Upscaler", "about": "Fast classic upscaler, 2× and 4×.", "gb": 0.07,
+          "ready": os.path.isfile(upscaler_path(models_dir))}
+    if (tier_by_key(t) or {}).get("engine") == "mage":
+        return [
+            {"key": "mlxserve", "label": "Engine", "about": "mlx-serve, a small native engine for Apple's MLX.",
+             "gb": 0.1, "ready": os.path.isfile(os.path.join(mlxs_dir(), "ready.txt"))},
+            {"key": "mageflow", "label": "Image model + prompt reader",
+             "about": "Microsoft Mage-Flow Edit Turbo, 8-bit for Mac. Free, no sign-up.", "gb": MAGE_GB,
+             "ready": os.path.isfile(os.path.join(mage_dir(models_dir), "ready.txt"))},
+            up,
+        ]
     m = model_dir(models_dir)
     return [
         {"key": "engine", "label": "Engine", "about": "Apple's MLX and Python, private to Vistiq Studio.",
@@ -97,8 +192,7 @@ def parts(models_dir):
         {"key": "klein4b", "label": "Image model + prompt reader",
          "about": "FLUX.2 Klein 4B, made smaller for Mac (4-bit). Free, no sign-up.", "gb": 5.0,
          "ready": os.path.isfile(os.path.join(m, "ready.txt"))},
-        {"key": "upscaler", "label": "Upscaler", "about": "Fast classic upscaler, 2× and 4×.", "gb": 0.07,
-         "ready": os.path.isfile(upscaler_path(models_dir))},
+        up,
     ]
 
 
@@ -136,9 +230,77 @@ def _env(models_dir):
     return env
 
 
-def install(models_dir, download, on_progress, cancelled=lambda: False, want_generate=True):
-    """Set up what's missing: the engine (uv + Python + mflux), the model,
-    the upscaler."""
+def _sha256(path):
+    import hashlib
+    h = hashlib.sha256()
+    with open(path, "rb") as fh:
+        for chunk in iter(lambda: fh.read(4 << 20), b""):
+            h.update(chunk)
+    return h.hexdigest()
+
+
+def install_mlxserve(download, on_progress, cancelled=lambda: False):
+    d = mlxs_dir()
+    if os.path.isfile(os.path.join(d, "ready.txt")):
+        return
+    os.makedirs(d, exist_ok=True)
+    tgz = os.path.join(d, "mlx-serve.tar.gz")
+    download(MLXS_URL, tgz, on_progress, "Engine", cancelled)
+    if _sha256(tgz) != MLXS_SHA256:
+        os.remove(tgz)
+        raise RuntimeError("the engine download was damaged; try again")
+    with tarfile.open(tgz) as t:
+        for m in t.getmembers():
+            if m.issym() or m.islnk() or m.name.startswith("/") or ".." in m.name.split("/"):
+                continue
+            try:
+                t.extract(m, d, filter="data")
+            except TypeError:          # Python before 3.12
+                t.extract(m, d)
+    os.remove(tgz)
+    os.chmod(mlxs_bin(), 0o755)
+    with open(os.path.join(d, "ready.txt"), "w") as fh:
+        fh.write(MLXS_VERSION)
+
+
+def hf_files(repo):
+    """[(path, size)] of a Hugging Face model repo."""
+    import requests
+    r = requests.get("https://huggingface.co/api/models/%s/tree/main?recursive=1" % repo, timeout=60,
+                     headers={"User-Agent": "VistiqStudio"})
+    r.raise_for_status()
+    return [(f["path"], (f.get("lfs") or {}).get("size") or f.get("size") or 0) for f in r.json()
+            if f.get("type") == "file" and not f["path"].startswith(".")]
+
+
+def install_mage(models_dir, download, on_progress, cancelled=lambda: False):
+    m = mage_dir(models_dir)
+    if os.path.isfile(os.path.join(m, "ready.txt")):
+        return
+    files = hf_files(MAGE_REPO)
+    total = sum(sz for _, sz in files) or 1
+    done = 0
+    for path, sz in files:
+        dest = os.path.join(m, *path.split("/"))
+        if not (os.path.isfile(dest) and (not sz or os.path.getsize(dest) == sz)):
+            base = done
+
+            def prog(label, frac, base=base, sz=sz):
+                got = base + (frac or 0) * sz
+                on_progress("Image model: %.1f of %.1f GB" % (got / 1e9, total / 1e9), got / total)
+            download("https://huggingface.co/%s/resolve/main/%s" % (MAGE_REPO, path), dest, prog, "Image model",
+                     cancelled)
+        done += sz
+    with open(os.path.join(m, "ready.txt"), "w") as fh:
+        fh.write(MAGE_REPO)
+
+
+def install(models_dir, download, on_progress, cancelled=lambda: False, want_generate=True, t="light"):
+    """Set up what's missing for setup `t`: its engine, its model, the upscaler."""
+    if want_generate and (tier_by_key(t) or {}).get("engine") == "mage":
+        install_mlxserve(download, on_progress, cancelled)
+        install_mage(models_dir, download, on_progress, cancelled)
+        want_generate = False
     os.makedirs(env_dir(), exist_ok=True)
     if want_generate and not os.path.isfile(os.path.join(env_dir(), "ready.txt")):
         uv = os.path.join(env_dir(), "uv")
@@ -289,6 +451,171 @@ class MlxEngine:
             data = fh.read()
         os.remove(out)
         return data
+
+
+class MageEngine:
+    """Mage-Flow Edit through mlx-serve. The server is started once and keeps the
+    model in memory; each picture is one edit request to it."""
+
+    def __init__(self, models_dir_fn):
+        self.models_dir = models_dir_fn
+        self.state, self.message = "idle", ""
+        self._proc, self._port = None, 0
+        self._lock = threading.Lock()
+
+    def alive(self):
+        return os.path.isfile(mlxs_bin()) and os.path.isfile(os.path.join(mage_dir(self.models_dir()), "ready.txt"))
+
+    def start(self, say=lambda s, m="": None):
+        if not self.alive():
+            self.state, self.message = "setup", "The image engine isn't set up yet."
+            say(self.state, self.message)
+            return False
+        self.state, self.message = "ready", "Image engine ready"
+        return True
+
+    def stop(self):
+        p, self._proc = self._proc, None
+        if p and p.poll() is None:
+            p.terminate()
+            try:
+                p.wait(10)
+            except Exception:
+                p.kill()
+
+    def free(self):
+        self.stop()      # gives back the ~10 GB the model holds
+
+    def interrupt(self):
+        pass             # a running picture finishes on its own; the result is ignored
+
+    def upload(self, path):
+        return path
+
+    def _url(self, path):
+        return "http://127.0.0.1:%d%s" % (self._port, path)
+
+    def _server(self, cancelled):
+        import requests
+        import socket
+        with self._lock:
+            p = self._proc
+            if p and p.poll() is None:
+                return
+            s = socket.socket()
+            s.bind(("127.0.0.1", 0))
+            self._port = s.getsockname()[1]
+            s.close()
+            logs = os.path.join(support_dir(), "logs")
+            os.makedirs(logs, exist_ok=True)
+            self._log = os.path.join(logs, "mlx-serve.log")
+            out = open(self._log, "ab")
+            self._proc = subprocess.Popen(
+                [mlxs_bin(), "--model", mage_dir(self.models_dir()), "--serve", "--host", "127.0.0.1",
+                 "--port", str(self._port), "--log-file", self._log],
+                stdout=out, stderr=subprocess.STDOUT, stdin=subprocess.DEVNULL, cwd=os.path.dirname(mlxs_bin()))
+        t0 = time.time()
+        while time.time() - t0 < 300:
+            if cancelled():
+                raise RuntimeError("Cancelled")
+            if self._proc.poll() is not None:
+                self._proc = None
+                raise RuntimeError("The image engine stopped: " + self._tail())
+            try:
+                if requests.get(self._url("/health"), timeout=2).ok:
+                    return
+            except Exception:
+                pass
+            time.sleep(0.5)
+        raise RuntimeError("The image engine didn't start: " + self._tail())
+
+    def _tail(self):
+        try:
+            with open(self._log, "rb") as fh:
+                fh.seek(max(0, os.path.getsize(self._log) - 1500))
+                return fh.read().decode("utf-8", "replace").strip().splitlines()[-1][-300:]
+        except Exception:
+            return ""
+
+    def run(self, job, on_progress=None, cancelled=lambda: False):
+        """job: {image, ref, text, seed, lines, side} → PNG bytes."""
+        import base64
+        import requests
+        out_dir = os.path.join(support_dir(), "work")
+        os.makedirs(out_dir, exist_ok=True)
+        first = lines_of(job["image"], out_dir) if job.get("lines") else job["image"]
+        images = [first] + ([job["ref"]] if job.get("ref") else [])
+        w, h = _work_size(first, job.get("side"))
+        self._server(cancelled)
+        files = []
+        try:
+            for i, path in enumerate(images):
+                files.append(("image[]", ("image%d.png" % i, _png_bytes(path), "image/png")))
+            data = {"prompt": job["text"], "seed": str(int(job["seed"]) % 2**31), "size": "%dx%d" % (w, h),
+                    "response_format": "b64_json"}
+            box = {}
+
+            def post():
+                try:
+                    box["r"] = requests.post(self._url("/v1/images/edits"), data=data, files=files, timeout=1800)
+                except Exception as exc:
+                    box["e"] = exc
+            th = threading.Thread(target=post, daemon=True)
+            th.start()
+            while th.is_alive():
+                if cancelled():
+                    raise RuntimeError("Cancelled")
+                th.join(0.3)
+            if "e" in box:
+                if self._proc is None or self._proc.poll() is not None:
+                    self._proc = None
+                    raise RuntimeError("The image engine stopped: " + self._tail())
+                raise RuntimeError("The image engine failed: %s" % box["e"])
+            r = box["r"]
+            if not r.ok:
+                try:
+                    msg = r.json().get("error", {})
+                    msg = msg.get("message") if isinstance(msg, dict) else msg
+                except Exception:
+                    msg = r.text
+                raise RuntimeError("The image engine failed: %s" % str(msg)[-300:])
+            return base64.b64decode(r.json()["data"][0]["b64_json"])
+        finally:
+            files.clear()
+
+
+def _png_bytes(path):
+    im = ImageOps.exif_transpose(Image.open(path)).convert("RGB")
+    b = io.BytesIO()
+    im.save(b, "PNG")
+    return b.getvalue()
+
+
+class MacEngine:
+    """The image engine of the setup in use (Settings › This Mac): Klein or Mage-Flow."""
+
+    def __init__(self, settings, models_dir_fn):
+        self.settings = settings
+        self._engines = {"klein": MlxEngine(models_dir_fn), "mage": MageEngine(models_dir_fn)}
+
+    @property
+    def current(self):
+        want = engine_of(self.settings)
+        for k, e in self._engines.items():
+            if k != want:
+                e.stop() if k == "mage" else None     # don't keep two models in memory
+        return self._engines[want]
+
+    def __getattr__(self, name):
+        return getattr(self.current, name)
+
+    def stop(self):
+        for e in self._engines.values():
+            e.stop()
+
+    def free(self):
+        for e in self._engines.values():
+            e.free()
 
 
 WORKER = r"""
