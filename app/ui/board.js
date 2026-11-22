@@ -26,7 +26,10 @@
   function save() {
     clearTimeout(saveT);
     var pid = P.id, b = B;
-    saveT = setTimeout(function () { saveT = 0; call("studio_board_save", b, pid); }, 400);
+    saveT = setTimeout(function () {
+      saveT = 0;
+      call("studio_board_save", Object.assign({}, b, { tiles: b.tiles.filter(function (k) { return k.kind !== "upload"; }) }), pid);
+    }, 400);
   }
 
   function ensureLive() {
@@ -96,6 +99,12 @@
     var mi = multi.indexOf(t.id), sel = (t.id === B.sel && !multi.length ? " sel" : "") + (mi >= 0 ? " msel" : "");
     var badge = mi >= 0 ? '<b class="b-no">' + (mi + 1) + "</b>" : "";
     if (t.kind === "live") return "";        // Photoshop / Affinity is the project's own tab now (Nov 2026)
+    if (t.kind === "upload") {               // where a picture being added will appear
+      var known = typeof t.frac === "number";
+      return '<div class="b-tile b-up" data-up="' + t.id + '" style="left:' + t.x + "px;top:" + t.y + "px;width:" + W + 'px">' +
+        '<div class="b-h"><span>' + esc(VS().short(t.name || "Picture")) + "</span><small>" + (t.failed ? "Couldn't add" : "Adding…") + "</small></div>" +
+        '<div class="b-upbox"><div class="b-upbar' + (known ? "" : " creep") + (t.failed ? " bad" : "") + '"><i style="' + (known ? "width:" + Math.round(t.frac * 100) + "%" : "") + '"></i></div></div></div>';
+    }
     if (t.kind === "live_old") {
       var L = liveInfo();
       var img = L.on ? '<div class="b-pic"><img src="' + L.src.preview + '" alt=""></div>' :
@@ -332,6 +341,54 @@
 
   function addImages(list) { (list || []).forEach(function (i) { add(i, null); }); }
 
+  // ---------------------------------------------------------------- adding, with a placeholder
+  // A picture being added shows at once as an outlined tile with a bar, where it will land;
+  // when it is read, the real tile takes that same spot (Nov 2026).
+  var ups = {};
+  function upStart(token, names) {
+    names = names && names.length ? names : [""];
+    if (ups[token]) return;
+    ups[token] = names.map(function (n) {
+      var t = { id: uid(), kind: "upload", name: n, made: Date.now() };
+      place(t, null); B.tiles.push(t);
+      return t;
+    });
+    render(); show(ups[token][0]);
+  }
+  function upProgress(token, frac) {
+    (ups[token] || []).forEach(function (t) { t.frac = Math.max(0, Math.min(1, frac)); });
+    render();
+  }
+  function upDone(token, infos) {
+    var hold = ups[token] || []; delete ups[token];
+    infos = (infos || []).filter(Boolean);
+    var last = null;
+    infos.forEach(function (info, i) {
+      var ph = hold[i], t = { id: uid(), kind: "image", path: info.path, name: info.name, w: info.w, h: info.h, from: null, made: Date.now() };
+      if (info.preview) thumbs[t.path] = info.preview;
+      if (ph) { t.x = ph.x; t.y = ph.y; B.tiles[B.tiles.indexOf(ph)] = t; }
+      else { place(t, null); B.tiles.push(t); }
+      last = t;
+    });
+    hold.slice(infos.length).forEach(function (ph) { var k = B.tiles.indexOf(ph); if (k >= 0) B.tiles.splice(k, 1); });
+    if (last) { B.sel = last.id; save(); }
+    render();
+    if (last) show(last);
+  }
+  function upFail(token) {
+    var hold = ups[token] || []; delete ups[token];
+    hold.forEach(function (t) { t.failed = true; t.frac = 1; });
+    render();
+    setTimeout(function () { hold.forEach(function (ph) { var k = B.tiles.indexOf(ph); if (k >= 0) B.tiles.splice(k, 1); }); render(); }, 1600);
+  }
+  // From this page (Add, paste): the placeholder first, then read the picture.
+  function addWith(getInfo, name) {
+    var tok = "u" + uid();
+    upStart(tok, [name || ""]);
+    return Promise.resolve(getInfo()).then(function (i) { if (i) upDone(tok, [i]); else upDone(tok, []); return i; },
+      function () { upFail(tok); });
+  }
+
   function addResult(c, from) {
     if (!c || has(c.path)) return;
     add({ path: c.path, name: c.name, w: c.w, h: c.h }, from && byId(from) ? from : null);
@@ -507,8 +564,10 @@
       var b = e.target.closest("[data-b]");
       if (b) {
         var a = b.getAttribute("data-b");
-        if (a === "add") call("studio_pick").then(function (i) { if (i) add(i, null); });
-        else if (a === "plus") VS().plusMenu(b, function (info) { add(info, null); });
+        if (a === "add") call("studio_pick_path").then(function (p) {
+          if (p) addWith(function () { return call("studio_image", p); }, p.split(/[\\/]/).pop());
+        });
+        else if (a === "plus") VS().plusMenu(b, function (info) { add(info, null); }, addWith);
         else if (a === "fit") fit();
         else if (a === "projects") VS().go("projects");
         else if (a === "pstab") { VS().useSource("live"); VS().S.boardFrom = "live"; VS().go("create"); }
@@ -643,7 +702,7 @@
       if (e.ctrlKey && e.key.toLowerCase() === "c") { var sel = multi.length ? multi.map(byId).filter(Boolean) : (B.sel && byId(B.sel) ? [byId(B.sel)] : []); if (sel.length) { e.preventDefault(); copyTiles(sel); } return; }
       if (e.ctrlKey && e.key.toLowerCase() === "v") {
         e.preventDefault();
-        var clip = VS().S.tileClip, img = function () { call("studio_paste").then(function (i) { if (i) add(i, null); }); };
+        var clip = VS().S.tileClip, img = function () { addWith(function () { return call("studio_paste"); }, "Pasted picture"); };
         if (!clip) img();
         else call("studio_clip_seq").then(function (n) { if (clip.seq > 0 && n && n !== clip.seq) { VS().S.tileClip = null; img(); } else pasteTiles(); });
       }
@@ -667,6 +726,6 @@
   function addFrom(info, fromId) { return add(info, byId(fromId) ? fromId : null); }
   function addAndOpen(info) { var t = add(info, null); if (t) open(t); return t; }
 
-  window.VSBoard = { load: load, project: function () { return { id: P.id, name: P.name }; }, paste: pasteTiles, multi: function () { return multi.slice(); }, build: build, render: render, addImages: addImages, addResult: addResult, has: has, organize: organize, add: add, addAndOpen: addAndOpen, addFrom: addFrom, addBeside: addBeside, refreshThumb: refreshThumb, open: function (id) { var t = byId(id); if (t) open(t); },
+  window.VSBoard = { load: load, project: function () { return { id: P.id, name: P.name }; }, paste: pasteTiles, multi: function () { return multi.slice(); }, build: build, render: render, addImages: addImages, upStart: upStart, upProgress: upProgress, upDone: upDone, upFail: upFail, addResult: addResult, has: has, organize: organize, add: add, addAndOpen: addAndOpen, addFrom: addFrom, addBeside: addBeside, refreshThumb: refreshThumb, open: function (id) { var t = byId(id); if (t) open(t); },
                      _state: function () { return B; } };
 })();

@@ -1208,3 +1208,17 @@ body.studio .s-vars>.s-ph.sel{border-color:var(--ink)}
 .m-tier li.no:before,.m-tier.off li:before{background:var(--line-2)}
 .m-foot{margin-top:auto;display:flex;justify-content:space-between;border-top:1px solid var(--line);padding-top:8px;font-size:12px;color:var(--dim)}
 @media (max-width:760px){.m-tiers{grid-template-columns:1fr}}
+
+/* Board: a picture being added (outline + bar where it will land) */
+.b-tile.b-up{background:rgba(255,255,255,.55);box-shadow:none;outline:2px dashed var(--line-2);outline-offset:-2px}
+.b-upbox{height:169px;border-radius:8px;display:flex;align-items:center;justify-content:center;padding:0 28px}
+.b-upbar{width:100%;height:6px;border-radius:99px;background:var(--line);overflow:hidden}
+.b-upbar i{display:block;height:100%;border-radius:99px;background:var(--brand);transition:width .25s}
+.b-upbar.creep i{width:90%;animation:b-creep 2.5s cubic-bezier(.1,.7,.3,1) both}
+.b-upbar.bad i{background:var(--bad);width:100%;animation:none}
+@keyframes b-creep{from{width:4%}to{width:90%}}
+
+/* First run: only the setup page until the models are downloaded */
+body.s-gated .s-nav button,body.s-gated .s-nav .s-heart{pointer-events:none;opacity:.28}
+body.s-gated .s-rail{display:none}
+body.s-gated .s-nav [data-min]{display:none}

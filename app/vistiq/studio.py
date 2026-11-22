@@ -1043,7 +1043,11 @@ def _mac_status(settings):
     tiers = [dict(x, allowed=macos.tier_allowed(x["key"], ram) and (x["engine"] != "mage" or macos.mage_supported()),
                   recommended=x["key"] == rec, ready=all(p["ready"] for p in macos.parts(md, x["key"])))
              for x in macos.TIERS]
+    up_ok = all(r["ready"] for r in rows if r["key"] == "upscaler")
     return {"files": rows, "create_ready": ready, "juice_ready": False, "tier": "good", "chosen": "good",
+            # The setup page is the whole app until this is False (a Mac that can't make pictures
+            # only needs the upscaler).
+            "needs_setup": not up_ok or (gen and not ready),
             "tiers": {"best": {"label": "Best quality", "ready": False}, "good": {"label": "Good quality", "ready": ready}},
             "engine_installed": rows[0]["ready"], "loras": [], "select_ready": select_installed(settings),
             "helper_ready": helper_installed(settings), "reader_ready": reader_installed(settings),
@@ -1072,7 +1076,9 @@ def status(settings=None):
                                 and not r["optional"])
     juice_ok = all(r["ready"] for r in rows if r["part"] == "juice")
     # A PC can run on Qwen Image Edit alone (no FLUX files): Create is ready then too.
-    return {"files": rows, "create_ready": ready(t) or use_qwenedit(settings), "juice_ready": juice_ok, "tier": t, "chosen": chosen,
+    create_ok = ready(t) or use_qwenedit(settings)
+    return {"files": rows, "create_ready": create_ok, "juice_ready": juice_ok, "tier": t, "chosen": chosen,
+            "needs_setup": not (create_ok and engine_installed()),
             "tiers": {k: {"label": v, "ready": ready(k)} for k, v in TIERS.items()},
             "engine_installed": engine_installed(), "loras": loras(settings),
             "select_ready": select_installed(settings), "helper_ready": helper_installed(settings),

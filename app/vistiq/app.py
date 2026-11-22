@@ -272,6 +272,13 @@ class Api:
             file_types=("Images (*.png;*.jpg;*.jpeg;*.webp;*.bmp;*.tif;*.tiff)", "All files (*.*)"))
         return _image_info(picked[0]) if picked else None
 
+    def studio_pick_path(self):
+        """Just the file chosen (the board shows where it lands while it's read)."""
+        picked = self._app.window.create_file_dialog(
+            webview.OPEN_DIALOG, allow_multiple=False,
+            file_types=("Images (*.png;*.jpg;*.jpeg;*.webp;*.bmp;*.tif;*.tiff)", "All files (*.*)"))
+        return picked[0] if picked else None
+
     def studio_image(self, path):
         return _image_info(path)
 
@@ -319,11 +326,16 @@ class Api:
         from . import phonedrop, segno
         st = self._app.studio
         if not hasattr(self, "_phone"):
-            def got(path):
+            def got(path, token=""):
                 info = _image_info(path)
-                if info:
-                    st.emit("studio-dropped", {"target": "board", "images": [info], "from": "phone"})
-            self._phone = phonedrop.PhoneDrop(os.path.join(data_dir(), "pasted"), got)
+                if info or token:
+                    st.emit("studio-dropped", {"target": "board", "images": [info] if info else [], "from": "phone",
+                                               "token": token})
+
+            def going(token, name, fraction, failed=False):
+                st.emit("studio-uploading", {"target": "board", "token": token, "names": [name],
+                                             "fraction": fraction, "failed": failed, "from": "phone"})
+            self._phone = phonedrop.PhoneDrop(os.path.join(data_dir(), "pasted"), got, going)
         if not on:
             self._phone.stop()
             return {"on": False}
@@ -392,14 +404,24 @@ class Api:
                 return data
         except Exception:
             pass
-        os.makedirs(os.path.join(d, "myboard"), exist_ok=True)
+        # The old single board becomes "My board", only if it had pictures: a fresh
+        # install starts with no projects (Nov 2026).
         old = os.path.join(data_dir(), "board.json")
         new = os.path.join(d, "myboard", "board.json")
-        if os.path.isfile(old) and not os.path.isfile(new):
-            shutil.copyfile(old, new)
+        had = False
+        try:
+            with open(old, encoding="utf-8") as fh:
+                had = any(t.get("path") for t in (json.load(fh).get("tiles") or []))
+        except Exception:
+            pass
         now = time.time()
-        data = {"migrated": True, "trash": [],
-                "projects": [{"id": "myboard", "name": "My board", "created": now, "edited": now, "cover": "", "cover_set": False}]}
+        data = {"migrated": True, "trash": [], "projects": []}
+        if had:
+            os.makedirs(os.path.join(d, "myboard"), exist_ok=True)
+            if not os.path.isfile(new):
+                shutil.copyfile(old, new)
+            data["projects"].append({"id": "myboard", "name": "My board", "created": now, "edited": now,
+                                     "cover": "", "cover_set": False})
         self._projects_save(data)
         return data
 
@@ -1363,9 +1385,14 @@ def _on_drop(app):
         paths = [f.get("pywebviewFullPath") for f in files if f.get("pywebviewFullPath")]
         app.emit("dropped", {})
         if app.studio and app.drop_target and app.drop_target != "upscale":
-            imgs = [p for p in imaging.expand(paths)]
+            imgs = [p for p in imaging.expand(paths)][:2]
             if imgs:
-                app.emit("studio-dropped", {"target": app.drop_target, "images": [_image_info(p) for p in imgs[:2]]})
+                token = "d%d" % int(time.time() * 1000)
+                # The board shows where they land, with a bar, while they are read.
+                app.emit("studio-uploading", {"target": app.drop_target, "token": token,
+                                              "names": [os.path.basename(p) for p in imgs]})
+                app.emit("studio-dropped", {"target": app.drop_target, "token": token,
+                                            "images": [_image_info(p) for p in imgs]})
             return
         if paths:
             added = app.add(paths)

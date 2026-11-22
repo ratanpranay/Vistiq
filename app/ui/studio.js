@@ -636,7 +636,21 @@
     });
   }
 
+  // First run: until the models are downloaded, the setup page is the whole app (Nov 2026).
+  function needsSetup(st) {
+    if (!st) return false;
+    return st.needs_setup !== undefined ? !!st.needs_setup : !(st.create_ready && st.engine_installed);
+  }
+  function applyGate() {
+    var need = needsSetup(S.status) || !!(S.setup.run && document.body.classList.contains("s-gated"));
+    var was = document.body.classList.contains("s-gated");
+    document.body.classList.toggle("s-gated", need);
+    if (need && S.page !== "create") go("create");
+    else if (was && !need) go("projects");
+  }
+
   function go(p) {
+    if (document.body.classList.contains("s-gated")) p = "create";      // only the setup page until it's done
     if (p === "reference") p = "create";          // references live in Create now
     if (["projects", "board", "3d", "create", "upscale", "library", "settings", "trash"].indexOf(p) < 0) p = "projects";
     S.page = p; keep("page", p);
@@ -660,6 +674,7 @@
       if (!st) return;
       S.status = st; S.engine = st.engine || S.engine;
       markSizes();
+      applyGate();
       if (st.setup_running && !S.setup.run) S.setup.run = { label: "Setting up", fraction: null };
       // Camera angles: small, fetched by itself once Qwen is there (no button to find).
       if (st.qwenedit && st.engine_choice === "qwenedit" && (st.angles === false || st.realism === false) && !st.setup_running && !S.anglesAsked && api().studio_get_qwenedit) {
@@ -712,7 +727,8 @@
 
   // The + menu: a blank canvas, a picture from disk, the clipboard or the phone.
   var FORMATS = { a4p: [1240, 1754, "Portrait"], a4l: [1754, 1240, "Landscape"], wide: [1920, 1080, "16 : 9"], sq: [1600, 1600, "Square"] };
-  function plusMenu(anchor, onAdd) {
+  // later(getInfo, name): optional, shows where the picture lands while it's read (the board).
+  function plusMenu(anchor, onAdd, later) {
     var fmt = load("blankFmt", "a4p");
     var html = function () {
       // One click per size: each is its own button, drawn in its shape.
@@ -728,7 +744,9 @@
     var el = pop(anchor, html(), function (v) {
       if (v.indexOf("fmt:") === 0) { fmt = v.slice(4); keep("blankFmt", fmt); v = "blank"; }
       if (v === "blank") api().studio_blank(FORMATS[fmt][0], FORMATS[fmt][1]).then(function (i) { if (i) onAdd(i); });
+      else if (v === "pick" && later) api().studio_pick_path().then(function (p) { if (p) later(function () { return api().studio_image(p); }, p.split(/[\\/]/).pop()); });
       else if (v === "pick") api().studio_pick().then(function (i) { if (i) onAdd(i); });
+      else if (v === "paste" && later) later(function () { return api().studio_paste().then(function (i) { if (!i) toast("Nothing to paste: copy a picture first."); return i; }); }, "Pasted picture");
       else if (v === "paste") api().studio_paste().then(function (i) { if (i) onAdd(i); else toast("Nothing to paste: copy a picture first."); });
       else if (v === "phone") phoneDialog();
     });
@@ -2664,8 +2682,22 @@
           if (data.status) S.status = Object.assign(S.status || {}, data.status);
           refresh();
         }
+      } else if (kind === "studio-uploading") {
+        // A picture on its way to the board: show where it will land, with a bar.
+        if (data.target === "board" && window.VSBoard) {
+          if (data.failed) window.VSBoard.upFail(data.token);
+          else {
+            window.VSBoard.upStart(data.token, data.names);          // once per token
+            if (data.fraction != null) window.VSBoard.upProgress(data.token, data.fraction);
+          }
+        }
       } else if (kind === "studio-dropped") {
         var imgs = (data.images || []).filter(Boolean);
+        if (data.token && data.target === "board" && window.VSBoard) {
+          window.VSBoard.upDone(data.token, imgs);
+          if (imgs.length && data.from === "phone") { S.phoneN = (S.phoneN || 0) + imgs.length; phoneGot(S.phoneN); toast("From your phone: on the board"); }
+          return;
+        }
         if (!imgs.length) return;
         if (data.target === "reference") {
           if (imgs.length > 1) { setImage(S.ref, "src", imgs[0]); setImage(S.ref, "refimg", imgs[1]); }

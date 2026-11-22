@@ -972,6 +972,52 @@ const frame = (n, name) => ({ path: "live://photoshop/" + n, name: name || "flat
     check("wipe: sends DELETE and says it's closing", (await p.evaluate(() => window.__wiped)) === "DELETE" && /closing/.test(await p.text("#pj-modal")), await p.text("#pj-modal"));
     check("projects: no page errors", !p.errors.length, p.errors.join("; "));
     await p.evaluate(() => { const m = document.getElementById("pj-modal"); if (m) m.remove(); });
+    // First run: nothing downloaded -> only the setup page, every other tab locked; done -> Projects.
+    await p.evaluate(() => {
+      window.__ready = false;
+      const base = window.VS.S.status;
+      window.pywebview.api.studio_status = () => Promise.resolve(Object.assign({}, base, { create_ready: window.__ready, needs_setup: !window.__ready }));
+      window.dispatchEvent(new Event("focus"));
+    });
+    await p.waitForTimeout(250);
+    check("gate: not set up -> only the setup page", await p.evaluate(() => document.body.classList.contains("s-gated") && document.body.getAttribute("data-page") === "create" && !!document.querySelector("#c-gate:not([hidden])")), await p.evaluate(() => document.body.getAttribute("data-page")));
+    if (process.env.SHOTS) await p.screenshot({ path: process.env.SHOTS + "/gate.png" });
+    await p.click(".s-nav button[data-page=projects]", { force: true }); await p.waitForTimeout(150);
+    check("gate: other tabs can't be opened", await p.evaluate(() => document.body.getAttribute("data-page")) === "create", "");
+    await p.evaluate(() => { window.__ready = true; });
+    await p.ev("studio-setup", { state: "done" }); await p.waitForTimeout(300);
+    check("gate: once set up, the app opens on Projects", await p.evaluate(() => !document.body.classList.contains("s-gated") && document.body.getAttribute("data-page") === "projects"), await p.evaluate(() => document.body.getAttribute("data-page")));
+    // Adding a picture: an outlined tile with a bar shows where it lands, then the picture takes that spot.
+    await p.board(); await p.waitForTimeout(200);
+    await p.ev("studio-uploading", { target: "board", token: "d1", names: ["car_front.jpg"] });
+    await p.waitForTimeout(100);
+    const ph = await p.evaluate(() => { const t = window.VSBoard._state().tiles.find((x) => x.kind === "upload"); return t && { x: t.x, y: t.y }; });
+    check("upload: a placeholder tile with a bar appears at once", !!ph && !!(await p.$(".b-tile.b-up .b-upbar")) && /car_front/.test(await p.text(".b-tile.b-up")), JSON.stringify(ph));
+    await p.ev("studio-uploading", { target: "board", token: "d1", fraction: 0.5, from: "phone" });
+    await p.waitForTimeout(80);
+    check("upload: the bar follows the progress", await p.evaluate(() => document.querySelector(".b-tile.b-up .b-upbar i").style.width) === "50%", "");
+    if (process.env.SHOTS) await p.screenshot({ path: process.env.SHOTS + "/uploading.png" });
+    await p.ev("studio-dropped", { target: "board", token: "d1", images: [{ path: "C:/in/car_front.jpg", name: "car_front.jpg", w: 1600, h: 900, preview: img }] });
+    await p.waitForTimeout(120);
+    const real = await p.evaluate(() => { const t = window.VSBoard._state().tiles.find((x) => x.path === "C:/in/car_front.jpg"); return t && { x: t.x, y: t.y }; });
+    check("upload: the picture lands exactly where the placeholder was", !!real && real.x === ph.x && real.y === ph.y && !(await p.$(".b-tile.b-up")), JSON.stringify([ph, real]));
+    await p.waitForTimeout(500);
+    check("upload: placeholders are never saved", await p.evaluate(() => !window.__board.tiles.some((t) => t.kind === "upload") && window.__board.tiles.some((t) => t.path === "C:/in/car_front.jpg")), "");
+    // Add button: placeholder while the picture is read
+    await p.evaluate(() => {
+      const api = window.pywebview.api;
+      api.studio_pick_path = () => Promise.resolve("C:/in/seat.png");
+      api.studio_image = (q) => new Promise((r) => { window.__finish = () => r({ path: q, name: "seat.png", w: 800, h: 800, preview: "data:image/gif;base64,R0lGODlhAQABAAAAACw=" }); });
+    });
+    await p.click(".b-bar [data-b=plus]"); await p.waitForTimeout(120);
+    await p.click('.s-plus [data-p="pick"]'); await p.waitForTimeout(120);
+    check("Add: placeholder shows while the picture is read", /seat/.test(await p.evaluate(() => (document.querySelector(".b-tile.b-up") || {}).textContent || "")), await p.evaluate(() => JSON.stringify(window.VSBoard._state().tiles.filter((t) => t.kind === "upload")) + " pop:" + !!document.querySelector(".s-pop")));
+    await p.evaluate(() => window.__finish()); await p.waitForTimeout(120);
+    check("Add: then the picture replaces it", !(await p.$(".b-tile.b-up")) && await p.evaluate(() => window.VSBoard._state().tiles.some((t) => t.path === "C:/in/seat.png")), "");
+    await p.ev("studio-uploading", { target: "board", token: "p9", names: ["x.jpg"], from: "phone" });
+    await p.ev("studio-uploading", { target: "board", token: "p9", names: ["x.jpg"], fraction: 1, failed: true, from: "phone" });
+    await p.waitForTimeout(1900);
+    check("upload: a failed one goes away by itself", !(await p.$(".b-tile.b-up")), "");
     // Mac setup: Light / Studio / Pro by memory; higher ones greyed out, best one that fits suggested.
     await p.evaluate(() => {
       const T = (k, n, min, eng, ready) => ({ key: k, name: n, range: k, min, engine: eng, speed: "fast", gb: 9.9, has: ["a"], not: [], allowed: min <= 16, recommended: k === "studio", ready });

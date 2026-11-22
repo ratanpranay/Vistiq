@@ -55,9 +55,10 @@ def lan_ip():
 
 
 class PhoneDrop:
-    def __init__(self, folder, on_file):
+    def __init__(self, folder, on_file, on_progress=None):
         self.folder = folder
         self.on_file = on_file
+        self.on_progress = on_progress      # (token, name, fraction, failed=False): the board's bar
         self.server = None
         self.token = ""
         self.until = 0
@@ -97,21 +98,41 @@ class PhoneDrop:
                 n = int(self.headers.get("Content-Length") or 0)
                 if n <= 0 or n > MAX:
                     return self._say(413, "Too big (40 MB at most).")
-                data = self.rfile.read(n)
+                from urllib.parse import unquote
+                name = os.path.basename(unquote(self.headers.get("X-Name") or "photo.jpg")) or "photo.jpg"
+                tok = "p%d" % int(time.time() * 1000)
+
+                def tell(frac, failed=False):
+                    if drop.on_progress:
+                        try:
+                            drop.on_progress(tok, name, frac, failed)
+                        except Exception:
+                            log.exception("phone progress")
+                tell(0.0)
+                buf, got, last = [], 0, 0.0
+                while got < n:
+                    chunk = self.rfile.read(min(256 * 1024, n - got))
+                    if not chunk:
+                        break
+                    buf.append(chunk)
+                    got += len(chunk)
+                    if time.time() - last > 0.15:
+                        last = time.time()
+                        tell(0.95 * got / n)
+                data = b"".join(buf)
                 try:
                     im = Image.open(io.BytesIO(data))
                     im.verify()
                 except Exception:
+                    tell(1.0, True)
                     return self._say(415, "That isn't a picture.")
-                from urllib.parse import unquote
-                name = os.path.basename(unquote(self.headers.get("X-Name") or "photo.jpg")) or "photo.jpg"
                 stem, ext = os.path.splitext(name)
                 os.makedirs(drop.folder, exist_ok=True)
                 path = os.path.join(drop.folder, "phone_%s_%s%s" % (time.strftime("%Y%m%d_%H%M%S"), stem[:40], ext.lower() or ".jpg"))
                 with open(path, "wb") as fh:
                     fh.write(data)
                 try:
-                    drop.on_file(path)
+                    drop.on_file(path, tok)
                 except Exception:
                     log.exception("phone drop")
                 self._say(200, "ok")
