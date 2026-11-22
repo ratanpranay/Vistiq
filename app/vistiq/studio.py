@@ -756,7 +756,7 @@ def view_words(kind, side, yaw, pitch, dist=0.0, lens="normal", target=None, des
     # 50 degrees made an almost top view (tested Nov 2026): "from above" is a raised camera
     # that still shows the side; only a very high setting looks steeply down.
     height = ("from high above, looking down at it" if p >= 55 else
-              "from a slightly raised camera, a little above the roof, looking down a little, the side still fully visible" if p >= 15
+              "from a slightly raised camera, a little above it, looking down a little, the side still fully visible" if p >= 15
               else "from a low camera close to the ground, looking up at it" if p <= -12 else "from eye level")
     if kind == "interior":
         # where to go: the plan's free camera, or a named spot on the ring round the cabin looking across it
@@ -791,10 +791,13 @@ def view_words(kind, side, yaw, pitch, dist=0.0, lens="normal", target=None, des
         design += "."
     return ("Show this exact same design from a new camera: " + where + (", " + ", ".join(extra) if extra else "") + ". " +
             ("The design: " + design + " " if design else "") +
-            "Keep every part exactly as designed: the same proportions, silhouette, lights, grille, wheels, window "
-            "line, surfaces and colours; only the camera moves. Keep the picture's look exactly: the same kind of "
-            "image, materials, colours and light. Parts that were "
-            "hidden are completed to match the design. Add no logos, badges or text that are not in the picture."), target
+            # Generic on purpose (Nov 2026): naming a grille and wheels drew a car's face onto a seat.
+            "It is the same subject as in the picture, whatever it is (a seat, a cabin, a car, a building, a product, "
+            "a person); it does not turn into anything else. Keep every part exactly as designed: the same "
+            "proportions, silhouette, shapes, details, surfaces and colours; only the camera moves. Keep the "
+            "picture's look exactly: the same kind of image, materials, colours and light. Parts that were hidden "
+            "are completed to match the design. Add no new objects, logos, badges or text that are not in the "
+            "picture."), target
 
 
 QE_INSTANT = ("Turn this design sketch into a finished, photorealistic CGI render, like a car maker's studio "

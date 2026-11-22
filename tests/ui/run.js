@@ -762,7 +762,7 @@ const frame = (n, name) => ({ path: "live://photoshop/" + n, name: name || "flat
     check("view buttons wait for a view", await p.evaluate(() => [...document.querySelectorAll("#t-acts [data-x]")].every((b) => b.disabled)), "");
     await p.click("#p-3d .t-heights [data-h=high]");
     const tf = await p.evaluate(() => document.getElementById("t-card").style.transform);
-    check("From above tilts the top edge towards you", /rotateX\(-/.test(tf), tf);
+    check("the picture stays flat when the camera moves", tf === "none", tf);
     check("From above is a raised camera, not a top view", await p.evaluate(() => window.VS3D._state().pitch) <= 30, "");
     await p.click("#t-go");
     await p.evaluate(() => { window.VS.S.create.job = "j1"; window.VS.S.create.frac = 0.4; window.VS3D.render(); });
