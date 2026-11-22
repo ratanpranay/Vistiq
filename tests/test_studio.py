@@ -1000,3 +1000,17 @@ class OutputNames(unittest.TestCase):
 
     def test_results_still_found_by_picture(self):
         self.assertEqual(sj._strip_tags("999846_cabin_create_v1"), "cabin")
+
+
+class CleanUpWordsTest(unittest.TestCase):
+    def test_remove_lines_beats_the_relight_hold(self):
+        from vistiq import studio
+        t = studio.with_locks("soft overcast daylight, gentle even light. remove all sketch lines and texts.",
+                              {"materials": True, "camera": True}, False)
+        self.assertIn(studio.CLEAN_HOLD, t)
+        self.assertNotIn(studio.RELIGHT_HOLD, t)
+
+    def test_plain_relight_keeps_its_hold(self):
+        from vistiq import studio
+        t = studio.with_locks("soft overcast daylight, gentle even light", {"materials": True, "camera": True}, False)
+        self.assertIn(studio.RELIGHT_HOLD, t)

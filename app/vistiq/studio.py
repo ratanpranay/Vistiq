@@ -999,7 +999,9 @@ def qwen_text(words, instant=False, scene="", locks=None, ref_head="", sketch=Fa
             parts.append("Keep " + ", ".join(keep[:-1]) + (" and " if len(keep) > 1 else "") + keep[-1] + " exactly as they are.")
         lw = said if said is not None else words
         if not sketch and not ref_head and locks.get("materials") and locks.get("camera", True):
-            if PLACE_WORDS.search(lw):
+            if CLEAN_WORDS.search(lw):
+                parts.append(CLEAN_HOLD)
+            elif PLACE_WORDS.search(lw):
                 parts.append(SCENE_HOLD)
             elif SUN_WORDS.search(lw) or NIGHT_WORDS.search(lw) or SOFT_WORDS.search(lw):
                 parts.append(RELIGHT_HOLD)     # a relight added a glovebox handle that was never there (Nov 2026)
@@ -2086,6 +2088,13 @@ LOCK_TEXT = {
     "camera": "Keep the camera exactly: the same viewpoint, angle, lens and framing.",
 }
 # A relight (materials and camera kept, words about light): the model likes to invent handles and seams.
+# The user asks to take something away (sketch lines, labels, text): the hold must not forbid it (Nov 2026:
+# "soft overcast ... remove all sketch lines and texts" kept every line, because the hold came first).
+CLEAN_WORDS = re.compile(r"\b(remove\w*|eras\w*|clean\w*|delete\w*|get rid|without|no (sketch|pencil|lines?|texts?|labels?|"
+                         r"annotations?|writing|words|notes?|arrows?|callouts?))\b", re.I)
+CLEAN_HOLD = ("Do what the instructions say, including removing what they name (e.g. sketch lines, pencil strokes, "
+              "labels, handwritten text, arrows): the surfaces underneath are completed cleanly. Apart from that, do not "
+              "add or reshape any part; every panel and surface keeps its shape.")
 RELIGHT_HOLD = ("Only the light changes: do not add, remove or reshape any part - no new handles, buttons, vents, "
                 "seams, panel lines, stitching or logos; every panel and surface keeps its exact shape and detail.")
 SKETCH_LOCK_TEXT = {
@@ -2117,7 +2126,9 @@ def with_locks(text, locks, sketch):
         rules = [LOCK_TEXT[k] for k in ("design", "materials", "light", "camera") if locks.get(k)]
         free = [k for k in ("design", "materials", "light", "camera") if not locks.get(k)]
         if not locks.get("design") and locks.get("materials") and locks.get("camera"):
-            if PLACE_WORDS.search(text):
+            if CLEAN_WORDS.search(text):
+                rules.append(CLEAN_HOLD)
+            elif PLACE_WORDS.search(text):
                 rules.append(SCENE_HOLD)
             elif SUN_WORDS.search(text) or NIGHT_WORDS.search(text) or SOFT_WORDS.search(text):
                 rules.append(RELIGHT_HOLD)
