@@ -32,7 +32,15 @@ assert st_["create_ready"]
 
 e = macos.MageEngine(lambda: md)
 t = time.time()
-e._server(lambda: False)
+def dump_log():
+    try:
+        print("----- mlx-serve log -----\n" + open(e._log, encoding="utf-8", errors="replace").read()[-8000:], flush=True)
+    except Exception as exc:
+        print("no log:", exc, flush=True)
+try:
+    e._server(lambda: False)
+except Exception:
+    dump_log(); raise
 print("SERVER up in %.0fs on port %d" % (time.time() - t, e._port), flush=True)
 print("models:", requests.get(e._url("/v1/models"), timeout=10).text[:600], flush=True)
 
@@ -50,5 +58,5 @@ for side in (512, 768):
     except Exception as exc:
         print("PICTURE %d FAILED in %.0fs: %s" % (side, time.time() - t, exc), flush=True)
         break
-print("server log tail:", e._tail(), flush=True)
+dump_log()
 e.stop()
