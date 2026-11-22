@@ -54,7 +54,7 @@ async function open(browser, before, opts) {
   // The board now lives inside a project: Projects → the project's card.
   page.board = async (pid) => {
     await page.click(".s-nav button[data-page=projects]"); await page.waitForTimeout(150);
-    await page.click('.pj-card[data-pid="' + (pid || "myboard") + '"]'); await page.waitForTimeout(250);
+    await page.dblclick('.pj-card[data-pid="' + (pid || "myboard") + '"]'); await page.waitForTimeout(250);
   };
   page.startPage = await page.evaluate(() => document.body.getAttribute("data-page"));
   if (!opts || !opts.board) { await page.click(".s-nav button[data-page=create]"); await page.waitForTimeout(150); }
@@ -209,13 +209,15 @@ const frame = (n, name) => ({ path: "live://photoshop/" + n, name: name || "flat
     check("Studio opens on Projects", p.startPage === "projects", p.startPage);
     check("a project's card opens its board", await p.evaluate(() => document.body.getAttribute("data-page")) === "board" && /My board/.test(await p.text("#b-title")), await p.text("#b-title"));
     await p.waitForTimeout(200);
-    check("the Photoshop / Affinity tab shows not connected", await p.evaluate(() => !document.querySelector("#b-tdot.on")) && !(await p.isVisible('.b-tile[data-id="live"]')), "");
+    check("the Photoshop / Affinity tab shows not connected", await p.evaluate(() => !document.querySelector("#b-tdot.on")), "");
+    check("every board has the Photoshop / Affinity tile, with Connect", await p.isVisible('.b-tile[data-id="live"] [data-b="connect"]'), "");
+    check("no Board button next to the Photoshop tab", await p.evaluate(() => !/Board/.test(document.querySelector(".b-tabs").textContent)), "");
     await p.ev("studio-live", frame(1));
     await p.waitForTimeout(100);
     check("the tab turns green when Photoshop is live", await p.evaluate(() => !!document.querySelector("#b-tdot.on")), "");
     await p.ev("studio-dropped", { target: "board", images: [{ path: "C:/a/sketch.png", name: "sketch.png", w: 1600, h: 900, preview: img }] });
     await p.waitForTimeout(150);
-    check("a dropped image becomes a tile", await p.evaluate(() => document.querySelectorAll(".b-tile").length) === 1, await p.evaluate(() => document.querySelectorAll(".b-tile").length));
+    check("a dropped image becomes a tile", await p.evaluate(() => document.querySelectorAll(".b-tile:not([data-id=live])").length) === 1, await p.evaluate(() => document.querySelectorAll(".b-tile").length));
     await p.dblclick('.b-tile:not([data-id="live"])');
     await p.waitForTimeout(250);
     check("double-click opens Focus view with that image", await p.evaluate(() => document.body.getAttribute("data-page")) === "create" && /sketch/.test(await p.text("#c-ttl")), await p.text("#c-ttl"));
@@ -1034,7 +1036,9 @@ const frame = (n, name) => ({ path: "live://photoshop/" + n, name: name || "flat
     check("mac setup: three setups, Studio picked, Pro greyed out", tiers === "light,*studio,pro-off", tiers);
     check("mac setup: Studio is the recommended one", /recommended/i.test(await p.text('.m-tier[data-t="studio"]')), "");
     if (process.env.SHOTS) await p.screenshot({ path: process.env.SHOTS + "/mac-setup.png" });
+    await p.evaluate(() => { window.pywebview.api.studio_set_tier = (t) => { window.__tier = t; return Promise.resolve(Object.assign({}, window.VS.S.status, { needs_setup: false })); }; });
     await p.click('.m-tier[data-t="light"]'); await p.waitForTimeout(150);
+    check("mac: switching setup never locks the app", await p.evaluate(() => !document.body.classList.contains("s-gated")), "");
     check("mac setup: picking Light asks for it", (await p.evaluate(() => window.__tier)) === "light", await p.evaluate(() => window.__tier));
     await p.click('.m-tier[data-t="pro"]', { force: true }); await p.waitForTimeout(100);
     check("mac setup: a greyed-out setup can't be picked", (await p.evaluate(() => window.__tier)) === "light", "");

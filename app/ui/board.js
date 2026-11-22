@@ -45,7 +45,7 @@
       '<div class="b-cv" id="b-cv"><div class="b-world" id="b-world"><svg class="b-links" id="b-links"></svg></div></div>' +
       '<div class="b-top"><button type="button" class="b-back" data-b="projects">← Projects</button><div class="b-title" id="b-title">My board</div>' +
       '<div class="b-tabs"><button type="button" class="b-tab" data-b="pstab" title="Your open Photoshop or Affinity file, live, in this project">' +
-      '<span class="m-ico ps">Ps</span><span>Photoshop / Affinity</span><i class="b-tdot" id="b-tdot"></i></button><button type="button" class="b-tab on">Board</button></div></div>' +
+      '<span class="m-ico ps">Ps</span><span>Photoshop / Affinity</span><i class="b-tdot" id="b-tdot"></i></button></div></div>' +
       '<div class="b-bar"><button type="button" class="b-plus" data-b="plus" title="Add: blank canvas, image, paste, phone">' +
       '<svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></button><span class="b-sep"></span>' +
       '<button type="button" data-b="fit">Fit</button><span class="b-zoom" id="b-zoom">80%</span></div>' +
@@ -98,14 +98,15 @@
     }
     var mi = multi.indexOf(t.id), sel = (t.id === B.sel && !multi.length ? " sel" : "") + (mi >= 0 ? " msel" : "");
     var badge = mi >= 0 ? '<b class="b-no">' + (mi + 1) + "</b>" : "";
-    if (t.kind === "live") return "";        // Photoshop / Affinity is the project's own tab now (Nov 2026)
+
     if (t.kind === "upload") {               // where a picture being added will appear
       var known = typeof t.frac === "number";
       return '<div class="b-tile b-up" data-up="' + t.id + '" style="left:' + t.x + "px;top:" + t.y + "px;width:" + W + 'px">' +
         '<div class="b-h"><span>' + esc(VS().short(t.name || "Picture")) + "</span><small>" + (t.failed ? "Couldn't add" : "Adding…") + "</small></div>" +
         '<div class="b-upbox"><div class="b-upbar' + (known ? "" : " creep") + (t.failed ? " bad" : "") + '"><i style="' + (known ? "width:" + Math.round(t.frac * 100) + "%" : "") + '"></i></div></div></div>';
     }
-    if (t.kind === "live_old") {
+    if (t.kind === "live") {                 // every board starts with it: Connect, or your live file
+
       var L = liveInfo();
       var img = L.on ? '<div class="b-pic"><img src="' + L.src.preview + '" alt=""></div>' :
         '<div class="b-empty b-off"><span>' + (L.state ? esc(L.state) : "Photoshop or Affinity, live") + '</span><button type="button" data-b="connect">Connect</button>' + (L.msg ? "<small>" + esc(L.msg) + "</small>" : "") + "</div>";

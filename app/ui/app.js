@@ -858,12 +858,9 @@
   $("logs").addEventListener("click", function () { if (api()) api().open_logs(); });
 
   // support
-  var PAYPAL = "https://www.paypal.com/donate/?business=pranayratan%40gmail.com&no_recurring=0&item_name=Vistiq&currency_code=EUR";
   $("open-support").addEventListener("click", function () { $("support").hidden = false; $("close-support").focus(); });
   $("close-support").addEventListener("click", function () { $("support").hidden = true; });
   $("support").addEventListener("click", function (e) { if (e.target === this) this.hidden = true; });
-  $("open-paypal").addEventListener("click", function () { if (api()) api().open_url(PAYPAL); });
-  $("paypal-mail").addEventListener("click", function () { if (api()) api().open_url(PAYPAL); });
 
   // updates
   function restart() {

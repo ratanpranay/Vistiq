@@ -560,44 +560,94 @@ class MageEngine:
         images = [first] + ([job["ref"]] if job.get("ref") else [])
         w, h = _work_size(first, job.get("side"))
         self._server(cancelled)
-        files = []
-        try:
-            for i, path in enumerate(images):
-                files.append(("image[]", ("image%d.png" % i, _png_bytes(path), "image/png")))
-            data = {"prompt": job["text"], "seed": str(int(job["seed"]) % 2**31), "size": "%dx%d" % (w, h),
-                    "response_format": "b64_json"}
-            box = {}
+        # Streamed, so the bar follows the real work (Nov 2026: it sat at 2% and then jumped).
+        body = {"mode": "edit", "prompt": job["text"], "seed": int(job["seed"]) % 2**31, "size": "%dx%d" % (w, h),
+                "image": base64.b64encode(_png_bytes(images[0])).decode(), "stream": True}
+        if len(images) > 1:
+            body["ref_images"] = [base64.b64encode(_png_bytes(p)).decode() for p in images[1:]]
+        state = {"frac": 0.0, "denoised": False, "png": None, "err": None, "resp": None}
+        t0 = time.time()
 
-            def post():
-                try:
-                    box["r"] = requests.post(self._url("/v1/images/edits"), data=data, files=files, timeout=1800)
-                except Exception as exc:
-                    box["e"] = exc
-            th = threading.Thread(target=post, daemon=True)
-            th.start()
-            while th.is_alive():
-                if cancelled():
-                    raise RuntimeError("Cancelled")
-                th.join(0.3)
-            if "e" in box:
-                if self._proc is None or self._proc.poll() is not None:
-                    self._proc = None
-                    raise RuntimeError(self._why())
-                raise RuntimeError("The image engine failed: %s" % box["e"])
-            r = box["r"]
-            if not r.ok:
-                try:
-                    msg = r.json().get("error", {})
-                    msg = msg.get("message") if isinstance(msg, dict) else msg
-                except Exception:
-                    msg = r.text
-                if "memory" in str(msg).lower():
-                    raise RuntimeError("Not enough free memory for this picture. Close other apps, or pick a "
-                                       "smaller size, and try again.")
-                raise RuntimeError("The image engine failed: %s" % str(msg)[-300:])
-            return base64.b64decode(r.json()["data"][0]["b64_json"])
-        finally:
-            files.clear()
+        def tell(f):
+            f = max(state["frac"], min(0.99, f))
+            if f > state["frac"]:
+                state["frac"] = f
+                if on_progress:
+                    on_progress(f)
+
+        def read():
+            try:
+                r = requests.post(self._url("/v1/images/generations"), json=body, stream=True, timeout=1800)
+                state["resp"] = r
+                if not r.ok:
+                    try:
+                        msg = r.json().get("error", {})
+                        msg = msg.get("message") if isinstance(msg, dict) else msg
+                    except Exception:
+                        msg = r.text
+                    state["err"] = str(msg)
+                    return
+                for line in r.iter_lines(decode_unicode=True):
+                    if not line or not line.startswith("data:"):
+                        continue
+                    ev = json.loads(line[5:].strip())
+                    kind = ev.get("type")
+                    if kind == "progress":
+                        f = stage_fraction(ev.get("stage", ""), ev.get("step", 0), ev.get("total", 0), state)
+                        now = time.time()
+                        if state.get("mark_t") and f > state.get("mark", 0):
+                            state["gap"] = now - state["mark_t"]        # how long one step takes here
+                            state["next"] = min(0.99, f + (f - state["mark"]))
+                        state["mark"], state["mark_t"] = f, now
+                        tell(f)
+                    elif kind == "complete":
+                        state["png"] = base64.b64decode(ev["data"][0]["b64_json"])
+                        return
+                    elif kind == "error":
+                        state["err"] = ev.get("message") or "failed"
+                        return
+            except Exception as exc:
+                state["err"] = state["err"] or "lost: %s" % exc
+        th = threading.Thread(target=read, daemon=True)
+        th.start()
+        while th.is_alive():
+            if cancelled():
+                r = state.get("resp")
+                if r is not None:
+                    try:
+                        r.close()
+                    except Exception:
+                        pass
+                raise RuntimeError("Cancelled")
+            if state["frac"] < 0.1:          # loading the model / reading the prompt: creep, never sit still
+                tell(min(0.09, 0.09 * (1 - math.exp(-(time.time() - t0) / 20.0))))
+            elif state.get("gap") and state.get("next"):   # between steps: glide toward the next one
+                k = min(0.9, (time.time() - state["mark_t"]) / state["gap"])
+                tell(state["mark"] + (state["next"] - state["mark"]) * k)
+            th.join(0.25)
+        if state["png"] is not None:
+            return state["png"]
+        if self._proc is None or self._proc.poll() is not None:
+            self._proc = None
+            raise RuntimeError(self._why())
+        msg = state["err"] or "no picture came back"
+        if "memory" in msg.lower():
+            raise RuntimeError("Not enough free memory for this picture. Close other apps, or pick a "
+                               "smaller size, and try again.")
+        raise RuntimeError("The image engine failed: %s" % msg[-300:])
+
+
+def stage_fraction(stage, step, total, state):
+    """mlx-serve's progress (stage, step of total) as 0..1 of the whole picture:
+    up to 10% before the denoise (load, encode), 10-90% denoise, 90-99% decode."""
+    s = (stage or "").lower()
+    part = (float(step) / total) if total else 0.0
+    if "generat" in s or "denois" in s or "step" in s or "sampl" in s:
+        state["denoised"] = True
+        return 0.10 + 0.80 * part
+    if state.get("denoised") or "decod" in s or "vae" in s:
+        return 0.90 + 0.09 * part
+    return 0.02 + 0.08 * part
 
 
 def _png_bytes(path):

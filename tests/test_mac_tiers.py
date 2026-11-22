@@ -54,6 +54,14 @@ class TierTest(unittest.TestCase):
         self.assertIn("mage-flow-edit", os.path.basename(macos.mage_dir("/x")).lower())
 
 
+class StageTest(unittest.TestCase):
+    def test_stages_map_to_the_whole_picture(self):
+        st = {}
+        self.assertLess(macos.stage_fraction("Encoding", 1, 2, st), 0.1)
+        self.assertAlmostEqual(macos.stage_fraction("Generating", 2, 4, st), 0.5)
+        self.assertGreaterEqual(macos.stage_fraction("Decoding image", 4, 4, st), 0.9)
+
+
 class SettingTest(unittest.TestCase):
     def test_real_settings_take_mac_tier(self):
         from vistiq import settings as st
@@ -130,20 +138,18 @@ FAKE_SERVER = textwrap.dedent(r'''
         def do_GET(self):
             self.send_response(200); self.end_headers(); self.wfile.write(b"ok")
         def do_POST(self):
-            raw = self.rfile.read(int(self.headers["Content-Length"]))
-            msg = BytesParser(policy=default).parsebytes(b"Content-Type: " + self.headers["Content-Type"].encode() + b"\r\n\r\n" + raw)
-            form = {}
-            for part in msg.iter_parts():
-                form.setdefault(part.get_param("name", header="content-disposition"), []).append(part.get_payload(decode=True))
-            imgs = form["image[]"]
-            val = lambda k: form[k][0].decode()
-            w, h = [int(v) for v in val("size").split("x")]
-            assert "mage-flow-edit" in model.lower()
+            req = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
+            assert req["mode"] == "edit" and req["stream"] is True and "mage-flow-edit" in model.lower()
+            imgs = [req["image"]] + req.get("ref_images", [])
+            for x in imgs:
+                Image.open(io.BytesIO(base64.b64decode(x)))
+            w, h = [int(v) for v in req["size"].split("x")]
             im = Image.new("RGB", (w, h), (len(imgs) * 40, 0, 0)); b = io.BytesIO(); im.save(b, "PNG")
-            body = json.dumps({"data": [{"b64_json": base64.b64encode(b.getvalue()).decode()}],
-                               "prompt": val("prompt")}).encode()
-            self.send_response(200); self.send_header("Content-Length", str(len(body))); self.end_headers()
-            self.wfile.write(body)
+            self.send_response(200); self.send_header("Content-Type", "text/event-stream"); self.end_headers()
+            for i in range(1, 5):
+                self.wfile.write(("data: " + json.dumps({"type": "progress", "stage": "Generating", "step": i, "total": 4}) + "\n\n").encode())
+            self.wfile.write(("data: " + json.dumps({"type": "progress", "stage": "Decoding image", "step": 4, "total": 4}) + "\n\n").encode())
+            self.wfile.write(("data: " + json.dumps({"type": "complete", "data": [{"b64_json": base64.b64encode(b.getvalue()).decode()}]}) + "\n\n").encode())
     HTTPServer(("127.0.0.1", port), H).serve_forever()
 ''').lstrip()
 
@@ -173,7 +179,11 @@ class MageEngineTest(unittest.TestCase):
         e = macos.MageEngine(lambda: self.md)
         try:
             self.assertTrue(e.alive())
-            data = e.run({"image": self.img, "ref": self.img, "text": "render it", "seed": 5, "side": 1024})
+            fr = []
+            data = e.run({"image": self.img, "ref": self.img, "text": "render it", "seed": 5, "side": 1024}, fr.append)
+            self.assertEqual(fr, sorted(fr))
+            self.assertGreaterEqual(fr[-1], 0.9)
+            self.assertTrue(any(0.1 < f < 0.9 for f in fr))
             im = Image.open(io.BytesIO(data))
             self.assertEqual(im.size, (1024, 576))
             self.assertEqual(im.getpixel((0, 0))[0], 80)          # sketch + reference both sent

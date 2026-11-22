@@ -106,10 +106,9 @@
     root.classList.toggle("t-reading", rd);
     root.querySelector("#t-seen").textContent = !has ? "" : T.reading ? "Loading view navigator…" :
       T.base ? "Your picture: " + viewName(T.base).toLowerCase() + " (the grey ring on the plan; drag it if that's wrong)" : "";
-    // The preview: the picture turns with the camera.
-    var c = root.querySelector("#t-card"), s = 1 - T.dist * 0.18;
-    // camera above: the top edge comes nearer (wider); below: the bottom edge does
-    c.style.transform = busy ? "none" : "rotateX(" + (-T.pitch * 0.45) + "deg) rotateY(" + cardTurn(-T.yaw) + "deg) scale(" + s + ")";
+    // The picture stays flat and still; the camera plan beside it shows the new view (Nov 2026).
+    var c = root.querySelector("#t-card");
+    c.style.transform = "none";
     c.classList.toggle("t-loading", busy);
     var dv = root.querySelector("#t-dev"), pv = busy && p.preview;
     dv.hidden = !pv; if (pv) { if (dv.getAttribute("src") !== p.preview) dv.src = p.preview; dv.style.opacity = Math.min(1, 0.35 + 0.13 * (p.previewN || 1)); }

@@ -574,7 +574,15 @@
       var a = b && b.getAttribute("data-pj");
       if (a === "new") { newProjectDialog(); return; }
       if (a === "more" && card) { projectMenu(card.getAttribute("data-pid"), b); return; }
-      if (card && !e.target.closest("input")) openProject(card.getAttribute("data-pid"));
+      // One click picks a project; a double click opens it (Nov 2026).
+      if (card && !e.target.closest("input")) {
+        S.pjSel = card.getAttribute("data-pid");
+        page.querySelectorAll(".pj-card[data-pid]").forEach(function (c) { c.classList.toggle("sel", c.getAttribute("data-pid") === S.pjSel); });
+      }
+    });
+    page.addEventListener("dblclick", function (e) {
+      var card = e.target.closest("[data-pid]");
+      if (card && !e.target.closest("[data-pj=more]")) openProject(card.getAttribute("data-pid"));
     });
     page.addEventListener("contextmenu", function (e) {
       var card = e.target.closest("[data-pid]"); if (!card) return;
@@ -1267,7 +1275,7 @@
       }
       else if (a === "tier") {
         S.pickTier = b.getAttribute("data-t"); S.setup.done = "";
-        api().studio_set_tier(S.pickTier).then(function (st) { if (st) S.status = st; render(); });
+        api().studio_set_tier(S.pickTier).then(function (st) { if (st) S.status = st; applyGate(); render(); });
         render();
       }
       else if (a === "download-juice") { S.setup.error = ""; api().studio_setup(true); S.setup.run = { label: "Starting", fraction: null }; render(); }
@@ -2443,6 +2451,20 @@
     var p = S.pickTier, ok = (st.mac.tiers || []).filter(function (x) { return x.key === p && x.allowed; })[0];
     return ok ? p : st.mac.tier;
   }
+  // Optional downloads, folded away: Studio works without them (Nov 2026).
+  function extras(rows) {
+    return '<details class="s-extras"' + (S.extrasOpen ? " open" : "") + '><summary>Optional extras <small>for advanced use · Studio works without them</small></summary>' +
+      '<div class="s-list">' + rows + "</div></details>";
+  }
+  // Settings: the picked setup isn't downloaded -> one button gets all of it.
+  function macSwitch(st, running) {
+    if (st.create_ready || !st.mac.can_generate) return "";
+    if (running) return progressHTML();
+    var cur = (st.mac.tiers || []).filter(function (x) { return x.key === st.mac.tier; })[0] || {};
+    var need = st.files.filter(function (f) { return !f.ready; }).reduce(function (a, f) { return a + f.gb; }, 0);
+    return '<button type="button" class="s-go m-switch" data-su="download"><span>Download ' + esc(cur.name || "") + " · " + gb(need) + "</span></button>" +
+      (S.setup.error ? '<div class="s-err">' + esc(S.setup.error) + "</div>" : "");
+  }
   function macTierCards(st) {
     var pick = macPick(st);
     return '<div class="m-tiers">' + (st.mac.tiers || []).map(function (x) {
@@ -2451,7 +2473,7 @@
         (x.recommended ? '<span class="m-rec">Recommended</span>' : "") +
         '<small class="m-range">' + esc(x.range) + "</small><b>" + esc(x.name) + "</b><small>" + esc(x.speed) + "</small>" +
         "<ul>" + x.has.map(function (t) { return "<li>" + esc(t) + "</li>"; }).join("") + x["not"].map(function (t) { return '<li class="no">' + esc(t) + "</li>"; }).join("") + "</ul>" +
-        '<span class="m-foot"><span>' + (x.ready ? "Downloaded" : gb(x.gb) + " download") + "</span><span>" +
+        '<span class="m-foot"><span>' + (off ? "" : x.ready ? "Downloaded" : gb(x.gb) + " download") + "</span><span>" +
         (off ? (x.engine === "mage" && !st.mac.mage_supported && st.mac.ram >= x.min ? "Needs macOS 26.2+" : "Needs more memory") : x.key === st.mac.tier && st.create_ready ? "In use" : "Fits") + "</span></span></button>";
     }).join("") + "</div>";
   }
@@ -2536,9 +2558,9 @@
       '<button type="button" class="s-btn" data-su="take-other"' + (running ? " disabled" : "") + ">Take files from a folder…</button>" +
       (st.comfy_models ? '<button type="button" class="s-btn" data-su="take" data-path="' + esc(st.comfy_models) + '"' + (running ? " disabled" : "") + ">Take from my ComfyUI</button>" : "") + "</div>" +
       progressHTML() +
-      (st.mac ? '<div class="s-sec">Setup</div><p class="s-hint">Pick another setup to switch; a setup that isn\'t downloaded yet opens the setup page.</p>' + macTierCards(st) : "") +
+      (st.mac ? '<div class="s-sec">Setup</div><p class="s-hint">Pick a setup to switch. One that isn\'t downloaded yet downloads with one click.</p>' + macTierCards(st) + macSwitch(st, running) : "") +
       (st.mac ? '<div class="s-sec">This Mac</div><p class="s-hint">' + esc(st.mac.chip) + " · " + st.mac.ram + " GB memory · creates at up to " + st.mac.work_side + " px, upscales up to " + st.mac.max_side + " px" +
-        (st.mac.can_generate ? "" : " · image generation needs 16 GB or more") + '</p><div class="s-list">' + fileRows(st.files) + selectRow + helperRow + readerRow + "</div>" : "") +
+        (st.mac.can_generate ? "" : " · image generation needs 16 GB or more") + '</p><div class="s-list">' + fileRows(st.files) + selectRow + "</div>" + extras(helperRow) : "") +       // no picture readers on a Mac: Studio doesn't use them there
       // shown even without FLUX 3: a PC can run on Qwen Image Edit alone (Nov 2026, new office PC)
       (st.mac ? "" : '<div class="s-sec">Image model</div><p class="s-hint">Qwen Image Edit makes Create, Instant render and 3D views. FLUX 3 is optional.</p>' + engineChoice(st, running)) +
       (st.mac ? "" : '<div class="s-sec">Quality</div><div class="s-tiers">' + ["best", "good"].map(function (k) {
@@ -2546,7 +2568,7 @@
         return '<button type="button" class="s-tier' + (tt === k ? " on" : "") + '" data-su="tier" data-t="' + k + '"' + (running ? " disabled" : "") + "><b>" + TIER_TEXT[k][0] +
           (st.tiers[k].ready ? ' <span class="s-ok">Ready</span>' : "") + "</b><small>" + TIER_TEXT[k][1] + "</small></button>";
       }).join("") + "</div>" +
-      '<div class="s-list">' + fileRows(tierFiles(st, st.chosen || st.tier || "best").concat(st.files.filter(function (f) { return f.key === "consistency" && (st.chosen || st.tier || "best") === "best"; }))) + selectRow + helperRow + readerRow + "</div>" +
+      '<div class="s-list">' + fileRows(tierFiles(st, st.chosen || st.tier || "best").concat(st.files.filter(function (f) { return f.key === "consistency" && (st.chosen || st.tier || "best") === "best"; }))) + selectRow + "</div>" + extras(helperRow + readerRow) +
       (function () { var miss = setupGB(st, st.chosen || st.tier || "best") - (st.engine_installed ? 0 : 2.1) - (st.select_ready ? 0 : 0.1);
         return miss > 0.05 && !running ? '<div class="s-btns"><button type="button" class="s-btn p" data-su="download">Download (' + gb(miss) + ")</button>" +
           '<button type="button" class="s-btn" data-su="download-all" title="The engine, the image models, Qwen Image Edit, both picture readers, the prompt helper, Select and the magic eraser, one after another">Download everything (about 55 GB)</button></div>' : ""; })()) +
@@ -2562,6 +2584,7 @@
       el.innerHTML = h; el.setAttribute("data-h", h);
       var adv = el.querySelector(".s-adv");
       if (adv) adv.addEventListener("toggle", function () { S.advOpen = adv.open; });
+      el.querySelectorAll(".s-extras").forEach(function (d) { d.addEventListener("toggle", function () { S.extrasOpen = d.open; }); });
     }
   }
 

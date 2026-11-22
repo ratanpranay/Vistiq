@@ -1047,7 +1047,8 @@ def _mac_status(settings):
     return {"files": rows, "create_ready": ready, "juice_ready": False, "tier": "good", "chosen": "good",
             # The setup page is the whole app until this is False (a Mac that can't make pictures
             # only needs the upscaler).
-            "needs_setup": not up_ok or (gen and not ready),
+            # (Only the first setup locks the app; switching to another one later doesn't.)
+            "needs_setup": not up_ok or (gen and not any(x["ready"] for x in tiers)),
             "tiers": {"best": {"label": "Best quality", "ready": False}, "good": {"label": "Good quality", "ready": ready}},
             "engine_installed": rows[0]["ready"], "loras": [], "select_ready": select_installed(settings),
             "helper_ready": helper_installed(settings), "reader_ready": reader_installed(settings),
