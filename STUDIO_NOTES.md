@@ -1,5 +1,10 @@
 # Vistiq Studio (test build)
 
+## 0.4.94
+- Mac: three setups by memory, Light (under 10 GB), Studio (10–20 GB) and Pro (over 20 GB). The setup page shows your chip and memory, suggests the best one that fits and greys out the ones your Mac can't run. Only that setup's files are downloaded. Switch any time in Settings › Setup.
+- Mac Studio and Pro: new image model, Microsoft Mage-Flow Edit Turbo (8-bit, about 10 GB, free). It reads the sketch and the instruction and renders in 4 steps. It runs in mlx-serve, a small native engine that keeps the model ready between pictures. Needs macOS 26.2 or later. Light stays FLUX.2 Klein 4B.
+- Settings › Delete everything: removes all downloaded models, everything made, projects and settings, then closes Studio (two checks: OK, then type DELETE). To set Studio up fresh, or to remove it.
+
 ## 0.4.93
 - New project opens in a small floating window (name, then Create project).
 - Any project can be deleted, also the only one. It goes to the Trash (new, at the bottom of the left bar: Trash · Settings · ♥) and can be restored for 30 days. Its pictures are never deleted.
