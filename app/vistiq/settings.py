@@ -50,6 +50,7 @@ DEFAULTS = {
     "studio_port": 0,             # where the image engine last listened
     "comfy_models": "",           # a ComfyUI models folder to take files from
     "studio_tier": "",            # "best" (Klein 9B) or "good" (Klein 4B)
+    "mac_tier": "",               # Mac setup: "light", "studio" or "pro" ("" = the suggested one)
     "studio_times": {},           # learned creation times, for the timer
     "studio_seq": 0,              # the last run number (results are named 0001_, 0002_…)
     "studio_engine": "flux3",     # which image model makes the pictures: flux3 or qwenedit

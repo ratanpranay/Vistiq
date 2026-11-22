@@ -54,6 +54,15 @@ class TierTest(unittest.TestCase):
         self.assertIn("mage-flow-edit", os.path.basename(macos.mage_dir("/x")).lower())
 
 
+class SettingTest(unittest.TestCase):
+    def test_real_settings_take_mac_tier(self):
+        from vistiq import settings as st
+        with tempfile.TemporaryDirectory() as d, mock.patch.object(st, "data_dir", lambda: d):
+            s = st.Settings()
+            s.set("mac_tier", "studio")
+            self.assertEqual(st.Settings().get("mac_tier"), "studio")
+
+
 class InstallTest(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
