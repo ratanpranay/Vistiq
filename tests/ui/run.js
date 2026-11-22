@@ -235,6 +235,14 @@ const frame = (n, name) => ({ path: "live://photoshop/" + n, name: name || "flat
     check("right-click shows the actions", /Upscale/.test(await p.text("#b-menu")) && /Save a copy/.test(await p.text("#b-menu")), await p.text("#b-menu"));
     await p.keyboard.press("Escape");
     check("Escape closes the menu", await p.evaluate(() => document.getElementById("b-menu").hidden), "still open");
+    // Projects tab with work open: first back to that work, then (again) all projects.
+    await p.dblclick('.b-tile[data-id]:not([data-id="live"])'); await p.waitForTimeout(250);
+    await p.click(".s-nav button[data-page=upscale]"); await p.waitForTimeout(150);
+    await p.click(".s-nav button[data-page=projects]"); await p.waitForTimeout(150);
+    check("Projects brings you back to the picture you were working on", await p.evaluate(() => document.body.getAttribute("data-page")) === "create", await p.evaluate(() => document.body.getAttribute("data-page")));
+    await p.click(".s-nav button[data-page=projects]"); await p.waitForTimeout(150);
+    check("clicking Projects again shows all projects", await p.evaluate(() => document.body.getAttribute("data-page")) === "projects", "");
+    await p.board(); await p.waitForTimeout(150);
     check("no Organize button (freeform board)", await p.evaluate(() => !document.querySelector(".b-bar [data-b=organize]")), "");
     check("a result sits to the right of its source", await p.evaluate(() => {
       const t = window.VSBoard._state().tiles, live = t.find((x) => x.id === "live"), s = t.find((x) => x.path === "C:/a/sketch.png"), r = t.find((x) => x.path === "C:/o/r1.png");

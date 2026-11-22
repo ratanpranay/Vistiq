@@ -678,6 +678,8 @@
     if (p === "reference") p = "create";          // references live in Create now
     if (["projects", "board", "3d", "create", "upscale", "library", "settings", "trash"].indexOf(p) < 0) p = "projects";
     S.page = p; keep("page", p);
+    if (p === "board" || (p === "create" && S.create.src)) S.lastWork = p;      // where Projects brings you back to
+    else if (p === "projects") S.lastWork = null;
     document.body.setAttribute("data-page", p);
     document.querySelectorAll(".s-nav button").forEach(function (b) { var bp = b.getAttribute("data-page"); b.classList.toggle("on", bp === p || (bp === "projects" && (p === "board" || p === "create"))); });
     document.querySelectorAll(".s-page").forEach(function (el) { el.classList.toggle("on", el.id === "p-" + p); });
@@ -1054,6 +1056,12 @@
     document.querySelector(".s-nav").addEventListener("click", function (e) {
       var b = e.target.closest("button[data-page]");
       if (b && b.getAttribute("data-page") === "3d" && window.VS3D) { go("3d"); window.VS3D.fromCreate(); }   // takes Create's current file
+      else if (b && b.getAttribute("data-page") === "projects") {
+        // Projects with work open (Nov 2026): first click goes back to the picture or board you were on;
+        // from there, a second click shows all projects.
+        var back = S.lastWork && S.page !== "create" && S.page !== "board" && S.page !== "projects" ? S.lastWork : "projects";
+        go(back);
+      }
       else if (b) go(b.getAttribute("data-page"));
     });
     // Create

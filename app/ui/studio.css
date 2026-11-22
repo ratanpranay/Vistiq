@@ -1240,3 +1240,7 @@ body.studio .s-stage>.s-top,body.studio .s-stage>.s-under{transform:translateZ(0
 .m-switch{height:46px;margin:0 0 14px;width:100%}
 
 .s-pli span u{text-decoration:none;background:#EEEBFF;color:#5B4BEA;border-radius:4px;padding:0 3px;font-weight:600}
+
+/* Board button on the drawing bar: in the Create button's colours, so it stands out */
+.sk-b.sk-board{background:var(--brand);color:#fff;border-radius:10px}
+.sk-b.sk-board:hover{filter:brightness(1.06);background:var(--brand);color:#fff}
