@@ -1,5 +1,10 @@
 # Vistiq Studio (test build)
 
+## 0.4.95
+- First run: until the models are downloaded, the setup page is the whole app (the other tabs are locked). When the download is done, Studio opens on Projects.
+- A fresh install starts with no projects (no empty "My board"). Pictures on an old board still become "My board".
+- Adding a picture to a board (drop, Upload, paste, phone): an outlined tile with a bar shows at once where it will land; from the phone the bar shows the real upload. The picture then takes that spot.
+
 ## 0.4.94
 - Mac: three setups by memory, Light (under 10 GB), Studio (10–20 GB) and Pro (over 20 GB). The setup page shows your chip and memory, suggests the best one that fits and greys out the ones your Mac can't run. Only that setup's files are downloaded. Switch any time in Settings › Setup.
 - Mac Studio and Pro: new image model, Microsoft Mage-Flow Edit Turbo (8-bit, about 10 GB, free). It reads the sketch and the instruction and renders in 4 steps. It runs in mlx-serve, a small native engine that keeps the model ready between pictures. Needs macOS 26.2 or later. Light stays FLUX.2 Klein 4B.
