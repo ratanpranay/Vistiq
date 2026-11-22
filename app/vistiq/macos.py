@@ -512,7 +512,10 @@ class MageEngine:
             out = open(self._log, "ab")
             self._proc = subprocess.Popen(
                 [mlxs_bin(), "--model", mage_dir(self.models_dir()), "--serve", "--host", "127.0.0.1",
-                 "--port", str(self._port), "--log-file", self._log],
+                 "--port", str(self._port), "--log-file", self._log,
+                 # Its check wants ~11 GB *free*; a 16 GB Mac with a browser open rarely has
+                 # that, though the 9 GB model fits (macOS frees and compresses memory).
+                 "--skip-mem-preflight"],
                 stdout=out, stderr=subprocess.STDOUT, stdin=subprocess.DEVNULL, cwd=os.path.dirname(mlxs_bin()))
         t0 = time.time()
         while time.time() - t0 < 300:
@@ -520,7 +523,7 @@ class MageEngine:
                 raise RuntimeError("Cancelled")
             if self._proc.poll() is not None:
                 self._proc = None
-                raise RuntimeError("The image engine stopped: " + self._tail())
+                raise RuntimeError(self._why())
             try:
                 if requests.get(self._url("/health"), timeout=2).ok:
                     return
@@ -528,6 +531,16 @@ class MageEngine:
                 pass
             time.sleep(0.5)
         raise RuntimeError("The image engine didn't start: " + self._tail())
+
+    def _why(self):
+        try:
+            text = open(self._log, encoding="utf-8", errors="replace").read()[-6000:]
+        except Exception:
+            text = ""
+        if "Insufficient" in text or "InsufficientMemory" in text or "out of memory" in text.lower():
+            return ("Not enough free memory for the image model (about 10 GB). Close other apps "
+                    "(browser, Photoshop) and try again.")
+        return "The image engine stopped: " + self._tail()
 
     def _tail(self):
         try:
@@ -569,7 +582,7 @@ class MageEngine:
             if "e" in box:
                 if self._proc is None or self._proc.poll() is not None:
                     self._proc = None
-                    raise RuntimeError("The image engine stopped: " + self._tail())
+                    raise RuntimeError(self._why())
                 raise RuntimeError("The image engine failed: %s" % box["e"])
             r = box["r"]
             if not r.ok:
@@ -578,6 +591,9 @@ class MageEngine:
                     msg = msg.get("message") if isinstance(msg, dict) else msg
                 except Exception:
                     msg = r.text
+                if "memory" in str(msg).lower():
+                    raise RuntimeError("Not enough free memory for this picture. Close other apps, or pick a "
+                                       "smaller size, and try again.")
                 raise RuntimeError("The image engine failed: %s" % str(msg)[-300:])
             return base64.b64decode(r.json()["data"][0]["b64_json"])
         finally:
