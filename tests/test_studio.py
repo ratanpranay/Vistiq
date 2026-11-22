@@ -1014,3 +1014,27 @@ class CleanUpWordsTest(unittest.TestCase):
         from vistiq import studio
         t = studio.with_locks("soft overcast daylight, gentle even light", {"materials": True, "camera": True}, False)
         self.assertIn(studio.RELIGHT_HOLD, t)
+
+
+class FollowWordsTest(unittest.TestCase):
+    def test_action_words(self):
+        from vistiq import studio
+        for w in ["remove all sketch lines", "add a phone on the charger", "change the seats to red leather",
+                  "replace the wheels with bronze ones", "no labels or text", "clean up the lines"]:
+            self.assertTrue(studio.instructs(w), w)
+        for w in ["soft overcast daylight", "golden hour sun", "Add no logos or badges", "studio light, dark background"]:
+            self.assertFalse(studio.instructs(w), w)
+
+    def test_instruction_comes_before_the_keep_rules(self):
+        from vistiq import studio
+        t = studio.with_locks("change the seats to red leather", {"materials": True, "camera": True}, False)
+        self.assertTrue(t.startswith(studio.FOLLOW_FIRST))
+        t = studio.with_locks("soft overcast daylight", {"materials": True, "camera": True}, False)
+        self.assertNotIn(studio.FOLLOW_FIRST, t)
+
+    def test_qwen_text_follows_the_words(self):
+        from vistiq import studio
+        t = studio.qwen_text("soft overcast daylight. remove all sketch lines and texts", locks={"materials": True, "camera": True})
+        self.assertIn("Above all", t)
+        self.assertIn(studio.CLEAN_HOLD, t)
+        self.assertNotIn(studio.RELIGHT_HOLD, t)

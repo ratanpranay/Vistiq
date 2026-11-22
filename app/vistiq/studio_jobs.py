@@ -977,7 +977,8 @@ class Studio:
                         else:
                             chain = True
                 if job.get("locks"):
-                    text = studio.with_locks(text, job["locks"], (job.get("preset") or "") == "sketch")
+                    text = studio.with_locks(text, job["locks"], (job.get("preset") or "") == "sketch",
+                                             words=job.get("said") or job.get("text") or "")
             # Lab (testing only): %APPDATA%\VistiqStudio\lab.json tries other wordings
             # and image orders for references without a new build.
             user_text = locals().get("user_text", job.get("said") or job.get("text") or "")
@@ -1262,7 +1263,10 @@ class Studio:
                 result = Image.open(io.BytesIO(data)).convert("RGB")
                 if (sys.platform != "darwin" and mode == "create" and not job.get("instant") and not job.get("view")
                         and not refs and (job.get("locks") or {}).get("materials") and (job.get("text") or "").strip()
-                        and lab.get("keep_cmf", True)):
+                        and lab.get("keep_cmf", True)
+                        # an instruction of its own (remove lines, add a part, change a colour) is never undone by
+                        # copying the original back (Nov 2026)
+                        and not studio.instructs(job.get("said") or job.get("text") or "")):
                     try:
                         model_pic = result
                         night = bool(studio.night_clause(job.get("said") or job.get("text") or ""))

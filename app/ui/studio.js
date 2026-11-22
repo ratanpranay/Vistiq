@@ -230,47 +230,59 @@
       '<span class="s-impn"></span></div></div>' + (id === "c" ? '<div class="s-plib" id="c-plib" hidden></div>' : "");
   }
 
-  // Prompt library: prompts tested in Studio, by task. Picking one fills the words and sets the Keep locks
-  // it was tested with (null = leave that lock as it is).
+  // Prompt library (Nov 2026): generic helpers for any picture - cars, buildings, products, fashion, characters.
+  // [words] are yours to change: shown in purple, the first one is selected when you pick the prompt.
+  // Each sets the Keep locks the task needs (null = leave them as they are).
+  var KEEP_LOOK = { materials: true, camera: true, light: false }, KEEP_ALL = { materials: true, camera: true, light: true };
   var PLIB = [
-    ["sketch", "Sketch → render", "On a sketch. Empty words = Instant render (CGI that follows the sketch).", [
-      ["Instant CGI", "", null, "Leave the words empty and press Instant render", true],
-      ["Bright premium interior", "bright premium interior CGI, soft bounce light from the windows, every surface visible, leather grain and stitching sharp", { light: false }, "", true],
-      ["Studio exterior", "photoreal CGI in a minimal white studio, seamless floor, soft top light, crisp reflections on the paint", { light: false }, "", true],
-      ["Juicy showroom", "juicy showroom render: glossy paint with deep reflections, soft studio floor, crisp lamps and wheels", { light: false }, "", false],
-      ["Sketch with colours", "coral red nappa seats and door panels, dark navy dash, brushed aluminium trim", { materials: false }, "", true]
+    ["render", "Sketch → render", "On a sketch or drawing. Leave the words empty for an Instant render.", [
+      ["Photoreal render", "photorealistic render of this sketch, true-to-life materials, soft natural light, sharp detail", { materials: false, light: false }],
+      ["Keep my colours", "photorealistic render, keep the colours and materials as drawn", { materials: true, light: false }],
+      ["Clean studio render", "clean render on a seamless light backdrop, soft top light, crisp edges", { materials: false, light: false }],
+      ["Clay model", "matte white clay model, soft studio light, no colour, shapes only", { materials: false, light: false }],
+      ["Polished concept", "polished concept rendering in marker and pencil style, light shading", { materials: false, light: false }]
     ]],
-    ["light", "Lighting (CGI)", "On a CGI or render. Keeps materials and view; only the light changes.", [
-      ["Golden hour sun", "cinematic golden hour sun low through the side window, warm sun patches and soft shadows on seats and dash, soft neutral fill in the shadows, windows clear", { materials: true, camera: true, light: false }, "", true],
-      ["Night interior", "night, calm indirect ambient glow under the dashboard and doors, city lights outside", { materials: true, camera: true, light: false }, "", true],
-      ["Night exterior", "night, car lit by soft street light, lamps on, wet ground reflections", { materials: true, camera: true, light: false }, "", true],
-      ["Soft overcast", "soft overcast daylight, gentle even light, no hard shadows, every surface visible", { materials: true, camera: true, light: false }, "", false],
-      ["Bright studio (interior)", "bright soft studio light filling the cabin, every surface visible, clean light background outside the windows", { materials: true, camera: true, light: false }, "", false],
-      ["Studio light (exterior)", "studio lighting: large soft key light overhead, clean highlights along the body, dark gradient background", { materials: true, camera: true, light: false }, "", false]
+    ["light", "Lighting", "On a render or photo. The design and materials stay; only the light changes.", [
+      ["Golden hour", "warm golden hour sunlight from the side, long soft shadows", KEEP_LOOK],
+      ["Soft overcast", "soft overcast daylight, even light, no hard shadows", KEEP_LOOK],
+      ["Night", "night, warm practical lights, cool ambient glow", KEEP_LOOK],
+      ["Studio key light", "studio lighting, large soft key light, gentle rim light, dark background", KEEP_LOOK],
+      ["Bright and airy", "bright, airy daylight, every surface clearly visible", KEEP_LOOK]
     ]],
-    ["cmf", "Material change", "Changes colours and materials. Tip: select an area first to change only that part.", [
-      ["Seat leather", "seats in tan aniline leather with fine perforation and contrast stitching", { materials: false, camera: true, light: true }, "", true],
-      ["Dash & trim", "dashboard top in dark grey alcantara, trim in open-pore walnut", { materials: false, camera: true, light: true }, "", false],
-      ["Pearl white paint", "body paint in satin pearl white, black roof and mirror caps", { materials: false, camera: true, light: true }, "", false],
-      ["Matte graphite", "matte graphite paint, gloss black lower trims, bronze wheels", { materials: false, camera: true, light: true }, "", false],
-      ["Selected area", "brushed aluminium", { materials: false, camera: true, light: true }, "Select the part with the selection tool first", true]
+    ["mat", "Materials & colour", "Changes colours and materials. Purple words are yours to change. Select an area first to change only that part.", [
+      ["Change a colour", "make the [main body] [deep forest green]", { materials: false, camera: true, light: true }],
+      ["Swap a material", "make the [top surface] out of [brushed aluminium]", { materials: false, camera: true, light: true }],
+      ["Matte finish", "make every surface matte, keep the colours", { materials: false, camera: true, light: true }],
+      ["Premium finish", "premium materials: fine textures, subtle reflections, precise seams", { materials: false, camera: true, light: true }],
+      ["Selected area only", "[walnut wood]", { materials: false, camera: true, light: true }, "Select the area with the selection tool first"]
     ]],
-    ["bg", "Background & scene", "Puts the design somewhere else; the car or cabin stays.", [
-      ["City street at night", "parked on a wet city street at night, neon reflections on the ground", { materials: true, camera: true, light: false }, "", false],
-      ["Desert road", "on a desert road at sunset, warm dust in the air", { materials: true, camera: true, light: false }, "", false],
-      ["Mountain pass", "on an alpine mountain pass, crisp morning light", { materials: true, camera: true, light: false }, "", false],
-      ["White studio", "minimal white studio, seamless floor, soft shadow under the car", { materials: true, camera: true, light: false }, "", true],
-      ["View outside windows", "desert landscape with red rocks outside the windows", { materials: true, camera: true, light: true }, "", true]
+    ["bg", "Background & scene", "Puts the design somewhere else; the subject itself stays.", [
+      ["Studio backdrop", "on a seamless light grey backdrop with a soft floor shadow", KEEP_LOOK],
+      ["Outdoors", "outdoors in [a mountain landscape], natural light matching the scene", KEEP_LOOK],
+      ["Inside a space", "inside a [modern gallery], soft daylight", KEEP_LOOK],
+      ["City street", "on a city street at [dusk]", KEEP_LOOK],
+      ["Plain white", "plain white background, product-shot style", KEEP_LOOK]
     ]],
-    ["view", "View change", "Turns the camera. For several angles at once, use 3D views.", [
-      ["Front three-quarter", "front three-quarter view", { materials: true, camera: false }, "", false],
-      ["Rear three-quarter", "rear three-quarter view", { materials: true, camera: false }, "", false],
-      ["Side view", "side view", { materials: true, camera: false }, "", false],
-      ["Close-up detail", "close-up of the seat stitching and perforation", { materials: true, camera: false }, "", false]
+    ["view", "Camera & view", "Turns the camera. For several angles at once, use 3D views.", [
+      ["Three-quarter", "three-quarter view from the front", { materials: true, camera: false }],
+      ["Side / profile", "straight side view", { materials: true, camera: false }],
+      ["Top-down", "top-down view from above", { materials: true, camera: false }],
+      ["Close-up", "close-up of the [main detail]", { materials: true, camera: false }],
+      ["Wide shot", "wide shot showing the surroundings", { materials: true, camera: false }]
     ]],
-    ["add", "Add objects", "Select an area first; the object is placed there.", [
-      ["Phone on charger", "a phone lying on the wireless charger", { materials: true, camera: true, light: true }, "Select the charger area first", true],
-      ["Bag on seat", "a leather handbag on the passenger seat", { materials: true, camera: true, light: true }, "Select the seat area first", false]
+    ["edit", "Add / remove", "Select an area first; the change happens there.", [
+      ["Add an object", "add a [plant] on the [left]", KEEP_ALL, "Select where it goes first"],
+      ["Remove something", "remove the [object], fill with matching background", KEEP_ALL, "Select it first"],
+      ["Clean up lines", "remove all sketch lines, labels and handwritten text; complete the surfaces cleanly", KEEP_ALL],
+      ["Person for scale", "add a person standing next to it for scale", KEEP_ALL],
+      ["Add text or a logo", "add the text \"[VISTIQ]\" on the [front]", KEEP_ALL]
+    ]],
+    ["style", "Style", "Restyles the whole picture; shapes and layout stay.", [
+      ["Photoreal", "photorealistic, natural colours, real-world detail", { materials: false, camera: true, light: false }],
+      ["Cinematic still", "cinematic film still, shallow depth of field, moody grade", { materials: false, camera: true, light: false }],
+      ["Watercolour", "loose watercolour illustration, soft paper texture", { materials: false, camera: true, light: false }],
+      ["Technical drawing", "clean technical line drawing on white, no shading", { materials: false, camera: true, light: false }],
+      ["Minimal 3D", "minimal 3D style, soft pastel colours, simple shapes", { materials: false, camera: true, light: false }]
     ]]
   ];
   function plibHtml(cat) {
@@ -278,14 +290,17 @@
     return '<div class="s-plt">' + PLIB.map(function (x) { return '<button type="button" data-plc="' + x[0] + '"' + (x[0] === c[0] ? ' class="on"' : "") + ">" + x[1] + "</button>"; }).join("") + "</div>" +
       '<p class="s-plh">' + c[2] + "</p>" +
       c[3].map(function (it, i) {
-        return '<button type="button" class="s-pli" data-pli="' + i + '"><b>' + it[0] + (it[4] ? ' <em>tested</em>' : "") + "</b>" +
-          "<span>" + (it[1] || it[3]) + "</span>" + (it[1] && it[3] ? "<small>" + it[3] + "</small>" : "") + "</button>";
+        var shown = esc(it[1]).replace(/\[([^\]]+)\]/g, "<u>$1</u>");
+        return '<button type="button" class="s-pli" data-pli="' + i + '"><b>' + it[0] + "</b>" +
+          "<span>" + shown + "</span>" + (it[3] ? "<small>" + it[3] + "</small>" : "") + "</button>";
       }).join("");
   }
   function plibUse(cat, i) {
     var c = PLIB.filter(function (x) { return x[0] === cat; })[0], it = c && c[3][i]; if (!it) return;
     var p = S.create, box = $("c-text");
-    p.text = it[1]; box.value = it[1]; p.viewing = false; p.libText = it[1];
+    var first = it[1].indexOf("["), firstEnd = first >= 0 ? it[1].indexOf("]", first) - 1 : -1;
+    var plain = it[1].replace(/[\[\]]/g, "");
+    p.text = plain; box.value = plain; p.viewing = false; p.libText = plain;
     if (it[2]) {
       p.locks = Object.assign({}, p.locks || defaultLocks(p.src));
       Object.keys(it[2]).forEach(function (k) { p.locks[k] = it[2][k]; });
@@ -294,6 +309,7 @@
     $("c-plib").hidden = true; $("c-libb").classList.remove("on");
     if (it[3]) toast(it[3]);
     box.dispatchEvent(new Event("input")); box.focus(); render();
+    if (first >= 0) box.setSelectionRange(first, firstEnd);      // the first [word] selected: just type over it
   }
 
   function stage(id, extra) {
@@ -315,7 +331,7 @@
     var nav = document.createElement("nav");
     nav.className = "s-nav";
     nav.innerHTML = '<div class="s-logo" title="Vistiq Studio"><img src="assets/mark.png" alt=""></div>' +
-      ["projects", "create", "3d", "upscale", "library"].map(function (p) {
+      ["projects", "3d", "upscale", "library"].map(function (p) {      // no Create tab (Nov 2026): open a picture from a project
         return '<button type="button" data-page="' + p + '">' + svg(p) + (p === "3d" ? "3D views" : p.charAt(0).toUpperCase() + p.slice(1)) + "</button>";
       }).join("") + '<div class="s-sp"></div><button type="button" data-page="trash">' + svg("trash") + 'Trash</button><button type="button" data-page="settings">' + svg("settings") + "Settings</button>" +
       '<button type="button" class="s-min s-navmin" data-min="nav" title="Collapse / expand"><svg viewBox="0 0 24 24"><path d="M15 6l-6 6 6 6"/></svg></button>';
@@ -663,7 +679,7 @@
     if (["projects", "board", "3d", "create", "upscale", "library", "settings", "trash"].indexOf(p) < 0) p = "projects";
     S.page = p; keep("page", p);
     document.body.setAttribute("data-page", p);
-    document.querySelectorAll(".s-nav button").forEach(function (b) { var bp = b.getAttribute("data-page"); b.classList.toggle("on", bp === p || (bp === "projects" && p === "board")); });
+    document.querySelectorAll(".s-nav button").forEach(function (b) { var bp = b.getAttribute("data-page"); b.classList.toggle("on", bp === p || (bp === "projects" && (p === "board" || p === "create"))); });
     document.querySelectorAll(".s-page").forEach(function (el) { el.classList.toggle("on", el.id === "p-" + p); });
     if (api()) api().studio_drop_target(p);
     if (p === "library") loadLibrary();

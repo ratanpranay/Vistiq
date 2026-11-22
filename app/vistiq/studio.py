@@ -979,6 +979,8 @@ def qwen_text(words, instant=False, scene="", locks=None, ref_head="", sketch=Fa
                 words += "."
         if words:
             parts.append(words)
+            if instructs(said if said is not None else words):
+                parts.append(FOLLOW_FIRST.replace("the rules below", "the rest of this").replace("The rules below", "The rest of this"))
         if night:
             parts.append(night)
             locks["light"] = False
@@ -999,7 +1001,7 @@ def qwen_text(words, instant=False, scene="", locks=None, ref_head="", sketch=Fa
             parts.append("Keep " + ", ".join(keep[:-1]) + (" and " if len(keep) > 1 else "") + keep[-1] + " exactly as they are.")
         lw = said if said is not None else words
         if not sketch and not ref_head and locks.get("materials") and locks.get("camera", True):
-            if CLEAN_WORDS.search(lw):
+            if CLEAN_WORDS.search(lw) or instructs(lw):
                 parts.append(CLEAN_HOLD)
             elif PLACE_WORDS.search(lw):
                 parts.append(SCENE_HOLD)
@@ -2092,9 +2094,38 @@ LOCK_TEXT = {
 # "soft overcast ... remove all sketch lines and texts" kept every line, because the hold came first).
 CLEAN_WORDS = re.compile(r"\b(remove\w*|eras\w*|clean\w*|delete\w*|get rid|without|no (sketch|pencil|lines?|texts?|labels?|"
                          r"annotations?|writing|words|notes?|arrows?|callouts?))\b", re.I)
-CLEAN_HOLD = ("Do what the instructions say, including removing what they name (e.g. sketch lines, pencil strokes, "
-              "labels, handwritten text, arrows): the surfaces underneath are completed cleanly. Apart from that, do not "
-              "add or reshape any part; every panel and surface keeps its shape.")
+CLEAN_HOLD = ("Do what the instructions say, including adding, removing or changing what they name (e.g. sketch "
+              "lines, pencil strokes, labels, handwritten text, arrows, a part, a colour): removed things leave the "
+              "surfaces underneath completed cleanly. Apart from that, do not add or reshape any part; every panel and "
+              "surface keeps its shape.")
+# Words that ask for a change of their own (Nov 2026): whatever the picture is (sketch or CGI) and whatever is
+# locked, the instruction is done; the Keep locks only hold what it doesn't mention.
+ACTION_WORDS = re.compile(r"\b(remove\w*|eras\w*|clean\w*|delete\w*|get rid|without|add(?!\s+no\b)|adding|insert\w*|put|place|"
+                          r"replace\w*|swap\w*|change\w*|recolou?r\w*|paint\w*|turn \w+ into|convert\w*)\b|"
+                          r"\bno (sketch|pencil|lines?|texts?|labels?|annotations?|writing|words|notes?|arrows?|callouts?)\b",
+                          re.I)
+FOLLOW_FIRST = ("Above all, do exactly what the instructions say, fully, even where it changes a part, material, colour "
+                "or line that the rules below would keep. The rules below only hold what the instructions don't mention.")
+
+
+def PRESET_LINES():
+    """Every fixed line Studio puts round the person's words (presets, light, finish)."""
+    out = set()
+    g = globals()
+    for name, v in g.items():
+        if name.endswith("PRESETS") and isinstance(v, dict):
+            for part in v.values():
+                if isinstance(part, str):
+                    out.update(x for x in part.split("\n\n") if x)
+    for name in ("LIGHT_INT", "LIGHT_NIGHT", "LIGHT_EXT", "LIGHT", "SOFT_LIGHT", "CLEAN", "CRISP"):
+        if isinstance(g.get(name), str):
+            out.add(g[name])
+    return out
+
+
+def instructs(words):
+    """Do these words ask for a change of their own (add, remove, replace, clean up...)?"""
+    return bool(ACTION_WORDS.search(words or ""))
 RELIGHT_HOLD = ("Only the light changes: do not add, remove or reshape any part - no new handles, buttons, vents, "
                 "seams, panel lines, stitching or logos; every panel and surface keeps its exact shape and detail.")
 SKETCH_LOCK_TEXT = {
@@ -2111,10 +2142,12 @@ SKETCH_RECOLOUR = ("The colours and fills in the sketch are only placeholders, n
                    "rubber and metal details.")
 
 
-def with_locks(text, locks, sketch):
+def with_locks(text, locks, sketch, words=None):
     """Rules for what must not change (the Keep toggles), put first: the model
     weighs the start of the prompt most. Light locked also drops our own light."""
     locks = locks or {}
+    # the person's own words (not a preset's lines around them)
+    said = words if words is not None else next((p for p in text.split("\n\n") if p.strip() and p not in PRESET_LINES()), "")
     if locks.get("light"):
         for part in (LIGHT_INT, LIGHT_NIGHT, LIGHT_EXT, LIGHT, SOFT_LIGHT):
             text = text.replace("\n\n" + part, "")
@@ -2126,7 +2159,7 @@ def with_locks(text, locks, sketch):
         rules = [LOCK_TEXT[k] for k in ("design", "materials", "light", "camera") if locks.get(k)]
         free = [k for k in ("design", "materials", "light", "camera") if not locks.get(k)]
         if not locks.get("design") and locks.get("materials") and locks.get("camera"):
-            if CLEAN_WORDS.search(text):
+            if CLEAN_WORDS.search(said) or instructs(said):
                 rules.append(CLEAN_HOLD)
             elif PLACE_WORDS.search(text):
                 rules.append(SCENE_HOLD)
@@ -2134,6 +2167,8 @@ def with_locks(text, locks, sketch):
                 rules.append(RELIGHT_HOLD)
         if free:
             rules.append("Change only what the instructions below describe.")
+    if rules and instructs(said):        # the person's own words, not a preset's lines
+        rules.insert(0, FOLLOW_FIRST)        # the person's instruction wins over every keep rule
     return ("\n".join(rules) + "\n\n" + text) if rules else text
 
 

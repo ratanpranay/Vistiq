@@ -57,7 +57,7 @@ async function open(browser, before, opts) {
     await page.dblclick('.pj-card[data-pid="' + (pid || "myboard") + '"]'); await page.waitForTimeout(250);
   };
   page.startPage = await page.evaluate(() => document.body.getAttribute("data-page"));
-  if (!opts || !opts.board) { await page.click(".s-nav button[data-page=create]"); await page.waitForTimeout(150); }
+  if (!opts || !opts.board) { await page.evaluate(() => window.VS.go("create")); await page.waitForTimeout(150); }
   else await page.board();
   return page;
 }
@@ -194,7 +194,8 @@ const frame = (n, name) => ({ path: "live://photoshop/" + n, name: name || "flat
   // 9. Every page opens without errors.
   {
     const p = await open(browser);
-    for (const pg of ["projects", "create", "upscale", "library", "settings"]) {
+    check("no Create tab in the left bar", !(await p.$(".s-nav button[data-page=create]")), "");
+    for (const pg of ["projects", "upscale", "library", "settings"]) {
       await p.click(".s-nav button[data-page=" + pg + "]");
       await p.waitForTimeout(150);
     }
@@ -466,7 +467,7 @@ const frame = (n, name) => ({ path: "live://photoshop/" + n, name: name || "flat
       a.studio_to_upscale = (path) => { window.__up = path; return Promise.resolve(true); }; });
     await p.click("#c-up"); await p.waitForTimeout(150);
     check("Upscale gets the flattened picture when there are layers", await p.evaluate(() => window.__up) === "C:/s/k · flat.png" && (await p.evaluate(() => window.__flat[0])) === "C:/s/k.png", JSON.stringify(await p.evaluate(() => [window.__up, window.__flat])));
-    await p.click(".s-nav button[data-page=create]"); await p.waitForTimeout(100);
+    await p.evaluate(() => window.VS.go("create")); await p.waitForTimeout(100);
     check("the layers are kept (with a flattened look for the board)", await p.evaluate(() => { const d = window.__docs["C:/s/k.png"]; return !!(d && d.flat && d.layers.some((L) => L.png)); }), "not saved");
     check("no page errors with result layers", p.errors.length === 0, p.errors.join(" | "));
     await p.close();
@@ -575,7 +576,7 @@ const frame = (n, name) => ({ path: "live://photoshop/" + n, name: name || "flat
   {
     const p = await open(browser, null, {});
     await p.ev("studio-live", frame(1));
-    await p.click(".s-nav button[data-page=create]");
+    await p.evaluate(() => window.VS.go("create"));
     await p.waitForTimeout(300);
     check("no Reference tab", await p.evaluate(() => !document.querySelector(".s-nav button[data-page=reference]")), "");
     const G = "data:image/gif;base64,R0lGODlhAQABAAAAACw=";
@@ -663,7 +664,7 @@ const frame = (n, name) => ({ path: "live://photoshop/" + n, name: name || "flat
   // Each picture keeps its own words.
   {
     const p = await open(browser, null, {});
-    await p.click(".s-nav button[data-page=create]");
+    await p.evaluate(() => window.VS.go("create"));
     const G = "data:image/gif;base64,R0lGODlhAQABAAAAACw=";
     await p.evaluate((g) => window.VS.setImage(window.VS.S.create, "src", { path: "C:/a.png", name: "a.png", w: 160, h: 90, preview: g }), G);
     await p.waitForTimeout(100);
@@ -681,7 +682,7 @@ const frame = (n, name) => ({ path: "live://photoshop/" + n, name: name || "flat
   {
     const p = await open(browser, null, {});
     await p.ev("studio-live", frame(1));
-    await p.click(".s-nav button[data-page=create]");
+    await p.evaluate(() => window.VS.go("create"));
     await p.waitForTimeout(400);
     const bb = await (await p.$("#c-view .s-fit")).boundingBox(), cx = bb.x + bb.width / 2, cy = bb.y + bb.height / 2;
     await p.keyboard.down("r"); await p.mouse.move(cx + 150, cy); await p.mouse.down();
@@ -732,7 +733,7 @@ const frame = (n, name) => ({ path: "live://photoshop/" + n, name: name || "flat
   // 3D views: order, tabs, hold, loading, height.
   {
     const p = await open(browser);
-    check("3D views sits after Create", await p.evaluate(() => [...document.querySelectorAll(".s-nav button[data-page]")].map((b) => b.dataset.page).join(",")) === "projects,create,3d,upscale,library,trash,settings", "");
+    check("left bar: Projects, 3D, Upscale, Library", await p.evaluate(() => [...document.querySelectorAll(".s-nav button[data-page]")].map((b) => b.dataset.page).join(",")) === "projects,3d,upscale,library,trash,settings", "");
     await p.evaluate(() => {
       const api = window.pywebview.api;
       api.studio_describe = () => Promise.resolve({ text: "kind=product; nose=right; end=none; side=left; height=eye" });
@@ -989,6 +990,18 @@ const frame = (n, name) => ({ path: "live://photoshop/" + n, name: name || "flat
     await p.evaluate(() => { window.__ready = true; });
     await p.ev("studio-setup", { state: "done" }); await p.waitForTimeout(300);
     check("gate: once set up, the app opens on Projects", await p.evaluate(() => !document.body.classList.contains("s-gated") && document.body.getAttribute("data-page") === "projects"), await p.evaluate(() => document.body.getAttribute("data-page")));
+    // Prompt library: generic, no "tested" tags; [words] become purple and the first is selected.
+    await p.evaluate(() => window.VS.go("create")); await p.waitForTimeout(200);
+    const plib = await p.evaluate(() => { const b = document.getElementById("c-libb"); if (!b) return null; b.click(); return true; });
+    if (plib) {
+      await p.waitForTimeout(150);
+      check("prompts: no 'tested' tags", !/tested/.test(await p.text("#c-plib")), "");
+      await p.click('#c-plib [data-plc="mat"]'); await p.waitForTimeout(100);
+      check("prompts: words to change are marked", !!(await p.$("#c-plib .s-pli u")), "");
+      await p.click('#c-plib [data-pli="0"]'); await p.waitForTimeout(150);
+      const sel = await p.evaluate(() => { const t = document.getElementById("c-text"); return [t.value, t.value.slice(t.selectionStart, t.selectionEnd)]; });
+      check("prompts: brackets gone, first word to change is selected", sel[0] === "make the main body deep forest green" && sel[1] === "main body", JSON.stringify(sel));
+    }
     // Adding a picture: an outlined tile with a bar shows where it lands, then the picture takes that spot.
     await p.board(); await p.waitForTimeout(200);
     await p.ev("studio-uploading", { target: "board", token: "d1", names: ["car_front.jpg"] });
@@ -1031,7 +1044,7 @@ const frame = (n, name) => ({ path: "live://photoshop/" + n, name: name || "flat
       window.pywebview.api.studio_set_tier = (t) => { window.__tier = t; return Promise.resolve(null); };
       window.pywebview.api.studio_status = () => Promise.resolve(st);
     });
-    await p.click(".s-nav button[data-page=create]"); await p.waitForTimeout(300);
+    await p.evaluate(() => window.VS.go("create")); await p.waitForTimeout(300);
     const tiers = await p.evaluate(() => [...document.querySelectorAll(".m-tier")].map((b) => (b.classList.contains("on") ? "*" : "") + b.getAttribute("data-t") + (b.disabled ? "-off" : "")).join(","));
     check("mac setup: three setups, Studio picked, Pro greyed out", tiers === "light,*studio,pro-off", tiers);
     check("mac setup: Studio is the recommended one", /recommended/i.test(await p.text('.m-tier[data-t="studio"]')), "");
