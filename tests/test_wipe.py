@@ -50,8 +50,12 @@ class WipeTest(unittest.TestCase):
 
     def test_script_quotes_paths(self):
         s = wipe.script(["/a/it's here"], 123)
-        self.assertIn("kill -0 123", s)
-        self.assertIn("rm -rf '/a/it'\\''s here'", s)
+        if sys.platform == "win32":
+            self.assertIn("Get-Process -Id 123", s)
+            self.assertIn("'/a/it''s here'", s)
+        else:
+            self.assertIn("kill -0 123", s)
+            self.assertIn("rm -rf '/a/it'\\''s here'", s)
 
     def test_sh_script_deletes_after_exit(self):
         if sys.platform == "win32":
