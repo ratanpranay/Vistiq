@@ -1,5 +1,16 @@
 # Vistiq Studio (test build)
 
+## 0.4.97
+- Smart reading (Settings › Optional extras): before each run the picture reader works out what the picture is (sketch, render, photo) and what you ask for (render, relight, edit, new scene, new view, restyle); the prompt follows that. On a Mac it needs the small picture reader (2.6 GB) and runs on the processor.
+- Your instruction always wins (remove, add, change...), on a sketch or a CGI; the Keep locks only hold what it doesn't mention.
+- Mac: Klein 4B can be downloaded next to Mage-Flow; then Create shows a Render model picker. File names end with the model (e.g. _v1_Mage, _v1_Klein4B).
+- Mac: photos and CGI are no longer taken for sketches.
+- Selection: free-hand lasso (Alt: snaps to edges), new polygon lasso, and Snap to object (on): what you draw is tightened to the object, so changes stay on it.
+- No Create tab: Projects, 3D views, Upscale, Library. Projects takes you back to the picture you were on; click again for all projects. Board button in the Create colours.
+- New prompt library: generic for any picture, words to change shown in purple.
+- Board tiles take their picture's shape (portrait photos get tall tiles).
+- One progress number everywhere; the ring also shows while the next variation is made.
+
 ## 0.4.96
 - Projects open with a double click (one click selects).
 - Every board has the Photoshop / Affinity tile again, with Connect. The extra "Board" button next to the Photoshop tab is gone.
