@@ -21,7 +21,16 @@
   function byId(id) { for (var i = 0; i < B.tiles.length; i++) if (B.tiles[i].id === id) return B.tiles[i]; return null; }
   function live() { return byId("live"); }
   var PH = Math.round(W * 9 / 16);       // every tile's picture box: the same size, whatever the shape
-  function tileH() { return PH + 30; }
+  // A tile takes its picture's shape (Nov 2026): landscape keeps the width, portrait keeps a taller box.
+  function shape(t) {
+    if (!t || !t.w || !t.h || t.frame || (t.kind !== "image" && t.kind !== "result")) return [W, PH];   // 3D frames keep their grid
+    var r = t.h / t.w;
+    if (r <= 1) return [W, Math.round((W - 12) * Math.max(r, 0.35))];
+    var ph = Math.round(W * 1.25);
+    return [Math.max(190, Math.round(ph / r) + 12), ph];
+  }
+  function tileW(t) { return shape(t)[0]; }
+  function tileH(t) { return shape(t)[1] + 30; }
 
   function save() {
     clearTimeout(saveT);
@@ -117,7 +126,8 @@
     var th = thumbs[t.path];
     if (th === undefined) { thumbs[t.path] = null; call("studio_thumb", t.path).then(function (d) { thumbs[t.path] = d || "missing"; render(); }); }
     var pic = th && th !== "missing" ? '<div class="b-pic"><img src="' + th + '" alt=""></div>' : '<div class="b-empty">' + (th === "missing" ? "File moved or deleted" : "") + "</div>";
-    return '<div class="b-tile' + sel + '" data-id="' + t.id + '" style="left:' + t.x + "px;top:" + t.y + "px;width:" + W + 'px">' +
+    pic = pic.replace('class="b-pic"', 'class="b-pic" style="height:' + shape(t)[1] + 'px"').replace('class="b-empty"', 'class="b-empty" style="height:' + shape(t)[1] + 'px"');
+    return '<div class="b-tile' + sel + '" data-id="' + t.id + '" style="left:' + t.x + "px;top:" + t.y + "px;width:" + tileW(t) + 'px">' +
       '<div class="b-h"><span>' + esc(VS().short(t.name || "")) + "</span><small>" + (t.w ? t.w + " × " + t.h : "") + "</small></div>" + pic + badge + "</div>";
   }
 
@@ -125,7 +135,7 @@
     var d = "";
     B.tiles.forEach(function (t) {
       var p = t.from && byId(t.from); if (!p) return;
-      var x1 = p.x + W, y1 = p.y + tileH(p) / 2, x2 = t.x, y2 = t.y + tileH(t) / 2, mx = (x1 + x2) / 2;
+      var x1 = p.x + tileW(p), y1 = p.y + tileH(p) / 2, x2 = t.x, y2 = t.y + tileH(t) / 2, mx = (x1 + x2) / 2;
       d += '<path d="M' + x1 + " " + y1 + " C" + mx + " " + y1 + "," + mx + " " + y2 + "," + x2 + " " + y2 + '"/>';
     });
     return d;
@@ -211,7 +221,7 @@
     el.hidden = false;
     // Next to the pictures, on screen.
     var v = B.view, r = root.getBoundingClientRect(), x1 = -1e9, y0 = 1e9;
-    tiles.forEach(function (t) { x1 = Math.max(x1, t.x + W); y0 = Math.min(y0, t.y); });
+    tiles.forEach(function (t) { x1 = Math.max(x1, t.x + tileW(t)); y0 = Math.min(y0, t.y); });
     var sx = x1 * v.z + v.x + 24, sy = y0 * v.z + v.y;
     el.style.left = Math.max(12, Math.min(sx, r.width - el.offsetWidth - 12)) + "px";
     el.style.top = Math.max(60, Math.min(sy, r.height - el.offsetHeight - 12)) + "px";
@@ -279,12 +289,12 @@
     var vx0 = -v.x / v.z, vy0 = -v.y / v.z, vx1 = vx0 + r.width / v.z, vy1 = vy0 + r.height / v.z;
     var s = B.sel && byId(B.sel), lv = live(), minX = lv ? lv.x + W + GAP_X : -1e9;
     var tx, ty;
-    if (p) { tx = p.x + W + GAP_X; ty = p.y; }
-    else if (s && userSel && s !== t && s.kind !== "frame" && s.x < vx1 && s.x + W > vx0 && s.y < vy1 && s.y + tileH(s) > vy0) { tx = s.x + W + GAP_X; ty = s.y; }
-    else { tx = Math.round((vx0 + vx1) / 2 - W / 2); ty = Math.round((vy0 + vy1) / 2 - tileH(t) / 2); }   // where you look
-    var sx = W + GAP_X, sy = tileH(t) + GAP_Y, best = null;
+    if (p) { tx = p.x + tileW(p) + GAP_X; ty = p.y; }
+    else if (s && userSel && s !== t && s.kind !== "frame" && s.x < vx1 && s.x + tileW(s) > vx0 && s.y < vy1 && s.y + tileH(s) > vy0) { tx = s.x + tileW(s) + GAP_X; ty = s.y; }
+    else { tx = Math.round((vx0 + vx1) / 2 - tileW(t) / 2); ty = Math.round((vy0 + vy1) / 2 - tileH(t) / 2); }   // where you look
+    var sx = Math.max(W, tileW(t)) + GAP_X, sy = tileH(t) + GAP_Y, best = null;
     function free(x, y) {
-      return x >= minX && !B.tiles.some(function (k) { return k !== t && k.kind !== "frame" && k.x < x + W + 30 && k.x + W + 30 > x && k.y < y + tileH(k) + 30 && k.y + tileH(k) + 30 > y; });
+      return x >= minX && !B.tiles.some(function (k) { return k !== t && k.kind !== "frame" && k.x < x + tileW(t) + 30 && k.x + tileW(k) + 30 > x && k.y < y + tileH(k) + 30 && k.y + tileH(k) + 30 > y; });
     }
     for (var rr = 0; rr < 14 && (!best || rr < 3); rr++) {      // weigh the nearby spots too, not just the first free one
       for (var i = -rr; i <= rr; i++) for (var j = -rr; j <= rr; j++) {
@@ -307,8 +317,8 @@
     var cv = root && root.querySelector("#b-cv"); if (!cv) return;
     var r = cv.getBoundingClientRect(), v = B.view, sx = t.x * v.z + v.x, sy = t.y * v.z + v.y;
     if (!r.width) { pendingShow = t; return; }          // the board isn't on screen: bring it into view when it is
-    if (sx < 0 || sy < 64 || sx + W * v.z > r.width || sy + tileH(t) * v.z > r.height) {      // 64: below the project bar
-      v.x = r.width / 2 - (t.x + W / 2) * v.z; v.y = r.height / 2 - (t.y + tileH(t) / 2) * v.z; applyView();
+    if (sx < 0 || sy < 64 || sx + tileW(t) * v.z > r.width || sy + tileH(t) * v.z > r.height) {      // 64: below the project bar
+      v.x = r.width / 2 - (t.x + tileW(t) / 2) * v.z; v.y = r.height / 2 - (t.y + tileH(t) / 2) * v.z; applyView();
     }
   }
 
@@ -318,7 +328,7 @@
   function frame3d() {
     var f = byId(F3D);
     if (!f) {
-      var xs = B.tiles.map(function (k) { return k.x + W; }), ys = B.tiles.map(function (k) { return k.y; });
+      var xs = B.tiles.map(function (k) { return k.x + tileW(k); }), ys = B.tiles.map(function (k) { return k.y; });
       f = { id: F3D, kind: "frame", title: "3D", x: (xs.length ? Math.max.apply(null, xs) : 0) + GAP_X * 2, y: ys.length ? Math.min.apply(null, ys) : 0 };
       B.tiles.push(f);
     }
@@ -523,8 +533,8 @@
     Object.keys(kids).forEach(function (k) { kids[k].sort(function (a, b) { return (a.made || 0) - (b.made || 0); }); });
     function lay(t, x, top) {               // returns [right edge, bottom]
       t.x = x; t.y = top;
-      var right = x + W, bottom = top + tileH(t), cy = top;
-      (kids[t.id] || []).forEach(function (c) { var r = lay(c, x + W + GAP_X, cy); cy = r[1] + GAP_Y; right = Math.max(right, r[0]); bottom = Math.max(bottom, r[1]); });
+      var right = x + tileW(t), bottom = top + tileH(t), cy = top;
+      (kids[t.id] || []).forEach(function (c) { var r = lay(c, x + tileW(t) + GAP_X, cy); cy = r[1] + GAP_Y; right = Math.max(right, r[0]); bottom = Math.max(bottom, r[1]); });
       return [right, bottom];
     }
     var lv = live(), roots = (kids[""] || []).filter(function (t) { return t !== lv; });
@@ -547,7 +557,7 @@
     if (!B.tiles.length) return;
     var cv = root.querySelector("#b-cv").getBoundingClientRect();
     var x0 = Math.min.apply(null, B.tiles.map(function (t) { return t.x; })), y0 = Math.min.apply(null, B.tiles.map(function (t) { return t.y; }));
-    var x1 = Math.max.apply(null, B.tiles.map(function (t) { return t.x + W; })), y1 = Math.max.apply(null, B.tiles.map(function (t) { return t.y + tileH(t); }));
+    var x1 = Math.max.apply(null, B.tiles.map(function (t) { return t.x + tileW(t); })), y1 = Math.max.apply(null, B.tiles.map(function (t) { return t.y + tileH(t); }));
     var z = Math.max(0.15, Math.min(1.2, Math.min((cv.width - 120) / (x1 - x0), (cv.height - 160) / (y1 - y0))));
     B.view = { z: z, x: (cv.width - (x1 - x0) * z) / 2 - x0 * z, y: 70 + (cv.height - 110 - (y1 - y0) * z) / 2 - y0 * z };
     save(); applyView();
@@ -651,7 +661,7 @@
         var ax = Math.min(drag.sx, e.clientX) - r.left, ay = Math.min(drag.sy, e.clientY) - r.top, bw = Math.abs(dx), bh = Math.abs(dy);
         mq.hidden = false; mq.style.left = ax + "px"; mq.style.top = ay + "px"; mq.style.width = bw + "px"; mq.style.height = bh + "px";
         var wx0 = (ax - v.x) / v.z, wy0 = (ay - v.y) / v.z, wx1 = (ax + bw - v.x) / v.z, wy1 = (ay + bh - v.y) / v.z;
-        var inBox = B.tiles.filter(function (k) { return k.kind !== "live" && k.kind !== "frame" && k.x < wx1 && k.x + W > wx0 && k.y < wy1 && k.y + tileH(k) > wy0; }).map(function (k) { return k.id; });
+        var inBox = B.tiles.filter(function (k) { return k.kind !== "live" && k.kind !== "frame" && k.x < wx1 && k.x + tileW(k) > wx0 && k.y < wy1 && k.y + tileH(k) > wy0; }).map(function (k) { return k.id; });
         var next = drag.add ? drag.keep.concat(inBox.filter(function (id) { return drag.keep.indexOf(id) < 0; })) : inBox;
         if (next.join() !== multi.join()) { multi = next; lastHTML = ""; render(); }
         return;

@@ -235,6 +235,12 @@ const frame = (n, name) => ({ path: "live://photoshop/" + n, name: name || "flat
     check("right-click shows the actions", /Upscale/.test(await p.text("#b-menu")) && /Save a copy/.test(await p.text("#b-menu")), await p.text("#b-menu"));
     await p.keyboard.press("Escape");
     check("Escape closes the menu", await p.evaluate(() => document.getElementById("b-menu").hidden), "still open");
+    // A tile takes its picture's shape: a portrait picture gets a tall tile.
+    await p.ev("studio-dropped", { target: "board", images: [{ path: "C:/a/portrait.jpg", name: "portrait.jpg", w: 1440, h: 2160, preview: img }] });
+    await p.waitForTimeout(150);
+    const pr = await p.evaluate(() => { const t = window.VSBoard._state().tiles.find((x) => x.path === "C:/a/portrait.jpg"); const el = document.querySelector('.b-tile[data-id="' + t.id + '"]'); const pic = el.querySelector(".b-pic"); return [el.offsetWidth, pic.offsetHeight]; });
+    check("a portrait picture gets a tall tile", pr[1] > pr[0], JSON.stringify(pr));
+    await p.evaluate(() => { const B = window.VSBoard._state(); B.tiles = B.tiles.filter((x) => x.path !== "C:/a/portrait.jpg"); window.VSBoard.render(); });
     // Projects tab with work open: first back to that work, then (again) all projects.
     await p.dblclick('.b-tile[data-id]:not([data-id="live"])'); await p.waitForTimeout(250);
     await p.click(".s-nav button[data-page=upscale]"); await p.waitForTimeout(150);
@@ -411,7 +417,7 @@ const frame = (n, name) => ({ path: "live://photoshop/" + n, name: name || "flat
     await p.click(".s-pop [data-p='fmt:a4p']"); await p.waitForTimeout(150);
     check("a blank A4 canvas at 150 DPI", JSON.stringify(await p.evaluate(() => window.__blank)) === "[1240,1754]", JSON.stringify(await p.evaluate(() => window.__blank)));
     check("it lands on the board", await p.evaluate(() => window.VSBoard._state().tiles.some((t) => t.name === "Sketch 1.png")), "");
-    check("all tiles are the same size", await p.evaluate(() => { const hs = [...document.querySelectorAll(".b-tile")].map((t) => t.offsetHeight); return new Set(hs).size === 1; }), JSON.stringify(await p.evaluate(() => [...document.querySelectorAll(".b-tile")].map((t) => t.offsetHeight))));
+    check("a portrait A4 canvas gets a portrait tile", await p.evaluate(() => { const t = window.VSBoard._state().tiles.find((x) => x.name === "Sketch 1.png"); const el = document.querySelector('.b-tile[data-id="' + t.id + '"] .b-pic, .b-tile[data-id="' + t.id + '"] .b-empty'); return el.offsetHeight > el.offsetWidth; }), "");
     // Upload from phone: a QR code, and what the phone sends lands on the board.
     await p.evaluate(() => { window.pywebview.api.studio_phone = (on) => { window.__phone = on; return Promise.resolve(on ? { on: true, url: "http://192.168.1.5:8395/drop?k=x", qr: "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg'/%3E" } : { on: false }); }; });
     await p.click(".b-bar .b-plus"); await p.waitForTimeout(80);
