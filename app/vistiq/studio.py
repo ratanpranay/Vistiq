@@ -73,6 +73,20 @@ def outputs_dir(settings=None):
     return os.path.join(home(settings), "Outputs")
 
 
+def create_dir(settings=None):
+    """Create, 3D views (Nov 2026: their own folder; upscales go to Outputs\\Upscale)."""
+    return os.path.join(outputs_dir(settings), "Create")
+
+
+def upscale_dir(settings=None):
+    return os.path.join(outputs_dir(settings), "Upscale")
+
+
+def newest_first(seq):
+    """A run number that sorts the newest file first by name (Explorer sorts A→Z): 999999 counts down."""
+    return "%06d" % max(0, 999999 - int(seq))
+
+
 def models_dir(settings=None):
     return os.path.join(home(settings), "Models")
 

@@ -7,7 +7,8 @@
   "use strict";
   var W = 300;                       // tile width on the board, in board units
   var GAP_X = 90, GAP_Y = 46;
-  var B = { tiles: [], view: { x: 60, y: 40, z: 0.8 } }, thumbs = {}, root, world, svgEl, menu, loaded = false, saveT = 0;
+  var B = { tiles: [], view: { x: 60, y: 90, z: 0.8 } }, thumbs = {}, root, world, svgEl, menu, loaded = false, saveT = 0;
+  var P = { id: "myboard", name: "My board" };     // the project this board belongs to
 
   function VS() { return window.VS; }
   function api() { return VS().api(); }
@@ -24,7 +25,8 @@
 
   function save() {
     clearTimeout(saveT);
-    saveT = setTimeout(function () { call("studio_board_save", B); }, 400);
+    var pid = P.id, b = B;
+    saveT = setTimeout(function () { saveT = 0; call("studio_board_save", b, pid); }, 400);
   }
 
   function ensureLive() {
@@ -38,7 +40,9 @@
     root = el;
     root.innerHTML =
       '<div class="b-cv" id="b-cv"><div class="b-world" id="b-world"><svg class="b-links" id="b-links"></svg></div></div>' +
-      '<div class="b-top"><div class="b-title">Board</div></div>' +
+      '<div class="b-top"><button type="button" class="b-back" data-b="projects">← Projects</button><div class="b-title" id="b-title">My board</div>' +
+      '<div class="b-tabs"><button type="button" class="b-tab" data-b="pstab" title="Your open Photoshop or Affinity file, live, in this project">' +
+      '<span class="m-ico ps">Ps</span><span>Photoshop / Affinity</span><i class="b-tdot" id="b-tdot"></i></button><button type="button" class="b-tab on">Board</button></div></div>' +
       '<div class="b-bar"><button type="button" class="b-plus" data-b="plus" title="Add: blank canvas, image, paste, phone">' +
       '<svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></button><span class="b-sep"></span>' +
       '<button type="button" data-b="fit">Fit</button><span class="b-zoom" id="b-zoom">80%</span></div>' +
@@ -47,15 +51,30 @@
       '<div class="b-mix" id="b-mix" hidden></div><div class="b-marq" id="b-marq" hidden></div>';
     world = root.querySelector("#b-world"); svgEl = root.querySelector("#b-links"); menu = root.querySelector("#b-menu");
     wire();
-    call("studio_board_get").then(function (b) {
-      if (b && b.tiles) B = b;
+    load(P.id, P.name, true);
+  }
+
+  // Open a project's board (saving the one that was open first).
+  function load(pid, name, first) {
+    if (!first && loaded && (pid || "myboard") === P.id) {        // already open: just the name may have changed
+      P.name = name || P.name; if (root) root.querySelector("#b-title").textContent = P.name;
+      if (VS() && VS().S) VS().S.project = { id: P.id, name: P.name };
+      return Promise.resolve();
+    }
+    if (!first && saveT) { clearTimeout(saveT); saveT = 0; call("studio_board_save", B, P.id); }
+    P = { id: pid || "myboard", name: name || P.name };
+    if (VS() && VS().S) VS().S.project = { id: P.id, name: P.name };
+    loaded = false; multi = []; lastHTML = ""; B = { tiles: [], view: { x: 60, y: 90, z: 0.8 } };
+    if (root) root.querySelector("#b-title").textContent = P.name;
+    return call("studio_board_get", P.id).then(function (b) {
+      B = b && b.tiles ? b : { tiles: [], view: { x: 60, y: 90, z: 0.8 } };
       // No more "3D" frame (confusing): its views stay where they are, as ordinary results.
       if (B.tiles.some(function (k) { return k.kind === "frame"; })) {
         B.tiles = B.tiles.filter(function (k) { return k.kind !== "frame"; });
         B.tiles.forEach(function (k) { delete k.frame; }); save();
       }
-      if (!B.view) B.view = { x: 60, y: 40, z: 0.8 };
-      ensureLive(); loaded = true; render();
+      if (!B.view) B.view = { x: 60, y: 90, z: 0.8 };
+      ensureLive(); loaded = true; lastHTML = ""; render();
     });
   }
 
@@ -76,7 +95,8 @@
     }
     var mi = multi.indexOf(t.id), sel = (t.id === B.sel && !multi.length ? " sel" : "") + (mi >= 0 ? " msel" : "");
     var badge = mi >= 0 ? '<b class="b-no">' + (mi + 1) + "</b>" : "";
-    if (t.kind === "live") {
+    if (t.kind === "live") return "";        // Photoshop / Affinity is the project's own tab now (Nov 2026)
+    if (t.kind === "live_old") {
       var L = liveInfo();
       var img = L.on ? '<div class="b-pic"><img src="' + L.src.preview + '" alt=""></div>' :
         '<div class="b-empty b-off"><span>' + (L.state ? esc(L.state) : "Photoshop or Affinity, live") + '</span><button type="button" data-b="connect">Connect</button>' + (L.msg ? "<small>" + esc(L.msg) + "</small>" : "") + "</div>";
@@ -112,6 +132,8 @@
       world.insertAdjacentHTML("beforeend", h);
     }
     svgEl.innerHTML = linksSVG();
+    if (pendingShow && root.querySelector("#b-cv").getBoundingClientRect().width) { var ps = pendingShow; pendingShow = null; show(ps); }
+    var L = liveInfo(), dot = root.querySelector("#b-tdot"); if (dot) dot.className = "b-tdot" + (L.on ? " on" : "");
     groupBar();
     applyView();
     root.querySelector("#b-hint").hidden = B.tiles.length > 1;
@@ -270,10 +292,12 @@
     if (free(t.x + jx, t.y + jy)) { t.x += jx; t.y += jy; }
   }
   // Keep a new picture in view.
+  var pendingShow = null;
   function show(t) {
     var cv = root && root.querySelector("#b-cv"); if (!cv) return;
     var r = cv.getBoundingClientRect(), v = B.view, sx = t.x * v.z + v.x, sy = t.y * v.z + v.y;
-    if (sx < 0 || sy < 0 || sx + W * v.z > r.width || sy + tileH(t) * v.z > r.height) {
+    if (!r.width) { pendingShow = t; return; }          // the board isn't on screen: bring it into view when it is
+    if (sx < 0 || sy < 64 || sx + W * v.z > r.width || sy + tileH(t) * v.z > r.height) {      // 64: below the project bar
       v.x = r.width / 2 - (t.x + W / 2) * v.z; v.y = r.height / 2 - (t.y + tileH(t) / 2) * v.z; applyView();
     }
   }
@@ -335,7 +359,9 @@
     var items = [["open", "Open in Focus view"]];
     if (!isLive) items.push(["refine", "Refine…"], ["variations", "More like this"], ["upscale", "Upscale"]);
     if (!isLive && ps) items.push(["ps", "Send to Photoshop"]);
-    if (!isLive) items.push(["ref", "Use as reference"], ["folder", "Show in folder"], ["export", "Save a copy…"], ["-"], ["remove", "Remove from board"]);
+    if (!isLive) items.push(["ref", "Use as reference"], ["folder", "Show in folder"], ["export", "Save a copy…"], ["-"],
+                            ["copy", "Copy<k>Ctrl C</k>"], ["move", "Move to project…"], ["cover", "Use as project cover"], ["-"], ["remove", "Remove from board"]);
+    menu.onclick = null;
     menu.innerHTML = items.map(function (i) { return i[0] === "-" ? "<hr>" : '<button type="button" data-m="' + i[0] + '">' + i[1] + "</button>"; }).join("");
     menu.hidden = false;
     var r = root.getBoundingClientRect();
@@ -371,7 +397,62 @@
     else if (a === "ref") call("studio_image", t.path).then(function (info) { if (info) { V.addRef(info); V.go("create"); } });
     else if (a === "folder") { var x = api(); if (x && x.reveal) x.reveal(t.path); }
     else if (a === "export") call("studio_save_copy", t.path).then(function (r) { if (r) V.toast("Saved " + r); });
+    else if (a === "copy") copyTiles(chosen(t));
+    else if (a === "cover") call("studio_project_cover", P.id, t.path).then(function () { V.toast("Cover of “" + P.name + "”"); });
+    else if (a === "move") moveMenu(chosen(t));
     else if (a === "remove") { B.tiles = B.tiles.filter(function (k) { return k !== t; }); B.tiles.forEach(function (k) { if (k.from === t.id) k.from = t.from || null; }); save(); render(); }
+  }
+
+  // ---------------------------------------------------------------- copy, paste, move between projects
+  // Tiles (a picture and its layers; layers are kept per picture, so they come along) go from one
+  // project to another; what was made from them stays behind unless it is copied too.
+  function chosen(t) { return multi.length > 1 && multi.indexOf(t.id) >= 0 ? multi.map(byId).filter(Boolean) : [t]; }
+  function clean(t) { return { kind: t.kind, path: t.path, name: t.name, w: t.w, h: t.h, x: t.x, y: t.y, made: t.made, from: t.from || null, id: t.id }; }
+  function copyTiles(list) {
+    list = list.filter(function (t) { return t.path; }); if (!list.length) return;
+    var S = VS().S;
+    S.tileClip = { from: P.id, tiles: list.map(clean), seq: -1 };
+    call("studio_clip_seq").then(function (n) { if (S.tileClip) S.tileClip.seq = n || 0; });
+    VS().toast(list.length === 1 ? "Copied · open a project and press Ctrl V (or Ctrl V on a picture: as a layer)" : "Copied " + list.length + " pictures · Ctrl V in another project");
+  }
+  function fresh(list) {          // new ids; links kept only inside the copied set
+    var map = {};
+    list.forEach(function (t) { map[t.id] = uid(); });
+    return list.map(function (t) { var c = clean(t); c.id = map[t.id]; c.from = t.from && map[t.from] ? map[t.from] : null; c.kind = c.from ? "result" : "image"; return c; });
+  }
+  function pasteTiles() {
+    var clip = VS().S.tileClip; if (!clip) return;
+    var list = fresh(clip.tiles).filter(function (t) { return !has(t.path); });
+    if (!list.length) { VS().toast("Those pictures are already on this board"); return; }
+    var minX = Math.min.apply(null, list.map(function (t) { return t.x; })), minY = Math.min.apply(null, list.map(function (t) { return t.y; }));
+    var rest = B.tiles.filter(function (t) { return t.path; });
+    var x0 = rest.length ? Math.max.apply(null, rest.map(function (t) { return t.x; })) + W + GAP_X : 0, y0 = rest.length ? Math.min.apply(null, rest.map(function (t) { return t.y; })) : 0;
+    list.forEach(function (t) { t.x = x0 + t.x - minX; t.y = y0 + t.y - minY; B.tiles.push(t); });
+    multi = list.length > 1 ? list.map(function (t) { return t.id; }) : []; B.sel = list[0].id;
+    save(); lastHTML = ""; render(); show(list[0]);
+    VS().toast(list.length === 1 ? "Pasted" : "Pasted " + list.length + " pictures");
+  }
+  function moveMenu(list) {
+    call("studio_projects").then(function (ps) {
+      var others = (ps || []).filter(function (p) { return p.id !== P.id; });
+      if (!others.length) { VS().toast("Make another project first (Projects → New project)"); return; }
+      menu.innerHTML = '<div class="b-mt">Move ' + (list.length > 1 ? list.length + " pictures" : "to") + "</div>" + others.map(function (p) {
+        return '<button type="button" data-mp="' + esc(p.id) + '">' + esc(p.name) + "<small>" + p.count + "</small></button>"; }).join("");
+      menu.hidden = false;
+      menu.onclick = function (e) {
+        var b = e.target.closest("[data-mp]"); if (!b) return;
+        menu.hidden = true; menu.onclick = null;
+        var pid = b.getAttribute("data-mp"), name = b.firstChild.textContent;
+        call("studio_board_append", pid, fresh(list)).then(function (ok) {
+          if (!ok) { VS().toast("Couldn't move them"); return; }
+          var gone = list.map(function (t) { return t.id; });
+          B.tiles = B.tiles.filter(function (k) { return gone.indexOf(k.id) < 0; });
+          B.tiles.forEach(function (k) { if (gone.indexOf(k.from) >= 0) k.from = null; });
+          multi = []; save(); lastHTML = ""; render();
+          VS().toast("Moved to “" + name + "”");
+        });
+      };
+    });
   }
 
   // ---------------------------------------------------------------- organize
@@ -429,6 +510,8 @@
         if (a === "add") call("studio_pick").then(function (i) { if (i) add(i, null); });
         else if (a === "plus") VS().plusMenu(b, function (info) { add(info, null); });
         else if (a === "fit") fit();
+        else if (a === "projects") VS().go("projects");
+        else if (a === "pstab") { VS().useSource("live"); VS().S.boardFrom = "live"; VS().go("create"); }
         else if (a === "organize") organize();
         else if (a === "connect") {
           var S = VS().S, app = S.liveApp || "photoshop"; S.live.stopped = false;
@@ -557,7 +640,13 @@
       if (e.key === " " && !spaceDown) { spaceDown = true; cv.classList.add("pan"); e.preventDefault(); return; }
       if ((e.key === "q" || e.key === "Q") && !e.ctrlKey && multi.length > 1) { e.preventDefault(); groupAction("mix"); return; }
       if ((e.key === "Delete" || e.key === "Backspace") && multi.length > 1) { removeTiles(multi.map(byId).filter(Boolean)); return; }
-      if (e.ctrlKey && e.key.toLowerCase() === "v") { e.preventDefault(); call("studio_paste").then(function (i) { if (i) add(i, null); }); }
+      if (e.ctrlKey && e.key.toLowerCase() === "c") { var sel = multi.length ? multi.map(byId).filter(Boolean) : (B.sel && byId(B.sel) ? [byId(B.sel)] : []); if (sel.length) { e.preventDefault(); copyTiles(sel); } return; }
+      if (e.ctrlKey && e.key.toLowerCase() === "v") {
+        e.preventDefault();
+        var clip = VS().S.tileClip, img = function () { call("studio_paste").then(function (i) { if (i) add(i, null); }); };
+        if (!clip) img();
+        else call("studio_clip_seq").then(function (n) { if (clip.seq > 0 && n && n !== clip.seq) { VS().S.tileClip = null; img(); } else pasteTiles(); });
+      }
       else if ((e.key === "Delete" || e.key === "Backspace") && B.sel && B.sel !== "live") { var t = byId(B.sel); if (t) menuAction("remove", t); }
       else if (e.key === "Enter" && B.sel) { var s = byId(B.sel); if (s) open(s); }
     });
@@ -578,6 +667,6 @@
   function addFrom(info, fromId) { return add(info, byId(fromId) ? fromId : null); }
   function addAndOpen(info) { var t = add(info, null); if (t) open(t); return t; }
 
-  window.VSBoard = { multi: function () { return multi.slice(); }, build: build, render: render, addImages: addImages, addResult: addResult, has: has, organize: organize, add: add, addAndOpen: addAndOpen, addFrom: addFrom, addBeside: addBeside, refreshThumb: refreshThumb, open: function (id) { var t = byId(id); if (t) open(t); },
+  window.VSBoard = { load: load, project: function () { return { id: P.id, name: P.name }; }, paste: pasteTiles, multi: function () { return multi.slice(); }, build: build, render: render, addImages: addImages, addResult: addResult, has: has, organize: organize, add: add, addAndOpen: addAndOpen, addFrom: addFrom, addBeside: addBeside, refreshThumb: refreshThumb, open: function (id) { var t = byId(id); if (t) open(t); },
                      _state: function () { return B; } };
 })();

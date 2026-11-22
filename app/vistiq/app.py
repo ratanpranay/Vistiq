@@ -261,8 +261,8 @@ class Api:
                                                      directory=studio.home(self._app.settings))
         if picked:
             self._app.settings.set("studio_home", picked[0])
-            if self._app.settings.get("out_dir") == studio.outputs_dir():
-                self._app.settings.set("out_dir", studio.outputs_dir(self._app.settings))
+            if self._app.settings.get("out_dir") in (studio.outputs_dir(), studio.upscale_dir()):
+                self._app.settings.set("out_dir", studio.upscale_dir(self._app.settings))
             studio.write_model_paths(self._app.settings)
         return self._app.studio.status()
 
@@ -374,23 +374,164 @@ class Api:
 
     # -- the board: one infinite canvas of tiles, saved next to the settings --
 
-    def studio_board_get(self):
+    # -- projects (Nov 2026): each project is one board of tiles, plus its Photoshop / Affinity tab.
+    # Kept in <data>/projects/index.json and <data>/projects/<id>/board.json. The old single
+    # board.json becomes the first project, "My board".
+
+    def _projects_dir(self):
+        return os.path.join(data_dir(), "projects")
+
+    def _projects(self):
+        d = self._projects_dir()
+        idx = os.path.join(d, "index.json")
         try:
-            with open(os.path.join(data_dir(), "board.json"), encoding="utf-8") as fh:
+            with open(idx, encoding="utf-8") as fh:
+                data = json.load(fh)
+            if data.get("projects"):
+                return data
+        except Exception:
+            pass
+        os.makedirs(os.path.join(d, "myboard"), exist_ok=True)
+        old = os.path.join(data_dir(), "board.json")
+        new = os.path.join(d, "myboard", "board.json")
+        if os.path.isfile(old) and not os.path.isfile(new):
+            shutil.copyfile(old, new)
+        now = time.time()
+        data = {"projects": [{"id": "myboard", "name": "My board", "created": now, "edited": now, "cover": "", "cover_set": False}]}
+        self._projects_save(data)
+        return data
+
+    def _projects_save(self, data):
+        d = self._projects_dir()
+        os.makedirs(d, exist_ok=True)
+        tmp = os.path.join(d, "index.json.tmp")
+        with open(tmp, "w", encoding="utf-8") as fh:
+            json.dump(data, fh)
+        os.replace(tmp, os.path.join(d, "index.json"))
+
+    def _project(self, data, pid):
+        for pr in data["projects"]:
+            if pr["id"] == pid:
+                return pr
+        return None
+
+    def _board_path(self, pid):
+        safe = "".join(c for c in str(pid or "myboard") if c.isalnum() or c in "-_") or "myboard"
+        return os.path.join(self._projects_dir(), safe, "board.json")
+
+    def _board_read(self, pid):
+        try:
+            with open(self._board_path(pid), encoding="utf-8") as fh:
                 return json.load(fh)
         except Exception:
             return None
 
-    def studio_board_save(self, board):
-        path = os.path.join(data_dir(), "board.json")
+    def _board_write(self, pid, board):
+        path = self._board_path(pid)
+        os.makedirs(os.path.dirname(path), exist_ok=True)
         tmp = path + ".tmp"
+        with open(tmp, "w", encoding="utf-8") as fh:
+            json.dump(board, fh)
+        os.replace(tmp, path)
+
+    def studio_clip_seq(self):
+        """Windows' clipboard change counter: a picture copied elsewhere after a tile copy wins Ctrl V."""
         try:
-            with open(tmp, "w", encoding="utf-8") as fh:
-                json.dump(board, fh)
-            os.replace(tmp, path)
+            if sys.platform == "win32":
+                import ctypes
+                return int(ctypes.windll.user32.GetClipboardSequenceNumber())
+        except Exception:
+            pass
+        return 0
+
+    def studio_projects(self):
+        """All projects, newest edit first, with how many pictures each has and its cover."""
+        try:
+            data = self._projects()
+            out = []
+            for pr in data["projects"]:
+                b = self._board_read(pr["id"]) or {}
+                tiles = [t for t in b.get("tiles", []) if t.get("path")]
+                out.append(dict(pr, count=len(tiles), covers=[t["path"] for t in sorted(tiles, key=lambda t: -(t.get("made") or 0))[:3]]))
+            return out
+        except Exception as exc:
+            log.warning("projects: %s", exc)
+            return []
+
+    def studio_project_new(self, name):
+        data = self._projects()
+        import uuid as _u
+        pid = "p" + _u.uuid4().hex[:10]
+        now = time.time()
+        pr = {"id": pid, "name": (name or "").strip() or "New project", "created": now, "edited": now, "cover": "", "cover_set": False}
+        data["projects"].append(pr)
+        self._projects_save(data)
+        self._board_write(pid, {"tiles": [], "view": {"x": 60, "y": 40, "z": 0.8}})
+        return pr
+
+    def studio_project_rename(self, pid, name):
+        data = self._projects()
+        pr = self._project(data, pid)
+        if pr and (name or "").strip():
+            pr["name"] = name.strip()
+            self._projects_save(data)
+        return pr
+
+    def studio_project_delete(self, pid):
+        """The project and its board go; the pictures themselves stay in the Library."""
+        data = self._projects()
+        if len(data["projects"]) <= 1:
+            return False
+        data["projects"] = [p for p in data["projects"] if p["id"] != pid]
+        self._projects_save(data)
+        shutil.rmtree(os.path.dirname(self._board_path(pid)), ignore_errors=True)
+        return True
+
+    def studio_project_cover(self, pid, path):
+        data = self._projects()
+        pr = self._project(data, pid)
+        if pr:
+            pr["cover"], pr["cover_set"] = path or "", bool(path)
+            self._projects_save(data)
+        return pr
+
+    def studio_board_get(self, pid="myboard"):
+        self._projects()
+        return self._board_read(pid or "myboard")
+
+    def studio_board_save(self, board, pid="myboard"):
+        try:
+            self._board_write(pid or "myboard", board)
+            data = self._projects()
+            pr = self._project(data, pid or "myboard")
+            if pr:
+                pr["edited"] = time.time()
+                if not pr.get("cover_set"):      # the newest picture is the cover, until you pick one
+                    tiles = [t for t in board.get("tiles", []) if t.get("path")]
+                    pr["cover"] = max(tiles, key=lambda t: t.get("made") or 0)["path"] if tiles else ""
+                self._projects_save(data)
             return True
         except Exception as exc:
             log.warning("couldn't save the board: %s", exc)
+            return False
+
+    def studio_board_append(self, pid, tiles):
+        """Tiles copied or moved into another project: they land on its board, to the right."""
+        try:
+            b = self._board_read(pid) or {"tiles": [], "view": {"x": 60, "y": 40, "z": 0.8}}
+            have = [t for t in b.get("tiles", []) if t.get("path")]
+            x0 = max([t.get("x", 0) for t in have] or [-390]) + 390
+            y0 = min([t.get("y", 0) for t in have] or [0])
+            xs = [t.get("x", 0) for t in tiles] or [0]
+            ys = [t.get("y", 0) for t in tiles] or [0]
+            for t in tiles:
+                t["x"] = x0 + t.get("x", 0) - min(xs)
+                t["y"] = y0 + t.get("y", 0) - min(ys)
+            b.setdefault("tiles", []).extend(tiles)
+            self.studio_board_save(b, pid)
+            return True
+        except Exception as exc:
+            log.warning("couldn't add tiles to %s: %s", pid, exc)
             return False
 
     def studio_strip_get(self):
@@ -946,7 +1087,14 @@ class App:
                 data = self._passes(item, passes, ow, max_res, model, report, tuning, retry,
                                     phase_hist, part_mp, detail)
                 tag = "max" if scale == "max" else "%sx" % scale
-                path, w, h = imaging.save(data, item["path"], s.get("out_dir"), s.get("format"), tag, limit=max_res)
+                pre = ""
+                if self.studio is not None:              # Studio: numbered so the newest sorts first
+                    try:
+                        from . import studio as _st
+                        pre = _st.newest_first(self.studio._next_seq())
+                    except Exception:
+                        pre = ""
+                path, w, h = imaging.save(data, item["path"], s.get("out_dir"), s.get("format"), tag, limit=max_res, prefix=pre)
                 took = time.time() - started
                 self._learn_from_engine(model)
                 if self.engine.failed_tuning:

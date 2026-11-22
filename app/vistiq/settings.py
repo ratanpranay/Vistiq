@@ -22,7 +22,7 @@ def default_output():
     from . import flavor
     if flavor.STUDIO:
         from . import studio
-        return studio.outputs_dir()
+        return studio.upscale_dir()
     pictures = os.path.join(os.path.expanduser("~"), "Pictures")
     return os.path.join(pictures if os.path.isdir(pictures) else os.path.expanduser("~"),
                         "Vistiq")
@@ -72,6 +72,16 @@ class Settings:
             pass
         if not self._data.get("out_dir"):
             self._data["out_dir"] = default_output()
+        else:
+            # Studio: upscales used to land loose in Outputs; now they have their own folder.
+            try:
+                from . import flavor
+                if flavor.STUDIO:
+                    from . import studio
+                    if os.path.normcase(os.path.normpath(self._data["out_dir"])) == os.path.normcase(os.path.normpath(studio.outputs_dir())):
+                        self._data["out_dir"] = studio.upscale_dir()
+            except Exception:
+                pass
 
     def get(self, key, default=None):
         return self._data.get(key, default)

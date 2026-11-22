@@ -1,5 +1,12 @@
 # Vistiq Studio (test build)
 
+## 0.4.92
+- Projects: the left bar starts with Projects (Studio opens there). Each project is one board of pictures plus its own Photoshop / Affinity tab. Your existing board is the first project, "My board", with everything on it.
+- New project, rename, delete (right-click or ⋯ on a card; the pictures stay in the Library). The newest picture is the cover; right-click a tile → "Use as project cover" to pick one.
+- Copy pictures between projects: select tiles, Ctrl C (or right-click → Copy), open another project, Ctrl V. Their layers come along; what was made from them doesn't, unless you copy it too. Ctrl V on a picture in Create puts the copied picture in as a new layer. Right-click → "Move to project…" moves them.
+- The Photoshop / Affinity tile is now the project's tab (green dot when live).
+- Output folders: Create and 3D results go to Outputs\\Create, upscales to Outputs\\Upscale. New files are numbered so the newest comes first when sorted by name (999999 counts down). Older files stay where they are.
+
 ## 0.4.91
 - Live (Photoshop / Affinity) is its own page: opening the Live tile never shows the last picture you had open. Until a file is connected it shows the steps: 1 install the Photoshop plugin (or turn on Affinity's connection), 2 Connect, 3 open a file. Once connected, only your live file is there and Create's results go back into it.
 - Right-click any layer in the Layers panel: "Send to board" puts that layer on the board as its own picture.

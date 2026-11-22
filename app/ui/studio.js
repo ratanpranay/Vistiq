@@ -12,6 +12,7 @@
 
   var ICON = {
     "3d": '<path d="M12 3l8 4.5v9L12 21l-8-4.5v-9z"/><path d="M12 12l8-4.5M12 12v9M12 12L4 7.5"/>',
+    projects: '<path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>',
     board: '<rect x="3" y="3" width="8" height="6" rx="1.5"/><rect x="13" y="8" width="8" height="6" rx="1.5"/><rect x="3" y="14" width="8" height="7" rx="1.5"/><path d="M11 6h2v5M11 17h4v-3"/>',
     create: '<path d="M4 20l4-1 11-11-3-3L5 16z"/><path d="M14 6l3 3"/>',
     reference: '<rect x="3" y="5" width="8" height="14" rx="2"/><rect x="13" y="5" width="8" height="14" rx="2"/>',
@@ -313,7 +314,7 @@
     var nav = document.createElement("nav");
     nav.className = "s-nav";
     nav.innerHTML = '<div class="s-logo" title="Vistiq Studio"><img src="assets/mark.png" alt=""></div>' +
-      ["board", "create", "3d", "upscale", "library"].map(function (p) {
+      ["projects", "create", "3d", "upscale", "library"].map(function (p) {
         return '<button type="button" data-page="' + p + '">' + svg(p) + (p === "3d" ? "3D views" : p.charAt(0).toUpperCase() + p.slice(1)) + "</button>";
       }).join("") + '<div class="s-sp"></div><button type="button" data-page="settings">' + svg("settings") + "Settings</button>" +
       '<button type="button" class="s-min s-navmin" data-min="nav" title="Collapse / expand"><svg viewBox="0 0 24 24"><path d="M15 6l-6 6 6 6"/></svg></button>';
@@ -384,6 +385,11 @@
     var gear = $("open-settings"); if (gear) gear.hidden = true;
     var sup = $("support"); if (sup) document.body.appendChild(sup);
 
+    var projects = document.createElement("div");
+    projects.className = "s-page"; projects.id = "p-projects";
+    projects.innerHTML = '<div class="s-scroll"><div class="pj-top"><div class="s-ttl">Projects<small>Each project is a board of pictures with its own Photoshop / Affinity tab</small></div>' +
+      '<button type="button" class="s-btn p" data-pj="new">＋ New project</button></div><div class="pj-grid" id="pj-grid"></div></div>';
+    document.body.appendChild(projects);
     var board = document.createElement("div");
     board.className = "s-page"; board.id = "p-board";
     document.body.appendChild(board);
@@ -452,22 +458,114 @@
     }, true);
 
     wire();
+    wireProjects();
     painter.init();
-    go("board");             // Studio always opens on the board
+    go("projects");          // Studio opens on the Projects page: you pick what to work on
     refresh();
   }
 
   // ------------------------------------------------------------------ actions
 
+  // ------------------------------------------------------------------ projects
+  // Each project is one board of pictures (tiles) plus its Photoshop / Affinity tab.
+  function ago(t) {
+    var s = Math.max(0, Date.now() / 1000 - (t || 0));
+    return s < 90 ? "just now" : s < 3600 ? Math.round(s / 60) + " min ago" : s < 86400 ? Math.round(s / 3600) + " h ago" : s < 172800 ? "yesterday" : Math.round(s / 86400) + " days ago";
+  }
+  var pjThumbs = {};
+  function pjThumb(path) {
+    if (!path) return BLANK;
+    if (pjThumbs[path] === undefined) { pjThumbs[path] = null; api().studio_thumb(path).then(function (d) { pjThumbs[path] = d || "missing"; renderProjects(); }); }
+    return pjThumbs[path] && pjThumbs[path] !== "missing" ? pjThumbs[path] : BLANK;
+  }
+  function loadProjects() {
+    if (!api() || !api().studio_projects) return;
+    api().studio_projects().then(function (list) { S.projects = list || []; renderProjects(); });
+  }
+  function renderProjects() {
+    var g = $("pj-grid"); if (!g) return;
+    var list = (S.projects || []).slice().sort(function (a, b) { return (b.edited || 0) - (a.edited || 0); });
+    var cur = window.VSBoard && window.VSBoard.project().id;
+    var h = list.map(function (pr) {
+      var cov = [pr.cover || pr.covers[0]].concat(pr.covers.filter(function (c) { return c !== pr.cover; })).filter(Boolean).slice(0, 3);
+      var pics = cov.length ? cov.map(function (c) { return '<img src="' + pjThumb(c) + '" alt="">'; }).join("") : '<span class="pj-empty">No pictures yet</span>';
+      return '<div class="pj-card' + (pr.id === cur ? " cur" : "") + '" data-pid="' + esc(pr.id) + '"><div class="pj-col n' + cov.length + '">' + pics + "</div>" +
+        '<div class="pj-meta"><b data-pj="name">' + esc(pr.name) + "</b><small>" + pr.count + " picture" + (pr.count === 1 ? "" : "s") + " · edited " + ago(pr.edited) + "</small></div>" +
+        '<button type="button" class="pj-more" data-pj="more" title="Rename, delete">⋯</button></div>';
+    }).join("") + (S.pjNew ? '<div class="pj-card pj-new on"><input id="pj-name" placeholder="Project name" maxlength="60"><small>Enter to create · Esc to cancel</small></div>'
+                           : '<button type="button" class="pj-card pj-new" data-pj="new"><i>＋</i>New project</button>');
+    if (g.getAttribute("data-h") !== h) {
+      g.innerHTML = h; g.setAttribute("data-h", h);
+      var inp = $("pj-name"); if (inp) inp.focus();
+    }
+  }
+  function openProject(pid) {
+    var pr = (S.projects || []).filter(function (x) { return x.id === pid; })[0]; if (!pr || !window.VSBoard) return;
+    window.VSBoard.load(pr.id, pr.name).then(function () { go("board"); });
+  }
+  function wireProjects() {
+    var page = $("p-projects");
+    page.addEventListener("click", function (e) {
+      var b = e.target.closest("[data-pj]"), card = e.target.closest("[data-pid]");
+      var a = b && b.getAttribute("data-pj");
+      if (a === "new") { S.pjNew = true; renderProjects(); return; }
+      if (a === "more" && card) { projectMenu(card.getAttribute("data-pid"), b); return; }
+      if (card && !e.target.closest("input")) openProject(card.getAttribute("data-pid"));
+    });
+    page.addEventListener("contextmenu", function (e) {
+      var card = e.target.closest("[data-pid]"); if (!card) return;
+      e.preventDefault(); projectMenu(card.getAttribute("data-pid"), card.querySelector(".pj-more"));
+    });
+    page.addEventListener("keydown", function (e) {
+      var inp = e.target.closest("#pj-name"); if (!inp) return;
+      if (e.key === "Escape") { S.pjNew = false; renderProjects(); }
+      if (e.key === "Enter") {
+        var name = inp.value.trim() || "New project"; S.pjNew = false;
+        api().studio_project_new(name).then(function (pr) {
+          if (!pr) return;
+          api().studio_projects().then(function (list) { S.projects = list || []; renderProjects(); openProject(pr.id); });
+        });
+      }
+    });
+  }
+  function projectMenu(pid, anchor) {
+    var pr = (S.projects || []).filter(function (x) { return x.id === pid; })[0]; if (!pr) return;
+    var only = (S.projects || []).length <= 1;
+    pop(anchor, '<button type="button" class="it" data-p="open"><span>Open</span></button><button type="button" class="it" data-p="rename"><span>Rename</span></button><hr>' +
+      '<button type="button" class="it red" data-p="del"' + (only ? " disabled" : "") + "><span>" + (only ? "Delete (keep at least one project)" : "Delete project") + "</span></button>", function (v, btn) {
+      if (v === "open") openProject(pid);
+      else if (v === "rename") {
+        var b = document.querySelector('[data-pid="' + pid + '"] [data-pj=name]'); if (!b) return;
+        b.setAttribute("contenteditable", "true"); b.focus();
+        var r = document.createRange(); r.selectNodeContents(b); var sl = window.getSelection(); sl.removeAllRanges(); sl.addRange(r);
+        var done = function () { b.removeAttribute("contenteditable"); var n = b.textContent.trim();
+          if (n && n !== pr.name) api().studio_project_rename(pid, n).then(function () { pr.name = n; if (window.VSBoard && window.VSBoard.project().id === pid) window.VSBoard.load(pid, n); loadProjects(); }); else renderProjects(); };
+        b.addEventListener("blur", done, { once: true });
+        b.addEventListener("keydown", function (e) { if (e.key === "Enter") { e.preventDefault(); b.blur(); } e.stopPropagation(); });
+      } else if (v === "del") {
+        if (!btn.classList.contains("sure")) { btn.classList.add("sure"); btn.querySelector("span").textContent = "Click again: delete “" + pr.name + "” (pictures stay in the Library)"; return true; }
+        api().studio_project_delete(pid).then(function (ok) {
+          if (!ok) return;
+          api().studio_projects().then(function (list) {
+            S.projects = list || [];
+            if (window.VSBoard && window.VSBoard.project().id === pid && S.projects[0]) window.VSBoard.load(S.projects[0].id, S.projects[0].name);
+            renderProjects();
+          });
+        });
+      }
+    });
+  }
+
   function go(p) {
     if (p === "reference") p = "create";          // references live in Create now
-    if (["board", "3d", "create", "upscale", "library", "settings"].indexOf(p) < 0) p = "board";
+    if (["projects", "board", "3d", "create", "upscale", "library", "settings"].indexOf(p) < 0) p = "projects";
     S.page = p; keep("page", p);
     document.body.setAttribute("data-page", p);
-    document.querySelectorAll(".s-nav button").forEach(function (b) { b.classList.toggle("on", b.getAttribute("data-page") === p); });
+    document.querySelectorAll(".s-nav button").forEach(function (b) { var bp = b.getAttribute("data-page"); b.classList.toggle("on", bp === p || (bp === "projects" && p === "board")); });
     document.querySelectorAll(".s-page").forEach(function (el) { el.classList.toggle("on", el.id === "p-" + p); });
     if (api()) api().studio_drop_target(p);
     if (p === "library") loadLibrary();
+    if (p === "projects") loadProjects();
     if (p === "settings" || p === "create" || p === "reference" || p === "board") refresh();
     markSizes();
     var eg = $("s-up") && $("s-up").firstElementChild;
@@ -1107,11 +1205,30 @@
       if (e.ctrlKey && e.key === "Enter") { e.preventDefault(); job(id); return; }
       if (e.ctrlKey && e.key.toLowerCase() === "v" && !inText) {
         e.preventDefault();
-        api().studio_paste().then(function (info) {
-          if (!info) return;
-          var p = P(id), slot = id === "r" ? (S.dropSlot || (p.src ? "refimg" : "src")) : "src";
-          setImage(p, slot, info);
-        });
+        var osPaste = function () {
+          api().studio_paste().then(function (info) {
+            if (!info) return;
+            var p = P(id), slot = id === "r" ? (S.dropSlot || (p.src ? "refimg" : "src")) : "src";
+            setImage(p, slot, info);
+          });
+        };
+        // A tile copied on a board: onto the open picture as a new layer.
+        var clip = S.tileClip;
+        if (id === "c" && clip && S.create.src && window.VSSketch && api().studio_clip_seq) {
+          api().studio_clip_seq().then(function (n) {
+            if (clip.seq > 0 && n && n !== clip.seq) { S.tileClip = null; osPaste(); return; }
+            clip.tiles.forEach(function (t) {
+              api().studio_image(t.path).then(function (info) {
+                if (!info) return;
+                var put = function () { window.VSSketch.addImageLayer(S.create.src, info.preview, short(t.name || "Pasted")); S.create.sel = -1; render(); };
+                if (S.create.src.live || S.create.src.frozen) window.VSSketch.branch(function () { setTimeout(put, 50); }); else put();
+              });
+            });
+            toast(clip.tiles.length === 1 ? "Pasted as a new layer" : "Pasted " + clip.tiles.length + " pictures as layers");
+          });
+          return;
+        }
+        osPaste();
         return;
       }
       // Esc: from a result (or the run being made) back to your picture.

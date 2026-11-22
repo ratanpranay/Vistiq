@@ -982,3 +982,21 @@ class SceneChange(unittest.TestCase):
         a = sj.same_place(o, new)
         self.assertLess(float(a[:, :100].mean()), 0.3)
         self.assertGreater(float(a[:, -100:].mean()), 0.8)
+
+
+class OutputNames(unittest.TestCase):
+    def test_newest_sorts_first_by_name(self):
+        names = ["Vistiq_%s_cabin_create_v1.png" % studio.newest_first(n) for n in (5, 6, 120, 121)]
+        self.assertEqual(sorted(names)[0], names[-1])       # the newest (121) comes first A→Z
+        self.assertTrue(studio.create_dir().endswith(os.path.join("Outputs", "Create")))
+        self.assertTrue(studio.upscale_dir().endswith(os.path.join("Outputs", "Upscale")))
+
+    def test_upscale_name_gets_the_number_once(self):
+        from vistiq import imaging
+        buf = io.BytesIO(); Image.new("RGB", (8, 8)).save(buf, "PNG")
+        with tempfile.TemporaryDirectory() as d:
+            p, w, h = imaging.save(buf.getvalue(), "Vistiq_999870_cabin_create_v1.png", d, "PNG", "2x", prefix="999860")
+            self.assertEqual(os.path.basename(p), "Vistiq_999860_cabin_create_v1_2x.png")
+
+    def test_results_still_found_by_picture(self):
+        self.assertEqual(sj._strip_tags("999846_cabin_create_v1"), "cabin")

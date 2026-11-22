@@ -180,7 +180,10 @@ KINDS = ("create", "reference", "upscale")
 
 
 def kind_of(name):
-    low = name.lower()
+    """create / reference / upscale, from a file name or path (anything in Outputs\\Upscale is an upscale)."""
+    if os.path.basename(os.path.dirname(name or "")).lower() == "upscale":
+        return "upscale"
+    low = os.path.basename(name or "").lower()
     if "_create" in low or "_refine" in low or "_paint" in low:
         return "create"
     if "_reference" in low or "_camera" in low or "_cmf" in low or "_style" in low:
@@ -1018,10 +1021,10 @@ class Studio:
             stem = _strip_tags(re.sub(r"^\d{4,}_", "", stem))
             # Every run gets the next number first, so the files sort in the order they were made.
             seq = self._next_seq()
-            stem = "%04d_%s" % (seq, stem)
+            stem = "%s_%s" % (studio.newest_first(seq), stem)       # newest first when sorted by name
             tag = ("refine" if job.get("refine_of") else
                    ("paint" if mask is not None else ("create" if mode == "create" else (job.get("preset") or "reference"))))
-            out_dir = os.path.join(studio.outputs_dir(s), time.strftime("%Y-%m-%d"))
+            out_dir = studio.create_dir(s)
             results = []
             # How long this should take, from earlier runs on this computer:
             # seconds per variation, plus the model loading of a session's first run.
@@ -1375,7 +1378,7 @@ class Studio:
         out = []
         for mtime, p in found[:limit]:
             meta = _read_meta(p)
-            out.append({"path": p, "name": os.path.basename(p), "kind": meta.get("kind") or kind_of(os.path.basename(p)),
+            out.append({"path": p, "name": os.path.basename(p), "kind": meta.get("kind") or kind_of(p),
                         "made": mtime * 1000, "text": meta.get("text", ""), "thumb": self.thumb(p, mtime)})
         return out
 
@@ -1393,7 +1396,7 @@ class Studio:
             nm = os.path.basename(p)
             s2 = os.path.splitext(nm)[0]
             s2 = _strip_tags(s2[7:] if s2.lower().startswith("vistiq_") else s2)
-            if s2 != stem or kind_of(nm) not in ("create", "reference"):
+            if s2 != stem or kind_of(p) not in ("create", "reference"):
                 continue
             try:
                 w, h = imaging.size_of(p)
