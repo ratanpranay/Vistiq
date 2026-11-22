@@ -1084,3 +1084,20 @@ class SnapAndMediumTest(unittest.TestCase):
         Image.fromarray(a).save(d + "/p.png")
         self.assertEqual(studio.guess_medium(d + "/s.png"), "sketch")
         self.assertEqual(studio.guess_medium(d + "/p.png"), "render")
+
+
+class IntentTest(unittest.TestCase):
+    def test_parse_intent(self):
+        self.assertEqual(studio.parse_intent("medium=photo; task=edit"), ("photo", "edit"))
+        self.assertEqual(studio.parse_intent("medium = sketch ; task = render."), ("sketch", "render"))
+        self.assertEqual(studio.parse_intent("no idea"), ("", ""))
+
+    def test_task_beats_word_matching(self):
+        # "golden" alone would be a relight; the reader says it's an edit -> the instruction wins
+        t = studio.with_locks("golden buttons on the jacket", {"materials": True, "camera": True}, False, task="edit")
+        self.assertTrue(t.startswith(studio.FOLLOW_FIRST))
+        self.assertNotIn(studio.RELIGHT_HOLD, t)
+        t = studio.with_locks("make it feel calm", {"materials": True, "camera": True}, False, task="relight")
+        self.assertIn(studio.RELIGHT_HOLD, t)
+        t = studio.qwen_text("put it in the alps", locks={"materials": True, "camera": True}, task="scene")
+        self.assertIn(studio.SCENE_HOLD, t)

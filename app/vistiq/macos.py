@@ -100,8 +100,27 @@ def tier(settings=None):
     return t
 
 
-def engine_of(settings=None):
+ENGINES = [("mage", "Microsoft Mage-Flow", "Mage"), ("klein", "FLUX.2 Klein 4B", "Klein4B")]
+
+
+def engine_ready(key, models_dir):
+    if key == "mage":
+        return os.path.isfile(os.path.join(mlxs_dir(), "ready.txt")) and \
+            os.path.isfile(os.path.join(mage_dir(models_dir), "ready.txt"))
+    return os.path.isfile(os.path.join(env_dir(), "ready.txt")) and \
+        os.path.isfile(os.path.join(model_dir(models_dir), "ready.txt"))
+
+
+def engine_of(settings=None, models_dir=None):
+    """The render model in use: the one picked in Create (when it's downloaded), else the setup's."""
+    chosen = (settings.get("mac_engine") if settings else "") or ""
+    if chosen and models_dir and engine_ready(chosen, models_dir) and (chosen != "mage" or mage_supported()):
+        return chosen
     return tier_by_key(tier(settings))["engine"]
+
+
+def engine_tag(key):
+    return next((t for k, _, t in ENGINES if k == key), key)
 
 
 def support_dir():
@@ -662,11 +681,12 @@ class MacEngine:
 
     def __init__(self, settings, models_dir_fn):
         self.settings = settings
+        self.models_dir = models_dir_fn
         self._engines = {"klein": MlxEngine(models_dir_fn), "mage": MageEngine(models_dir_fn)}
 
     @property
     def current(self):
-        want = engine_of(self.settings)
+        want = engine_of(self.settings, self.models_dir())
         for k, e in self._engines.items():
             if k != want:
                 e.stop() if k == "mage" else None     # don't keep two models in memory

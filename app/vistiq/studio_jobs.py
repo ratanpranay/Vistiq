@@ -336,7 +336,7 @@ class Studio:
 
     def _read(self, path, use, say, req=""):
         """The picture reader's words for this picture, or "" (not installed, or it failed)."""
-        if sys.platform == "darwin" or not studio.reader_installed(self.settings):
+        if (sys.platform == "darwin" and not self.settings.get("smart_read", True)) or not studio.reader_installed(self.settings):
             return ""
         try:
             # The same picture read again (another render of the same sketch) answers from memory: the reader
@@ -482,6 +482,30 @@ class Studio:
                 log.exception("import failed")
                 self.emit("studio-setup", {"state": "error", "message": str(exc)})
         threading.Thread(target=run, daemon=True).start()
+        return True
+
+    def get_mac_model(self, key):
+        """Mac: download the other render model (Klein 4B or Mage-Flow) to compare them."""
+        if self._setup and self._setup.is_alive():
+            return False
+        self._cancel.clear()
+
+        def run():
+            from . import macos
+            prog = lambda label, f: self.emit("studio-setup", {"state": "running", "label": label, "fraction": f})
+            try:
+                md = studio.models_dir(self.settings)
+                if key == "mage":
+                    macos.install_mlxserve(studio.download, prog, self._cancel.is_set)
+                    macos.install_mage(md, studio.download, prog, self._cancel.is_set)
+                else:
+                    macos.install(md, studio.download, prog, self._cancel.is_set, want_generate=True, t="light")
+                self.emit("studio-setup", {"state": "done", "status": studio.status(self.settings)})
+            except Exception as exc:
+                log.exception("mac model download")
+                self.emit("studio-setup", {"state": "error", "message": str(exc)[-300:]})
+        self._setup = threading.Thread(target=run, daemon=True)
+        self._setup.start()
         return True
 
     def setup(self, juice=False):
@@ -958,8 +982,26 @@ class Studio:
                         user_words = job.get("text")
                         job = dict(job, text=more, said=user_words)
                 text = studio.build_text(job.get("preset") or "", job.get("text"))
+                # Smart reading (Nov 2026): the picture reader says what the picture is and what the words ask
+                # for (render a sketch, relight, edit a part, new scene, new view, restyle); the prompt is built
+                # from that instead of matching words.
+                words_ = (job.get("said") or job.get("text") or "").strip()
+                im_ = ""
+                if words_ and not job.get("instant") and not refs:
+                    im_, task_ = studio.parse_intent(self._read(work_path, "intent", say, req=words_) or "")
+                    if task_:
+                        lk = dict(job.get("locks") or {})
+                        if task_ == "view":
+                            lk["camera"] = False
+                        elif task_ == "style":
+                            lk["materials"] = False
+                            lk["light"] = False
+                        job = dict(job, task=task_, locks=lk if job.get("locks") is not None else job.get("locks"))
+                    if im_ in ("render", "photo") and (job.get("preset") or "") == "sketch":
+                        job = dict(job, preset="render")
+                        text = studio.build_text("render", job.get("text"))
                 # No picture reader (a Mac): a photo or CGI opened as a sketch is changed as what it is.
-                if (sys.platform == "darwin" and (job.get("preset") or "") == "sketch" and not job.get("instant")
+                if (sys.platform == "darwin" and not im_ and (job.get("preset") or "") == "sketch" and not job.get("instant")
                         and studio.guess_medium(work_path) == "render"):
                     job = dict(job, preset="render")
                     text = studio.build_text("render", job.get("text"))
@@ -985,7 +1027,7 @@ class Studio:
                             chain = True
                 if job.get("locks"):
                     text = studio.with_locks(text, job["locks"], (job.get("preset") or "") == "sketch",
-                                             words=job.get("said") or job.get("text") or "")
+                                             words=job.get("said") or job.get("text") or "", task=job.get("task") or "")
             # Lab (testing only): %APPDATA%\VistiqStudio\lab.json tries other wordings
             # and image orders for references without a new build.
             user_text = locals().get("user_text", job.get("said") or job.get("text") or "")
@@ -1020,7 +1062,8 @@ class Studio:
                 text = studio.qwen_text(job.get("text") or "", instant=bool(job.get("instant")),
                                         scene=locals().get("scene") or "", locks=job.get("locks"), kind=locals().get("kind") or "", camera=locals().get("cam_words") or "",
                                         ref_head=(text.split("\n\n")[0] if refs else ""),
-                                        sketch=(job.get("preset") or "") == "sketch", said=job.get("said"))
+                                        sketch=(job.get("preset") or "") == "sketch", said=job.get("said"),
+                                        task=job.get("task") or "")
                 if lab.get("text"):               # lab: try other wordings ({auto} = Studio's own)
                     text = lab["text"].replace("{auto}", text).replace("{user}", user_text)
             stem = os.path.splitext(os.path.basename(job.get("name") or src_path))[0]
@@ -1030,6 +1073,7 @@ class Studio:
             # Every run gets the next number first, so the files sort in the order they were made.
             seq = self._next_seq()
             stem = "%s_%s" % (studio.newest_first(seq), stem)       # newest first when sorted by name
+            model_tag = studio.model_tag(s, job)                    # e.g. _v1_Mage, _v1_Klein4B
             tag = ("refine" if job.get("refine_of") else
                    ("paint" if mask is not None else ("create" if mode == "create" else (job.get("preset") or "reference"))))
             out_dir = studio.create_dir(s)
@@ -1055,7 +1099,7 @@ class Studio:
                           and "style" not in uses)
             # The picture reader (llama.cpp) keeps several GB on the graphics card; with it there the image
             # model spills to system memory and runs about 3x slower (12 s a step instead of 4, Nov 2026).
-            if sys.platform != "darwin" and hasattr(self, "_reader"):
+            if hasattr(self, "_reader"):
                 try:
                     self._reader.stop()
                 except Exception:
@@ -1273,7 +1317,8 @@ class Studio:
                         and lab.get("keep_cmf", True)
                         # an instruction of its own (remove lines, add a part, change a colour) is never undone by
                         # copying the original back (Nov 2026)
-                        and not studio.instructs(job.get("said") or job.get("text") or "")):
+                        and not studio.instructs(job.get("said") or job.get("text") or "")
+                        and job.get("task") not in ("edit", "style", "view")):
                     try:
                         model_pic = result
                         night = bool(studio.night_clause(job.get("said") or job.get("text") or ""))
@@ -1305,7 +1350,7 @@ class Studio:
                 buf = io.BytesIO()
                 result.save(buf, "PNG")
                 path, w, h = imaging.save(buf.getvalue(), stem + ".png", out_dir, "PNG",
-                                          "%s_v%d" % (tag, v + 1), limit=16384)
+                                          "%s_v%d_%s" % (tag, v + 1, model_tag), limit=16384)
                 meta = {"mode": mode, "preset": job.get("preset"), "view": job.get("view"),
                         "text": job.get("said") if job.get("view") else (job.get("said") or job.get("text") or ""),
                         "keep": keep, "seed": seed + v, "source": src_path, "reference": job.get("reference"),

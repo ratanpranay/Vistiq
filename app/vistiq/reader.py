@@ -79,6 +79,16 @@ ASK = {
              "cold; a lit campfire with glow on nearby faces), and say what stays exactly the same (the main "
              "subject's design and colours, the people's poses, the camera). Plain sentences, at most 100 words, "
              "the instruction only."),
+    # What the picture is and what the person wants (Nov 2026): Studio builds the prompt from this
+    # instead of matching words.
+    "intent": ("Here is a picture and what someone wants done to it: \"{req}\". Answer in exactly this form, "
+               "nothing else: medium=<sketch|render|photo>; task=<render|relight|edit|scene|view|style>. "
+               "medium: sketch for a drawing (lines, strokes, flat or unfinished shading); render for a finished "
+               "CGI render; photo for a real photograph. task: render = turn a sketch into a finished image; "
+               "relight = only the light, time of day or weather changes; edit = add, remove, replace, recolour or "
+               "change a part or material; scene = put it somewhere else (background, place, surroundings); view = "
+               "see it from another camera angle; style = change the whole look (illustration, watercolour, "
+               "photoreal...). Pick the one task that fits best."),
     "design": ("Describe the design in this picture in two short sentences, so someone could draw it again from "
                "another side: what it is; its proportions and "
                "silhouette; its key features (lights, grille, wheels, window line, seats, dashboard, surfaces, colours "
@@ -204,6 +214,8 @@ class Reader:
         self.which = model
         cmd = [exe, "-m", model, "--mmproj", eyes, "--port", str(PORT),
                "--host", "127.0.0.1", "-c", "4096", "--jinja", "-t", threads]
+        if sys.platform == "darwin":
+            cmd += ["-ngl", "0"]      # on the processor: the graphics memory stays with the image model
         flags = 0x08000000 if sys.platform == "win32" else 0
         self.proc = subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
                                      cwd=os.path.dirname(exe), creationflags=flags)

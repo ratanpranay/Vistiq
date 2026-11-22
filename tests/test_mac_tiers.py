@@ -62,6 +62,20 @@ class StageTest(unittest.TestCase):
         self.assertGreaterEqual(macos.stage_fraction("Decoding image", 4, 4, st), 0.9)
 
 
+class EngineChoiceTest(unittest.TestCase):
+    def test_picked_model_used_only_when_downloaded(self):
+        with tempfile.TemporaryDirectory() as d, mock.patch.object(macos, "support_dir", lambda: d), \
+                mock.patch.object(macos, "ram_gb", return_value=16), mock.patch.object(macos, "mage_supported", return_value=True):
+            md = os.path.join(d, "Models")
+            s = FakeSettings(mac_engine="klein")
+            self.assertEqual(macos.engine_of(s, md), "mage")            # Klein not here: the setup's model
+            os.makedirs(macos.model_dir(md)); open(os.path.join(macos.model_dir(md), "ready.txt"), "w").close()
+            os.makedirs(macos.env_dir()); open(os.path.join(macos.env_dir(), "ready.txt"), "w").close()
+            self.assertEqual(macos.engine_of(s, md), "klein")
+            self.assertEqual(macos.engine_tag("klein"), "Klein4B")
+            self.assertEqual(macos.engine_tag("mage"), "Mage")
+
+
 class SettingTest(unittest.TestCase):
     def test_real_settings_take_mac_tier(self):
         from vistiq import settings as st

@@ -1020,6 +1020,18 @@ const frame = (n, name) => ({ path: "live://photoshop/" + n, name: name || "flat
     await p.evaluate(() => { window.__ready = true; });
     await p.ev("studio-setup", { state: "done" }); await p.waitForTimeout(300);
     check("gate: once set up, the app opens on Projects", await p.evaluate(() => !document.body.classList.contains("s-gated") && document.body.getAttribute("data-page") === "projects"), await p.evaluate(() => document.body.getAttribute("data-page")));
+    // Mac with both render models: a picker above Create.
+    await p.evaluate(() => {
+      window.VS.S.status = Object.assign({}, window.VS.S.status, { mac: Object.assign({}, window.VS.S.status.mac || {}, { engine: "mage",
+        engines: [{ key: "mage", label: "Microsoft Mage-Flow", ready: true }, { key: "klein", label: "FLUX.2 Klein 4B", ready: true }] }) });
+      window.pywebview.api.studio_mac_engine = (k) => { window.__eng = k; return Promise.resolve(null); };
+      const st = window.VS.S.status; window.pywebview.api.studio_status = () => Promise.resolve(st);
+      window.VS.go("create");
+    });
+    await p.waitForTimeout(200);
+    check("Mac: render model picker shows when both are here", await p.evaluate(() => !document.getElementById("c-model").hidden && document.querySelectorAll("#c-modelsel option").length === 2), await p.evaluate(() => [document.getElementById("c-model").hidden, document.querySelectorAll("#c-modelsel option").length, document.body.getAttribute("data-page"), (p => p)(window.VS.S.page)].join(",")));
+    await p.selectOption("#c-modelsel", "klein"); await p.waitForTimeout(100);
+    check("Mac: picking Klein 4B asks for it", await p.evaluate(() => window.__eng) === "klein", "");
     // Prompt library: generic, no "tested" tags; [words] become purple and the first is selected.
     await p.evaluate(() => window.VS.go("create")); await p.waitForTimeout(200);
     const plib = await p.evaluate(() => { const b = document.getElementById("c-libb"); if (!b) return null; b.click(); return true; });

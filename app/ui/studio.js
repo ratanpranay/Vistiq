@@ -196,6 +196,7 @@
       '<button type="button" class="s-btn" id="' + id + '-toboard" title="Put this result on the board" disabled>' + svg("board") + '<span>To board</span></button>' +
       '<button type="button" class="s-btn" id="' + id + '-tops" title="Send this result to Photoshop as a new layer" disabled><span class="m-ico ps">Ps</span><span>Photoshop</span></button>' +
       '<button type="button" class="s-btn" id="' + id + '-up" title="Upscale this result" disabled>' + svg("upscale") + '<span>Upscale</span></button></div>' +
+      (id === "c" ? '<label class="s-model" id="c-model" hidden><span>Render model</span><select id="c-modelsel"></select></label>' : "") +
       '<div class="s-gorow">' +
       '<button type="button" class="s-go" id="' + id + '-go"><span class="s-go-fill" id="' + id + '-fill" style="width:0"></span><span id="' + id + '-golabel">' + goText + "</span></button>" +
       '</div><button type="button" class="s-cancel" id="' + id + '-cancel" hidden>Cancel</button>' +
@@ -1073,6 +1074,9 @@
     });
     // Create
     $("c-slot").addEventListener("click", function () { pick("c", "src"); });
+    $("c-modelsel").addEventListener("change", function (e) {
+      api().studio_mac_engine(e.target.value).then(function (st) { if (st) S.status = st; render(); });
+    });
     $("c-source").addEventListener("click", function (e) { var b = e.target.closest("button"); if (b) useSource(b.getAttribute("data-v")); });
     $("c-area").addEventListener("click", function (e) {
       var b = e.target.closest("button"); if (!b) return;
@@ -1321,6 +1325,8 @@
       else if (a === "get-qwenedit") { S.setup.error = ""; api().studio_get_qwenedit(); S.setup.run = { label: "Qwen Image Edit", fraction: null }; render(); }
       else if (a === "engine") { api().studio_set_engine(b.getAttribute("data-e")).then(function (st2) { if (st2) S.status = Object.assign(S.status || {}, st2); render(); }); }
       else if (a === "get-reader-xl") { S.setup.error = ""; api().studio_get_reader_xl(); S.setup.run = { label: "Picture reader XL", fraction: null }; render(); }
+      else if (a === "get-mac-model") { S.setup.error = ""; api().studio_get_mac_model(b.getAttribute("data-m")); S.setup.run = { label: "Render model", fraction: null }; render(); }
+      else if (a === "smart") api().studio_smart_read(!(S.status && S.status.smart_read !== false)).then(function (st) { if (st) S.status = st; render(); });
       else if (a === "get-reader") { S.setup.error = ""; api().studio_get_reader(); S.setup.run = { label: "Picture reader", fraction: null }; render(); }
       else if (a === "get-helper") { S.setup.error = ""; api().studio_get_helper(); S.setup.run = { label: "Prompt helper", fraction: null }; render(); }
       else if (a === "get-select") { S.setup.error = ""; api().studio_get_select(); S.setup.run = { label: "Selection tool", fraction: null }; render(); }
@@ -1830,6 +1836,15 @@
     $(id + "-go").title = inst ? "A studio-quality CGI render that follows your sketch as it is. Words, if you add them, set the scene." : "";
     if (gl.getAttribute("data-h") !== gh) { gl.innerHTML = gh; gl.setAttribute("data-h", gh); }
     if (id === "c") $("c-go").classList.toggle("s-inst", inst && !busy);
+    if (id === "c" && $("c-model")) {
+      var me = (S.status && S.status.mac && S.status.mac.engines || []).filter(function (x) { return x.ready; });
+      $("c-model").hidden = me.length < 2;
+      if (me.length >= 2) {
+        var oh = me.map(function (x) { return '<option value="' + x.key + '"' + (x.key === S.status.mac.engine ? " selected" : "") + ">" + esc(x.label) + "</option>"; }).join("");
+        var sel = $("c-modelsel"); if (sel.getAttribute("data-h") !== oh) { sel.innerHTML = oh; sel.setAttribute("data-h", oh); }
+        sel.disabled = busy;
+      }
+    }
     var meta = "", t = st && st.times;
     if (busy && S.engine.state === "starting") meta = S.engine.message;
     else if (!ready) meta = st ? "Set up image generation first" : "";
@@ -2533,6 +2548,23 @@
     var p = S.pickTier, ok = (st.mac.tiers || []).filter(function (x) { return x.key === p && x.allowed; })[0];
     return ok ? p : st.mac.tier;
   }
+  // Mac: the other render model, to compare (Create shows a picker once both are here).
+  function macModelRows(st, running) {
+    return (st.mac.engines || []).filter(function (x) { return x.key !== st.mac.engine || !x.ready; }).map(function (x) {
+      var size = x.key === "mage" ? "9.8 GB" : "5.8 GB";
+      var about = x.key === "mage" ? "Microsoft's editor: follows instructions closely, fast." : "FLUX.2 Klein 4B: another look, a little slower.";
+      return '<div class="s-row"><div class="n"><b>' + esc(x.label) + ' (second render model)</b><small>' + about + ' Pick it in Create under Render model.</small></div><span class="s-pill">' + size + "</span>" +
+        (x.ready ? '<span class="s-ok">Ready</span>' : '<button type="button" class="s-btn p" data-su="get-mac-model" data-m="' + x.key + '"' + (running ? " disabled" : "") + ">Download</button>") + "</div>";
+    }).join("");
+  }
+  // Smart reading: the picture reader works out what the words ask for before each run.
+  function smartRow(st, running, mac) {
+    var on = st.smart_read !== false;
+    return '<div class="s-row"><div class="n"><b>Smart reading</b><small>Before each run, the picture reader works out what the picture is (sketch, render, photo) and what you ask for (render, relight, edit, new scene, new view, restyle), so the prompt fits. Adds about ' + (mac ? "10–20" : "3–5") + " seconds." +
+      (st.reader_ready || st.reader_xl_ready ? "" : " Needs the picture reader (" + (mac ? "2.6 GB" : "below") + ").") + '</small></div>' +
+      (st.reader_ready || st.reader_xl_ready ? '<button type="button" class="s-btn' + (on ? " p" : "") + '" data-su="smart">' + (on ? "On" : "Off") + "</button>" :
+        (mac ? '<button type="button" class="s-btn p" data-su="get-reader"' + (running ? " disabled" : "") + ">Download</button>" : "")) + "</div>";
+  }
   // Optional downloads, folded away: Studio works without them (Nov 2026).
   function extras(rows) {
     return '<details class="s-extras"' + (S.extrasOpen ? " open" : "") + '><summary>Optional extras <small>for advanced use · Studio works without them</small></summary>' +
@@ -2642,7 +2674,7 @@
       progressHTML() +
       (st.mac ? '<div class="s-sec">Setup</div><p class="s-hint">Pick a setup to switch. One that isn\'t downloaded yet downloads with one click.</p>' + macTierCards(st) + macSwitch(st, running) : "") +
       (st.mac ? '<div class="s-sec">This Mac</div><p class="s-hint">' + esc(st.mac.chip) + " · " + st.mac.ram + " GB memory · creates at up to " + st.mac.work_side + " px, upscales up to " + st.mac.max_side + " px" +
-        (st.mac.can_generate ? "" : " · image generation needs 16 GB or more") + '</p><div class="s-list">' + fileRows(st.files) + selectRow + "</div>" + extras(helperRow) : "") +       // no picture readers on a Mac: Studio doesn't use them there
+        (st.mac.can_generate ? "" : " · image generation needs 16 GB or more") + '</p><div class="s-list">' + fileRows(st.files) + selectRow + "</div>" + extras(macModelRows(st, running) + smartRow(st, running, true) + helperRow) : "") +
       // shown even without FLUX 3: a PC can run on Qwen Image Edit alone (Nov 2026, new office PC)
       (st.mac ? "" : '<div class="s-sec">Image model</div><p class="s-hint">Qwen Image Edit makes Create, Instant render and 3D views. FLUX 3 is optional.</p>' + engineChoice(st, running)) +
       (st.mac ? "" : '<div class="s-sec">Quality</div><div class="s-tiers">' + ["best", "good"].map(function (k) {
@@ -2650,7 +2682,7 @@
         return '<button type="button" class="s-tier' + (tt === k ? " on" : "") + '" data-su="tier" data-t="' + k + '"' + (running ? " disabled" : "") + "><b>" + TIER_TEXT[k][0] +
           (st.tiers[k].ready ? ' <span class="s-ok">Ready</span>' : "") + "</b><small>" + TIER_TEXT[k][1] + "</small></button>";
       }).join("") + "</div>" +
-      '<div class="s-list">' + fileRows(tierFiles(st, st.chosen || st.tier || "best").concat(st.files.filter(function (f) { return f.key === "consistency" && (st.chosen || st.tier || "best") === "best"; }))) + selectRow + "</div>" + extras(helperRow + readerRow) +
+      '<div class="s-list">' + fileRows(tierFiles(st, st.chosen || st.tier || "best").concat(st.files.filter(function (f) { return f.key === "consistency" && (st.chosen || st.tier || "best") === "best"; }))) + selectRow + "</div>" + extras(smartRow(st, running, false) + helperRow + readerRow) +
       (function () { var miss = setupGB(st, st.chosen || st.tier || "best") - (st.engine_installed ? 0 : 2.1) - (st.select_ready ? 0 : 0.1);
         return miss > 0.05 && !running ? '<div class="s-btns"><button type="button" class="s-btn p" data-su="download">Download (' + gb(miss) + ")</button>" +
           '<button type="button" class="s-btn" data-su="download-all" title="The engine, the image models, Qwen Image Edit, both picture readers, the prompt helper, Select and the magic eraser, one after another">Download everything (about 55 GB)</button></div>' : ""; })()) +

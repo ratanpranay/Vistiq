@@ -655,6 +655,29 @@ def parse_medium(answer):
     return m.group(1) if m and m.group(1) in ("sketch", "render") else ""
 
 
+def parse_intent(answer):
+    """(medium, task) from the reader's intent answer, "" for what it didn't say."""
+    a = (answer or "").lower()
+    m = re.search(r"medium\s*=\s*([a-z]+)", a)
+    t = re.search(r"task\s*=\s*([a-z]+)", a)
+    medium = m.group(1) if m and m.group(1) in ("sketch", "render", "photo") else ""
+    task = t.group(1) if t and t.group(1) in ("render", "relight", "edit", "scene", "view", "style") else ""
+    return medium, task
+
+
+def model_tag(settings, job=None):
+    """Short name of the model that makes this picture, for the file name (Nov 2026)."""
+    job = job or {}
+    if sys.platform == "darwin":
+        from . import macos
+        return macos.engine_tag(macos.engine_of(settings, models_dir(settings)))
+    if use_qwenedit(settings):
+        return "Qwen21" if use_q21(settings) and (job.get("preset") or "") == "sketch" and not job.get("view") else "QwenEdit"
+    if flux3_ready(settings):
+        return "Flux3"
+    return "Klein9B" if tier(settings) == "best" else "Klein4B"
+
+
 def guess_medium(path):
     """sketch or render from the pixels alone, for when no picture reader runs (a Mac): a drawing is
     mostly white paper with little colour; a photo or CGI is neither (Nov 2026: a wedding photo was
@@ -968,7 +991,7 @@ def instant_camera(side, height):
             "Do not turn, rotate or mirror the car.")
 
 
-def qwen_text(words, instant=False, scene="", locks=None, ref_head="", sketch=False, said=None, kind="", camera=""):
+def qwen_text(words, instant=False, scene="", locks=None, ref_head="", sketch=False, said=None, kind="", camera="", task=""):
     """Short, direct instructions for Qwen Image Edit."""
     words = " ".join(clean_prompt(words).split())
     if words and words[-1] not in ".!?":
@@ -1005,7 +1028,7 @@ def qwen_text(words, instant=False, scene="", locks=None, ref_head="", sketch=Fa
                 words += "."
         if words:
             parts.append(words)
-            if instructs(said if said is not None else words):
+            if task in ("edit", "style", "view") or (not task and instructs(said if said is not None else words)):
                 parts.append(FOLLOW_FIRST.replace("the rules below", "the rest of this").replace("The rules below", "The rest of this"))
         if night:
             parts.append(night)
@@ -1027,10 +1050,12 @@ def qwen_text(words, instant=False, scene="", locks=None, ref_head="", sketch=Fa
             parts.append("Keep " + ", ".join(keep[:-1]) + (" and " if len(keep) > 1 else "") + keep[-1] + " exactly as they are.")
         lw = said if said is not None else words
         if not sketch and not ref_head and locks.get("materials") and locks.get("camera", True):
-            if CLEAN_WORDS.search(lw) or instructs(lw):
+            if task in ("edit", "style", "view") or (not task and (CLEAN_WORDS.search(lw) or instructs(lw))):
                 parts.append(CLEAN_HOLD)
-            elif PLACE_WORDS.search(lw):
+            elif task == "scene" or (not task and PLACE_WORDS.search(lw)):
                 parts.append(SCENE_HOLD)
+            elif task == "relight":
+                parts.append(RELIGHT_HOLD)
             elif SUN_WORDS.search(lw) or NIGHT_WORDS.search(lw) or SOFT_WORDS.search(lw):
                 parts.append(RELIGHT_HOLD)     # a relight added a glovebox handle that was never there (Nov 2026)
         if camera and locks.get("camera", True) and not ref_head:
@@ -1071,7 +1096,7 @@ def _mac_status(settings):
              "optional": False} for p in parts]
     ram = macos.ram_gb()
     gen = macos.can_generate(ram)
-    ready = all(r["ready"] for r in rows) and gen
+    ready = (all(r["ready"] for r in rows) or macos.engine_ready(macos.engine_of(settings, md), md)) and gen
     rec = macos.recommended_tier(ram)
     tiers = [dict(x, allowed=macos.tier_allowed(x["key"], ram) and (x["engine"] != "mage" or macos.mage_supported()),
                   recommended=x["key"] == rec, ready=all(p["ready"] for p in macos.parts(md, x["key"])))
@@ -1082,11 +1107,15 @@ def _mac_status(settings):
             # only needs the upscaler).
             # (Only the first setup locks the app; switching to another one later doesn't.)
             "needs_setup": not up_ok or (gen and not any(x["ready"] for x in tiers)),
+            "smart_read": bool(settings.get("smart_read", True)) if settings else True,
             "tiers": {"best": {"label": "Best quality", "ready": False}, "good": {"label": "Good quality", "ready": ready}},
             "engine_installed": rows[0]["ready"], "loras": [], "select_ready": select_installed(settings),
             "helper_ready": helper_installed(settings), "reader_ready": reader_installed(settings),
             "home": home(settings), "comfy_models": "",
-            "mac": {"chip": macos.chip(), "ram": ram, "can_generate": gen, "max_side": macos.max_side(ram),
+            "mac": {"engines": [{"key": k, "label": l, "ready": macos.engine_ready(k, md)} for k, l, _ in macos.ENGINES
+                                if k != "mage" or macos.mage_supported()],
+                    "engine": macos.engine_of(settings, md),
+                    "chip": macos.chip(), "ram": ram, "can_generate": gen, "max_side": macos.max_side(ram),
                     "work_side": macos.work_side(ram), "tier": t, "tiers": tiers, "chosen": bool(settings and settings.get("mac_tier")),
                     "mage_supported": macos.mage_supported()}}
 
@@ -1113,6 +1142,7 @@ def status(settings=None):
     create_ok = ready(t) or use_qwenedit(settings)
     return {"files": rows, "create_ready": create_ok, "juice_ready": juice_ok, "tier": t, "chosen": chosen,
             "needs_setup": not (create_ok and engine_installed()),
+            "smart_read": bool(settings.get("smart_read", True)) if settings else True,
             "tiers": {k: {"label": v, "ready": ready(k)} for k, v in TIERS.items()},
             "engine_installed": engine_installed(), "loras": loras(settings),
             "select_ready": select_installed(settings), "helper_ready": helper_installed(settings),
@@ -2168,7 +2198,7 @@ SKETCH_RECOLOUR = ("The colours and fills in the sketch are only placeholders, n
                    "rubber and metal details.")
 
 
-def with_locks(text, locks, sketch, words=None):
+def with_locks(text, locks, sketch, words=None, task=""):
     """Rules for what must not change (the Keep toggles), put first: the model
     weighs the start of the prompt most. Light locked also drops our own light."""
     locks = locks or {}
@@ -2185,15 +2215,18 @@ def with_locks(text, locks, sketch, words=None):
         rules = [LOCK_TEXT[k] for k in ("design", "materials", "light", "camera") if locks.get(k)]
         free = [k for k in ("design", "materials", "light", "camera") if not locks.get(k)]
         if not locks.get("design") and locks.get("materials") and locks.get("camera"):
-            if CLEAN_WORDS.search(said) or instructs(said):
+            # The reader's answer decides when there is one; else the words do.
+            if task in ("edit", "style", "view") or (not task and (CLEAN_WORDS.search(said) or instructs(said))):
                 rules.append(CLEAN_HOLD)
-            elif PLACE_WORDS.search(text):
+            elif task == "scene" or (not task and PLACE_WORDS.search(text)):
                 rules.append(SCENE_HOLD)
+            elif task == "relight":
+                rules.append(RELIGHT_HOLD)
             elif SUN_WORDS.search(text) or NIGHT_WORDS.search(text) or SOFT_WORDS.search(text):
                 rules.append(RELIGHT_HOLD)
         if free:
             rules.append("Change only what the instructions below describe.")
-    if rules and instructs(said):        # the person's own words, not a preset's lines
+    if rules and (task in ("edit", "style", "view") or (not task and instructs(said))):   # the person's own words
         rules.insert(0, FOLLOW_FIRST)        # the person's instruction wins over every keep rule
     return ("\n".join(rules) + "\n\n" + text) if rules else text
 

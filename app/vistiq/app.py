@@ -909,6 +909,19 @@ class Api:
     def studio_get_reader_xl(self):
         return self._app.studio.get_reader_xl()
 
+    def studio_get_mac_model(self, key):
+        return self._app.studio.get_mac_model(key if key in ("mage", "klein") else "klein")
+
+    def studio_mac_engine(self, key):
+        """Create's render model on a Mac: "mage" or "klein"."""
+        if key in ("mage", "klein"):
+            self._app.settings.set("mac_engine", key)
+        return self._app.studio.status()
+
+    def studio_smart_read(self, on):
+        self._app.settings.set("smart_read", bool(on))
+        return self._app.studio.status()
+
     def studio_get_reader(self):
         return self._app.studio.get_reader()
 
