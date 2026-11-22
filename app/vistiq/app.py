@@ -387,7 +387,8 @@ class Api:
         try:
             with open(idx, encoding="utf-8") as fh:
                 data = json.load(fh)
-            if data.get("projects"):
+            if data.get("projects") or data.get("migrated"):
+                data.setdefault("projects", []); data.setdefault("trash", [])
                 return data
         except Exception:
             pass
@@ -397,7 +398,8 @@ class Api:
         if os.path.isfile(old) and not os.path.isfile(new):
             shutil.copyfile(old, new)
         now = time.time()
-        data = {"projects": [{"id": "myboard", "name": "My board", "created": now, "edited": now, "cover": "", "cover_set": False}]}
+        data = {"migrated": True, "trash": [],
+                "projects": [{"id": "myboard", "name": "My board", "created": now, "edited": now, "cover": "", "cover_set": False}]}
         self._projects_save(data)
         return data
 
@@ -477,14 +479,78 @@ class Api:
             self._projects_save(data)
         return pr
 
+    def _trash_dir(self, pid=""):
+        return os.path.join(self._projects_dir(), "_trash", pid)
+
     def studio_project_delete(self, pid):
-        """The project and its board go; the pictures themselves stay in the Library."""
+        """Into the Trash: the project and its board can come back from there for 30 days. The
+        pictures themselves always stay in the Library."""
         data = self._projects()
-        if len(data["projects"]) <= 1:
+        pr = self._project(data, pid)
+        if not pr:
             return False
         data["projects"] = [p for p in data["projects"] if p["id"] != pid]
+        src = os.path.dirname(self._board_path(pid))
+        if os.path.isdir(src):
+            os.makedirs(self._trash_dir(), exist_ok=True)
+            shutil.rmtree(self._trash_dir(pid), ignore_errors=True)
+            shutil.move(src, self._trash_dir(pid))
+        data["trash"] = [t for t in data.get("trash", []) if t["id"] != pid] + [dict(pr, deleted=time.time())]
         self._projects_save(data)
-        shutil.rmtree(os.path.dirname(self._board_path(pid)), ignore_errors=True)
+        return True
+
+    def studio_trash(self):
+        """Deleted projects, newest first (ones older than 30 days are emptied out first)."""
+        try:
+            data = self._projects()
+            keep, now = [], time.time()
+            for t in data.get("trash", []):
+                if now - (t.get("deleted") or now) > 30 * 86400:
+                    shutil.rmtree(self._trash_dir(t["id"]), ignore_errors=True)
+                else:
+                    keep.append(t)
+            if len(keep) != len(data.get("trash", [])):
+                data["trash"] = keep
+                self._projects_save(data)
+            out = []
+            for t in sorted(keep, key=lambda t: -(t.get("deleted") or 0)):
+                b = {}
+                try:
+                    with open(os.path.join(self._trash_dir(t["id"]), "board.json"), encoding="utf-8") as fh:
+                        b = json.load(fh)
+                except Exception:
+                    pass
+                tiles = [k for k in b.get("tiles", []) if k.get("path")]
+                out.append(dict(t, count=len(tiles), covers=[k["path"] for k in sorted(tiles, key=lambda k: -(k.get("made") or 0))[:3]],
+                                days_left=max(0, 30 - int((now - (t.get("deleted") or now)) / 86400))))
+            return out
+        except Exception as exc:
+            log.warning("trash: %s", exc)
+            return []
+
+    def studio_trash_restore(self, pid):
+        data = self._projects()
+        t = next((x for x in data.get("trash", []) if x["id"] == pid), None)
+        if not t:
+            return False
+        dst = os.path.dirname(self._board_path(pid))
+        if os.path.isdir(self._trash_dir(pid)) and not os.path.isdir(dst):
+            shutil.move(self._trash_dir(pid), dst)
+        data["trash"] = [x for x in data["trash"] if x["id"] != pid]
+        pr = {k: v for k, v in t.items() if k != "deleted"}
+        pr["edited"] = time.time()
+        data["projects"].append(pr)
+        self._projects_save(data)
+        return pr
+
+    def studio_trash_forget(self, pid=""):
+        """Delete for good: one project, or the whole Trash when pid is empty."""
+        data = self._projects()
+        gone = [x for x in data.get("trash", []) if not pid or x["id"] == pid]
+        for x in gone:
+            shutil.rmtree(self._trash_dir(x["id"]), ignore_errors=True)
+        data["trash"] = [x for x in data.get("trash", []) if x not in gone]
+        self._projects_save(data)
         return True
 
     def studio_project_cover(self, pid, path):
@@ -504,6 +570,10 @@ class Api:
             self._board_write(pid or "myboard", board)
             data = self._projects()
             pr = self._project(data, pid or "myboard")
+            if not pr and any(t.get("path") for t in board.get("tiles", [])) and not any(x["id"] == (pid or "myboard") for x in data.get("trash", [])):
+                now = time.time()          # a picture added with no project open: it gets one
+                pr = {"id": pid or "myboard", "name": "My board", "created": now, "edited": now, "cover": "", "cover_set": False}
+                data["projects"].append(pr)
             if pr:
                 pr["edited"] = time.time()
                 if not pr.get("cover_set"):      # the newest picture is the cover, until you pick one

@@ -1,5 +1,9 @@
 # Vistiq Studio (test build)
 
+## 0.4.93
+- New project opens in a small floating window (name, then Create project).
+- Any project can be deleted, also the only one. It goes to the Trash (new, at the bottom of the left bar: Trash · Settings · ♥) and can be restored for 30 days. Its pictures are never deleted.
+
 ## 0.4.92
 - Projects: the left bar starts with Projects (Studio opens there). Each project is one board of pictures plus its own Photoshop / Affinity tab. Your existing board is the first project, "My board", with everything on it.
 - New project, rename, delete (right-click or ⋯ on a card; the pictures stay in the Library). The newest picture is the cover; right-click a tile → "Use as project cover" to pick one.

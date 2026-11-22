@@ -12,6 +12,7 @@
 
   var ICON = {
     "3d": '<path d="M12 3l8 4.5v9L12 21l-8-4.5v-9z"/><path d="M12 12l8-4.5M12 12v9M12 12L4 7.5"/>',
+    trash: '<path d="M4 7h16M9 7V4.5h6V7M6.5 7l1 12.5h9l1-12.5"/><path d="M10 11v5M14 11v5"/>',
     projects: '<path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>',
     board: '<rect x="3" y="3" width="8" height="6" rx="1.5"/><rect x="13" y="8" width="8" height="6" rx="1.5"/><rect x="3" y="14" width="8" height="7" rx="1.5"/><path d="M11 6h2v5M11 17h4v-3"/>',
     create: '<path d="M4 20l4-1 11-11-3-3L5 16z"/><path d="M14 6l3 3"/>',
@@ -316,7 +317,7 @@
     nav.innerHTML = '<div class="s-logo" title="Vistiq Studio"><img src="assets/mark.png" alt=""></div>' +
       ["projects", "create", "3d", "upscale", "library"].map(function (p) {
         return '<button type="button" data-page="' + p + '">' + svg(p) + (p === "3d" ? "3D views" : p.charAt(0).toUpperCase() + p.slice(1)) + "</button>";
-      }).join("") + '<div class="s-sp"></div><button type="button" data-page="settings">' + svg("settings") + "Settings</button>" +
+      }).join("") + '<div class="s-sp"></div><button type="button" data-page="trash">' + svg("trash") + 'Trash</button><button type="button" data-page="settings">' + svg("settings") + "Settings</button>" +
       '<button type="button" class="s-min s-navmin" data-min="nav" title="Collapse / expand"><svg viewBox="0 0 24 24"><path d="M15 6l-6 6 6 6"/></svg></button>';
     document.body.insertBefore(nav, document.body.firstChild);
 
@@ -380,7 +381,7 @@
     var heart = $("open-support");
     if (heart) {
       heart.classList.add("s-heart");
-      nav.insertBefore(heart, nav.querySelector('button[data-page="settings"]'));
+      nav.insertBefore(heart, nav.querySelector(".s-navmin"));      // Trash · Settings · heart
     }
     var gear = $("open-settings"); if (gear) gear.hidden = true;
     var sup = $("support"); if (sup) document.body.appendChild(sup);
@@ -390,6 +391,11 @@
     projects.innerHTML = '<div class="s-scroll"><div class="pj-top"><div class="s-ttl">Projects<small>Each project is a board of pictures with its own Photoshop / Affinity tab</small></div>' +
       '<button type="button" class="s-btn p" data-pj="new">＋ New project</button></div><div class="pj-grid" id="pj-grid"></div></div>';
     document.body.appendChild(projects);
+    var trash = document.createElement("div");
+    trash.className = "s-page"; trash.id = "p-trash";
+    trash.innerHTML = '<div class="s-scroll"><div class="pj-top"><div class="s-ttl">Trash<small>Deleted projects stay here for 30 days. Their pictures are never deleted: they stay in the Library.</small></div>' +
+      '<button type="button" class="s-btn" data-tr="empty">Empty trash</button></div><div class="pj-grid" id="tr-grid"></div></div>';
+    document.body.appendChild(trash);
     var board = document.createElement("div");
     board.className = "s-page"; board.id = "p-board";
     document.body.appendChild(board);
@@ -492,12 +498,32 @@
       return '<div class="pj-card' + (pr.id === cur ? " cur" : "") + '" data-pid="' + esc(pr.id) + '"><div class="pj-col n' + cov.length + '">' + pics + "</div>" +
         '<div class="pj-meta"><b data-pj="name">' + esc(pr.name) + "</b><small>" + pr.count + " picture" + (pr.count === 1 ? "" : "s") + " · edited " + ago(pr.edited) + "</small></div>" +
         '<button type="button" class="pj-more" data-pj="more" title="Rename, delete">⋯</button></div>';
-    }).join("") + (S.pjNew ? '<div class="pj-card pj-new on"><input id="pj-name" placeholder="Project name" maxlength="60"><small>Enter to create · Esc to cancel</small></div>'
-                           : '<button type="button" class="pj-card pj-new" data-pj="new"><i>＋</i>New project</button>');
-    if (g.getAttribute("data-h") !== h) {
-      g.innerHTML = h; g.setAttribute("data-h", h);
-      var inp = $("pj-name"); if (inp) inp.focus();
-    }
+    }).join("") + '<button type="button" class="pj-card pj-new" data-pj="new"><i>＋</i>New project</button>';
+    if (g.getAttribute("data-h") !== h) { g.innerHTML = h; g.setAttribute("data-h", h); }
+  }
+  // New project: a small floating window with the name.
+  function newProjectDialog() {
+    if ($("pj-modal")) return;
+    var m = document.createElement("div"); m.className = "pj-modal"; m.id = "pj-modal";
+    m.innerHTML = '<div class="pj-dlg" role="dialog" aria-label="New project"><b>New project</b><small>A board for its pictures, with its own Photoshop / Affinity tab.</small>' +
+      '<input id="pj-name" placeholder="Project name, e.g. Pickup interior" maxlength="60" autocomplete="off">' +
+      '<div class="pj-btns"><button type="button" class="s-btn" data-dlg="cancel">Cancel</button><button type="button" class="s-btn p" data-dlg="ok">Create project</button></div></div>';
+    document.body.appendChild(m);
+    var inp = $("pj-name"); setTimeout(function () { inp.focus(); }, 30);
+    var close = function () { m.remove(); };
+    var ok = function () {
+      var name = inp.value.trim() || "New project"; close();
+      api().studio_project_new(name).then(function (pr) {
+        if (!pr) return;
+        api().studio_projects().then(function (list) { S.projects = list || []; renderProjects(); openProject(pr.id); });
+      });
+    };
+    m.addEventListener("click", function (e) {
+      var b = e.target.closest("[data-dlg]");
+      if (b) { if (b.getAttribute("data-dlg") === "ok") ok(); else close(); return; }
+      if (e.target === m) close();
+    });
+    inp.addEventListener("keydown", function (e) { if (e.key === "Enter") ok(); if (e.key === "Escape") close(); e.stopPropagation(); });
   }
   function openProject(pid) {
     var pr = (S.projects || []).filter(function (x) { return x.id === pid; })[0]; if (!pr || !window.VSBoard) return;
@@ -508,7 +534,7 @@
     page.addEventListener("click", function (e) {
       var b = e.target.closest("[data-pj]"), card = e.target.closest("[data-pid]");
       var a = b && b.getAttribute("data-pj");
-      if (a === "new") { S.pjNew = true; renderProjects(); return; }
+      if (a === "new") { newProjectDialog(); return; }
       if (a === "more" && card) { projectMenu(card.getAttribute("data-pid"), b); return; }
       if (card && !e.target.closest("input")) openProject(card.getAttribute("data-pid"));
     });
@@ -516,23 +542,35 @@
       var card = e.target.closest("[data-pid]"); if (!card) return;
       e.preventDefault(); projectMenu(card.getAttribute("data-pid"), card.querySelector(".pj-more"));
     });
-    page.addEventListener("keydown", function (e) {
-      var inp = e.target.closest("#pj-name"); if (!inp) return;
-      if (e.key === "Escape") { S.pjNew = false; renderProjects(); }
-      if (e.key === "Enter") {
-        var name = inp.value.trim() || "New project"; S.pjNew = false;
-        api().studio_project_new(name).then(function (pr) {
-          if (!pr) return;
-          api().studio_projects().then(function (list) { S.projects = list || []; renderProjects(); openProject(pr.id); });
-        });
+    $("p-trash").addEventListener("click", function (e) {
+      var b = e.target.closest("[data-tr]"); if (!b) return;
+      var a = b.getAttribute("data-tr"), card = b.closest("[data-tid]"), id = card ? card.getAttribute("data-tid") : "";
+      if (a === "restore") api().studio_trash_restore(id).then(function (pr) { if (pr) { toast("“" + pr.name + "” is back in Projects"); loadTrash(); } });
+      else if (a === "forget" || a === "empty") {
+        if (!b.classList.contains("sure")) { b.classList.add("sure"); b.textContent = a === "empty" ? "Click again: delete all for good" : "Click again: delete for good"; return; }
+        api().studio_trash_forget(a === "empty" ? "" : id).then(function () { loadTrash(); });
       }
+    });
+  }
+  function loadTrash() {
+    if (!api() || !api().studio_trash) return;
+    api().studio_trash().then(function (list) {
+      var g = $("tr-grid"); if (!g) return;
+      list = list || [];
+      var h = list.length ? list.map(function (t) {
+        var pics = t.covers.length ? t.covers.map(function (c) { return '<img src="' + pjThumb(c) + '" alt="">'; }).join("") : '<span class="pj-empty">No pictures</span>';
+        return '<div class="pj-card tr" data-tid="' + esc(t.id) + '"><div class="pj-col n' + t.covers.length + '">' + pics + "</div>" +
+          '<div class="pj-meta"><b>' + esc(t.name) + "</b><small>" + t.count + " picture" + (t.count === 1 ? "" : "s") + " · deleted " + ago(t.deleted) + " · " + t.days_left + " days left</small>" +
+          '<div class="tr-btns"><button type="button" class="s-btn p" data-tr="restore">Restore</button><button type="button" class="s-btn" data-tr="forget">Delete for good</button></div></div></div>';
+      }).join("") : '<p class="tr-none">The Trash is empty.</p>';
+      g.innerHTML = h;
+      var eb = document.querySelector('#p-trash [data-tr="empty"]'); if (eb) { eb.hidden = !list.length; eb.classList.remove("sure"); eb.textContent = "Empty trash"; }
     });
   }
   function projectMenu(pid, anchor) {
     var pr = (S.projects || []).filter(function (x) { return x.id === pid; })[0]; if (!pr) return;
-    var only = (S.projects || []).length <= 1;
     pop(anchor, '<button type="button" class="it" data-p="open"><span>Open</span></button><button type="button" class="it" data-p="rename"><span>Rename</span></button><hr>' +
-      '<button type="button" class="it red" data-p="del"' + (only ? " disabled" : "") + "><span>" + (only ? "Delete (keep at least one project)" : "Delete project") + "</span></button>", function (v, btn) {
+      '<button type="button" class="it red" data-p="del"><span>Move to Trash</span></button>', function (v, btn) {
       if (v === "open") openProject(pid);
       else if (v === "rename") {
         var b = document.querySelector('[data-pid="' + pid + '"] [data-pj=name]'); if (!b) return;
@@ -543,12 +581,16 @@
         b.addEventListener("blur", done, { once: true });
         b.addEventListener("keydown", function (e) { if (e.key === "Enter") { e.preventDefault(); b.blur(); } e.stopPropagation(); });
       } else if (v === "del") {
-        if (!btn.classList.contains("sure")) { btn.classList.add("sure"); btn.querySelector("span").textContent = "Click again: delete “" + pr.name + "” (pictures stay in the Library)"; return true; }
         api().studio_project_delete(pid).then(function (ok) {
           if (!ok) return;
+          toast("“" + pr.name + "” moved to the Trash (30 days to restore)");
           api().studio_projects().then(function (list) {
             S.projects = list || [];
-            if (window.VSBoard && window.VSBoard.project().id === pid && S.projects[0]) window.VSBoard.load(S.projects[0].id, S.projects[0].name);
+            if (window.VSBoard && window.VSBoard.project().id === pid) {
+              // the open board was deleted: the next one (or a fresh "My board" when pictures arrive)
+              if (S.projects[0]) window.VSBoard.load(S.projects[0].id, S.projects[0].name);
+              else window.VSBoard.load("p" + Date.now().toString(36), "My board");
+            }
             renderProjects();
           });
         });
@@ -558,7 +600,7 @@
 
   function go(p) {
     if (p === "reference") p = "create";          // references live in Create now
-    if (["projects", "board", "3d", "create", "upscale", "library", "settings"].indexOf(p) < 0) p = "projects";
+    if (["projects", "board", "3d", "create", "upscale", "library", "settings", "trash"].indexOf(p) < 0) p = "projects";
     S.page = p; keep("page", p);
     document.body.setAttribute("data-page", p);
     document.querySelectorAll(".s-nav button").forEach(function (b) { var bp = b.getAttribute("data-page"); b.classList.toggle("on", bp === p || (bp === "projects" && p === "board")); });
@@ -566,6 +608,7 @@
     if (api()) api().studio_drop_target(p);
     if (p === "library") loadLibrary();
     if (p === "projects") loadProjects();
+    if (p === "trash") loadTrash();
     if (p === "settings" || p === "create" || p === "reference" || p === "board") refresh();
     markSizes();
     var eg = $("s-up") && $("s-up").firstElementChild;

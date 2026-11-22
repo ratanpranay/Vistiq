@@ -1164,3 +1164,23 @@ body.studio .s-vars>.s-ph.sel{border-color:var(--ink)}
 .b-menu k{float:right;color:var(--faint);font-size:11px;margin-left:16px;font-style:normal}
 .b-mt{font-size:10.5px;font-weight:700;color:var(--faint);text-transform:uppercase;letter-spacing:.04em;padding:6px 11px 4px}
 .b-menu button small{float:right;color:var(--faint);font-size:11px;margin-left:16px}
+/* New project: a floating window */
+.pj-modal{position:fixed;inset:0;z-index:200;background:rgba(15,18,32,.32);display:flex;align-items:center;justify-content:center;animation:pj-fade .15s}
+@keyframes pj-fade{from{opacity:0}to{opacity:1}}
+.pj-dlg{width:min(440px,90vw);background:#fff;border-radius:18px;padding:22px 22px 18px;box-shadow:0 24px 70px rgba(14,16,32,.28);display:flex;flex-direction:column;gap:8px}
+.pj-dlg b{font-size:17px}
+.pj-dlg small{font-size:12.5px;color:var(--dim);margin-bottom:6px}
+.pj-dlg input{height:42px;border:1px solid var(--line-2);border-radius:11px;padding:0 13px;font:600 14px var(--font);outline:none}
+.pj-dlg input:focus{border-color:var(--ink)}
+.pj-btns{display:flex;justify-content:flex-end;gap:8px;margin-top:8px}
+.pj-btns .s-btn{height:36px;padding:0 16px;border-radius:10px;font-weight:600}
+.pj-btns .s-btn.p{background:var(--ink);color:#fff}
+/* Trash */
+#p-trash .s-scroll{padding:26px 30px}
+.pj-card.tr{cursor:default}
+.pj-card.tr .pj-col{filter:grayscale(.6);opacity:.8}
+.tr-btns{display:flex;gap:6px;margin-top:10px}
+.tr-btns .s-btn{height:30px;padding:0 12px;border-radius:9px;font-size:12px;font-weight:600}
+.tr-btns .s-btn.p{background:var(--ink);color:#fff}
+.s-btn.sure{background:#FDECEC;color:#D93636;border-color:#F3C2C2}
+.tr-none{color:var(--dim);font-size:13px;padding:20px 2px}

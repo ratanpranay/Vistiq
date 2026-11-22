@@ -36,7 +36,11 @@ async function open(browser, before, opts) {
     api.studio_projects = () => Promise.resolve(window.__projects.map((p) => Object.assign({}, p, { count: cnt(p.id).length, covers: cnt(p.id).map((t) => t.path).slice(0, 3) })));
     api.studio_project_new = (name) => { const p = { id: "p" + window.__projects.length, name, created: 3, edited: 3, cover: "", cover_set: false }; window.__projects.push(p); window.__boards[p.id] = { tiles: [] }; return Promise.resolve(p); };
     api.studio_project_rename = (id, n) => { window.__projects.find((p) => p.id === id).name = n; return Promise.resolve(true); };
-    api.studio_project_delete = (id) => { window.__projects = window.__projects.filter((p) => p.id !== id); return Promise.resolve(true); };
+    window.__trash = [];
+    api.studio_project_delete = (id) => { const p = window.__projects.find((x) => x.id === id); window.__projects = window.__projects.filter((p) => p.id !== id); if (p) window.__trash.push(Object.assign({}, p, { deleted: Date.now() / 1000 })); return Promise.resolve(true); };
+    api.studio_trash = () => Promise.resolve(window.__trash.map((t) => Object.assign({}, t, { count: 0, covers: [], days_left: 30 })));
+    api.studio_trash_restore = (id) => { const t = window.__trash.find((x) => x.id === id); window.__trash = window.__trash.filter((x) => x.id !== id); if (t) window.__projects.push(t); return Promise.resolve(t || false); };
+    api.studio_trash_forget = (id) => { window.__trash = window.__trash.filter((x) => id && x.id !== id); return Promise.resolve(true); };
     api.studio_project_cover = (id, path) => { window.__projects.find((p) => p.id === id).cover = path; return Promise.resolve(true); };
     api.studio_board_get = (pid) => Promise.resolve(!pid || pid === "myboard" ? window.__board : window.__boards[pid]);
     api.studio_board_save = (b, pid) => { const c = JSON.parse(JSON.stringify(b)); if (!pid || pid === "myboard") window.__board = c; else window.__boards[pid] = c; return Promise.resolve(true); };
@@ -725,7 +729,7 @@ const frame = (n, name) => ({ path: "live://photoshop/" + n, name: name || "flat
   // 3D views: order, tabs, hold, loading, height.
   {
     const p = await open(browser);
-    check("3D views sits after Create", await p.evaluate(() => [...document.querySelectorAll(".s-nav button[data-page]")].map((b) => b.dataset.page).join(",")) === "projects,create,3d,upscale,library,settings", "");
+    check("3D views sits after Create", await p.evaluate(() => [...document.querySelectorAll(".s-nav button[data-page]")].map((b) => b.dataset.page).join(",")) === "projects,create,3d,upscale,library,trash,settings", "");
     await p.evaluate(() => {
       const api = window.pywebview.api;
       api.studio_describe = () => Promise.resolve({ text: "kind=product; nose=right; end=none; side=left; height=eye" });
@@ -936,6 +940,22 @@ const frame = (n, name) => ({ path: "live://photoshop/" + n, name: name || "flat
     await p.click('#b-menu [data-m="move"]'); await p.waitForTimeout(200);
     await p.click('#b-menu [data-mp="p1"]'); await p.waitForTimeout(600);
     check("projects: Move takes it out of this project and into the other", await p.evaluate(() => window.VSBoard._state().tiles.filter((t) => t.path).length === 1 && window.__boards.p1.tiles.filter((t) => t.path).length === 2), "");
+    // delete → Trash → restore; the only project can go too
+    await p.click(".s-nav button[data-page=projects]"); await p.waitForTimeout(200);
+    check("projects: New project opens a floating window", await (async () => { await p.click(".pj-new"); await p.waitForTimeout(100); const v = await p.isVisible("#pj-modal"); await p.keyboard.press("Escape"); await p.waitForTimeout(80); return v && !(await p.isVisible("#pj-modal")); })(), "");
+    await p.click('.pj-card[data-pid="p1"]', { button: "right" }); await p.waitForTimeout(100);
+    await p.click('.s-pop [data-p="del"]'); await p.waitForTimeout(300);
+    check("projects: Move to Trash takes it off the Projects page", !/SUV exterior/.test(await p.text("#pj-grid")), await p.text("#pj-grid"));
+    await p.click(".s-nav button[data-page=trash]"); await p.waitForTimeout(200);
+    check("trash: the deleted project is in the Trash", /SUV exterior/.test(await p.text("#tr-grid")), await p.text("#tr-grid"));
+    await p.click('[data-tid="p1"] [data-tr="restore"]'); await p.waitForTimeout(200);
+    check("trash: Restore brings it back", /The Trash is empty/.test(await p.text("#tr-grid")) && (await p.evaluate(() => window.__projects.some((x) => x.id === "p1"))), await p.text("#tr-grid"));
+    await p.click(".s-nav button[data-page=projects]"); await p.waitForTimeout(200);
+    await p.click('.pj-card[data-pid="myboard"]', { button: "right" }); await p.waitForTimeout(100);
+    check("projects: delete is never greyed out", await p.evaluate(() => !document.querySelector('.s-pop [data-p="del"]').disabled), "");
+    await p.keyboard.press("Escape");
+    check("nav: Trash, then Settings, then the heart at the bottom", await p.evaluate(() => { const k = [...document.querySelectorAll(".s-nav > *")].map((e) => e.getAttribute("data-page") || (e.classList.contains("s-heart") ? "heart" : "")).filter(Boolean); return k.slice(-3).join(","); }) === "trash,settings,heart",
+      await p.evaluate(() => [...document.querySelectorAll(".s-nav > *")].map((e) => e.getAttribute("data-page") || e.className).join(",")));
     check("projects: no page errors", !p.errors.length, p.errors.join("; "));
     await p.close();
   }
