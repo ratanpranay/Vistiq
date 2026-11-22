@@ -1038,3 +1038,49 @@ class FollowWordsTest(unittest.TestCase):
         self.assertIn("Above all", t)
         self.assertIn(studio.CLEAN_HOLD, t)
         self.assertNotIn(studio.RELIGHT_HOLD, t)
+
+
+class SnapAndMediumTest(unittest.TestCase):
+    def test_snap_points_inside_and_outside(self):
+        from PIL import Image, ImageDraw
+        from vistiq import picker
+        m = Image.new("L", (400, 300), 0)
+        ImageDraw.Draw(m).ellipse([100, 60, 300, 240], fill=255)
+        pts = picker.snap_points(m)
+        pos = [p for p in pts if p[2]]
+        neg = [p for p in pts if not p[2]]
+        self.assertTrue(pos and neg)
+        for u, v, _ in pos:
+            self.assertEqual(m.getpixel((int(u * 400), int(v * 300))), 255)
+        for u, v, _ in neg:
+            self.assertEqual(m.getpixel((min(399, int(u * 400)), min(299, int(v * 300)))), 0)
+
+    def test_snap_merge_keeps_the_object_near_the_shape(self):
+        from PIL import Image, ImageDraw
+        from vistiq import picker
+        shape = Image.new("L", (400, 300), 0)
+        ImageDraw.Draw(shape).rectangle([100, 50, 300, 200], fill=255)       # rough: cuts the object
+        obj = Image.new("L", (400, 300), 0)
+        ImageDraw.Draw(obj).rectangle([120, 60, 280, 230], fill=255)          # the real object runs a bit lower
+        out = picker.snap_merge(shape, obj)
+        self.assertIsNot(out, shape)
+        self.assertEqual(out.getpixel((200, 220)), 255)     # completed past the drawn edge
+        self.assertEqual(out.getpixel((105, 55)), 0)        # spill dropped
+        wrong = Image.new("L", (400, 300), 0)
+        ImageDraw.Draw(wrong).rectangle([190, 120, 200, 130], fill=255)       # a tiny wrong thing
+        self.assertIs(picker.snap_merge(shape, wrong), shape)
+
+    def test_guess_medium(self):
+        import tempfile
+        import numpy as np
+        from PIL import Image, ImageDraw
+        d = tempfile.mkdtemp()
+        sk = Image.new("RGB", (600, 400), "white")
+        dr = ImageDraw.Draw(sk)
+        for i in range(20):
+            dr.line([(i * 30, 80), (i * 30 + 150, 320)], fill=(30, 30, 30), width=3)
+        sk.save(d + "/s.png")
+        a = (np.random.RandomState(0).rand(400, 600, 3) * [200, 120, 60] + [40, 30, 20]).astype("uint8")
+        Image.fromarray(a).save(d + "/p.png")
+        self.assertEqual(studio.guess_medium(d + "/s.png"), "sketch")
+        self.assertEqual(studio.guess_medium(d + "/p.png"), "render")

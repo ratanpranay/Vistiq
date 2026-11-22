@@ -1244,3 +1244,7 @@ body.studio .s-stage>.s-top,body.studio .s-stage>.s-under{transform:translateZ(0
 /* Board button on the drawing bar: in the Create button's colours, so it stands out */
 .sk-b.sk-board{background:var(--brand);color:#fff;border-radius:10px}
 .sk-b.sk-board:hover{filter:brightness(1.06);background:var(--brand);color:#fff}
+
+/* the next variation's ring while you look at a finished one */
+.s-pring.s-corner{left:auto;top:18px;right:18px;transform:none;width:58px;height:58px}
+.s-pring.s-corner b{font-size:12px}

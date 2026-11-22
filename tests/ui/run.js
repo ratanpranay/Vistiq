@@ -93,7 +93,7 @@ const frame = (n, name) => ({ path: "live://photoshop/" + n, name: name || "flat
     check("sketch is frozen during a run", /frozen/.test(tagDuring) && /frozen/.test(tagAfter), tagDuring + " / " + tagAfter);
 
     // 3b. Watch it develop: step pictures show on the main view; the Sketch tile fills in.
-    await p.ev("studio-job", { id: "j1", state: "running", stage: "Creating", fraction: 0.5 });
+    await p.ev("studio-job", { id: "j1", state: "running", stage: "Creating", fraction: 0.5 / Math.max(1, await p.evaluate(() => (window.VS.S.create.pending || 0) + (window.VS.S.create.jobDone || 0))) });
     await p.ev("studio-preview", { id: "j1", index: 0, preview: img });
     await p.ev("studio-preview", { id: "j1", index: 0, preview: img });
     await p.waitForTimeout(100);
@@ -333,11 +333,27 @@ const frame = (n, name) => ({ path: "live://photoshop/" + n, name: name || "flat
     check("Create then changes only the selected area", /selected area/i.test(await p.text("#c-go")), await p.text("#c-go"));
     await p.keyboard.press("Control+d"); await p.waitForTimeout(100);
     check("Ctrl D deselects", !(await anyMask()), "mask still there");
+    await p.evaluate(() => { window.__snap = 0; window.pywebview.api.studio_snap = () => { window.__snap++; return Promise.resolve({ mask: null }); }; });
     await p.keyboard.press("l");
-    await p.mouse.click(...at(0.3, 0.3));
+    // free hand: hold, draw round, let go
+    await p.mouse.move(...at(0.3, 0.3)); await p.mouse.down();
+    for (const q of [[0.6, 0.3], [0.6, 0.7], [0.3, 0.7]]) await p.mouse.move(...at(...q), { steps: 6 });
+    await p.mouse.up(); await p.waitForTimeout(150);
+    check("the lasso is free hand: draw round it and let go", await anyMask(), "no mask");
+    check("a drawn selection is snapped to the object", await p.evaluate(() => window.__snap) === 1, String(await p.evaluate(() => window.__snap)));
+    await p.keyboard.press("Control+d");
+    // Alt: snaps to edges (click, follow, close)
+    await p.keyboard.down("Alt"); await p.mouse.click(...at(0.3, 0.3)); await p.keyboard.up("Alt");
     for (const q of [[0.6, 0.3], [0.6, 0.7], [0.3, 0.7]]) await p.mouse.move(...at(...q), { steps: 6 });
     await p.mouse.move(...at(0.3, 0.3), { steps: 6 }); await p.mouse.click(...at(0.3, 0.3)); await p.waitForTimeout(100);
-    check("the lasso closes into a selection", await anyMask(), "no mask");
+    check("Alt lasso snaps along edges and closes", await anyMask(), "no mask");
+    await p.keyboard.press("Control+d");
+    // polygon lasso: straight corners
+    await p.evaluate(() => window.VSSketch.setTool ? window.VSSketch.setTool("poly") : window.VS.painter.setTool("poly"));
+    await p.evaluate(() => { window.VS.painter.tool = "poly"; });
+    for (const q of [[0.2, 0.2], [0.5, 0.25], [0.45, 0.6]]) { await p.mouse.click(...at(...q)); await p.waitForTimeout(30); }
+    await p.mouse.click(...at(0.2, 0.2)); await p.waitForTimeout(100);
+    check("the polygon lasso closes into a selection", await anyMask(), "no mask");
     await p.keyboard.press("Control+d");
     await p.keyboard.press("m");
     await p.mouse.move(...at(0.1, 0.1)); await p.mouse.down(); await p.mouse.move(...at(0.4, 0.4), { steps: 5 }); await p.mouse.up(); await p.waitForTimeout(100);

@@ -19,6 +19,8 @@ import logging
 import os
 import random
 import re
+
+from PIL import Image
 import shutil
 import struct
 import subprocess
@@ -651,6 +653,30 @@ def parse_medium(answer):
     """sketch or render, from the picture reader's view answer ("" when it didn't say)."""
     m = re.search(r"medium\s*=\s*([a-z]+)", (answer or "").lower())
     return m.group(1) if m and m.group(1) in ("sketch", "render") else ""
+
+
+def guess_medium(path):
+    """sketch or render from the pixels alone, for when no picture reader runs (a Mac): a drawing is
+    mostly white paper with little colour; a photo or CGI is neither (Nov 2026: a wedding photo was
+    taken for a sketch on a Mac and re-drawn as an illustration)."""
+    try:
+        import numpy as np
+        im = Image.open(path)
+        im.draft("RGB", (256, 256))
+        im = im.convert("RGB")
+        im.thumbnail((256, 256))
+        hsv = np.asarray(im.convert("HSV"), dtype=np.float32) / 255.0
+        lum = np.asarray(im.convert("L"), dtype=np.float32)
+        paper = float((lum > 225).mean())
+        sat = float(hsv[..., 1].mean())
+        mid = float(((lum > 60) & (lum < 200)).mean())
+        if paper > 0.55 and sat < 0.18:
+            return "sketch"
+        if paper > 0.35 and sat < 0.10 and mid < 0.45:
+            return "sketch"
+        return "render"
+    except Exception:
+        return ""
 
 
 def parse_view(answer):

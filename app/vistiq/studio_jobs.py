@@ -373,7 +373,9 @@ class Studio:
         if self._job and self._job.is_alive():
             return ""
         try:
-            return studio.parse_medium(self._read(self.real_path(path), "view", lambda *a: None) or "")
+            rp = self.real_path(path)
+            return (studio.parse_medium(self._read(rp, "view", lambda *a: None) or "")
+                    or studio.guess_medium(rp))           # no reader (a Mac): from the pixels
         except Exception as e:
             log.warning("medium: %s", e)
             return ""
@@ -956,6 +958,11 @@ class Studio:
                         user_words = job.get("text")
                         job = dict(job, text=more, said=user_words)
                 text = studio.build_text(job.get("preset") or "", job.get("text"))
+                # No picture reader (a Mac): a photo or CGI opened as a sketch is changed as what it is.
+                if (sys.platform == "darwin" and (job.get("preset") or "") == "sketch" and not job.get("instant")
+                        and studio.guess_medium(work_path) == "render"):
+                    job = dict(job, preset="render")
+                    text = studio.build_text("render", job.get("text"))
                 if studio.use_qwenedit(s) and not refs:
                     va = self._read(work_path, "view", say) or ""
                     kind = studio.parse_view(va)[0]                    # interior or exterior wording
@@ -1351,6 +1358,27 @@ class Studio:
                                    [(float(u), float(v), bool(pos)) for u, v, pos in points],
                                    (int(out_w), int(out_h)))
         return "data:image/png;base64," + base64.b64encode(picker.to_png(mask)).decode("ascii")
+
+    def snap(self, path, shape_url, out_w, out_h):
+        """A hand-drawn selection (PNG data URL) tightened to the object it covers (Nov 2026: a rough
+        lasso changed the sofa and cut the trousers in half). None: keep the shape as drawn."""
+        from . import picker
+        if not studio.select_installed(self.settings):
+            return None
+        path = self.real_path(path)
+        raw = base64.b64decode(shape_url.split(",", 1)[-1])
+        im = Image.open(io.BytesIO(raw))
+        shape = (im.getchannel("A") if im.mode in ("RGBA", "LA") else im.convert("L")).resize((int(out_w), int(out_h)))
+        pts = picker.snap_points(shape)
+        if not any(p[2] for p in pts):
+            return None
+        if not hasattr(self, "_picker"):
+            self._picker = picker.Selector()
+        found = self._picker.select(studio.models_dir(self.settings), path, pts, (int(out_w), int(out_h)))
+        merged = picker.snap_merge(shape, found)
+        if merged is shape:
+            return None
+        return "data:image/png;base64," + base64.b64encode(picker.to_png(merged)).decode("ascii")
 
     # -- the library ----------------------------------------------------------------
 

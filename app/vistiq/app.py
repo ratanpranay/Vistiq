@@ -801,6 +801,14 @@ class Api:
     def studio_run(self, job):
         return self._app.studio.run(job)
 
+    def studio_snap(self, path, shape, out_w, out_h):
+        """A drawn selection snapped to the object it covers, or {"mask": None} to keep it as drawn."""
+        try:
+            return {"mask": self._app.studio.snap(path, shape, out_w, out_h)}
+        except Exception as exc:
+            log.exception("snap failed")
+            return {"mask": None, "error": str(exc)}
+
     def studio_select(self, path, points, out_w, out_h):
         try:
             return {"mask": self._app.studio.select(path, points, out_w, out_h)}

@@ -20,7 +20,7 @@
     sizes: load("sizes", { brush: 6, erase: 40, magic: 50 }),
     opacity: load("opacity", 1), flow: load("flow", 0.85), smooth: load("smooth", 0.35), pressure: load("pressure", true),
     color: load("color", "#14161f"), recents: load("recents", ["#14161f", "#ffffff", "#e8562a", "#6d5df5", "#2a9d8f", "#e9c46a"]),
-    selTool: load("selTool", "lasso"), selMode: "new", flipH: false, flipV: false, folded: true
+    selTool: load("selTool", "lasso"), selMode: "new", snapObj: load("snapObj", true), flipH: false, flipV: false, folded: true
   };
   var docs = {}, doc = null, fit = null, view = null, catcher = null, ring = null, buf = null, magicBuf = null, stroke = null, tf = null;
 
@@ -114,6 +114,7 @@
     magic: '<path d="M7 20h10M5 15l9-9 5 5-9 9H6z"/><path d="M18 2l.7 1.8 1.8.7-1.8.7L18 7l-.7-1.8-1.8-.7 1.8-.7z" fill="currentColor"/>',
     pick: '<path d="M14 4l6 6-9 9H5v-6z"/><path d="M12 6l6 6"/>',
     lasso: '<path d="M7 18c-2.5-1-4-3-4-5.5C3 8 7.5 5 12 5s9 3 9 7-4 6.5-9 6.5c-1.4 0-2.7-.2-3.8-.6"/><path d="M8.5 17.5c0 2-1.5 3.5-3 3.5"/>',
+    poly: '<path d="M5 17L4 7l8-3 8 6-4 9z"/>',
     rect: '<rect x="4" y="5" width="16" height="14" rx="1" stroke-dasharray="3 2.5"/>',
     pen: '<path d="M12 3l5 9-5 9-5-9z"/><path d="M12 12v9"/>',
     object: '<path d="M4 20L15 9M14 4v3M18 6l-2 2M20 10h-3M12 3l1 2"/>',
@@ -130,7 +131,8 @@
     pressure: '<path d="M4 18c3-8 5-12 8-12s3 6 8 12"/>'
   };
   function ic(n, s) { return '<svg viewBox="0 0 24 24" width="' + (s || 17) + '" height="' + (s || 17) + '" aria-hidden="true">' + I[n] + "</svg>"; }
-  var SEL = { lasso: ["Lasso", "L", "Snaps to edges · Alt: free hand"], rect: ["Rectangle", "M", ""], pen: ["Pen (curves)", "P", "Click: corner · drag: curve"],
+  var SEL = { lasso: ["Lasso", "L", "Draw round it · Alt: snaps to edges"], poly: ["Polygon lasso", "", "Click corners · click the start or double-click to close"],
+              rect: ["Rectangle", "M", ""], pen: ["Pen (curves)", "P", "Click: corner · drag: curve"],
               object: ["Object", "S", "Click a part, it selects itself"] };
   function isSel(t) { return !!SEL[t]; }
   function brushIcon() { return T.brush === "sketch" ? "pencil" : T.brush; }
@@ -174,6 +176,7 @@
     } else if (isSel(T.tool)) {
       h = ["new", "add", "sub"].map(function (m) { return '<button type="button" class="tg' + (T.selMode === m ? " on" : "") + '" data-o="mode:' + m + '">' + { new: "New", add: "Add", sub: "Subtract" }[m] + "</button>"; }).join("") +
         '<button type="button" class="tg" data-o="invert">Invert</button><button type="button" class="tg" data-o="deselect">Deselect · Ctrl D</button>' +
+        (T.tool !== "object" ? '<button type="button" class="tg' + (T.snapObj ? " on" : "") + '" data-o="snap" title="Tightens what you draw to the object\'s real edges, so the change stays on it">Snap to object</button>' : "") +
         (V().S.create.src && V().S.create.src.live ? '<button type="button" class="tg" data-o="pssel"' + (V().S.psSel ? "" : " disabled") + '><span class="m-ico ps">Ps</span>Photoshop selection</button>' : "") +
         '<span class="note">' + SEL[T.tool][2] + "</span>";
     } else if (T.tool === "tr") {
@@ -226,6 +229,7 @@
       var a = b.getAttribute("data-o");
       if (a === "pressure") { T.pressure = !T.pressure; keep("pressure", T.pressure); refreshBars(); }
       else if (a.indexOf("mode:") === 0) { T.selMode = a.slice(5); V().painter.mode = T.selMode; refreshBars(); }
+      else if (a === "snap") { T.snapObj = !T.snapObj; keep("snapObj", T.snapObj); V().painter.snapObj = T.snapObj; refreshBars(); }
       else if (a === "invert") V().painter.invert();
       else if (a === "deselect") deselect();
       else if (a === "pssel") V().painter.psSelection();

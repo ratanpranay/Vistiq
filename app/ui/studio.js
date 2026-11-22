@@ -812,6 +812,13 @@
     }
     p.frac = Math.max(f, p.frac && p.frac < f + (p.stepSize || 0) && p.frac >= f ? p.frac : f);
   }
+  // Every progress number shows the picture being made now (Nov 2026: the ring said 4% of the whole
+  // run while the strip said 9% of variation 1).
+  function varFrac(p) {
+    var tot = (p.pending || 0) + (p.jobDone || 0) || 1;
+    if (tot <= 1) return p.frac || 0;
+    return Math.max(0, Math.min(1, (p.frac || 0) * tot - (p.jobDone || 0)));     // the one being made now
+  }
   function smooth(p) {
     if (!p.job || p.raw == null || !p.stepSize || !p.stepDur) return false;
     var t = Math.min(0.95, (Date.now() - p.rawAt) / p.stepDur), f = Math.min(1, p.raw + p.stepSize * t);
@@ -821,10 +828,10 @@
   setInterval(function () {
     [S.create, S.ref].forEach(function (p) {
       if (!smooth(p)) return;
-      var id = p === S.create ? "c" : "r", v = $(id + "-view"), pct = Math.round(p.frac * 100);
+      var id = p === S.create ? "c" : "r", v = $(id + "-view"), pct = Math.round(varFrac(p) * 100);
       if ($(id + "-fill")) $(id + "-fill").style.width = pct + "%";
       if (!v) return;
-      var ring = v.querySelector(".s-pring"); if (ring) { ring.querySelector(".fg").style.strokeDashoffset = String(125.7 * (1 - Math.max(0.02, p.frac))); ring.querySelector("b").textContent = pct + "%"; }
+      var ring = v.querySelector(".s-pring"); if (ring) { ring.querySelector(".fg").style.strokeDashoffset = String(125.7 * (1 - Math.max(0.02, varFrac(p)))); ring.querySelector("b").textContent = Math.max(2, pct) + "%"; }
       var bz = v.querySelector(".s-busy b"); if (bz) bz.style.width = pct + "%";
     });
   }, 400);
@@ -840,7 +847,7 @@
     api().studio_stats().then(function (m) {
       var el = $("s-machine"); if (!el || !m) return;
       var p = S.page === "reference" ? S.ref : S.create, parts = [];
-      if (p.job) parts.push('<span class="job">● ' + esc(p.stage || "Working") + (p.frac ? " · " + Math.round(p.frac * 100) + "%" : "") + "</span><span class=\"sep\"></span>");
+      if (p.job) parts.push('<span class="job">● ' + esc(p.stage || "Working") + (p.frac ? " · " + Math.round(varFrac(p) * 100) + "%" : "") + "</span><span class=\"sep\"></span>");
       if (m.gpu) parts.push("<span>GPU <b>" + esc(m.gpu.name) + "</b>" + bar(m.gpu.load, "g") + "<b>" + m.gpu.load + "%</b> <b class=\"" + (m.gpu.temp >= 80 ? "hot" : "") + "\">" + m.gpu.temp + "°</b></span>" +
         "<span>VRAM" + bar(100 * m.gpu.used / m.gpu.total, "g") + "<b>" + m.gpu.used.toFixed(1) + "/" + Math.round(m.gpu.total) + " GB</b></span><span class=\"sep\"></span>");
       if (m.cpu) parts.push("<span>CPU" + (m.cpu.name ? " <b>" + esc(m.cpu.name) + "</b>" : "") + bar(m.cpu.load) + "<b>" + (m.cpu.load == null ? "–" : m.cpu.load + "%") + "</b>" + (m.cpu.temp ? " <b>" + m.cpu.temp + "°</b>" : "") + "</span>");
@@ -1377,7 +1384,7 @@
     w: 0, h: 0, size: load("brush", 60), erase: false, selecting: false, busy: false, undo: [], canvas: null, ctx: null, ring: null, drawing: false, last: null, any: false,
     // The selection: the area Create may change. Drawn by the sketch tools
     // (lasso, rectangle, pen, object, Photoshop); the brushes paint on layers.
-    tool: "lasso", mode: "new", path: null, cost: null, rect: null,
+    tool: "lasso", mode: "new", path: null, cost: null, rect: null, snapObj: (function () { try { return localStorage.getItem("sk.snapObj") !== "false"; } catch (e) { return true; } })(),
     init: function () {
       this.canvas = document.createElement("canvas"); this.canvas.className = "s-selmask";
       this.ctx = this.canvas.getContext("2d");
@@ -1413,12 +1420,34 @@
     // Puts a closed shape into the selection: replace, add or cut out (Alt or Subtract).
     fillShape: function (d, cut) {
       this.push();
-      var ctx = this.ctx, sub = cut || this.mode === "sub";
+      var ctx = this.ctx, sub = cut || this.mode === "sub", self = this;
+      var prev = this.w && this.h ? ctx.getImageData(0, 0, this.w, this.h) : null;
       if (this.mode === "new" && !cut) ctx.clearRect(0, 0, this.w, this.h);
       ctx.globalCompositeOperation = sub ? "destination-out" : "source-over";
       ctx.fillStyle = "#8A2BF2"; ctx.fill(new Path2D(d));
       ctx.globalCompositeOperation = "source-over";
       this.check(); this.hint(); render();
+      // Snap to object (Nov 2026): what you drew is tightened to the object it covers, so the change
+      // stays on it and doesn't stop half-way across it or spill onto what's next to it.
+      if (!sub && this.snapObj && S.create.src && S.create.src.path && api().studio_snap) {
+        var one = document.createElement("canvas"); one.width = this.w; one.height = this.h;
+        var oc = one.getContext("2d"); oc.fillStyle = "#8A2BF2"; oc.fill(new Path2D(d));
+        var mode = this.mode;
+        this.hint("Snapping to the object…");
+        api().studio_snap(S.create.src.path, one.toDataURL("image/png"), this.w, this.h).then(function (res) {
+          self.hint();
+          if (!res || !res.mask) return;
+          var img = new Image();
+          img.onload = function () {
+            var c = self.ctx;
+            if (mode === "new" || !prev) c.clearRect(0, 0, self.w, self.h);
+            else c.putImageData(prev, 0, 0);                   // the selection as it was, plus the snapped shape
+            c.drawImage(img, 0, 0, self.w, self.h);
+            self.check(); render();
+          };
+          img.src = res.mask;
+        });
+      }
     },
     brushy: function () { return this.tool === "brush" || this.tool === "erase"; },
     setTool: function (t) { this.cancelPath(); this.tool = t; this.selecting = t === "object"; },
@@ -1477,7 +1506,8 @@
     hintText: function () {
       var t = this.tool;
       if (t === "object") return "Click a part to select it · Alt+click or right click removes · fix edges with the brush";
-      if (t === "lasso") return "Click, then follow an edge: it snaps · click the start or double-click to close · Alt: cut out · Esc cancels";
+      if (t === "lasso") return "Hold and draw round it; let go to close · Alt+click: snaps to edges · Esc cancels";
+      if (t === "poly") return "Click corners · click the start or double-click to close · Alt: cut out · Esc cancels";
       if (t === "pen") return "Click: corner · drag: curve · click the start or Enter to close · Alt: cut out · Backspace: undo point";
       return "Paint what should change · [ ] brush size · wheel zooms · middle button or Space pans";
     },
@@ -1534,9 +1564,17 @@
       var pt = this.point(e);
       if (e.button === 2) { this.dropPoint(); return; }
       if (!this.path) {
-        this.path = { kind: this.tool, pts: [pt], live: [], nodes: [{ x: pt[0], y: pt[1], hx: pt[0], hy: pt[1] }], down: null };
-        if (this.tool === "lasso") this.costMap();
+        // Lasso (Nov 2026): free hand by default, drawn while the button is down; Alt snaps to edges.
+        var kind = this.tool === "lasso" && !e.altKey ? "free" : this.tool;
+        this.path = { kind: kind, pts: [pt], live: [], nodes: [{ x: pt[0], y: pt[1], hx: pt[0], hy: pt[1] }], down: null };
+        if (kind === "lasso") this.costMap();
+        if (kind === "free") { this.path.drawing = true; try { e.target.setPointerCapture(e.pointerId); } catch (x) {} }
         this.drawPath(); this.hint(); return;
+      }
+      if (this.path.kind === "poly") {
+        var P0 = this.path;
+        if (P0.pts.length > 2 && this.near(pt, P0.pts[0])) { this.close(e.altKey); return; }
+        P0.pts.push(pt); this.drawPath(); return;
       }
       var P = this.path, first = P.kind === "pen" ? [P.nodes[0].x, P.nodes[0].y] : P.pts[0];
       if ((P.kind === "pen" ? P.nodes.length > 2 : P.pts.length > 3) && this.near(pt, first)) { this.close(e.altKey); return; }
@@ -1546,6 +1584,13 @@
     },
     pathMove: function (e) {
       var P = this.path, pt = this.point(e);
+      if (P.kind === "free") {
+        if (!P.drawing) return;
+        var last = P.pts[P.pts.length - 1];
+        if (Math.hypot(pt[0] - last[0], pt[1] - last[1]) > 1.5 * this.scale()) { P.pts.push(pt); this.drawPath(); }
+        return;
+      }
+      if (P.kind === "poly") { P.hover = pt; this.drawPath(); return; }
       if (P.kind === "pen") {
         if (P.down) { var n = P.nodes[P.nodes.length - 1]; n.hx = pt[0]; n.hy = pt[1]; }   // dragging out a curve
         P.hover = pt; this.drawPath(); return;
@@ -1560,7 +1605,13 @@
       }
       this.drawPath();
     },
-    pathUp: function () { if (this.path && this.path.kind === "pen") this.path.down = null; },
+    pathUp: function (e) {
+      if (this.path && this.path.kind === "pen") this.path.down = null;
+      if (this.path && this.path.kind === "free" && this.path.drawing) {
+        this.path.drawing = false;
+        if (this.path.pts.length > 3) this.close(false); else this.cancelPath();
+      }
+    },
     dropPoint: function () {
       var P = this.path; if (!P) return;
       if (P.kind === "pen") { P.nodes.pop(); if (!P.nodes.length) this.path = null; }
@@ -1571,7 +1622,10 @@
     shape: function (closed) {
       var P = this.path, d = "";
       if (!P) return "";
-      if (P.kind === "lasso") {
+      if (P.kind === "free" || P.kind === "poly") {
+        d = P.pts.map(function (q, i) { return (i ? "L" : "M") + q[0].toFixed(1) + " " + q[1].toFixed(1); }).join("");
+        if (P.kind === "poly" && !closed && P.hover) d += "L" + P.hover[0].toFixed(1) + " " + P.hover[1].toFixed(1);
+      } else if (P.kind === "lasso") {
         // The snapped path runs on a coarse edge map, in pixel steps: smoothed into a clean curve
         // (it looked jagged, Nov 2026), drawn through the midpoints with quadratic curves.
         var raw = P.pts.concat(P.live.slice(1)), pts = [], W = 4;
@@ -1610,7 +1664,7 @@
       var P = this.path, k = this.scale() || 1;
       if (!P) { this.svg.innerHTML = ""; return; }
       var d = this.shape(false), sw = 1.6 * k;
-      var marks = (P.kind === "pen" ? P.nodes.map(function (n) { return [n.x, n.y]; }) : [P.pts[0]]).map(function (q, i) {
+      var marks = (P.kind === "pen" ? P.nodes.map(function (n) { return [n.x, n.y]; }) : P.kind === "poly" ? P.pts : [P.pts[0]]).map(function (q, i) {
         var r = (i ? 3.2 : 4.5) * k;
         return '<rect x="' + (q[0] - r) + '" y="' + (q[1] - r) + '" width="' + 2 * r + '" height="' + 2 * r + '" fill="' + (i ? "#fff" : "#6d5df5") + '" stroke="#14161f" stroke-width="' + k + '"/>';
       }).join("");
@@ -1624,7 +1678,7 @@
     close: function (cut) {
       var P = this.path; if (!P) return;
       var d = this.shape(true); this.path = null; this.drawPath();
-      if (!d || (P.kind === "lasso" ? P.pts.length < 3 : P.nodes.length < 3)) return;
+      if (!d || (P.kind === "pen" ? P.nodes.length < 3 : P.pts.length < 3)) return;
       this.fillShape(d, cut);
     },
     // Edge strength of the picture, once per picture: where the lasso likes to run.
@@ -1769,7 +1823,7 @@
     var can = ready && p.src && (id === "c" || p.refimg) && !busy;
     $(id + "-go").disabled = !can;
     $(id + "-cancel").hidden = !busy;
-    $(id + "-fill").style.width = busy ? Math.round((p.frac || 0) * 100) + "%" : "0";
+    $(id + "-fill").style.width = busy ? Math.round(varFrac(p) * 100) + "%" : "0";
     var inst = id === "c" && !painter.any && instantMode(p);
     var label = id === "c" ? (painter.any ? "Change selected area" : inst ? "Instant render" : "Create") : "Transfer";
     var gl = $(id + "-golabel"), gh = busy ? esc(p.stage || "Working") : esc(label);
@@ -1908,7 +1962,7 @@
     if (what.job) {
       if (!ring) { ring = document.createElement("div"); ring.className = "s-pring";
         ring.innerHTML = '<svg viewBox="0 0 48 48"><circle cx="24" cy="24" r="20" class="bg"/><circle cx="24" cy="24" r="20" class="fg"/></svg><b></b>'; pane.appendChild(ring); }
-      var fr = Math.max(0.02, p.frac || 0);
+      var fr = Math.max(0.02, varFrac(p));
       ring.querySelector(".fg").style.strokeDashoffset = String(125.7 * (1 - fr));
       ring.querySelector("b").textContent = Math.round(fr * 100) + "%";
       pf.style.setProperty("--blur", "16px");
@@ -2182,19 +2236,23 @@
     var fitEl = split ? null : view.querySelector(".s-fit"), loading = !split && !!(p.job && fitEl && mode === "orig");
     if (fitEl) fitEl.classList.toggle("s-loading", loading);
     var ring = split ? null : view.querySelector(".s-pring");
-    if (loading) {
+    // Next variation still being made while you look at a finished one: the ring shows too, in the corner.
+    var corner = !split && !!p.job && !loading && !!fitEl;
+    if (ring) ring.classList.toggle("s-corner", corner);
+    if (loading || corner) {
       if (!ring) { ring = document.createElement("div"); ring.className = "s-pring";
         ring.innerHTML = '<svg viewBox="0 0 48 48"><circle cx="24" cy="24" r="20" class="bg"/><circle cx="24" cy="24" r="20" class="fg"/></svg><b></b>'; view.appendChild(ring); }
-      var fr = Math.max(0.02, p.frac || 0);
+      var fr = Math.max(0.02, varFrac(p));
       ring.querySelector(".fg").style.strokeDashoffset = String(125.7 * (1 - fr));
       ring.querySelector("b").textContent = Math.round(fr * 100) + "%";
-      if (fitEl) fitEl.style.setProperty("--blur", Math.max(2, 18 - 2.5 * (p.previewN || 0)) + "px");
+      if (fitEl && loading) fitEl.style.setProperty("--blur", Math.max(2, 18 - 2.5 * (p.previewN || 0)) + "px");
+      ring.classList.toggle("s-corner", corner);
     } else if (ring) ring.remove();
     var busy = view.querySelector(".s-busy");
     if (p.job) {
       if (!busy) { busy = document.createElement("div"); busy.className = "s-busy"; busy.innerHTML = '<span></span><i><b></b></i>'; view.appendChild(busy); }
       busy.querySelector("span").textContent = ((S.engine.state === "starting" ? S.engine.message : p.stage) || "Working") + clock(p);
-      busy.querySelector("b").style.width = Math.round((p.frac || 0) * 100) + "%";
+      busy.querySelector("b").style.width = Math.round(varFrac(p) * 100) + "%";
     } else if (busy) busy.remove();
 
     // The strip: original, results, placeholders, + Another.
@@ -2220,7 +2278,7 @@
         strip += '<span class="s-tilewrap"><img data-i="-1" class="' + (p.sel === -1 ? "sel" : "") + '" src="' + live.preview + '" alt="">' +
           '<em class="live"><i class="ld"></i>Live</em></span><span class="s-div" aria-hidden="true"></span>';
         if (origPrev && p.job) {
-          var pct = Math.max(2, Math.round((p.frac || 0) * 100));
+          var pct = Math.max(2, Math.round(varFrac(p) * 100));
           strip += '<span class="s-tilewrap s-fillt' + (p.sel === -2 ? " sel" : "") + '" data-i="-2" title="Creating from this sketch"><img src="' + origPrev + '" alt="">' +
             '<span class="s-fillc" style="width:' + pct + '%"><img src="' + origPrev + '" alt=""></span>' +
             '<span class="s-fillb"><i style="width:' + pct + '%"></i></span><em>Creating · ' + pct + "%</em></span>";
@@ -2243,7 +2301,7 @@
     // Still to come: the first shows the progress; click any to watch it being made.
     for (var k = 0; k < (p.job ? p.pending : 0); k++) {
       var tot = (p.pending || 0) + (p.jobDone || 0) || 1;
-      var pc = k === 0 ? Math.max(2, Math.min(99, Math.round((((p.frac || 0) * tot) % 1) * 100))) : 0;
+      var pc = k === 0 ? Math.max(2, Math.min(99, Math.round(varFrac(p) * 100))) : 0;
       strip += '<span class="s-ph' + (p.sel === -2 && k === 0 ? " sel" : "") + '" data-i="-2" title="Being made · click to watch">' +
         (k === 0 ? '<i class="s-phbar" style="width:' + pc + '%"></i><em>' + pc + "%</em>" : '<em class="w">Next</em>') + "</span>";
     }

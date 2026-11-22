@@ -133,3 +133,75 @@ def to_png(mask):
     rgba.putalpha(mask)
     rgba.save(buf, "PNG")
     return buf.getvalue()
+
+
+def snap_points(shape, n_in=5, n_out=8):
+    """Prompt points for snapping a hand-drawn shape (L mask) to the object it covers:
+    positives well inside it, negatives on a ring just outside. Returns [(u, v, positive)]."""
+    import math
+    import numpy as np
+    small = shape.convert("L").resize((256, max(1, round(256 * shape.size[1] / shape.size[0]))), Image.BILINEAR)
+    a = np.asarray(small) > 127
+    ys, xs = np.nonzero(a)
+    if len(xs) < 30:
+        return []
+    h, w = a.shape
+    bw, bh = xs.max() - xs.min() + 1, ys.max() - ys.min() + 1
+    # inside: shrink the shape so the points stay off its (hand-drawn) edge
+    er = small
+    k = max(3, (int(min(bw, bh) * 0.18) | 1))
+    er2 = np.asarray(small.filter(ImageFilter.MinFilter(k))) > 127
+    if er2.sum() >= 12:
+        er = er2
+    else:
+        er = a
+    ey, ex = np.nonzero(er)
+    pts = []
+    cols = rows = 3
+    x0, y0 = ex.min(), ey.min()
+    cw, ch = (ex.max() - x0 + 1) / cols, (ey.max() - y0 + 1) / rows
+    for r in range(rows):
+        for c in range(cols):
+            sel = (ex >= x0 + c * cw) & (ex < x0 + (c + 1) * cw) & (ey >= y0 + r * ch) & (ey < y0 + (r + 1) * ch)
+            if sel.sum() > 3:
+                i = np.argmin((ex[sel] - ex[sel].mean()) ** 2 + (ey[sel] - ey[sel].mean()) ** 2)
+                pts.append((ex[sel][i], ey[sel][i], sel.sum()))
+    pts.sort(key=lambda p: -p[2])
+    out = [((x + 0.5) / w, (y + 0.5) / h, True) for x, y, _ in pts[:n_in]]
+    # outside: a ring a little away from the shape, sampled round its centre
+    grow = max(5, (int(max(bw, bh) * 0.12) | 1))
+    ring = (np.asarray(small.filter(ImageFilter.MaxFilter(grow))) > 127) & ~(np.asarray(small.filter(ImageFilter.MaxFilter(max(3, grow // 2 | 1)))) > 127)
+    ry, rx = np.nonzero(ring)
+    if len(rx):
+        cx, cy = xs.mean(), ys.mean()
+        ang = np.arctan2(ry - cy, rx - cx)
+        for j in range(n_out):
+            lo, hi = -math.pi + j * 2 * math.pi / n_out, -math.pi + (j + 1) * 2 * math.pi / n_out
+            sel = (ang >= lo) & (ang < hi)
+            if sel.sum():
+                i = np.flatnonzero(sel)[sel.sum() // 2]
+                out.append(((rx[i] + 0.5) / w, (ry[i] + 0.5) / h, False))
+    return out
+
+
+def snap_merge(shape, found, reach=0.2):
+    """The object's outline, kept near the drawn shape (it may complete the object a little past the
+    drawn edge, and drop what the shape spilled onto). Falls back to the shape when the object found
+    is much smaller or larger than what was drawn (the wrong thing)."""
+    import numpy as np
+    a = np.asarray(shape.convert("L")) > 127
+    f = np.asarray(found.convert("L").resize(shape.size)) > 127
+    area = a.sum()
+    if area < 50:
+        return shape
+    ys, xs = np.nonzero(a)
+    # how far the object may run past what was drawn: a share of the drawn size, grown on a small copy
+    f8 = max(1, max(shape.size) // 256)
+    small = shape.convert("L").resize((max(1, shape.size[0] // f8), max(1, shape.size[1] // f8)), Image.BILINEAR)
+    g = max(3, int(max(xs.max() - xs.min(), ys.max() - ys.min()) * reach / f8) | 1)
+    near = np.asarray(small.filter(ImageFilter.MaxFilter(min(g, 61))).resize(shape.size, Image.NEAREST)) > 127
+    out = f & near
+    ratio = out.sum() / float(area)
+    if ratio < 0.35 or ratio > 2.2:
+        return shape
+    return Image.fromarray((out * 255).astype("uint8"), "L").filter(ImageFilter.MedianFilter(3))
