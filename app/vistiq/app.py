@@ -543,6 +543,37 @@ class Api:
         self._projects_save(data)
         return pr
 
+    def studio_wipe_list(self):
+        """What 'Delete everything' would remove (shown in the first warning)."""
+        from . import wipe
+        return {"paths": wipe.targets(self._app.settings), "word": wipe.WORD}
+
+    def studio_wipe_all(self, word=""):
+        """Delete all downloaded models, made files, projects and settings, then close.
+        Needs the confirm word typed exactly."""
+        from . import wipe
+        if (word or "").strip() != wipe.WORD:
+            return {"ok": False, "error": "Type %s to confirm." % wipe.WORD}
+        app = self._app
+        if app._worker and app._worker.is_alive() or app.installer:
+            return {"ok": False, "error": "Wait until the current job or download has finished, or stop it first."}
+        paths = wipe.targets(app.settings)
+        log.warning("deleting everything: %s", paths)
+        for eng in (getattr(app, "engine", None), getattr(getattr(app, "studio", None), "engine", None)):
+            try:
+                if eng:
+                    getattr(eng, "stop_own", eng.stop)()   # stop the engines too (before shutdown lets go of them)
+            except Exception:
+                log.exception("couldn't stop an engine")
+        app.shutdown()
+        try:
+            wipe.start(paths)
+        except Exception as exc:
+            log.exception("couldn't start the delete")
+            return {"ok": False, "error": "Couldn't start: %s" % exc}
+        threading.Timer(0.5, lambda: app.window.destroy()).start()
+        return {"ok": True}
+
     def studio_trash_forget(self, pid=""):
         """Delete for good: one project, or the whole Trash when pid is empty."""
         data = self._projects()

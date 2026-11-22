@@ -1184,3 +1184,9 @@ body.studio .s-vars>.s-ph.sel{border-color:var(--ink)}
 .tr-btns .s-btn.p{background:var(--ink);color:#fff}
 .s-btn.sure{background:#FDECEC;color:#D93636;border-color:#F3C2C2}
 .tr-none{color:var(--dim);font-size:13px;padding:20px 2px}
+
+/* Settings › Delete everything */
+.s-btn.s-danger{background:var(--bad);border-color:var(--bad);color:#fff}
+.s-btn.s-danger:disabled{opacity:.45}
+.s-danger-h{color:var(--bad)}
+.wipe-err{color:var(--bad)!important;min-height:0;margin:0!important}

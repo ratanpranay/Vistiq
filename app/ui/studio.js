@@ -366,7 +366,9 @@
     var set = document.createElement("div");
     set.className = "s-page"; set.id = "p-settings";
     set.innerHTML = '<div class="s-scroll"><div class="s-col" id="s-body"></div>' +
-      '<div class="s-sec">Upscaler</div><div class="s-up" id="s-up"></div></div>';
+      '<div class="s-sec">Upscaler</div><div class="s-up" id="s-up"></div>' +
+      '<div class="s-sec s-danger-h">Delete everything</div><p class="s-hint">Removes all downloaded models, everything you made, your projects and settings, then closes Vistiq Studio. Use this only to remove Studio or set it up fresh.</p>' +
+      '<div class="s-btns"><button type="button" class="s-btn s-danger" data-su="wipe">Delete everything…</button></div></div>';
     document.body.appendChild(set);
     // One settings page for everything: the upscaler's own settings (engine,
     // largest size, logs) move in here; its updates are the card at the top.
@@ -502,6 +504,42 @@
     if (g.getAttribute("data-h") !== h) { g.innerHTML = h; g.setAttribute("data-h", h); }
   }
   // New project: a small floating window with the name.
+  // Settings › Delete everything: two checks, the second needs DELETE typed.
+  function wipeDialog() {
+    if ($("pj-modal")) return;
+    var m = document.createElement("div"); m.className = "pj-modal"; m.id = "pj-modal";
+    var close = function () { m.remove(); };
+    var step2 = function () {
+      m.innerHTML = '<div class="pj-dlg" role="dialog" aria-label="Confirm delete"><b>Type DELETE to confirm</b>' +
+        '<small>Vistiq Studio closes and deletes everything. To use it again, open it and set it up from the start.</small>' +
+        '<input id="wipe-word" placeholder="DELETE" maxlength="20" autocomplete="off" spellcheck="false">' +
+        '<small class="wipe-err" id="wipe-err"></small>' +
+        '<div class="pj-btns"><button type="button" class="s-btn" data-dlg="cancel">Cancel</button><button type="button" class="s-btn s-danger" data-dlg="go" disabled>OK</button></div></div>';
+      var inp = $("wipe-word"), go = m.querySelector('[data-dlg="go"]');
+      setTimeout(function () { inp.focus(); }, 30);
+      inp.addEventListener("input", function () { go.disabled = inp.value.trim() !== "DELETE"; });
+      inp.addEventListener("keydown", function (e) { if (e.key === "Enter" && !go.disabled) go.click(); if (e.key === "Escape") close(); e.stopPropagation(); });
+    };
+    m.innerHTML = '<div class="pj-dlg" role="dialog" aria-label="Delete everything"><b>Delete everything?</b>' +
+      '<small>Are you sure you want to delete all files and downloaded models? This is not a reversible process and you will lose all created files. Do this only if you want to set up the application fresh.</small>' +
+      '<div class="pj-btns"><button type="button" class="s-btn" data-dlg="cancel">Cancel</button><button type="button" class="s-btn s-danger" data-dlg="ok">OK</button></div></div>';
+    document.body.appendChild(m);
+    m.addEventListener("click", function (e) {
+      var b = e.target.closest("[data-dlg]");
+      if (!b) { if (e.target === m) close(); return; }
+      var a = b.getAttribute("data-dlg");
+      if (a === "cancel") close();
+      else if (a === "ok") step2();
+      else if (a === "go") {
+        b.disabled = true; b.textContent = "Deleting…";
+        api().studio_wipe_all($("wipe-word").value).then(function (r) {
+          if (r && r.ok) { m.querySelector(".pj-dlg").innerHTML = "<b>Deleting…</b><small>Vistiq Studio is closing. The files are removed in the background.</small>"; return; }
+          $("wipe-err").textContent = (r && r.error) || "Couldn't delete."; b.disabled = false; b.textContent = "OK";
+        });
+      }
+    });
+  }
+
   function newProjectDialog() {
     if ($("pj-modal")) return;
     var m = document.createElement("div"); m.className = "pj-modal"; m.id = "pj-modal";
@@ -1203,6 +1241,7 @@
       var a = b.getAttribute("data-su");
       if (a === "take") api().studio_take_from(b.getAttribute("data-path") || "");
       else if (a === "take-other") api().studio_take_from("");
+      else if (a === "wipe") wipeDialog();
       else if (a === "download-all") { S.setup.error = ""; api().studio_get_all(); S.setup.run = { label: "Starting", fraction: null }; render(); }
       else if (a === "download") {
         var go = function () { S.setup.error = ""; api().studio_setup(false); S.setup.run = { label: "Starting", fraction: null }; render(); };

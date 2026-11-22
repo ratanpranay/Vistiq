@@ -40,6 +40,7 @@ async function open(browser, before, opts) {
     api.studio_project_delete = (id) => { const p = window.__projects.find((x) => x.id === id); window.__projects = window.__projects.filter((p) => p.id !== id); if (p) window.__trash.push(Object.assign({}, p, { deleted: Date.now() / 1000 })); return Promise.resolve(true); };
     api.studio_trash = () => Promise.resolve(window.__trash.map((t) => Object.assign({}, t, { count: 0, covers: [], days_left: 30 })));
     api.studio_trash_restore = (id) => { const t = window.__trash.find((x) => x.id === id); window.__trash = window.__trash.filter((x) => x.id !== id); if (t) window.__projects.push(t); return Promise.resolve(t || false); };
+    api.studio_wipe_all = (w) => { window.__wiped = w; return Promise.resolve(w === "DELETE" ? { ok: true } : { ok: false, error: "Type DELETE to confirm." }); };
     api.studio_trash_forget = (id) => { window.__trash = window.__trash.filter((x) => id && x.id !== id); return Promise.resolve(true); };
     api.studio_project_cover = (id, path) => { window.__projects.find((p) => p.id === id).cover = path; return Promise.resolve(true); };
     api.studio_board_get = (pid) => Promise.resolve(!pid || pid === "myboard" ? window.__board : window.__boards[pid]);
@@ -956,6 +957,19 @@ const frame = (n, name) => ({ path: "live://photoshop/" + n, name: name || "flat
     await p.keyboard.press("Escape");
     check("nav: Trash, then Settings, then the heart at the bottom", await p.evaluate(() => { const k = [...document.querySelectorAll(".s-nav > *")].map((e) => e.getAttribute("data-page") || (e.classList.contains("s-heart") ? "heart" : "")).filter(Boolean); return k.slice(-3).join(","); }) === "trash,settings,heart",
       await p.evaluate(() => [...document.querySelectorAll(".s-nav > *")].map((e) => e.getAttribute("data-page") || e.className).join(",")));
+    await p.click(".s-nav button[data-page=settings]"); await p.waitForTimeout(300);
+    check("settings: Delete everything button", !!(await p.$('[data-su="wipe"]')), "");
+    await p.click('[data-su="wipe"]'); await p.waitForTimeout(150);
+    check("wipe: first warning", /not a reversible process/.test(await p.text("#pj-modal")), await p.text("#pj-modal"));
+    if (process.env.SHOTS) await p.screenshot({ path: process.env.SHOTS + "/wipe1.png" });
+    await p.click('#pj-modal [data-dlg="ok"]'); await p.waitForTimeout(150);
+    check("wipe: OK stays off until DELETE is typed", await p.evaluate(() => document.querySelector('#pj-modal [data-dlg="go"]').disabled), "");
+    await p.fill("#wipe-word", "delete"); await p.waitForTimeout(50);
+    check("wipe: lowercase doesn't count", await p.evaluate(() => document.querySelector('#pj-modal [data-dlg="go"]').disabled), "");
+    await p.fill("#wipe-word", "DELETE"); await p.waitForTimeout(50);
+    if (process.env.SHOTS) await p.screenshot({ path: process.env.SHOTS + "/wipe2.png" });
+    await p.click('#pj-modal [data-dlg="go"]'); await p.waitForTimeout(150);
+    check("wipe: sends DELETE and says it's closing", (await p.evaluate(() => window.__wiped)) === "DELETE" && /closing/.test(await p.text("#pj-modal")), await p.text("#pj-modal"));
     check("projects: no page errors", !p.errors.length, p.errors.join("; "));
     await p.close();
   }
