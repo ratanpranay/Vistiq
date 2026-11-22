@@ -1,5 +1,14 @@
 # Vistiq Studio (test build)
 
+## 0.4.96
+- Projects open with a double click (one click selects).
+- Every board has the Photoshop / Affinity tile again, with Connect. The extra "Board" button next to the Photoshop tab is gone.
+- Settings: optional downloads are folded under "Optional extras". On a Mac the picture readers aren't shown (not used there).
+- Mac: switching to another setup no longer locks the app; Settings shows one Download button for it.
+- Support: only the PayPal QR code (no e-mail address, no link button).
+- 3D views: the picture stays flat while you move the camera. The view wording no longer assumes a car (it drew a car's face onto a seat).
+- Mac: the progress follows Mage-Flow's real steps instead of sitting at 2% and jumping; a zoomed picture stays under the results strip.
+
 ## 0.4.95
 - First run: until the models are downloaded, the setup page is the whole app (the other tabs are locked). When the download is done, Studio opens on Projects.
 - A fresh install starts with no projects (no empty "My board"). Pictures on an old board still become "My board".
