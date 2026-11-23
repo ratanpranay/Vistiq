@@ -204,4 +204,33 @@ def snap_merge(shape, found, reach=0.2):
     ratio = out.sum() / float(area)
     if ratio < 0.35 or ratio > 2.2:
         return shape
-    return Image.fromarray((out * 255).astype("uint8"), "L").filter(ImageFilter.MedianFilter(3))
+    m = Image.fromarray((out * 255).astype("uint8"), "L")
+    # one solid piece: small gaps closed and holes filled (a speckled mask left spots unchanged)
+    k = max(3, (max(shape.size) // 150) | 1)
+    m = m.filter(ImageFilter.MaxFilter(k)).filter(ImageFilter.MinFilter(k))
+    return fill_holes(m).filter(ImageFilter.MedianFilter(3))
+
+
+def fill_holes(m):
+    """Fill enclosed holes in a white-on-black mask (PIL and numpy only: the app has no ImageDraw)."""
+    import numpy as np
+    w, h = m.size
+    f = max(1, max(w, h) // 256)
+    small = m.resize((max(1, w // f), max(1, h // f)), Image.NEAREST)
+    a = np.asarray(small) > 127
+    sh, sw = a.shape
+    outside = np.zeros((sh + 2, sw + 2), bool)
+    free = np.ones((sh + 2, sw + 2), bool)
+    free[1:-1, 1:-1] = ~a
+    outside[0, :] = outside[-1, :] = outside[:, 0] = outside[:, -1] = True
+    while True:                                         # grow the outside through empty pixels
+        g = outside.copy()
+        g[1:, :] |= outside[:-1, :]; g[:-1, :] |= outside[1:, :]
+        g[:, 1:] |= outside[:, :-1]; g[:, :-1] |= outside[:, 1:]
+        g &= free
+        if (g == outside).all():
+            break
+        outside = g
+    holes = (~outside[1:-1, 1:-1]) & ~a
+    hm = Image.fromarray((holes * 255).astype("uint8"), "L").resize((w, h), Image.NEAREST)
+    return Image.fromarray(np.maximum(np.asarray(m), np.asarray(hm)).astype("uint8"), "L")

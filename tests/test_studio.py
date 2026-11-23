@@ -1018,7 +1018,7 @@ class DirectWordsTest(unittest.TestCase):
         self.assertNotIn("Above all", t)
         self.assertNotIn("Keep the materials", t)          # the words ask for new materials
         self.assertIn("Keep the camera view.", t)
-        self.assertLess(len(t), 140)
+        self.assertLess(len(t), 170)
 
     def test_sketch_and_parts(self):
         from vistiq import studio
@@ -1049,6 +1049,21 @@ class DirectWordsTest(unittest.TestCase):
 
 
 class SnapAndMediumTest(unittest.TestCase):
+    def test_snap_is_one_solid_piece(self):
+        # Nov 2026: snapping found pencil speckles and left spots unchanged inside the selection.
+        import random
+        from PIL import Image, ImageDraw
+        from vistiq import picker
+        shape = Image.new("L", (400, 300), 0)
+        ImageDraw.Draw(shape).rectangle([100, 80, 300, 220], fill=255)
+        found = shape.copy(); px = found.load(); random.seed(1)
+        for _ in range(3000):
+            px[random.randint(105, 295), random.randint(85, 215)] = 0
+        m = picker.snap_merge(shape, found)
+        self.assertEqual(m.getbbox()[:2], (100, 80))
+        inside = [m.getpixel((x, y)) for x in range(110, 290, 7) for y in range(90, 210, 7)]
+        self.assertTrue(all(v == 255 for v in inside))
+
     def test_snap_points_inside_and_outside(self):
         from PIL import Image, ImageDraw
         from vistiq import picker

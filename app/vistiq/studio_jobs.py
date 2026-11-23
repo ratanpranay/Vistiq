@@ -416,6 +416,15 @@ class Studio:
         """A file for a picture: the mirrored Photoshop picture lives in memory,
         so write it out (once per picture) when something needs a file."""
         from .bridge import LIVE
+        if path and str(path).startswith("data:image"):      # the picture as shown (layers flattened)
+            import hashlib
+            raw = base64.b64decode(path.split(",", 1)[-1])
+            tmp_dir = os.path.join(studio.home(self.settings), ".work")
+            os.makedirs(tmp_dir, exist_ok=True)
+            out = os.path.join(tmp_dir, "shown_%s.png" % hashlib.sha1(raw).hexdigest()[:16])
+            if not os.path.isfile(out):
+                Image.open(io.BytesIO(raw)).convert("RGB").save(out, "PNG")
+            return out
         if not path or not str(path).startswith(LIVE):
             return path
         data = self.bridge.latest
@@ -1158,18 +1167,26 @@ class Studio:
                         prompt = mk21(v)
                 elif sys.platform != "darwin" and studio.use_qwenedit(s):
                     imgs = [image] + list(ref_images or ([ref_image] if ref_image else []))
+                    # Picture 2 says which part to change. Worded as "this part", not "an area to put
+                    # something in": a new material came back as a new black block in the map's shape, and
+                    # without the map nothing changed (the model couldn't tell which part, Nov 2026).
                     if mask is not None and len(imgs) == 1 and not lab.get("no_mask_hint"):
-                        # The model sees the area around the selection, not the selection itself: an added
-                        # object landed half outside and was cut off (Nov 2026). Picture 2 shows where.
                         if v == 0 or not locals().get("mask_img"):
                             mpath = os.path.join(tmp_dir, "mask_%s.png" % job_id)
                             mask.crop(box).convert("L").point(lambda a: 255 if a > 40 else 0).convert("RGB").save(mpath, "PNG")
                             mask_img = self.engine.upload(mpath)
                         imgs = imgs + [mask_img]
-                        if "Picture 2 is a map" not in text:
-                            text = ("Picture 2 is a map of picture 1: white marks the selected area. Make the change only "
-                                "inside the white area; anything added sits completely inside it, whole and not cut off, "
-                                    "in natural perspective and light. Do not draw the map. " + text)
+                        if "Picture 2" not in text:
+                            w_ = job.get("said") or job.get("text") or ""
+                            if ADD_WORDS.search(w_):
+                                head = ("Picture 2 is a map of picture 1: white marks the selected area. Make the change only "
+                                        "inside the white area; anything added sits completely inside it, whole and not cut off, "
+                                        "in natural perspective and light. Do not draw the map. ")
+                            else:
+                                # "keeps its exact shape ... everything outside stays" made the model change nothing
+                                # at all (Nov 2026): the words, aimed at the marked part, and nothing else.
+                                head = "In picture 1, the part marked white in picture 2: "
+                            text = head + text.replace(" Keep everything else exactly as it is.", "") + " Do not draw picture 2."
                     fr = cam_i if refs else (1 if mode == "reference" and (job.get("preset") or "camera") == "camera" else 0)
                     # Photo realism on by default for Instant render once it's here (tested Nov 2026: photographic,
                     # follows the sketch)

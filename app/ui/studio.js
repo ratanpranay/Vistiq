@@ -930,6 +930,13 @@
     });
   }
   function current(p) { return p.sel >= 0 ? p.results[p.sel] : null; }
+  // The picture on screen, for finding objects in it (Nov 2026: snapping looked at the sketch under a
+  // render layer and found pencil speckles): the result in view, else the picture with its layers.
+  function shownPic() {
+    var p = S.create, c = current(p); if (c && c.path) return c.path;
+    var lk = window.VSSketch && window.VSSketch.look && window.VSSketch.look(p.src);
+    return lk || (p.src && p.src.path);
+  }
   // What the bar above Create acts on: the chosen result, else the picture you opened
   // (not the live canvas, which isn't a file of its own).
   function target(p) {
@@ -1442,7 +1449,7 @@
         var oc = one.getContext("2d"); oc.fillStyle = "#8A2BF2"; oc.fill(new Path2D(d));
         var mode = this.mode;
         this.hint("Snapping to the object…");
-        api().studio_snap(S.create.src.path, one.toDataURL("image/png"), this.w, this.h).then(function (res) {
+        api().studio_snap(shownPic(), one.toDataURL("image/png"), this.w, this.h).then(function (res) {
           self.hint();
           if (!res || !res.mask) return;
           var img = new Image();
@@ -1491,7 +1498,7 @@
       if (fl.h) u = 1 - u; if (fl.v) v = 1 - v;
       var add = !(e.altKey || e.button === 2 || this.mode === "sub");
       this.busy = true; this.hint("Selecting…"); this.canvas.style.cursor = "progress";
-      api().studio_select(S.create.src.path, [[u, v, true]], this.w, this.h).then(function (res) {
+      api().studio_select(shownPic(), [[u, v, true]], this.w, this.h).then(function (res) {
         self.busy = false; self.canvas.style.cursor = "";
         if (!res || res.error) { self.hint(res && res.error ? res.error : "Couldn't select that."); return; }
         var img = new Image();

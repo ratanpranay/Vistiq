@@ -1045,6 +1045,8 @@ def keep_lines(locks, sketch, words, has_ref=False):
         part = PART_ACTION.search(_asked(words or ""))
         out.append(("Keep everything else as drawn." if part else "Keep the design as drawn.") if sketch
                    else "Keep everything else exactly as it is.")
+    if material_edit(words) and not PART_ACTION.search(_asked(words or "")):
+        out.append("Only the surface changes, not the shapes.")
     if locks.get("materials") and not sketch and not material_edit(words):
         out.append("Keep the materials and colours.")
     if locks.get("light") and not (night_clause(words) or sun_clause(words)):
