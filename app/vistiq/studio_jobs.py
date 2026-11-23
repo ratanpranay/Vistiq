@@ -1284,9 +1284,15 @@ class Studio:
                             text = head + text.replace(" Keep everything else exactly as it is.", "") + " Do not draw picture 2."
                             # "inspired by a carabiner" came back as a literal carabiner bolted on (Nov 2026): a new
                             # design in a selection is a refined part that belongs to the design around it.
-                            if DESIGN_WORDS.search(w_):
-                                text += (" Make it a refined, production-ready design that fits the design language, "
-                                         "proportions, materials and mounting of the parts around it.")
+                            if DESIGN_WORDS.search(w_) and not ADD_WORDS.search(w_):
+                                # "inspired from a carabiner" bolted a carabiner on next to the old handle: the marked
+                                # part is replaced by a new design of the same part, in the same place and size.
+                                text = ("Redesign the part of picture 1 that is marked white in picture 2: remove the old "
+                                        "part there completely and put a new design of the same part in its place, the "
+                                        "same size and position, fitted into the panel. " + text.replace(head, "") +
+                                        " The new part is a refined, production-ready automotive design, not a literal "
+                                        "copy of what inspired it; it matches the materials, quality and design language "
+                                        "of the parts around it.")
                     fr = cam_i if refs else (1 if mode == "reference" and (job.get("preset") or "camera") == "camera" else 0)
                     # Photo realism on by default for Instant render once it's here (tested Nov 2026: photographic,
                     # follows the sketch)
