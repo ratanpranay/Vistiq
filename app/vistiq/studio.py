@@ -115,7 +115,7 @@ HF = "https://huggingface.co/%s/resolve/main/%s"
 FILES = [
     {"key": "klein", "part": "create", "tier": "best", "folder": "diffusion_models", "label": "Image model",
      "names": ["flux-2-klein-9b-fp8mixed.safetensors", "flux-2-klein-9b-fp8.safetensors",
-               "flux-2-klein-9b.safetensors"],
+               "flux-2-klein-9b.safetensors", "flux-2-klein-9b-kv-fp8.safetensors"],
      "gb": 9.4, "url": None, "page": "https://huggingface.co/black-forest-labs/FLUX.2-klein-9b-fp8",
      "about": "Makes the images. Its maker asks for a free sign-in to download it."},
     {"key": "qwen", "part": "create", "tier": "best", "folder": "text_encoders", "label": "Prompt reader",
@@ -127,7 +127,9 @@ FILES = [
      "url": HF % ("Comfy-Org/flux2-dev", "split_files/vae/flux2-vae.safetensors"),
      "page": "https://huggingface.co/Comfy-Org/flux2-dev", "about": "Turns the model's work into a picture."},
     {"key": "consistency", "part": "create", "tier": "best", "folder": "loras", "label": "Design lock",
-     "names": ["Klein-consistency.safetensors"], "gb": 0.33, "url": None, "page": "",
+     "names": ["Klein-consistency.safetensors"], "gb": 0.33,
+     "url": HF % ("dx8152/Flux2-Klein-9B-Consistency", "Klein-consistency.safetensors"),
+     "page": "https://huggingface.co/dx8152/Flux2-Klein-9B-Consistency",
      "optional": True, "about": "Holds your design in place (Keep my design)."},
     {"key": "klein4b", "part": "create", "tier": "good", "folder": "diffusion_models", "label": "Image model",
      "names": ["flux-2-klein-4b-fp8.safetensors", "flux-2-klein-4b.safetensors"], "gb": 4.0,
@@ -167,6 +169,17 @@ FILES = [
      "names": ["Qwen-Image-Edit-2511-Lightning-4steps-V1.0-bf16.safetensors"], "gb": 0.85, "optional": True,
      "url": HF % ("lightx2v/Qwen-Image-Edit-2511-Lightning", "Qwen-Image-Edit-2511-Lightning-4steps-V1.0-bf16.safetensors"),
      "page": "https://huggingface.co/lightx2v/Qwen-Image-Edit-2511-Lightning", "about": "4 steps instead of 40."},
+    # Bria Fibo 2.0 Edit Turbo (Nov 2026, testing): 8B, reads the picture with Qwen3-VL and imagines new
+    # designs better than Qwen Image Edit; used for design requests ("imagine", "inspired by", "redesign").
+    # CC BY-NC 4.0 (non-commercial) weights.
+    {"key": "fibo", "part": "fibo", "folder": "diffusion_models", "label": "Fibo 2.0 Edit Turbo",
+     "names": ["fibo2_edit_turbo_int8_convrot.safetensors", "fibo2_edit_turbo_bf16.safetensors"], "gb": 8.2, "optional": True,
+     "url": HF % ("Comfy-Org/Fibo-2.0", "diffusion_models/fibo2_edit_turbo_int8_convrot.safetensors"),
+     "page": "https://huggingface.co/Comfy-Org/Fibo-2.0", "about": "Imagines new designs (testing, non-commercial)."},
+    {"key": "fibo_te", "part": "fibo", "folder": "text_encoders", "label": "Fibo 2.0 reader",
+     "names": ["qwen3vl_4b_int8_convrot.safetensors", "qwen3vl_4b_bf16.safetensors"], "gb": 4.8, "optional": True,
+     "url": HF % ("Comfy-Org/Fibo-2.0", "text_encoders/qwen3vl_4b_int8_convrot.safetensors"),
+     "page": "https://huggingface.co/Comfy-Org/Fibo-2.0", "about": "Reads the picture and the words for Fibo."},
     # Camera angles (Nov 2026): a LoRA trained only on camera moves for this model; 3D views
     # follow the chosen view far more often with it ("<sks> back-left quarter view ...").
     {"key": "qie_angles", "part": "qwenedit", "folder": "loras", "label": "Camera angles",
@@ -425,6 +438,71 @@ def use_qwenedit(settings=None):
     Qwen-Image 2.1, which uses the same wording; 3D views always use 2511)."""
     e = settings.get("studio_engine") if settings else ""
     return (e == "qwenedit" and qwenedit_ready(settings)) or (e == "qwen21" and q21_ready(settings))
+
+
+def workflow_ready(settings=None):
+    """Pranay's own ComfyUI workflow (Nov 2026): FLUX.2 Klein 9B + Klein-consistency 0.8, 2 MP, 4 steps."""
+    return sys.platform != "darwin" and all(_have(k, settings) for k in ("klein", "qwen", "vae2", "consistency"))
+
+
+def workflow_prompt(settings, image, text, seed, megapixels=2.0, guidance=4.0, keep=0.8, steps=4):
+    """Exactly the user's ComfyUI graph (Akos sketch_to_photo_render Flux2): the picture scaled to 2 MP,
+    encoded, decoded and measured; the original scaled to that size as the reference latent; Klein 9B
+    with Klein-consistency 0.8; FluxGuidance 4; empty negative; euler/simple, 4 steps, cfg 1."""
+    s = settings
+    return {
+        "1": {"class_type": "UNETLoader", "inputs": {"unet_name": os.path.basename(find("klein", s)), "weight_dtype": "default"}},
+        "4": {"class_type": "LoraLoaderModelOnly", "inputs": {"model": ["1", 0], "lora_name": os.path.basename(find("consistency", s)),
+                                                                "strength_model": float(keep)}},
+        "2": {"class_type": "CLIPLoader", "inputs": {"clip_name": os.path.basename(find("qwen", s)), "type": "flux2", "device": "default"}},
+        "3": {"class_type": "VAELoader", "inputs": {"vae_name": os.path.basename(find("vae2", s))}},
+        "10": {"class_type": "LoadImage", "inputs": {"image": image}},
+        "11": {"class_type": "ImageScaleToTotalPixels", "inputs": {"image": ["10", 0], "upscale_method": "lanczos",
+                                                                    "megapixels": float(megapixels), "resolution_steps": 1}},
+        "12": {"class_type": "VAEEncode", "inputs": {"pixels": ["11", 0], "vae": ["3", 0]}},
+        "13": {"class_type": "VAEDecode", "inputs": {"samples": ["12", 0], "vae": ["3", 0]}},
+        "14": {"class_type": "GetImageSize", "inputs": {"image": ["13", 0]}},
+        "15": {"class_type": "ImageScale", "inputs": {"image": ["10", 0], "upscale_method": "lanczos", "width": ["14", 0],
+                                                       "height": ["14", 1], "crop": "center"}},
+        "16": {"class_type": "VAEEncode", "inputs": {"pixels": ["15", 0], "vae": ["3", 0]}},
+        "20": {"class_type": "CLIPTextEncode", "inputs": {"text": text, "clip": ["2", 0]}},
+        "21": {"class_type": "ReferenceLatent", "inputs": {"conditioning": ["20", 0], "latent": ["16", 0]}},
+        "22": {"class_type": "FluxGuidance", "inputs": {"conditioning": ["21", 0], "guidance": float(guidance)}},
+        "23": {"class_type": "ConditioningZeroOut", "inputs": {"conditioning": ["20", 0]}},
+        "31": {"class_type": "EmptyFlux2LatentImage", "inputs": {"width": ["14", 0], "height": ["14", 1], "batch_size": 1}},
+        "40": {"class_type": "KSampler", "inputs": {"model": ["4", 0], "positive": ["22", 0], "negative": ["23", 0],
+                                                    "latent_image": ["31", 0], "seed": int(seed), "steps": int(steps),
+                                                    "cfg": 1.0, "sampler_name": "euler", "scheduler": "simple", "denoise": 1.0}},
+        "41": {"class_type": "VAEDecode", "inputs": {"samples": ["40", 0], "vae": ["3", 0]}},
+        "42": {"class_type": "SaveImage", "inputs": {"images": ["41", 0], "filename_prefix": "VistiqStudio"}},
+    }
+
+
+def fibo_ready(settings=None):
+    return sys.platform != "darwin" and all(_have(k, settings) for k in ("fibo", "fibo_te", "vae2"))
+
+
+def fibo_prompt(settings, image, text, seed, megapixels=1.0, steps=4):
+    """Bria Fibo 2.0 Edit Turbo: the picture and the instruction, 4 steps (ComfyUI's own node)."""
+    s = settings
+    import math as _m
+    return {
+        "1": {"class_type": "UNETLoader", "inputs": {"unet_name": os.path.basename(find("fibo", s)), "weight_dtype": "default"}},
+        "2": {"class_type": "CLIPLoader", "inputs": {"clip_name": os.path.basename(find("fibo_te", s)), "type": "fibo2", "device": "default"}},
+        "3": {"class_type": "VAELoader", "inputs": {"vae_name": os.path.basename(find("vae2", s))}},
+        "10": {"class_type": "LoadImage", "inputs": {"image": image}},
+        "11": {"class_type": "ImageScaleToTotalPixels", "inputs": {"image": ["10", 0], "upscale_method": "lanczos",
+                                                                    "megapixels": float(megapixels), "resolution_steps": 16}},
+        "12": {"class_type": "GetImageSize", "inputs": {"image": ["11", 0]}},
+        "20": {"class_type": "TextEncodeFibo2", "inputs": {"clip": ["2", 0], "prompt": text, "negative_prompt": "",
+                                                           "vae": ["3", 0], "images.image_1": ["11", 0],
+                                                           "width": ["12", 0], "height": ["12", 1], "batch_size": 1}},
+        "40": {"class_type": "KSampler", "inputs": {"model": ["1", 0], "positive": ["20", 0], "negative": ["20", 1],
+                                                    "latent_image": ["20", 2], "seed": int(seed), "steps": int(steps),
+                                                    "cfg": 1.0, "sampler_name": "euler", "scheduler": "simple", "denoise": 1.0}},
+        "41": {"class_type": "VAEDecode", "inputs": {"samples": ["40", 0], "vae": ["3", 0]}},
+        "42": {"class_type": "SaveImage", "inputs": {"images": ["41", 0], "filename_prefix": "VistiqStudio"}},
+    }
 
 
 def q21_ready(settings=None):
@@ -1140,7 +1218,9 @@ def status(settings=None):
             "select_ready": select_installed(settings), "helper_ready": helper_installed(settings),
             "reader_ready": reader_installed(settings), "reader_xl_ready": reader_xl_installed(settings),
             "home": home(settings), "comfy_models": guess_comfy_models(settings),
-            "flux3": flux3_ready(settings), "qwenedit": qwenedit_ready(settings), "qwen21": q21_ready(settings), "metaview": metaview_ready(settings),
+            "flux3": flux3_ready(settings), "qwenedit": qwenedit_ready(settings), "qwen21": q21_ready(settings), "fibo": fibo_ready(settings),
+            "workflow": workflow_ready(settings), "klein9": bool(find("klein", settings)),
+            "consist": bool(find("consistency", settings)), "metaview": metaview_ready(settings),
             "angles": angles_ready(settings), "realism": qwenedit_ready(settings) and _have("qie_real", settings),
             "engine_choice": (settings.get("studio_engine") if settings else "") or "flux3"}
 

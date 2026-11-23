@@ -208,7 +208,8 @@ def keep_unchanged(original, result, thresh=0.07):
     big = _big_areas(np.asarray(ch) > 127, 0.0015)
     m = Image.fromarray((big * 255).astype("uint8"), "L").filter(ImageFilter.MaxFilter(9)).filter(ImageFilter.GaussianBlur(4))
     M = np.asarray(m.resize((W, H), Image.BILINEAR)).astype(np.float32)[..., None] / 255
-    if M.mean() > 0.85:          # the whole picture changed (a restyle): the model's picture
+    if M.mean() > 0.3:           # a change all over (new light, a restyle): the model's picture, whole; mixing
+        # the original back in left patches of the old light in a golden-hour relight (Nov 2026)
         return result.convert("RGB").resize((W, H), Image.LANCZOS), float(M.mean())
     o = np.asarray(original.convert("RGB")).astype(np.float32)
     r = np.asarray(result.convert("RGB").resize((W, H), Image.LANCZOS)).astype(np.float32)
@@ -785,6 +786,51 @@ class Studio:
         self._setup.start()
         return True
 
+    def get_workflow(self):
+        """The parts of the user's own ComfyUI workflow that can be downloaded freely (Klein-consistency
+        LoRA, Qwen3 8B reader, FLUX.2 VAE). Klein 9B itself needs a free sign-in at its maker."""
+        if self._setup and self._setup.is_alive():
+            return False
+        self._cancel.clear()
+
+        def run():
+            prog = lambda label, f: self.emit("studio-setup", {"state": "running", "label": label, "fraction": f})
+            try:
+                for f in studio.FILES:
+                    if f["key"] in ("consistency", "qwen", "vae2") and f.get("url") and not studio.find(f["key"], self.settings):
+                        dst = os.path.join(studio.models_dir(self.settings), f["folder"], f["names"][0])
+                        studio.download(f["url"], dst, prog, f["label"], self._cancel.is_set)
+                self.emit("studio-setup", {"state": "done", "status": studio.status(self.settings)})
+            except Exception as exc:
+                log.exception("Workflow download failed")
+                self.emit("studio-setup", {"state": "cancelled" if str(exc).lower() == "cancelled" else "error",
+                                           "message": str(exc)})
+        self._setup = threading.Thread(target=run, daemon=True)
+        self._setup.start()
+        return True
+
+    def get_fibo(self):
+        """Download Bria Fibo 2.0 Edit Turbo (about 13 GB); design requests then use it."""
+        if self._setup and self._setup.is_alive():
+            return False
+        self._cancel.clear()
+
+        def run():
+            prog = lambda label, f: self.emit("studio-setup", {"state": "running", "label": label, "fraction": f})
+            try:
+                for f in studio.FILES:
+                    if f["key"] in ("fibo", "fibo_te", "vae2") and not studio.find(f["key"], self.settings):
+                        dst = os.path.join(studio.models_dir(self.settings), f["folder"], f["names"][0])
+                        studio.download(f["url"], dst, prog, f["label"], self._cancel.is_set)
+                self.emit("studio-setup", {"state": "done", "status": studio.status(self.settings)})
+            except Exception as exc:
+                log.exception("Fibo download failed")
+                self.emit("studio-setup", {"state": "cancelled" if str(exc).lower() == "cancelled" else "error",
+                                           "message": str(exc)})
+        self._setup = threading.Thread(target=run, daemon=True)
+        self._setup.start()
+        return True
+
     def get_metaview(self):
         """Download MetaView (about 39 GB: its model, two depth models and its nodes)."""
         if self._setup and self._setup.is_alive():
@@ -1228,7 +1274,17 @@ class Studio:
                 say(label, v / n)
                 prog = lambda f, v=v: say(label, (v + f) / n)
                 reframe = job.get("reframe") or lab.get("reframe")
-                if sys.platform != "darwin" and reframe and studio.metaview_ready(s):
+                # Your ComfyUI workflow (Nov 2026): with its files here, words (a sketch to render, new light,
+                # new materials, a change in a selection) go to FLUX.2 Klein 9B exactly as in the user's own
+                # graph, his words as typed. Design requests (imagine, redesign) and 3D views keep their engines.
+                if (sys.platform != "darwin" and studio.workflow_ready(s) and lab.get("workflow", True) and mode == "create"
+                        and uw_ and not DESIGN_WORDS.search(uw_) and not job.get("view") and not job.get("instant")
+                        and not refs and not reframe):
+                    wtext = " ".join(studio.clean_prompt(uw_).split())
+                    if (job.get("preset") or "") == "sketch" and not re.search(r"\b(sketch|render|photo)", wtext, re.I):
+                        wtext = "turn this sketch into a hyper realistic photo, " + wtext
+                    prompt = studio.workflow_prompt(s, image, wtext, seed + v, megapixels=float(lab.get("wf_mp", 2.0)))
+                elif sys.platform != "darwin" and reframe and studio.metaview_ready(s):
                     # MetaView (testing): the same scene from a camera turned by yaw / pitch degrees.
                     prompt = studio.metaview_prompt(s, image, reframe.get("yaw", 0), reframe.get("pitch", 0), seed + v,
                                                     int(reframe.get("w", 0)), int(reframe.get("h", 0)), int(reframe.get("steps", 8)))
@@ -1332,11 +1388,24 @@ class Studio:
                     if real and job.get("instant"):      # Anything2Real's own wording first
                         text = "Change picture 1 to a realistic photograph. " + text
                     tv = text
+                    use_fibo = bool(uw_ and DESIGN_WORDS.search(uw_) and studio.fibo_ready(s) and not job.get("view")
+                                    and not job.get("instant") and len(imgs) <= 2 and lab.get("fibo", True))
                     if briefs:                     # this variation's design idea in place of the short request
                         ws = " ".join(studio.clean_prompt(uw_).split()).rstrip(".")
                         idea = briefs[v % len(briefs)]
                         tv = tv.replace(ws, idea) if ws and ws in tv else ("Design idea: " + idea + " " + tv)
-                    prompt = studio.qwenedit_prompt(s, imgs, studio.juice_pick(tv, int(job.get("look", seed % 60)) + v), seed + v, frame=fr,
+                    if use_fibo:
+                        # Fibo 2.0 (design requests): the picture and the idea; the selection is handled as
+                        # for any engine (only that part of the picture, put back with the rest untouched).
+                        fidea = briefs[v % len(briefs)] if briefs else uw_
+                        ftext = ("Redesign the part in the middle of <image_1>: " + fidea +
+                                 " Keep everything else in <image_1> exactly as it is." if mask is not None else
+                                 fidea + " Keep everything else in <image_1> exactly as it is.")
+                        model_used = "Fibo2"
+                        prompt = studio.fibo_prompt(s, image, ftext, seed + v, megapixels=min(
+                            2.0, max(1.0, work.size[0] * work.size[1] / 1e6 * (4 if mask is not None else 1))))
+                    else:
+                      prompt = studio.qwenedit_prompt(s, imgs, studio.juice_pick(tv, int(job.get("look", seed % 60)) + v), seed + v, frame=fr,
                                                     realism=real if job.get("instant") else 0.0,
                                                     # a selected part is drawn zoomed in (up to 2x), so the new part
                                                     # comes out as crisp as the picture around it (Nov 2026)

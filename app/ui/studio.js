@@ -1330,6 +1330,8 @@
       else if (a === "outputs") api().studio_open_outputs();
       else if (a === "refresh") refresh();
       else if (a === "get-metaview") { S.setup.error = ""; api().studio_get_metaview(); S.setup.run = { label: "MetaView", fraction: null }; render(); }
+      else if (a === "get-workflow") { S.setup.error = ""; api().studio_get_workflow(); S.setup.run = { label: "Your ComfyUI workflow", fraction: null }; render(); }
+      else if (a === "get-fibo") { S.setup.error = ""; api().studio_get_fibo(); S.setup.run = { label: "Fibo 2.0", fraction: null }; render(); }
       else if (a === "get-qwen21") { S.setup.error = ""; api().studio_get_qwen21(); S.setup.run = { label: "Qwen-Image 2.1", fraction: null }; render(); }
       else if (a === "get-qwenedit") { S.setup.error = ""; api().studio_get_qwenedit(); S.setup.run = { label: "Qwen Image Edit", fraction: null }; render(); }
       else if (a === "engine") { api().studio_set_engine(b.getAttribute("data-e")).then(function (st2) { if (st2) S.status = Object.assign(S.status || {}, st2); render(); }); }
@@ -2512,6 +2514,13 @@
         '<button type="button" class="s-btn p" data-su="get-qwen21"' + (running ? " disabled" : "") + ">Download</button></div>") +
       (st.qwenedit ? "" : '<div class="s-row"><div class="n"><b>Qwen Image Edit 2511</b><small>Reads the picture itself, so it understands what a sketch shows and what a change means. About a minute a picture.</small></div><span class="s-pill">31 GB</span>' +
         '<button type="button" class="s-btn p" data-su="get-qwenedit"' + (running ? " disabled" : "") + ">Download</button></div>") +
+      (st.workflow ? '<div class="s-row"><div class="n"><b>Your ComfyUI workflow</b><small>Ready. FLUX.2 Klein 9B + Klein-consistency 0.8, 2 MP, 4 steps: used for renders, light, materials and edits in a selection.</small></div></div>' :
+        '<div class="s-row"><div class="n"><b>Your ComfyUI workflow</b><small>FLUX.2 Klein 9B + Klein-consistency 0.8, exactly as in your ComfyUI. ' +
+        (st.klein9 ? "Klein 9B found. " : "Klein 9B: copy flux-2-klein-9b-fp8mixed.safetensors into Models\\diffusion_models (free sign-in at huggingface.co/black-forest-labs/FLUX.2-klein-9b-fp8). ") +
+        '</small></div>' + (st.consist ? "" : '<span class="s-pill">0.3 GB</span><button type="button" class="s-btn p" data-su="get-workflow"' + (running ? " disabled" : "") + ">Download</button>") + "</div>") +
+      (st.fibo ? '<div class="s-row"><div class="n"><b>Fibo 2.0 <em class="s-opt">testing</em></b><small>Ready. Used for design requests (imagine, inspired by, redesign, variations).</small></div></div>' :
+        '<div class="s-row"><div class="n"><b>Fibo 2.0 <em class="s-opt">testing</em></b><small>Bria\'s 8B model: imagines new designs from short requests. Non-commercial licence.</small></div><span class="s-pill">13 GB</span>' +
+        '<button type="button" class="s-btn p" data-su="get-fibo"' + (running ? " disabled" : "") + ">Download</button></div>") +
       (!st.qwenedit ? "" : st.angles ? '<div class="s-row"><div class="n"><b>Camera angles</b><small>Helps 3D views turn to the view you chose. Ready.</small></div></div>' :
         '<div class="s-row"><div class="n"><b>Camera angles</b><small>Helps 3D views turn to the view you chose (outside views).</small></div><span class="s-pill">0.3 GB</span>' +
         '<button type="button" class="s-btn p" data-su="get-qwenedit"' + (running ? " disabled" : "") + ">Download</button></div>");

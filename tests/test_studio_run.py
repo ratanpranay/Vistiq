@@ -225,13 +225,28 @@ class WholeRun(unittest.TestCase):
             self.assertNotIn("camera view stay identical", t)
 
     @unittest.skipIf(sys.platform == "darwin", "the Mac has its own image engine")
+    def test_your_workflow(self):
+        src = os.path.join(self.tmp.name, "wf.png")
+        Image.new("RGB", (1200, 800), "white").save(src)
+        self.engine.runs.clear()
+        with mock.patch.object(studio, "workflow_ready", lambda s=None: True):
+            self.go({"mode": "create", "image": src, "text": "golden hour light", "variations": 1})
+        g = [p for p in self.engine.runs if any(n.get("class_type") == "ReferenceLatent" for n in p.values() if isinstance(n, dict))]
+        self.assertTrue(g, self.engine.runs)
+        n = {v["class_type"]: v["inputs"] for v in g[0].values()}
+        self.assertEqual(n["CLIPTextEncode"]["text"], "golden hour light")
+        self.assertEqual(n["FluxGuidance"]["guidance"], 4.0)
+        self.assertEqual(n["LoraLoaderModelOnly"]["strength_model"], 0.8)
+        self.assertEqual(n["ImageScaleToTotalPixels"]["megapixels"], 2.0)
+
+    @unittest.skipIf(sys.platform == "darwin", "the Mac has its own image engine")
     def test_qwen_detail_pass(self):
         src = os.path.join(self.tmp.name, "big.png")
         Image.new("RGB", (2400, 1350), "white").save(src)
         self.engine.runs.clear()
         with mock.patch.object(studio, "use_qwenedit", lambda s=None: True), \
                 mock.patch.object(self.st, "_read", lambda *a, **k: ""):
-            lab = mock.patch.object(self.sj, "_lab", lambda: {"detail": True})
+            lab = mock.patch.object(self.sj, "_lab", lambda: {"detail": True, "workflow": False})
             lab.start()
             r = self.go({"mode": "create", "image": src, "text": "red seats", "variations": 1})
             prompts = [n["inputs"]["prompt"] for p in self.engine.runs for n in p.values()

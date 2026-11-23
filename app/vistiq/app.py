@@ -894,6 +894,12 @@ class Api:
     def studio_get_qwenedit(self):
         return self._app.studio.get_qwenedit()
 
+    def studio_get_workflow(self):
+        return self._app.studio.get_workflow()
+
+    def studio_get_fibo(self):
+        return self._app.studio.get_fibo()
+
     def studio_get_qwen21(self):
         return self._app.studio.get_qwen21()
 
