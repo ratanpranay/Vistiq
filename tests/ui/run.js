@@ -286,6 +286,73 @@ const frame = (n, name) => ({ path: "live://photoshop/" + n, name: name || "flat
     await p.close();
   }
 
+  // Tool windows on the board (Nov 2026): drag the + out of a tile, pick a tool, a window opens joined
+  // to the tile; Run makes the results at the end of its line. Right-click opens the same windows.
+  {
+    const p = await open(browser, null, { board: true });
+    const img = "data:image/gif;base64,R0lGODlhAQABAAAAACw=";
+    await p.evaluate(() => { window.VS.S.status = Object.assign(window.VS.S.status || {}, { create_ready: true }); });
+    await p.ev("studio-dropped", { target: "board", images: [{ path: "C:/a/truck.png", name: "truck.png", w: 1600, h: 900, preview: img }] });
+    await p.waitForTimeout(150);
+    const tsel = '.b-tile[data-id]:not([data-id="live"])';
+    await p.click(tsel); await p.waitForTimeout(60);
+    const port = await p.evaluate(() => { const r = document.querySelector(".b-tile.sel .b-port").getBoundingClientRect(); return [r.x + r.width / 2, r.y + r.height / 2]; });
+    await p.mouse.move(port[0], port[1]); await p.mouse.down(); await p.mouse.move(port[0] + 80, port[1] - 30, { steps: 5 });
+    check("dragging the + draws a line", await p.evaluate(() => !!document.querySelector("#b-links path.drag")), "");
+    await p.mouse.move(port[0] + 160, port[1] - 40, { steps: 5 }); await p.mouse.up(); await p.waitForTimeout(100);
+    check("letting go opens the tool list", await p.isVisible("#b-acts"), "");
+    await p.keyboard.type("refi"); await p.keyboard.press("Enter"); await p.waitForTimeout(100);
+    check("typing picks a tool: a Refine window opens, joined to the tile", await p.evaluate(() => (window.VSBoard._state().nodes || []).length === 1 && !!document.querySelector(".b-node") && document.querySelectorAll("#b-links path.on").length === 1),
+      await p.evaluate(() => JSON.stringify(window.VSBoard._state().nodes)));
+    check("Refine needs words before it runs", await p.evaluate(() => document.querySelector(".b-node [data-nr]").disabled), "");
+    await p.fill(".b-node textarea", "golden hour light");
+    await p.click('.b-node [data-nv="2"]');
+    await p.evaluate(() => { window.__lastJob = null; });
+    await p.click(".b-node [data-nr]"); await p.waitForTimeout(300);
+    const job = await p.evaluate(() => window.__lastJob);
+    check("Run sends the tile's picture and the words", !!job && job.image === "C:/a/truck.png" && job.text === "golden hour light" && job.variations === 2 && !job.mask, JSON.stringify(job));
+    check("the window shows it is working", await p.evaluate(() => /Working/.test(document.querySelector(".b-node [data-nr]").textContent)), "");
+    check("the board stays open", await p.evaluate(() => document.body.getAttribute("data-page")) === "board", "");
+    await p.ev("studio-result", { id: "j1", index: 0, of: 2, result: { path: "C:/o/g1.png", name: "g1.png", w: 1600, h: 900, preview: img } });
+    await p.ev("studio-result", { id: "j1", index: 1, of: 2, result: { path: "C:/o/g2.png", name: "g2.png", w: 1600, h: 900, preview: img } });
+    await p.ev("studio-job", { id: "j1", state: "done" }); await p.waitForTimeout(800);
+    const st = await p.evaluate(() => { const B = window.VSBoard._state(), n = B.nodes[0]; return { n, res: B.tiles.filter((t) => t.via === n.id).map((t) => [t.x, t.y]) }; });
+    check("results land at the end of the window's line, one under the other", st.res.length === 2 && st.res[0][0] > st.n.x && st.res[1][1] > st.res[0][1], JSON.stringify(st));
+    check("the window is free again: Refine again", await p.evaluate(() => /again/.test(document.querySelector(".b-node [data-nr]").textContent) && !document.querySelector(".b-node [data-nr]").disabled),
+      await p.evaluate(() => document.querySelector(".b-node").outerHTML.slice(0, 300)));
+    if (process.env.NSHOT) await p.screenshot({ path: "/tmp/claude-0/-home-claude/dcd924c8-68bd-54b8-af15-65d2e5e10346/scratchpad/board_nodes.png" });
+    check("lines: tile → window → 2 results", await p.evaluate(() => document.querySelectorAll("#b-links path.on").length) === 3, "");
+    // Right-click a result → 3D views: same kind of window, chained.
+    const rid = await p.evaluate(() => window.VSBoard._state().tiles.find((t) => t.path === "C:/o/g2.png").id);
+    await p.click('.b-tile[data-id="' + rid + '"]', { button: "right" }); await p.waitForTimeout(80);
+    await p.click('#b-menu [data-m="3d"]'); await p.waitForTimeout(100);
+    check("right-click → 3D views opens a window next to that result", await p.evaluate((id) => window.VSBoard._state().nodes.some((n) => n.kind === "3d" && n.from === id), rid), "");
+    await p.evaluate(() => { window.__lastJob = null; });
+    const n3 = '.b-node[data-nid="' + await p.evaluate(() => window.VSBoard._state().nodes.find((n) => n.kind === "3d").id) + '"]';
+    await p.click(n3 + ' [data-n3="rear"]'); await p.click(n3 + " [data-nr]"); await p.waitForTimeout(300);
+    const j3 = await p.evaluate(() => window.__lastJob);
+    check("3D views runs that result to the view picked", !!j3 && j3.image === "C:/o/g2.png" && j3.view && j3.view.target === "rear", JSON.stringify(j3));
+    await p.ev("studio-job", { id: "j1", state: "done" }); await p.waitForTimeout(700);
+    // Upscale through the upscaler.
+    await p.evaluate(() => { const a = window.pywebview.api; window.__ups = [];
+      a.set_setting = (k, v) => { window.__ups.push(k + "=" + v); return Promise.resolve(null); };
+      a.studio_to_upscale = (path) => Promise.resolve([{ id: "u1", path, status: "ready" }]);
+      a.start = () => { window.__ups.push("start"); return Promise.resolve(true); }; });
+    await p.click('.b-tile[data-id="' + rid + '"]', { button: "right" }); await p.waitForTimeout(80);
+    await p.click('#b-menu [data-m="upscale"]'); await p.waitForTimeout(100);
+    const nu = '.b-node[data-nid="' + await p.evaluate(() => window.VSBoard._state().nodes.find((n) => n.kind === "upscale").id) + '"]';
+    await p.click(nu + ' [data-nu="4"]'); await p.click(nu + " [data-nr]"); await p.waitForTimeout(200);
+    check("Upscale sets the size and starts", (await p.evaluate(() => window.__ups.join(","))) === "scale=4,start", await p.evaluate(() => window.__ups.join(",")));
+    await p.ev("item", { id: "u1", name: "g2.png", preview: img, path: "C:/o/g2.png", status: "done", out_path: "C:/o/g2_x4.png", out_w: 6400, out_h: 3600, out_preview: img });
+    await p.waitForTimeout(150);
+    check("the upscaled picture lands at the end of the Upscale window", await p.evaluate(() => window.VSBoard._state().tiles.some((t) => t.path === "C:/o/g2_x4.png" && t.via)), "");
+    await p.click(nu + " [data-nx]"); await p.waitForTimeout(80);
+    check("× closes the window; its pictures stay", await p.evaluate(() => !window.VSBoard._state().nodes.some((n) => n.kind === "upscale") && window.VSBoard._state().tiles.some((t) => t.path === "C:/o/g2_x4.png")), "");
+    check("windows are saved with the board", await p.evaluate(() => (window.__board.nodes || []).length === 2), await p.evaluate(() => JSON.stringify((window.__board || {}).nodes)));
+    check("no page errors with tool windows", p.errors.length === 0, p.errors.join(" | "));
+    await p.close();
+  }
+
   // An opened picture (no result yet) can go to Photoshop, the board or Upscale; Upscale has the bar too.
   {
     const p = await open(browser, null, {});

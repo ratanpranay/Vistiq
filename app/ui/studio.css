@@ -1283,3 +1283,41 @@ body.studio .s-stage>.s-top,body.studio .s-stage>.s-under{transform:translateZ(0
 .s-flh :is(.s-tag,.s-ra,.s-zpill){scale:-1 1}
 .s-flv :is(.s-tag,.s-ra,.s-zpill){scale:1 -1}
 .s-flh.s-flv :is(.s-tag,.s-ra,.s-zpill){scale:-1 -1}
+
+/* Board tool windows (Nov 2026): drag the + out of a tile, pick a tool, a small window opens joined to it. */
+.b-tile .b-port{position:absolute;right:-12px;top:50%;width:24px;height:24px;margin-top:-12px;border-radius:50%;background:#6d5df5;color:#fff;font-size:16px;line-height:22px;text-align:center;
+  box-shadow:0 0 0 4px rgba(109,93,245,.18);opacity:0;transition:opacity .12s;cursor:crosshair;z-index:2;padding:0}
+.b-tile:hover .b-port,.b-tile.sel .b-port{opacity:1}
+.b-links path.on{stroke:#7b6cf6;stroke-dasharray:none;stroke-width:1.8}
+.b-links path.drag{stroke-dasharray:6 5}
+.b-acts{position:absolute;z-index:22;width:250px;background:#1d1d24;color:#eee;border-radius:14px;padding:9px;box-shadow:0 12px 34px rgba(0,0,0,.3);display:flex;flex-direction:column}
+.b-acts[hidden],.b-acts [hidden]{display:none}
+.b-acts input{background:#2a2a33;border:0;border-radius:9px;padding:9px 11px;color:#eee;font:inherit;font-size:12.5px;outline:none;margin-bottom:4px}
+.b-acts .ba-g{font-size:10px;color:#8a8a96;padding:8px 9px 3px;text-transform:uppercase;letter-spacing:.06em}
+.b-acts .ba-g:empty{padding:2px;border-top:1px solid #33333d;margin:5px 4px 2px}
+.b-acts button{display:flex;align-items:center;gap:10px;padding:7px 9px;border-radius:8px;font-size:12.8px;color:#eee;text-align:left;background:none}
+.b-acts button:hover,.b-acts button:focus{background:#3a3550}
+.b-acts button small{margin-left:auto;color:#8a8a96;font-size:10.5px}
+.b-acts .ba-ic{width:18px;text-align:center;color:#b8b0ff;font-size:12px}
+.b-node{position:absolute;background:#fff;border-radius:14px;box-shadow:0 8px 26px rgba(14,16,32,.14);border:1px solid #ebe9f5;font-size:12px;z-index:3;user-select:none}
+.b-node .bn-h{display:flex;align-items:center;gap:8px;padding:9px 10px 9px 12px;border-bottom:1px solid #f0eef7;cursor:move}
+.b-node .bn-h b{font-size:13px;font-weight:600}
+.b-node .bn-ic{width:22px;height:22px;border-radius:7px;background:#efedfe;color:#6d5df5;display:flex;align-items:center;justify-content:center;font-size:11px}
+.b-node .bn-x{margin-left:auto;color:#999;font-size:16px;width:22px;height:22px;border-radius:6px;padding:0}
+.b-node .bn-x:hover{background:#f3f2f8;color:#333}
+.b-node .bn-b{padding:10px 12px 12px;display:flex;flex-direction:column;gap:9px}
+.b-node textarea{border:1px solid #e5e3ef;border-radius:8px;padding:7px 8px;font:inherit;font-size:12px;resize:vertical;outline:none;user-select:text;color:var(--ink,#16161d)}
+.b-node textarea:focus{border-color:#a89ff9}
+.b-node .bn-row{display:flex;align-items:center;justify-content:space-between;gap:8px;color:#444}
+.b-node .bn-seg{display:flex;background:#f3f2f8;border-radius:8px;padding:2px}
+.b-node .bn-seg button{padding:4px 10px;border-radius:6px;font-size:11.5px;color:#555}
+.b-node .bn-seg button.on{background:#fff;color:#16161d;font-weight:600;box-shadow:0 1px 3px rgba(0,0,0,.08)}
+.b-node .bn-chips{display:flex;flex-wrap:wrap;gap:4px}
+.b-node .bn-chips button{padding:4px 9px;border-radius:20px;background:#f3f2f8;font-size:11px;color:#555}
+.b-node .bn-chips button.on{background:#6d5df5;color:#fff}
+.b-node .bn-run{background:linear-gradient(90deg,#3b82f6,#6d5df5,#f08a4b);color:#fff;border-radius:9px;padding:8px;font-weight:600;font-size:12.5px}
+.b-node .bn-run:disabled{opacity:.45;cursor:default}
+.b-node .bn-prog{height:4px;background:#ece9fb;border-radius:4px;overflow:hidden}
+.b-node .bn-prog i{display:block;height:100%;background:linear-gradient(90deg,#3b82f6,#6d5df5);transition:width .4s}
+.b-node .bn-est{text-align:center;font-size:10.5px;color:#888;margin-top:-4px}
+.b-node .bn-err{font-size:11px;color:#c0392b}

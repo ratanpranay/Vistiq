@@ -59,9 +59,9 @@
       '<div class="b-bar"><button type="button" class="b-plus" data-b="plus" title="Add: blank canvas, image, paste, phone">' +
       '<svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></button><span class="b-sep"></span>' +
       '<button type="button" data-b="fit">Fit</button><span class="b-zoom" id="b-zoom">80%</span></div>' +
-      '<div class="b-hint" id="b-hint">Click + for a blank canvas, an image or your phone · paste with Ctrl V or drop images here. Double-click a tile to work on it. Drag to select · hold Space or the middle button to pan.</div>' +
+      '<div class="b-hint" id="b-hint">Click + for a blank canvas, an image or your phone · paste with Ctrl V or drop images here. Double-click a tile to work on it, or drag its + out for Refine, Relight, Variations, 3D views and Upscale. Drag to select · hold Space or the middle button to pan.</div>' +
       '<div class="b-menu" id="b-menu" hidden></div><div class="b-group" id="b-group" hidden></div>' +
-      '<div class="b-mix" id="b-mix" hidden></div><div class="b-marq" id="b-marq" hidden></div>';
+      '<div class="b-mix" id="b-mix" hidden></div><div class="b-marq" id="b-marq" hidden></div><div class="b-acts" id="b-acts" hidden></div>';
     world = root.querySelector("#b-world"); svgEl = root.querySelector("#b-links"); menu = root.querySelector("#b-menu");
     wire();
     load(P.id, P.name, true);
@@ -87,6 +87,7 @@
         B.tiles.forEach(function (k) { delete k.frame; }); save();
       }
       if (!B.view) B.view = { x: 60, y: 90, z: 0.8 };
+      (B.nodes || []).forEach(function (n) { n.busy = false; n.status = ""; n.job = null; });
       ensureLive(); loaded = true; lastHTML = ""; render();
     });
   }
@@ -149,20 +150,27 @@
     var pic = th && th !== "missing" ? '<div class="b-pic"><img src="' + th + '" alt=""></div>' : '<div class="b-empty">' + (th === "missing" ? "File moved or deleted" : "") + "</div>";
     pic = pic.replace('class="b-pic"', 'class="b-pic" style="height:' + shape(t)[1] + 'px"').replace('class="b-empty"', 'class="b-empty" style="height:' + shape(t)[1] + 'px"');
     return '<div class="b-tile' + sel + '" data-id="' + t.id + '" style="left:' + t.x + "px;top:" + t.y + "px;width:" + tileW(t) + 'px">' +
-      '<div class="b-h"><span>' + esc(VS().short(t.name || "")) + "</span><small>" + (t.w ? t.w + " × " + t.h : "") + "</small></div>" + pic + badge + "</div>";
+      '<div class="b-h"><span>' + esc(VS().short(t.name || "")) + "</span><small>" + (t.w ? t.w + " × " + t.h : "") + "</small></div>" + pic + badge +
+      (t.path ? '<button type="button" class="b-port" data-port="' + t.id + '" title="Drag out (or click) for Refine, Relight, Variations, 3D views, Upscale">+</button>' : "") + "</div>";
   }
 
   function linksSVG() {
     var d = "";
     B.tiles.forEach(function (t) {
+      var nv = t.via && nodeById(t.via);
+      if (nv) {
+        var a1 = nv.x + NODE_W, b1 = nv.y + 22, a2 = t.x, b2 = t.y + tileH(t) / 2, am = (a1 + a2) / 2;
+        d += '<path class="on" d="M' + a1 + " " + b1 + " C" + am + " " + b1 + "," + am + " " + b2 + "," + a2 + " " + b2 + '"/>';
+        return;
+      }
       var p = t.from && byId(t.from); if (!p || (p.kind === "live" && !liveInWorld())) return;
       var x1 = p.x + tileW(p), y1 = p.y + tileH(p) / 2, x2 = t.x, y2 = t.y + tileH(t) / 2, mx = (x1 + x2) / 2;
       d += '<path d="M' + x1 + " " + y1 + " C" + mx + " " + y1 + "," + mx + " " + y2 + "," + x2 + " " + y2 + '"/>';
     });
-    return d;
+    return d + nodeLinks() + (portDrag && portDrag.moved ? portDrag.path : "");
   }
 
-  var lastHTML = "";
+  var lastHTML = "", portDrag = null;
   function render() {
     if (!root || !loaded) return;
     ensureLive();
@@ -172,6 +180,7 @@
       world.querySelectorAll(".b-tile,.b-frame").forEach(function (n) { n.remove(); });
       world.insertAdjacentHTML("beforeend", h);
     }
+    renderNodes();
     svgEl.innerHTML = linksSVG();
     if (pendingShow && root.querySelector("#b-cv").getBoundingClientRect().width) { var ps = pendingShow; pendingShow = null; show(ps); }
     var L = liveInfo(), dot = root.querySelector("#b-tdot"); if (dot) dot.className = "b-tdot" + (L.on ? " on" : "");
@@ -442,12 +451,238 @@
     });
   }
 
+  // ---------------------------------------------------------------- tool windows (Nov 2026)
+  // Drag the + out of a tile (or right-click it) and pick a tool: a small window opens next to the
+  // tile, joined to it by a line, with only that tool's settings. Results land at the end of the line,
+  // each with its own +, so the steps chain: photo → Refine → a result → 3D views.
+  var NODE_W = 250;
+  var TOOLS = [
+    ["refine", "✎", "Refine", "words · an area", "change"], ["relight", "☀", "Relight", "", "change"],
+    ["variations", "✦", "Variations", "new designs", "change"],
+    ["3d", "⬡", "3D views", "", "make"], ["upscale", "↑", "Upscale", "", "make"],
+    ["ps", "Ps", "Send to Photoshop", "", "do"], ["open", "⤢", "Open in Create", "", "do"]
+  ];
+  var LIGHTS = [["golden", "Golden hour", "warm golden hour sunlight from a low sun, long soft shadows"],
+                ["overcast", "Overcast", "soft overcast daylight, even diffuse light, gentle shadows"],
+                ["night", "Night", "night scene, dark sky, artificial lights and reflections"],
+                ["studio", "Studio", "clean studio lighting, softboxes, seamless backdrop"],
+                ["sunset", "Sunset", "sunset light, orange sky, warm rim light"]];
+  var VIEWS3 = [["front-left", "Front ¾ L"], ["front", "Front"], ["front-right", "Front ¾ R"], ["left", "Side L"],
+                ["right", "Side R"], ["rear-left", "Rear ¾ L"], ["rear", "Rear"], ["rear-right", "Rear ¾ R"]];
+  var UPS = [["2", "2×"], ["4", "4×"], ["max", "Max"]];
+  function nodes() { if (!B.nodes) B.nodes = []; return B.nodes; }
+  function nodeById(id) { return nodes().filter(function (n) { return n.id === id; })[0] || null; }
+  function toolOf(k) { return TOOLS.filter(function (x) { return x[0] === k; })[0]; }
+  var acts = null;      // the tool list: { from, x, y } (board units for where the window goes)
+
+  function actsOpen(t, sx, sy, wx, wy) {
+    var el = root.querySelector("#b-acts"), ps = VS().S.psOn;
+    acts = { from: t.id, x: wx, y: wy, q: "", at: Date.now() };
+    var list = TOOLS.filter(function (x) { return x[0] !== "ps" || ps; });
+    var grp = function (g, title) {
+      var it = list.filter(function (x) { return x[4] === g; });
+      return it.length ? '<div class="ba-g">' + title + "</div>" + it.map(function (x) {
+        return '<button type="button" data-tool="' + x[0] + '"><span class="ba-ic">' + x[1] + "</span>" + x[2] + (x[3] ? "<small>" + x[3] + "</small>" : "") + "</button>";
+      }).join("") : "";
+    };
+    el.innerHTML = '<input id="ba-q" placeholder="What do you want to do?" autocomplete="off">' +
+      grp("change", "Change it") + grp("make", "Make from it") + grp("do", "");
+    el.hidden = false;
+    var r = root.getBoundingClientRect();
+    el.style.left = Math.max(8, Math.min(sx - r.left, r.width - el.offsetWidth - 8)) + "px";
+    el.style.top = Math.max(60, Math.min(sy - r.top - 20, r.height - el.offsetHeight - 8)) + "px";
+    setTimeout(function () { var q = el.querySelector("#ba-q"); if (q) q.focus(); }, 0);
+  }
+  function actsClose() { acts = null; var el = root && root.querySelector("#b-acts"); if (el) el.hidden = true; }
+  function actsFilter(q) {
+    var el = root.querySelector("#b-acts"), first = null;
+    el.querySelectorAll("[data-tool]").forEach(function (b) {
+      var on = !q || b.textContent.toLowerCase().indexOf(q.toLowerCase()) >= 0; b.hidden = !on; if (on && !first) first = b;
+    });
+    el.querySelectorAll(".ba-g").forEach(function (g) {
+      var n = g.nextElementSibling, any = false;
+      while (n && !n.classList.contains("ba-g")) { if (!n.hidden) any = true; n = n.nextElementSibling; }
+      g.hidden = !any;
+    });
+    return first;
+  }
+  function actsPick(kind) {
+    var a = acts; actsClose();
+    var t = a && byId(a.from); if (!t) return;
+    if (kind === "ps") { VS().sendPS(t.path); return; }
+    if (kind === "open") { open(t); return; }
+    nodeOpen(kind, t, a.x, a.y);
+  }
+
+  function nodeOpen(kind, t, x, y) {
+    if (x == null) { x = t.x + tileW(t) + 70; y = t.y; }
+    var n = { id: "n" + uid(), kind: kind, from: t.id, x: Math.round(x), y: Math.round(y), text: "", vars: kind === "variations" ? 2 : 1,
+              light: "golden", view: "front-left", height: "eye", scale: "2" };
+    nodes().push(n); B.sel = null; save(); render();
+    setTimeout(function () { var ta = root.querySelector('.b-node[data-nid="' + n.id + '"] textarea'); if (ta) ta.focus(); }, 30);
+    return n;
+  }
+  function nodeClose(n) {
+    if (n.busy) { VS().toast("Still working: it closes when done"); return; }
+    B.nodes = nodes().filter(function (k) { return k !== n; });
+    B.tiles.forEach(function (k) { if (k.via === n.id) delete k.via; });
+    save(); render();
+  }
+
+  function seg(attr, list, on) {
+    return '<span class="bn-seg">' + list.map(function (o) { return '<button type="button" data-' + attr + '="' + o[0] + '"' + (String(on) === String(o[0]) ? ' class="on"' : "") + ">" + o[1] + "</button>"; }).join("") + "</span>";
+  }
+  function nodeHTML(n) {
+    var tl = toolOf(n.kind) || ["", "•", n.kind], body = "", label = "Run", can = true;
+    var vars = '<div class="bn-row"><span>Variations</span>' + seg("nv", [[1, "1"], [2, "2"], [4, "4"]], n.vars) + "</div>";
+    if (n.kind === "refine") {
+      body = '<textarea rows="3" data-nt placeholder="What to change, e.g. tan leather seats, matte black wheels">' + esc(n.text || "") + "</textarea>" + vars;
+      label = "Refine"; can = !!(n.text || "").trim();
+    } else if (n.kind === "relight") {
+      body = '<div class="bn-chips">' + LIGHTS.map(function (l) { return '<button type="button" data-nl="' + l[0] + '"' + (n.light === l[0] ? ' class="on"' : "") + ">" + l[1] + "</button>"; }).join("") + "</div>" +
+        '<textarea rows="2" data-nt placeholder="Anything more (optional)">' + esc(n.text || "") + "</textarea>" + vars;
+      label = "Relight";
+    } else if (n.kind === "variations") {
+      body = '<textarea rows="2" data-nt placeholder="Which part, or a direction (optional), e.g. the door handle, sportier">' + esc(n.text || "") + "</textarea>" + vars;
+      label = "Make variations";
+    } else if (n.kind === "3d") {
+      body = '<div class="bn-chips">' + VIEWS3.map(function (v) { return '<button type="button" data-n3="' + v[0] + '"' + (n.view === v[0] ? ' class="on"' : "") + ">" + v[1] + "</button>"; }).join("") + "</div>" +
+        '<div class="bn-row"><span>Height</span>' + seg("nh", [["eye", "Eye"], ["high", "Above"], ["low", "Low"]], n.height) + "</div>";
+      label = "Make view";
+    } else if (n.kind === "upscale") {
+      body = '<div class="bn-row"><span>Size</span>' + seg("nu", UPS, n.scale) + "</div>";
+      label = "Upscale";
+    }
+    var st = n.busy ? '<div class="bn-prog"><i style="width:' + Math.round((n.frac || 0) * 100) + '%"></i></div><div class="bn-est">' + esc(n.status || "Working") + "</div>" :
+      (n.err ? '<div class="bn-err">' + esc(n.err) + "</div>" : "");
+    var done = (n.made || 0) > 0;
+    return '<div class="b-node' + (n.busy ? " busy" : "") + '" data-nid="' + n.id + '" style="left:' + n.x + "px;top:" + n.y + "px;width:" + NODE_W + 'px">' +
+      '<div class="bn-h" data-nh="' + n.id + '"><span class="bn-ic">' + tl[1] + "</span><b>" + tl[2] + '</b><button type="button" class="bn-x" data-nx title="Close">×</button></div>' +
+      '<div class="bn-b">' + body + '<button type="button" class="bn-run" data-nr' + (n.busy || !can ? " disabled" : "") + ">" + (n.busy ? "Working…" : done ? label + " again" : label) + "</button>" + st + "</div></div>";
+  }
+  function renderNodes() {
+    var box = world.querySelector("#b-nodes");
+    if (!box) { box = document.createElement("div"); box.id = "b-nodes"; world.appendChild(box); }
+    var ids = {};
+    nodes().forEach(function (n) {
+      ids[n.id] = 1;
+      var h = nodeHTML(n), el = box.querySelector('[data-nid="' + n.id + '"]');
+      if (el && el.getAttribute("data-h") === h) { el.style.left = n.x + "px"; el.style.top = n.y + "px"; return; }
+      var foc = document.activeElement, keep = foc && el && el.contains(foc) && foc.tagName === "TEXTAREA" ? [foc.selectionStart, foc.selectionEnd] : null;
+      var tmp = document.createElement("div"); tmp.innerHTML = h; var nu = tmp.firstChild; nu.setAttribute("data-h", h);
+      if (el) el.replaceWith(nu); else box.appendChild(nu);
+      if (keep) { var ta = nu.querySelector("textarea"); if (ta) { ta.focus(); ta.setSelectionRange(keep[0], keep[1]); } }
+    });
+    box.querySelectorAll(".b-node").forEach(function (el) { if (!ids[el.getAttribute("data-nid")]) el.remove(); });
+  }
+  function nodeLinks() {
+    var d = "";
+    nodes().forEach(function (n) {
+      var p = byId(n.from); if (!p) return;
+      var x1 = p.x + tileW(p), y1 = p.y + tileH(p) / 2, x2 = n.x, y2 = n.y + 22, mx = (x1 + x2) / 2;
+      d += '<path class="on" d="M' + x1 + " " + y1 + " C" + mx + " " + y1 + "," + mx + " " + y2 + "," + x2 + " " + y2 + '"/>';
+    });
+    return d;
+  }
+
+  // Running: words tools go through Create's own run (the picture of the tile, these words);
+  // Upscale through the upscaler. Results come back to this window's end of the line.
+  var hooked = false, runNode = null;
+  function hook() {
+    if (hooked || !window.vistiq) return; hooked = true;
+    var base = window.vistiq.event;
+    window.vistiq.event = function (kind, data) {
+      try { nodeEvent(kind, data); } catch (e) {}
+      return base.apply(this, arguments);
+    };
+  }
+  function nodeEvent(kind, data) {
+    if (kind === "studio-result" && runNode && data && data.result) {
+      var p = VS().S.create;
+      if (runNode.job && data.id !== runNode.job && data.id !== p.job) return;
+      nodeResult(runNode, data.result);
+    } else if (kind === "item" && data) {
+      nodes().forEach(function (n) {
+        if (!n.busy || n.kind !== "upscale" || data.path !== n.upPath) return;
+        if (data.status === "done" && data.out_path) {
+          n.busy = false; n.status = ""; nodeResult(n, { path: data.out_path, name: data.out_path.split(/[\\/]/).pop(), w: data.out_w, h: data.out_h, preview: data.out_preview });
+        } else if (data.status === "error") { n.busy = false; n.err = data.error || "Couldn't upscale it."; }
+        else { n.frac = data.progress || 0; n.status = (data.stage || "Upscaling") + (data.progress ? " · " + Math.round(data.progress * 100) + "%" : ""); }
+        render();
+      });
+    }
+  }
+  function nodeResult(n, res) {
+    if (!res || !res.path || has(res.path)) return;
+    var src = byId(n.from);
+    var t = { id: uid(), kind: "result", path: res.path, name: res.name, w: res.w, h: res.h, from: src ? src.id : null, via: n.id, made: Date.now() };
+    var mine = B.tiles.filter(function (k) { return k.via === n.id; });
+    var y = mine.length ? Math.max.apply(null, mine.map(function (k) { return k.y + tileH(k); })) + 24 : n.y;
+    t.x = n.x + NODE_W + 70; t.y = y;
+    if (res.preview) thumbs[t.path] = res.preview;
+    B.tiles.push(t); n.made = (n.made || 0) + 1; save(); render(); show(t);
+  }
+  function nodeText(n) {
+    var w = (n.text || "").trim();
+    if (n.kind === "refine") return w;
+    if (n.kind === "relight") { var l = LIGHTS.filter(function (x) { return x[0] === n.light; })[0] || LIGHTS[0]; return l[2] + (w ? ", " + w : ""); }
+    if (n.kind === "variations") return "imagine new design variations" + (w ? " of " + w : " of this design");
+    return w;
+  }
+  function nodeRun(n) {
+    var V = VS(), S = V.S, p = S.create, t = byId(n.from);
+    if (!t || !t.path) { V.toast("The picture for this is gone from the board."); return; }
+    n.err = "";
+    if (n.kind === "upscale") {
+      if (n.busy) return;
+      call("set_setting", "scale", n.scale).then(function () { return call("studio_to_upscale", t.path); }).then(function (added) {
+        var it = (added || [])[0];
+        if (!it) { n.err = "Couldn't add it to Upscale."; render(); return; }
+        hook(); n.upPath = it.path; n.busy = true; n.frac = 0; n.status = "Starting"; render();
+        if (it.status === "done" && it.out_path) { nodeEvent("item", it); return; }
+        call("start").then(function (ok) { if (!ok && n.busy && it.status !== "running" && it.status !== "queued") { n.busy = false; n.err = "Upscale is busy: try again when it's done."; render(); } });
+      });
+      return;
+    }
+    if (p.job || runNode) { V.toast("Studio is still working on something"); return; }
+    var text = nodeText(n);
+    if (n.kind === "refine" && !text) { V.toast("Type what to change first"); return; }
+    hook(); runNode = n; n.busy = true; n.frac = 0; n.status = "Starting"; n.job = null; n.seen = false; n.wait = 0; render();
+    call("studio_image", t.path).then(function (info) {
+      if (!info) { runNode = null; n.busy = false; n.err = "That file was moved or deleted."; render(); return; }
+      S.create.source = "image"; V.setImage(p, "src", info); S.boardFrom = t.id; p.refs = [];
+      var extra = { mask: null, refs: [], instant: false };
+      if (n.kind === "3d") {
+        var hgt = { eye: 0, high: 25, low: -20 }[n.height] || 0;
+        extra = Object.assign(extra, { view: { yaw: 0, pitch: hgt, dist: 0, lens: "normal", target: n.view, cabin: null }, text: "", preset: "", variations: 1,
+                                       res: p.res === "512" ? "1k" : p.res });
+      } else { p.text = text; p.vars = n.vars; extra = Object.assign(extra, { text: text, variations: n.vars }); }
+      V.job("c", extra);
+      if (!p.job) {           // Create couldn't start (still setting up, or busy)
+        runNode = null; n.busy = false; n.err = (S.status && S.status.create_ready) ? "Studio is busy: try again in a moment." : "Image making isn't set up yet: open Create once.";
+        render(); return;
+      }
+      nodeWatch(n);
+    });
+  }
+  function nodeWatch(n) {
+    var p = VS().S.create;
+    if (runNode !== n) return;
+    if (p.job && p.job !== "starting" && !n.job) n.job = p.job;
+    if (p.job) n.seen = true;
+    if (p.job) {
+      n.frac = p.frac || 0; n.status = (p.stage || "Working") + (p.frac ? " · " + Math.round(p.frac * 100) + "%" : "");
+      renderNodes(); setTimeout(function () { nodeWatch(n); }, 600);
+    } else if (n.busy && !n.seen && (n.wait = (n.wait || 0) + 1) < 20) { setTimeout(function () { nodeWatch(n); }, 300); }
+    else { n.busy = false; n.wait = 0; n.status = ""; if (p.error) n.err = p.error; runNode = null; render(); }
+  }
+
   // ---------------------------------------------------------------- menu
 
   function showMenu(t, x, y) {
     var V = VS(), isLive = t.kind === "live", ps = V.S.psOn;
     var items = [["open", "Open in Focus view"]];
-    if (!isLive) items.push(["refine", "Refine…"], ["variations", "More like this"], ["3d", "3D views"], ["upscale", "Upscale"]);
+    if (!isLive) items.push(["refine", "Refine…"], ["relight", "Relight…"], ["variations", "Variations…"], ["3d", "3D views…"], ["upscale", "Upscale…"]);
     if (!isLive && ps) items.push(["ps", "Send to Photoshop"]);
     if (!isLive) items.push(["ref", "Use as reference"], ["folder", "Show in folder"], ["export", "Save a copy…"], ["-"],
                             ["copy", "Copy<k>Ctrl C</k>"], ["move", "Move to project…"], ["cover", "Use as project cover"], ["-"], ["remove", "Remove from board"]);
@@ -474,16 +709,8 @@
     var V = VS(), S = V.S;
     menu.hidden = true;
     if (a === "open") open(t);
-    else if (a === "refine") { open(t); setTimeout(function () { var el = document.getElementById("c-refine"); if (el) el.focus(); }, 300); }
-    else if (a === "variations") {
-      call("studio_image", t.path).then(function (info) {
-        if (!info) return;
-        S.create.source = "image"; V.setImage(S.create, "src", info); S.boardFrom = t.id; S.create.preset = "photo"; V.go("create");
-        setTimeout(function () { var b = document.getElementById("c-go"); if (b) b.click(); }, 300);
-      });
-    }
-    else if (a === "upscale") call("studio_to_upscale", t.path).then(function () { V.go("upscale"); });
-    else if (a === "3d") call("studio_image", t.path).then(function (info) { if (info && window.VS3D) window.VS3D.open(info, null); });
+    // The tools open as a small window next to the tile (as when dragging its + out).
+    else if (a === "refine" || a === "relight" || a === "variations" || a === "upscale" || a === "3d") nodeOpen(a, t);
     else if (a === "ps") V.sendPS(t.path);
     else if (a === "ref") call("studio_image", t.path).then(function (info) { if (info) { V.addRef(info); V.go("create"); } });
     else if (a === "folder") { var x = api(); if (x && x.reveal) x.reveal(t.path); }
@@ -595,7 +822,23 @@
   function wire() {
     var cv = root.querySelector("#b-cv"), drag = null;
     document.addEventListener("keyup", function (e) { if (e.key === " ") { spaceDown = false; cv.classList.remove("pan"); } });
-    root.addEventListener("input", function (e) { if (e.target.id === "bm-text" && mix) mix.text = e.target.value; });
+    root.addEventListener("input", function (e) {
+      if (e.target.id === "bm-text" && mix) mix.text = e.target.value;
+      if (e.target.id === "ba-q") actsFilter(e.target.value);
+      if (e.target.hasAttribute && e.target.hasAttribute("data-nt")) {
+        var nn = nodeById(e.target.closest(".b-node").getAttribute("data-nid"));
+        if (nn) { nn.text = e.target.value; save(); var rb = e.target.closest(".b-node").querySelector("[data-nr]"); if (rb && nn.kind === "refine" && !nn.busy) rb.disabled = !nn.text.trim(); }
+      }
+    });
+    root.addEventListener("keydown", function (e) {
+      if (e.target.id === "ba-q") {
+        if (e.key === "Enter") { var f = actsFilter(e.target.value); if (f) actsPick(f.getAttribute("data-tool")); e.preventDefault(); }
+        else if (e.key === "Escape") { actsClose(); e.stopPropagation(); }
+      }
+      if (e.target.hasAttribute && e.target.hasAttribute("data-nt") && e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
+        var n2 = nodeById(e.target.closest(".b-node").getAttribute("data-nid")); if (n2) nodeRun(n2); e.preventDefault();
+      }
+    });
     root.addEventListener("change", function (e) { var u = e.target.getAttribute && e.target.getAttribute("data-use"); if (u && mix) mix.use[u] = e.target.value; });
     root.addEventListener("click", function (e) {
       var b = e.target.closest("[data-b]");
@@ -621,6 +864,24 @@
       }
       var g = e.target.closest("[data-g]");
       if (g) { menu.hidden = true; groupAction(g.getAttribute("data-g")); return; }
+      var tb = e.target.closest("#b-acts [data-tool]");
+      if (tb) { actsPick(tb.getAttribute("data-tool")); return; }
+      if (e.target.closest("#b-acts") || e.target.closest(".b-port")) return;
+      if (acts && Date.now() - (acts.at || 0) > 250) actsClose();      // (not the click that ends the drag that opened it)
+      var ne = e.target.closest(".b-node");
+      if (ne) {
+        var n = nodeById(ne.getAttribute("data-nid")), nb = e.target.closest("button");
+        if (!n || !nb) return;
+        if (nb.hasAttribute("data-nx")) nodeClose(n);
+        else if (nb.hasAttribute("data-nr")) nodeRun(n);
+        else if (n.busy) return;
+        else if (nb.hasAttribute("data-nv")) n.vars = +nb.getAttribute("data-nv");
+        else if (nb.hasAttribute("data-nl")) n.light = nb.getAttribute("data-nl");
+        else if (nb.hasAttribute("data-n3")) n.view = nb.getAttribute("data-n3");
+        else if (nb.hasAttribute("data-nh")) n.height = nb.getAttribute("data-nh");
+        else if (nb.hasAttribute("data-nu")) n.scale = nb.getAttribute("data-nu");
+        save(); renderNodes(); return;
+      }
       var mx = e.target.closest("#b-mix");
       if (mx) {
         var b2 = e.target.closest("[data-main],[data-x],[data-v]");
@@ -655,6 +916,20 @@
     });
     cv.addEventListener("pointerdown", function (e) {
       if (e.button !== 0 && e.button !== 1) return;
+      var pt = e.button === 0 && e.target.closest(".b-port");
+      if (pt) {                       // drag a line out of a tile: the tools open where you let go
+        e.preventDefault(); menu.hidden = true; actsClose();
+        var src = byId(pt.getAttribute("data-port")); if (!src) return;
+        portDrag = { t: src, sx: e.clientX, sy: e.clientY, moved: false, path: "" };
+        cv.setPointerCapture(e.pointerId); return;
+      }
+      var nh = e.button === 0 && e.target.closest(".bn-h");
+      if (nh && !e.target.closest("button")) {          // a tool window moves by its title
+        var nd = nodeById(nh.getAttribute("data-nh"));
+        if (nd) { drag = { node: nd, sx: e.clientX, sy: e.clientY, x: nd.x, y: nd.y, moved: false }; cv.setPointerCapture(e.pointerId); }
+        return;
+      }
+      if (e.target.closest(".b-node")) { menu.hidden = true; return; }      // typing and buttons in a tool window
       if (e.target.closest("button")) return;
       menu.hidden = true;
       var fh = e.button === 0 && e.target.closest(".b-fh");
@@ -685,7 +960,25 @@
       cv.setPointerCapture(e.pointerId);
     });
     cv.addEventListener("pointermove", function (e) {
+      if (portDrag) {
+        var qx = e.clientX - portDrag.sx, qy = e.clientY - portDrag.sy;
+        if (!portDrag.moved && Math.abs(qx) + Math.abs(qy) < 5) return;
+        portDrag.moved = true;
+        var rr = root.getBoundingClientRect(), vv = B.view, s0 = portDrag.t;
+        var ex = (e.clientX - rr.left - vv.x) / vv.z, ey = (e.clientY - rr.top - vv.y) / vv.z;
+        var p1 = s0.x + tileW(s0), q1 = s0.y + tileH(s0) / 2, pm = (p1 + ex) / 2;
+        portDrag.path = '<path class="on drag" d="M' + p1 + " " + q1 + " C" + pm + " " + q1 + "," + pm + " " + ey + "," + ex + " " + ey + '"/>';
+        portDrag.wx = ex; portDrag.wy = ey;
+        svgEl.innerHTML = linksSVG(); return;
+      }
       if (!drag) return;
+      if (drag.node) {
+        var ddx = e.clientX - drag.sx, ddy = e.clientY - drag.sy;
+        if (!drag.moved && Math.abs(ddx) + Math.abs(ddy) < 3) return;
+        drag.moved = true; drag.node.x = Math.round(drag.x + ddx / B.view.z); drag.node.y = Math.round(drag.y + ddy / B.view.z);
+        var ne2 = world.querySelector('.b-node[data-nid="' + drag.node.id + '"]'); if (ne2) { ne2.style.left = drag.node.x + "px"; ne2.style.top = drag.node.y + "px"; }
+        svgEl.innerHTML = linksSVG(); return;
+      }
       var dx = e.clientX - drag.sx, dy = e.clientY - drag.sy;
       if (!drag.moved && Math.abs(dx) + Math.abs(dy) < 4) return;
       drag.moved = true;
@@ -715,6 +1008,14 @@
       cv.classList.add("grab");
     });
     cv.addEventListener("pointerup", function (e) {
+      if (portDrag) {
+        var pd2 = portDrag; portDrag = null;
+        try { cv.releasePointerCapture(e.pointerId); } catch (x) {}
+        if (pd2.moved) { svgEl.innerHTML = linksSVG(); actsOpen(pd2.t, e.clientX, e.clientY, pd2.wx, pd2.wy - 22); }
+        else { B.sel = pd2.t.id; actsOpen(pd2.t, e.clientX + 14, e.clientY, null, null); }
+        return;
+      }
+      if (drag && drag.node) { if (drag.moved) save(); drag = null; try { cv.releasePointerCapture(e.pointerId); } catch (x) {} return; }
       if (drag && drag.box) {
         root.querySelector("#b-marq").hidden = true;
         if (multi.length === 1) { B.sel = multi[0]; multi = []; lastHTML = ""; render(); }
@@ -737,6 +1038,7 @@
     }, { passive: false });
     document.addEventListener("keydown", function (e) {
       if (VS().S.page !== "board") return;
+      if (e.key === "Escape" && acts) { actsClose(); return; }
       if (e.key === "Escape") { menu.hidden = true; var cmp = document.getElementById("b-compare"); if (cmp) cmp.remove(); else if (mix && !mix.busy) mixClose(); else clearMulti(); return; }
       var inText = /^(TEXTAREA|INPUT|SELECT)$/.test((document.activeElement || {}).tagName || "");
       if (inText) return;
