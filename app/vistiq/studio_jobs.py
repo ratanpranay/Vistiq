@@ -970,38 +970,14 @@ class Studio:
             else:
                 # Words: the picture reader spells out everything the change means in this picture
                 # (snow on the ground and on the truck, winter clothes…), the way a person would.
-                lk = job.get("locks") or {}
-                # Materials and view kept (a relight): the words go as written. The reader's fuller
-                # version once turned "soft overcast daylight" into winter light with snow (Nov 2026).
-                if (job.get("text") or "").strip() and not job.get("refine_of") and not (lk.get("materials") and lk.get("camera")):
-                    more = self._read(work_path, "edit", say, job.get("text"))
-                    if more and studio.adds_scene(job.get("text"), more):
-                        more = None
-                    if more:
-                        # The fuller instruction replaces the words; the result still shows yours.
-                        user_words = job.get("text")
-                        job = dict(job, text=more, said=user_words)
+                # Your words go as you wrote them (Nov 2026): the picture reader's "fuller" rewrite of them
+                # ("change material to forged carbon fiber" became "replace all tan leather ... keep the silver
+                # base") fought the selection and the model did something else.
                 text = studio.build_text(job.get("preset") or "", job.get("text"))
                 # Smart reading (Nov 2026): the picture reader says what the picture is and what the words ask
                 # for (render a sketch, relight, edit a part, new scene, new view, restyle); the prompt is built
                 # from that instead of matching words.
-                words_ = (job.get("said") or job.get("text") or "").strip()
-                im_ = ""
-                if words_ and not job.get("instant") and not refs:
-                    im_, task_ = studio.parse_intent(self._read(work_path, "intent", say, req=words_) or "")
-                    if task_ == "edit" and studio.material_edit(words_):
-                        task_ = "style"        # new materials only: a surface change, not a part edit (Nov 2026)
-                    if task_:
-                        lk = dict(job.get("locks") or {})
-                        if task_ == "view":
-                            lk["camera"] = False
-                        elif task_ == "style":
-                            lk["materials"] = False
-                            lk["light"] = False
-                        job = dict(job, task=task_, locks=lk if job.get("locks") is not None else job.get("locks"))
-                    if im_ in ("render", "photo") and (job.get("preset") or "") == "sketch":
-                        job = dict(job, preset="render")
-                        text = studio.build_text("render", job.get("text"))
+                im_ = ""      # what the picture is comes from the view read below (sketch or render)
                 # No picture reader (a Mac): a photo or CGI opened as a sketch is changed as what it is.
                 if (sys.platform == "darwin" and not im_ and (job.get("preset") or "") == "sketch" and not job.get("instant")
                         and studio.guess_medium(work_path) == "render"):

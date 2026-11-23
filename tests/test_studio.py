@@ -675,15 +675,6 @@ class Flux3(unittest.TestCase):
         t, _ = studio.qwen_refs("", [{"use": "style", "desc": "A photorealistic CGI render."}], {}, sketch=True)
         self.assertNotIn(studio.QE_NOT_PHOTO, t)
 
-    def test_qwen_night(self):
-        t = studio.qwen_text("Night time.", locks={})
-        self.assertIn("launch image", t)
-        self.assertNotIn("star", t)
-        self.assertNotIn("the lighting", t)
-        self.assertNotIn("launch image", studio.qwen_text("night with neon", locks={}))
-        self.assertIn("launch image", studio.qwen_text("starry night sky", locks={}, said="make it night"))
-        self.assertNotIn("starry", studio.qwen_text("starry night sky", locks={}, said="make it night"))
-        self.assertNotIn("launch image", studio.qwen_text("Golden hour.", locks={}))
 
     @unittest.skipIf(sys.platform == "darwin", "the Mac has its own image engine")
     def test_qwen_image_21(self):
@@ -883,9 +874,6 @@ class OutputSize(unittest.TestCase):
 
 
 class RelightHold(unittest.TestCase):
-    def test_relight_words_hold_parts(self):
-        t = studio.with_locks("cinematic golden hour sun", {"materials": True, "camera": True}, False)
-        self.assertIn("no new handles", t)
 
     def test_other_edits_free(self):
         t = studio.with_locks("make the seats sportier", {"materials": True, "camera": True}, False)
@@ -901,17 +889,8 @@ class OvercastNotSun(unittest.TestCase):
         self.assertTrue(studio.adds_scene("soft overcast daylight", "overcast winter light, add subtle snow on the seats"))
         self.assertFalse(studio.adds_scene("snowy mountain scene", "snow on the ground and the roof"))
 
-    def test_overcast_relight_holds_parts(self):
-        t = studio.with_locks("soft overcast daylight", {"materials": True, "camera": True}, False)
-        self.assertIn("no new handles", t)
 
 
-class RelightHoldQwen(unittest.TestCase):
-    def test_qwen_relight_holds_parts(self):
-        t = studio.qwen_text("soft overcast daylight", locks={"materials": True, "camera": True})
-        self.assertIn("no new handles", t)
-        t = studio.qwen_text("red leather seats", locks={"materials": False, "camera": True})
-        self.assertNotIn("no new handles", t)
 
 
 class NoNewParts(unittest.TestCase):
@@ -949,15 +928,7 @@ class TextureGate(unittest.TestCase):
 
 
 class SceneChange(unittest.TestCase):
-    def test_city_sunset_fog_no_sun_look(self):
-        t = studio.qwen_text("on a city road at sunset, foggy weather", locks={"materials": True, "camera": True})
-        self.assertNotIn("no haze or fog", t)
-        self.assertNotIn("Only the light changes", t)
-        self.assertIn("scene outside changes", t)
 
-    def test_relight_keeps_relight_rule(self):
-        t = studio.qwen_text("cinematic golden hour sun", locks={"materials": True, "camera": True})
-        self.assertIn("Only the light changes", t)
 
     def test_same_place_sees_new_scene_not_new_light(self):
         import random
@@ -1002,18 +973,6 @@ class OutputNames(unittest.TestCase):
         self.assertEqual(sj._strip_tags("999846_cabin_create_v1"), "cabin")
 
 
-class CleanUpWordsTest(unittest.TestCase):
-    def test_remove_lines_beats_the_relight_hold(self):
-        from vistiq import studio
-        t = studio.with_locks("soft overcast daylight, gentle even light. remove all sketch lines and texts.",
-                              {"materials": True, "camera": True}, False)
-        self.assertIn(studio.CLEAN_HOLD, t)
-        self.assertNotIn(studio.RELIGHT_HOLD, t)
-
-    def test_plain_relight_keeps_its_hold(self):
-        from vistiq import studio
-        t = studio.with_locks("soft overcast daylight, gentle even light", {"materials": True, "camera": True}, False)
-        self.assertIn(studio.RELIGHT_HOLD, t)
 
 
 class FollowWordsTest(unittest.TestCase):
@@ -1026,24 +985,7 @@ class FollowWordsTest(unittest.TestCase):
                   "do not change the design", "change the seats to red leather"]:
             self.assertFalse(studio.instructs(w), w)
 
-    def test_instruction_comes_before_the_keep_rules(self):
-        from vistiq import studio
-        t = studio.with_locks("add a phone on the charger", {"materials": True, "camera": True}, False)
-        self.assertTrue(t.startswith(studio.FOLLOW_FIRST))
-        # new materials: they replace the materials lock, but the parts stay
-        t = studio.with_locks("change the seats to red leather", {"materials": True, "camera": True}, False)
-        self.assertNotIn(studio.FOLLOW_FIRST, t)
-        self.assertNotIn(studio.LOCK_TEXT["materials"], t)
-        self.assertIn(studio.MATERIAL_HOLD, t)
-        t = studio.with_locks("soft overcast daylight", {"materials": True, "camera": True}, False)
-        self.assertNotIn(studio.FOLLOW_FIRST, t)
 
-    def test_qwen_text_follows_the_words(self):
-        from vistiq import studio
-        t = studio.qwen_text("soft overcast daylight. remove all sketch lines and texts", locks={"materials": True, "camera": True})
-        self.assertIn("Above all", t)
-        self.assertIn(studio.CLEAN_HOLD, t)
-        self.assertNotIn(studio.RELIGHT_HOLD, t)
 
 
 class MaterialRefineTest(unittest.TestCase):
@@ -1053,20 +995,6 @@ class MaterialRefineTest(unittest.TestCase):
              "wheel rim and center hub, piano black twin stalks with metallic buttons, subtle reflections, precise "
              "seams. do not change the design")
 
-    def test_wheel_keeps_its_design(self):
-        from vistiq import studio
-        self.assertFalse(studio.instructs(self.WHEEL))
-        self.assertTrue(studio.keeps_design(self.WHEEL))
-        self.assertTrue(studio.material_edit(self.WHEEL))
-        for sk in (True, False):
-            for task in ("", "edit", "style"):
-                t = studio.qwen_text(self.WHEEL, locks={"light": True, "camera": True}, sketch=sk, task=task)
-                self.assertNotIn("Above all", t, (sk, task))
-                self.assertIn(studio.MATERIAL_HOLD, t)
-                self.assertIn("Keep the design and every part", t)
-                w = studio.with_locks("x\n\n" + self.WHEEL, {"light": True, "camera": True}, sk, words=self.WHEEL, task=task)
-                self.assertNotIn(studio.FOLLOW_FIRST, w)
-                self.assertIn(studio.MATERIAL_HOLD, w)
 
     def test_negations_are_not_instructions(self):
         from vistiq import studio
@@ -1079,12 +1007,45 @@ class MaterialRefineTest(unittest.TestCase):
         self.assertTrue(studio.follows("add a cup holder but keep the design"))
         self.assertFalse(studio.follows("make it red, keep the design", "edit"))
 
-    def test_part_edits_still_win(self):
+
+
+class DirectWordsTest(unittest.TestCase):
+    # Nov 2026: the words go to the model as written, with one short line per Keep lock.
+    def test_words_as_written(self):
         from vistiq import studio
-        t = studio.qwen_text("remove all sketch lines and texts", locks={"materials": True, "camera": True})
-        self.assertIn("Above all", t)
-        self.assertNotIn(studio.MATERIAL_HOLD, t)
-        self.assertIn("holds everything", t)
+        t = studio.qwen_text("change material to forged carbon fiber", locks={"camera": True, "materials": True})
+        self.assertTrue(t.startswith("change material to forged carbon fiber."))
+        self.assertNotIn("Above all", t)
+        self.assertNotIn("Keep the materials", t)          # the words ask for new materials
+        self.assertIn("Keep the camera view.", t)
+        self.assertLess(len(t), 140)
+
+    def test_sketch_and_parts(self):
+        from vistiq import studio
+        t = studio.qwen_text("add a cup holder", locks={"camera": True}, sketch=True)
+        self.assertTrue(t.startswith("Turn this sketch into a photorealistic render. add a cup holder."))
+        self.assertIn("Keep everything else as drawn.", t)
+        t = studio.qwen_text(MaterialRefineTest.WHEEL, locks={"camera": True, "light": True}, sketch=True)
+        self.assertIn("Keep the design as drawn.", t)
+        self.assertIn("Keep the lighting.", t)
+
+    def test_light_words_free_the_light_lock(self):
+        from vistiq import studio
+        t = studio.qwen_text("night scene, headlights on", locks={"light": True, "camera": True})
+        self.assertNotIn("Keep the lighting", t)
+
+    def test_said_words_win_over_any_rewrite(self):
+        from vistiq import studio
+        t = studio.qwen_text("a long rewrite by the reader", said="make it red", locks={"camera": True})
+        self.assertTrue(t.startswith("make it red."))
+        self.assertNotIn("rewrite", t)
+
+    def test_with_locks_short(self):
+        from vistiq import studio
+        t = studio.with_locks("add a phone on the charger", {"design": True, "materials": True, "camera": True}, False)
+        self.assertNotIn(studio.LOCK_TEXT["design"], t)     # adding a part changes the design, as asked
+        self.assertNotIn(studio.FOLLOW_FIRST, t)
+        self.assertIn(studio.LOCK_TEXT["camera"], t)
 
 
 class SnapAndMediumTest(unittest.TestCase):
@@ -1139,12 +1100,3 @@ class IntentTest(unittest.TestCase):
         self.assertEqual(studio.parse_intent("medium = sketch ; task = render."), ("sketch", "render"))
         self.assertEqual(studio.parse_intent("no idea"), ("", ""))
 
-    def test_task_beats_word_matching(self):
-        # "golden" alone would be a relight; the reader says it's an edit -> the instruction wins
-        t = studio.with_locks("golden buttons on the jacket", {"materials": True, "camera": True}, False, task="edit")
-        self.assertTrue(t.startswith(studio.FOLLOW_FIRST))
-        self.assertNotIn(studio.RELIGHT_HOLD, t)
-        t = studio.with_locks("make it feel calm", {"materials": True, "camera": True}, False, task="relight")
-        self.assertIn(studio.RELIGHT_HOLD, t)
-        t = studio.qwen_text("put it in the alps", locks={"materials": True, "camera": True}, task="scene")
-        self.assertIn(studio.SCENE_HOLD, t)

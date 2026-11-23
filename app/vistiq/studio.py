@@ -1016,58 +1016,42 @@ def qwen_text(words, instant=False, scene="", locks=None, ref_head="", sketch=Fa
             parts.append("{JUICE_EXT}" if ext else "{JUICE_INT}")      # one look per render (see juice_pick)
         parts.append(QE_KEEP_DRAWN)
     else:
-        if ref_head:
-            parts.append(ref_head)
-        if sketch and not ref_head:
-            parts.append("Turn this sketch into a photorealistic render.")
-        night = night_clause(said if said is not None else words, kind)
-        if said and (night or locks.get("camera") is False):
-            # the reader's rewrite keeps the camera and adds starry skies: use the person's words
+        # Your words, as you wrote them (Nov 2026). Studio used to wrap them in rules (follow-first,
+        # clean-up, relight, scene holds) and let the picture reader rewrite them; the rules fought each
+        # other and the model did random things. Qwen follows plain words very well (as in ComfyUI), so
+        # only a short line per Keep lock goes with them.
+        if said:
             words = " ".join(clean_prompt(said).split())
             if words[-1:] not in ".!?":
                 words += "."
+        if ref_head:
+            parts.append(ref_head)
+        if sketch and not ref_head:
+            parts.append("Turn this sketch into a photorealistic render." if words else
+                         "Turn this sketch into a photorealistic render of exactly the design drawn.")
         if words:
             parts.append(words)
-            if follows(said if said is not None else words, task):
-                parts.append(FOLLOW_FIRST.replace("the rules below", "the rest of this").replace("The rules below hold", "The rest of this holds"))
-        if night:
-            parts.append(night)
-            locks["light"] = False
-        sun = sun_clause(said if said is not None else words, kind)
-        if sun:
-            parts.append(sun)
-            locks["light"] = False
-        if material_edit(said if said is not None else words):
-            locks["materials"] = False              # the words ask for new materials: they win over the lock
-        keep = []
-        if locks.get("design", True):
-            keep.append("the design and every part")
-        if locks.get("materials") and not sketch:
-            keep.append("the materials and colours")
-        if locks.get("light"):
-            keep.append("the lighting")
-        if locks.get("camera", True):
-            keep.append("the camera view")
-        if keep and not ref_head:
-            parts.append("Keep " + ", ".join(keep[:-1]) + (" and " if len(keep) > 1 else "") + keep[-1] + " exactly as they are.")
-        lw = said if said is not None else words
-        if material_edit(lw) and task != "view" and not ref_head:
-            parts.append(MATERIAL_HOLD)     # new materials on a steering wheel redesigned it (Nov 2026)
-        elif not sketch and not ref_head and locks.get("materials") and locks.get("camera", True):
-            if task in ("edit", "style", "view") or (not task and (CLEAN_WORDS.search(_asked(lw)) or instructs(lw))):
-                parts.append(CLEAN_HOLD)
-            elif task == "scene" or (not task and PLACE_WORDS.search(lw)):
-                parts.append(SCENE_HOLD)
-            elif task == "relight":
-                parts.append(RELIGHT_HOLD)
-            elif SUN_WORDS.search(lw) or NIGHT_WORDS.search(lw) or SOFT_WORDS.search(lw):
-                parts.append(RELIGHT_HOLD)     # a relight added a glovebox handle that was never there (Nov 2026)
-        if camera and locks.get("camera", True) and not ref_head:
-            parts.append(camera)          # a night change turned a head-on view into a three-quarter (Nov 2026)
-        elif not locks.get("camera", True) and not ref_head:
-            pass
+        parts += keep_lines(locks, sketch, said if said is not None else words, bool(ref_head))
+        return " ".join(parts)
     parts.append(QE_CLEAN)
     return " ".join(parts)
+
+
+def keep_lines(locks, sketch, words, has_ref=False):
+    """One short line for each Keep lock that is on (and that the words don't ask to change)."""
+    locks = locks or {}
+    out = []
+    if not has_ref:
+        part = PART_ACTION.search(_asked(words or ""))
+        out.append(("Keep everything else as drawn." if part else "Keep the design as drawn.") if sketch
+                   else "Keep everything else exactly as it is.")
+    if locks.get("materials") and not sketch and not material_edit(words):
+        out.append("Keep the materials and colours.")
+    if locks.get("light") and not (night_clause(words) or sun_clause(words)):
+        out.append("Keep the lighting.")
+    if locks.get("camera", True) and not has_ref:
+        out.append("Keep the camera view.")
+    return out
 
 
 def _have(key, settings):
@@ -2267,28 +2251,14 @@ def with_locks(text, locks, sketch, words=None, task=""):
         if not locks.get("materials") and COLOUR_WORDS.search(text.split("\n\n", 1)[-1] or ""):
             rules.append(SKETCH_RECOLOUR)
     else:
+        # Only the Keep locks, short (Nov 2026): the words themselves carry the change.
         if material_edit(said):
             locks = dict(locks, materials=False)    # the words ask for new materials: they win over the lock
+        if night_clause(said) or sun_clause(said):
+            locks = dict(locks, light=False)
+        if PART_ACTION.search(_asked(said)):
+            locks = dict(locks, design=False)       # adding or removing a part changes the design, as asked
         rules = [LOCK_TEXT[k] for k in ("design", "materials", "light", "camera") if locks.get(k)]
-        free = [k for k in ("design", "materials", "light", "camera") if not locks.get(k)]
-        if material_edit(said) and task != "view":
-            rules.append(MATERIAL_HOLD)
-        elif not locks.get("design") and locks.get("materials") and locks.get("camera"):
-            # The reader's answer decides when there is one; else the words do.
-            if task in ("edit", "style", "view") or (not task and (CLEAN_WORDS.search(_asked(said)) or instructs(said))):
-                rules.append(CLEAN_HOLD)
-            elif task == "scene" or (not task and PLACE_WORDS.search(text)):
-                rules.append(SCENE_HOLD)
-            elif task == "relight":
-                rules.append(RELIGHT_HOLD)
-            elif SUN_WORDS.search(text) or NIGHT_WORDS.search(text) or SOFT_WORDS.search(text):
-                rules.append(RELIGHT_HOLD)
-        if free:
-            rules.append("Change only what the instructions below describe.")
-    if sketch and material_edit(said) and MATERIAL_HOLD not in rules:
-        rules.append(MATERIAL_HOLD)
-    if rules and follows(said, task):   # the person's own words
-        rules.insert(0, FOLLOW_FIRST)        # the person's instruction wins over every keep rule
     return ("\n".join(rules) + "\n\n" + text) if rules else text
 
 

@@ -1021,7 +1021,9 @@
     // Words on a result in view work on that result (sketch → Instant render → "night" on the render);
     // click Original first to start again from your picture.
     var cur = id === "c" && !extra ? current(p) : null;
-    if (cur && !p.viewing && (p.text || "").trim()) {
+    // What you see is what changes (Nov 2026): a selection drawn on a result, or words, change that
+    // result, also when its own words are still in the box. (A selection on the result ran on the sketch.)
+    if (cur && ((p.text || "").trim() || j.mask)) {
       j.image = cur.path; j.name = cur.name || j.name; j.live_app = ""; j.preset = "photo"; j.from_result = true;
       delete j.layers; delete j.instant;
       j.locks = Object.assign(defaultLocks(cur), { design: true, camera: (j.locks || {}).camera !== false });
