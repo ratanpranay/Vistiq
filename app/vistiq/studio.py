@@ -1028,8 +1028,8 @@ def qwen_text(words, instant=False, scene="", locks=None, ref_head="", sketch=Fa
                 words += "."
         if words:
             parts.append(words)
-            if task in ("edit", "style", "view") or (not task and instructs(said if said is not None else words)):
-                parts.append(FOLLOW_FIRST.replace("the rules below", "the rest of this").replace("The rules below", "The rest of this"))
+            if follows(said if said is not None else words, task):
+                parts.append(FOLLOW_FIRST.replace("the rules below", "the rest of this").replace("The rules below hold", "The rest of this holds"))
         if night:
             parts.append(night)
             locks["light"] = False
@@ -1037,6 +1037,8 @@ def qwen_text(words, instant=False, scene="", locks=None, ref_head="", sketch=Fa
         if sun:
             parts.append(sun)
             locks["light"] = False
+        if material_edit(said if said is not None else words):
+            locks["materials"] = False              # the words ask for new materials: they win over the lock
         keep = []
         if locks.get("design", True):
             keep.append("the design and every part")
@@ -1049,8 +1051,10 @@ def qwen_text(words, instant=False, scene="", locks=None, ref_head="", sketch=Fa
         if keep and not ref_head:
             parts.append("Keep " + ", ".join(keep[:-1]) + (" and " if len(keep) > 1 else "") + keep[-1] + " exactly as they are.")
         lw = said if said is not None else words
-        if not sketch and not ref_head and locks.get("materials") and locks.get("camera", True):
-            if task in ("edit", "style", "view") or (not task and (CLEAN_WORDS.search(lw) or instructs(lw))):
+        if material_edit(lw) and task != "view" and not ref_head:
+            parts.append(MATERIAL_HOLD)     # new materials on a steering wheel redesigned it (Nov 2026)
+        elif not sketch and not ref_head and locks.get("materials") and locks.get("camera", True):
+            if task in ("edit", "style", "view") or (not task and (CLEAN_WORDS.search(_asked(lw)) or instructs(lw))):
                 parts.append(CLEAN_HOLD)
             elif task == "scene" or (not task and PLACE_WORDS.search(lw)):
                 parts.append(SCENE_HOLD)
@@ -2160,8 +2164,8 @@ ACTION_WORDS = re.compile(r"\b(remove\w*|eras\w*|clean\w*|delete\w*|get rid|with
                           r"replace\w*|swap\w*|change\w*|recolou?r\w*|paint\w*|turn \w+ into|convert\w*)\b|"
                           r"\bno (sketch|pencil|lines?|texts?|labels?|annotations?|writing|words|notes?|arrows?|callouts?)\b",
                           re.I)
-FOLLOW_FIRST = ("Above all, do exactly what the instructions say, fully, even where it changes a part, material, colour "
-                "or line that the rules below would keep. The rules below only hold what the instructions don't mention.")
+FOLLOW_FIRST = ("Above all, do exactly what the instructions say, fully, even where that changes something the rules "
+                "below would keep. The rules below hold everything the instructions don't name.")
 
 
 def PRESET_LINES():
@@ -2179,9 +2183,60 @@ def PRESET_LINES():
     return out
 
 
+# "do not change the design", "without altering the shape", "keep the design": a request NOT to change
+# something. Counted as an instruction, it let the model redesign a steering wheel (Nov 2026).
+KEEP_DESIGN = re.compile(r"\b(?:(?:do\s*n[o']?t|don'?t|never|without|no|not)\s+(?:\w+\s+){0,2}?"
+                         r"(?:chang\w*|alter\w*|modif\w*|touch\w*|redesign\w*|reshap\w*|mov\w*|edit\w*)"
+                         r"|(?:keep|maintain|preserve|retain)\s+(?:\w+\s+){0,2}?(?:design|shapes?|forms?|geometry|"
+                         r"proportions?|lines|silhouette|everything))\b[^.,;:!?]*", re.I)
+# Words about surfaces only: materials, colours, finishes.
+MAT_WORDS = re.compile(r"\b(materials?|cmf|leather|nappa|alcantara|suede|fabric|textile|wool|felt|wood\w*|veneer|"
+                       r"walnut|oak|chrome|alumin\w*|brushed|metal\w*|steel|titanium|piano black|gloss\w*|matte?|"
+                       r"satin|carbon|stitch\w*|seams?|perforat\w*|knurl\w*|textures?|finish\w*|colou?r\w*|"
+                       r"trim|reflections?|paint\w*)\b", re.I)
+# Changes to parts (not surfaces): these still win over every keep rule.
+PART_ACTION = re.compile(r"\b(remove\w*|eras\w*|clean\w*|delete\w*|get rid|add(?!\s+no\b)|adding|insert\w*|"
+                         r"turn \w+ into|convert\w*|reshap\w*|redesign\w*|make (it|them|the \w+) (wider|narrower|"
+                         r"thinner|thicker|bigger|smaller|longer|shorter|round\w*|square\w*))\b|"
+                         r"\bno (sketch|pencil|lines?|texts?|labels?|annotations?|writing|words|notes?|arrows?|callouts?)\b",
+                         re.I)
+MATERIAL_HOLD = ("Only the surfaces change: put the described materials, colours and finishes on the parts that are "
+                 "already there. Do not add, remove or reshape any part - no new hub, airbag, spokes, buttons, logos, "
+                 "vents or trim pieces; where the words name a part the picture doesn't show, leave it out rather than "
+                 "invent it. Every outline, opening and proportion stays exactly as it is.")
+
+
+def _asked(words):
+    """The words with every 'don't change / keep ...' clause taken out."""
+    return KEEP_DESIGN.sub(" ", words or "")
+
+
+def keeps_design(words):
+    """Do the words say the design must not change?"""
+    return bool(KEEP_DESIGN.search(words or ""))
+
+
+def material_edit(words):
+    """Only materials, colours or finishes asked for (no part added, removed or reshaped)?"""
+    w = _asked(words)
+    return bool(MAT_WORDS.search(w)) and not PART_ACTION.search(w)
+
+
+def follows(words, task=""):
+    """Does the person's instruction come before every keep rule? Not for 'keep the design' or a change
+    of materials only, even when the reader called it an edit: the keep rules are what they want."""
+    if task == "view" or PART_ACTION.search(_asked(words)):
+        return True
+    if keeps_design(words) or material_edit(words):
+        return False
+    return task in ("edit", "style") or (not task and instructs(words))
+
+
 def instructs(words):
-    """Do these words ask for a change of their own (add, remove, replace, clean up...)?"""
-    return bool(ACTION_WORDS.search(words or ""))
+    """Do these words ask for a change of their own (add, remove, replace, clean up...)?
+    'Do not change the design' is not one, and nor is a change of materials only."""
+    w = _asked(words)
+    return bool(ACTION_WORDS.search(w)) and not material_edit(words)
 RELIGHT_HOLD = ("Only the light changes: do not add, remove or reshape any part - no new handles, buttons, vents, "
                 "seams, panel lines, stitching or logos; every panel and surface keeps its exact shape and detail.")
 SKETCH_LOCK_TEXT = {
@@ -2212,11 +2267,15 @@ def with_locks(text, locks, sketch, words=None, task=""):
         if not locks.get("materials") and COLOUR_WORDS.search(text.split("\n\n", 1)[-1] or ""):
             rules.append(SKETCH_RECOLOUR)
     else:
+        if material_edit(said):
+            locks = dict(locks, materials=False)    # the words ask for new materials: they win over the lock
         rules = [LOCK_TEXT[k] for k in ("design", "materials", "light", "camera") if locks.get(k)]
         free = [k for k in ("design", "materials", "light", "camera") if not locks.get(k)]
-        if not locks.get("design") and locks.get("materials") and locks.get("camera"):
+        if material_edit(said) and task != "view":
+            rules.append(MATERIAL_HOLD)
+        elif not locks.get("design") and locks.get("materials") and locks.get("camera"):
             # The reader's answer decides when there is one; else the words do.
-            if task in ("edit", "style", "view") or (not task and (CLEAN_WORDS.search(said) or instructs(said))):
+            if task in ("edit", "style", "view") or (not task and (CLEAN_WORDS.search(_asked(said)) or instructs(said))):
                 rules.append(CLEAN_HOLD)
             elif task == "scene" or (not task and PLACE_WORDS.search(text)):
                 rules.append(SCENE_HOLD)
@@ -2226,7 +2285,9 @@ def with_locks(text, locks, sketch, words=None, task=""):
                 rules.append(RELIGHT_HOLD)
         if free:
             rules.append("Change only what the instructions below describe.")
-    if rules and (task in ("edit", "style", "view") or (not task and instructs(said))):   # the person's own words
+    if sketch and material_edit(said) and MATERIAL_HOLD not in rules:
+        rules.append(MATERIAL_HOLD)
+    if rules and follows(said, task):   # the person's own words
         rules.insert(0, FOLLOW_FIRST)        # the person's instruction wins over every keep rule
     return ("\n".join(rules) + "\n\n" + text) if rules else text
 

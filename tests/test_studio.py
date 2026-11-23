@@ -1019,16 +1019,22 @@ class CleanUpWordsTest(unittest.TestCase):
 class FollowWordsTest(unittest.TestCase):
     def test_action_words(self):
         from vistiq import studio
-        for w in ["remove all sketch lines", "add a phone on the charger", "change the seats to red leather",
+        for w in ["remove all sketch lines", "add a phone on the charger",
                   "replace the wheels with bronze ones", "no labels or text", "clean up the lines"]:
             self.assertTrue(studio.instructs(w), w)
-        for w in ["soft overcast daylight", "golden hour sun", "Add no logos or badges", "studio light, dark background"]:
+        for w in ["soft overcast daylight", "golden hour sun", "Add no logos or badges", "studio light, dark background",
+                  "do not change the design", "change the seats to red leather"]:
             self.assertFalse(studio.instructs(w), w)
 
     def test_instruction_comes_before_the_keep_rules(self):
         from vistiq import studio
-        t = studio.with_locks("change the seats to red leather", {"materials": True, "camera": True}, False)
+        t = studio.with_locks("add a phone on the charger", {"materials": True, "camera": True}, False)
         self.assertTrue(t.startswith(studio.FOLLOW_FIRST))
+        # new materials: they replace the materials lock, but the parts stay
+        t = studio.with_locks("change the seats to red leather", {"materials": True, "camera": True}, False)
+        self.assertNotIn(studio.FOLLOW_FIRST, t)
+        self.assertNotIn(studio.LOCK_TEXT["materials"], t)
+        self.assertIn(studio.MATERIAL_HOLD, t)
         t = studio.with_locks("soft overcast daylight", {"materials": True, "camera": True}, False)
         self.assertNotIn(studio.FOLLOW_FIRST, t)
 
@@ -1038,6 +1044,47 @@ class FollowWordsTest(unittest.TestCase):
         self.assertIn("Above all", t)
         self.assertIn(studio.CLEAN_HOLD, t)
         self.assertNotIn(studio.RELIGHT_HOLD, t)
+
+
+class MaterialRefineTest(unittest.TestCase):
+    # Nov 2026: "apply premium materials ... do not change the design" redesigned a steering wheel: "change"
+    # counted as an instruction, so "do what the words say, even where it changes a part" came first.
+    WHEEL = ("apply premium materials on this steering wheel design: fine nappa leather textures on the steering "
+             "wheel rim and center hub, piano black twin stalks with metallic buttons, subtle reflections, precise "
+             "seams. do not change the design")
+
+    def test_wheel_keeps_its_design(self):
+        from vistiq import studio
+        self.assertFalse(studio.instructs(self.WHEEL))
+        self.assertTrue(studio.keeps_design(self.WHEEL))
+        self.assertTrue(studio.material_edit(self.WHEEL))
+        for sk in (True, False):
+            for task in ("", "edit", "style"):
+                t = studio.qwen_text(self.WHEEL, locks={"light": True, "camera": True}, sketch=sk, task=task)
+                self.assertNotIn("Above all", t, (sk, task))
+                self.assertIn(studio.MATERIAL_HOLD, t)
+                self.assertIn("Keep the design and every part", t)
+                w = studio.with_locks("x\n\n" + self.WHEEL, {"light": True, "camera": True}, sk, words=self.WHEEL, task=task)
+                self.assertNotIn(studio.FOLLOW_FIRST, w)
+                self.assertIn(studio.MATERIAL_HOLD, w)
+
+    def test_negations_are_not_instructions(self):
+        from vistiq import studio
+        for w in ["don't change anything else", "without altering the shape", "keep the design, dark background",
+                  "never modify the steering wheel"]:
+            self.assertFalse(studio.instructs(w), w)
+        # but a real instruction next to one still counts
+        self.assertTrue(studio.instructs("remove the sketch lines, do not change the design"))
+        self.assertTrue(studio.instructs("add a cup holder but keep the design"))
+        self.assertTrue(studio.follows("add a cup holder but keep the design"))
+        self.assertFalse(studio.follows("make it red, keep the design", "edit"))
+
+    def test_part_edits_still_win(self):
+        from vistiq import studio
+        t = studio.qwen_text("remove all sketch lines and texts", locks={"materials": True, "camera": True})
+        self.assertIn("Above all", t)
+        self.assertNotIn(studio.MATERIAL_HOLD, t)
+        self.assertIn("holds everything", t)
 
 
 class SnapAndMediumTest(unittest.TestCase):

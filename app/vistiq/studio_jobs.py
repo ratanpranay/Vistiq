@@ -989,6 +989,8 @@ class Studio:
                 im_ = ""
                 if words_ and not job.get("instant") and not refs:
                     im_, task_ = studio.parse_intent(self._read(work_path, "intent", say, req=words_) or "")
+                    if task_ == "edit" and studio.material_edit(words_):
+                        task_ = "style"        # new materials only: a surface change, not a part edit (Nov 2026)
                     if task_:
                         lk = dict(job.get("locks") or {})
                         if task_ == "view":
@@ -1318,6 +1320,7 @@ class Studio:
                         # an instruction of its own (remove lines, add a part, change a colour) is never undone by
                         # copying the original back (Nov 2026)
                         and not studio.instructs(job.get("said") or job.get("text") or "")
+                        and not studio.material_edit(job.get("said") or job.get("text") or "")
                         and job.get("task") not in ("edit", "style", "view")):
                     try:
                         model_pic = result
