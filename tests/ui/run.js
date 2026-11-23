@@ -322,11 +322,11 @@ const frame = (n, name) => ({ path: "live://photoshop/" + n, name: name || "flat
     await p.ev("studio-result", { id: "j1", index: 1, of: 2, result: { path: "C:/o/g2.png", name: "g2.png", w: 1600, h: 900, preview: img } });
     await p.ev("studio-job", { id: "j1", state: "done" }); await p.waitForTimeout(800);
     const st = await p.evaluate(() => { const B = window.VSBoard._state(), n = B.nodes[0]; return { n, res: B.tiles.filter((t) => t.via === n.id).map((t) => [t.x, t.y]) }; });
-    check("results land at the end of the window's line, one under the other", st.res.length === 2 && st.res[0][0] > st.n.x && st.res[1][1] > st.res[0][1], JSON.stringify(st));
+    check("results land in a row to the right of the window", st.res.length === 2 && st.res[0][0] > st.n.x && st.res[1][0] > st.res[0][0] && st.res[1][1] === st.res[0][1], JSON.stringify(st));
     check("the window is free again: Refine again", await p.evaluate(() => /again/.test(document.querySelector(".b-node [data-nr]").textContent) && !document.querySelector(".b-node [data-nr]").disabled),
       await p.evaluate(() => document.querySelector(".b-node").outerHTML.slice(0, 300)));
     if (process.env.NSHOT) await p.screenshot({ path: "/tmp/claude-0/-home-claude/dcd924c8-68bd-54b8-af15-65d2e5e10346/scratchpad/board_nodes.png" });
-    check("lines: tile → window → 2 results", await p.evaluate(() => document.querySelectorAll("#b-links path.on").length) === 3, "");
+    check("lines: tile → window → its results (one line)", await p.evaluate(() => document.querySelectorAll("#b-links path.on").length) === 2, "");
     // Right-click a result → 3D views: same kind of window, chained.
     const rid = await p.evaluate(() => window.VSBoard._state().tiles.find((t) => t.path === "C:/o/g2.png").id);
     await p.click('.b-tile[data-id="' + rid + '"]', { button: "right" }); await p.waitForTimeout(80);

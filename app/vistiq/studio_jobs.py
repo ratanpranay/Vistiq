@@ -1132,7 +1132,8 @@ class Studio:
                 vary = studio.light_texts(job["light"], kind_l, n, start=int(time.time()) % 6, more=job.get("light_more") or "")
                 log.info("create %s: relight %s (%s)", job_id, job["light"], kind_l or "kind unknown")
                 job = dict(job, text=vary[0], said=vary[0], light_vary=vary, preset="photo")
-            job = dict(job, text=self._condense(job.get("preset") or "", job.get("text") or ""))
+            if not job.get("light_vary"):         # (Studio's own relight wording is never shortened)
+                job = dict(job, text=self._condense(job.get("preset") or "", job.get("text") or ""))
             if mode == "reference":
                 ref_path = os.path.join(tmp_dir, "ref_%s.png" % job_id)
                 load_rgb(job["reference"]).save(ref_path, "PNG", compress_level=1)

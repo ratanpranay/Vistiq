@@ -2384,14 +2384,21 @@ LIGHT_PRESETS = {
     "city": {"interior": "dusk in the city, city lights outside the windows, colourful reflections on glossy surfaces, soft ambient cabin light",
              "exterior": "cityscape at dusk, city lights and neon reflected in the paint and glass, glowing wet street",
              "any": "city lights at dusk, colourful reflections on glossy surfaces, soft ambient glow"},
-    "night": {"interior": "night, dark outside the windows, soft ambient interior lighting, glowing ambient light strips and displays, warm pools of light on the seats",
+    "night": {"interior": "night, dark cabin and dark outside the windows, no direct light and no lamps: only soft indirect ambient "
+                          "lighting, thin glowing light strips along the doors, dashboard and footwells, their coloured glow bouncing "
+                          "softly off the nearby surfaces, displays glowing, deep soft shadows",
               "exterior": "night, dark surroundings, headlights and tail lights switched on and glowing, street lights bouncing off the paint, crisp reflections",
-              "any": "night, dark surroundings, soft ambient lights glowing, warm pools of light, crisp reflections"},
+              "any": "night, dark surroundings, no direct light: only a soft indirect glow bouncing off the surfaces, deep soft shadows"},
 }
 LIGHT_DIRS = ["the main light comes from the left", "the main light comes from the right",
               "back-lit, the main light comes from behind", "the main light comes from the front at a low angle",
               "the main light comes from high above", "low raking light from the side"]
 LIGHT_MOODS = ["soft", "strong, high contrast", "gentle", "dramatic"]
+# Night inside a car has no main light: the variety is the ambient colour and what is outside the windows.
+NIGHT_AMBIENT = ["cool blue ambient glow", "warm amber ambient glow", "soft red ambient glow", "soft white ambient glow, a deep blue dusk sky outside",
+                 "purple ambient glow", "warm amber ambient glow, a fading orange dusk on the horizon"]
+KEEP_FINISH = ("Every material keeps its own finish: fabric stays matte fabric, leather stays leather, matte stays matte; "
+               "no added gloss, shine or wet look.")
 
 
 def light_texts(key, kind, n, start=0, more=""):
@@ -2402,10 +2409,12 @@ def light_texts(key, kind, n, start=0, more=""):
     more = " ".join((more or "").split()).rstrip(".")
     out = []
     for i in range(max(1, n)):
-        d = LIGHT_DIRS[(start + i) % len(LIGHT_DIRS)]
-        m = LIGHT_MOODS[(start + i * 3) % len(LIGHT_MOODS)]
-        out.append("Relight the picture: %s; %s, %s light and shadows.%s Change only the lighting; keep the shapes, "
-                   "materials, colours and camera exactly the same." % (base, d, m, (" " + more + ".") if more else ""))
+        if key == "night" and kind != "exterior":
+            how = NIGHT_AMBIENT[(start + i) % len(NIGHT_AMBIENT)]
+        else:
+            how = "%s, %s light and shadows" % (LIGHT_DIRS[(start + i) % len(LIGHT_DIRS)], LIGHT_MOODS[(start + i * 3) % len(LIGHT_MOODS)])
+        out.append("Relight the picture: %s; %s.%s Change only the lighting; keep the shapes, materials, colours and camera "
+                   "exactly the same. %s" % (base, how, (" " + more + ".") if more else "", KEEP_FINISH))
     return out
 
 

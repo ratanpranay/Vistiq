@@ -159,6 +159,8 @@
     B.tiles.forEach(function (t) {
       var nv = t.via && nodeById(t.via);
       if (nv) {
+        var firstOf = B.tiles.filter(function (k) { return k.via === nv.id; })[0];
+        if (firstOf !== t) return;
         var a1 = nv.x + NODE_W, b1 = nv.y + 22, a2 = t.x, b2 = t.y + tileH(t) / 2, am = (a1 + a2) / 2;
         d += '<path class="on" d="M' + a1 + " " + b1 + " C" + am + " " + b1 + "," + am + " " + b2 + "," + a2 + " " + b2 + '"/>';
         return;
@@ -573,14 +575,17 @@
     var el = (Date.now() - p.started) / 1000;
     return p.estimate ? (p.estimate > el ? " · about " + mmss(p.estimate - el) + " left" : " · almost done") : " · " + mmss(el);
   }
+  // A window's pictures sit in rows of 4 to its right (1 2 3 4, then 5 6 7 8 below), Nov 2026.
+  function slot(n, i) {
+    var src = byId(n.from), w = src ? tileW(src) : W, h = src ? tileH(src) : PH + 30;
+    return { x: n.x + NODE_W + 70 + (i % 4) * (w + 30), y: n.y + Math.floor(i / 4) * (h + 30), w: w, h: h - 30 };
+  }
   // Where the pictures of a run will land: a placeholder each, at the end of the line, until they come.
   function ghosts(n) {
     if (!n.busy) return [];
     var want = n.kind === "upscale" || n.kind === "3d" ? 1 : (n.vars || 1), got = n.got || 0, out = [];
-    var mine = B.tiles.filter(function (k) { return k.via === n.id; });
-    var y = mine.length ? Math.max.apply(null, mine.map(function (k) { return k.y + tileH(k); })) + 24 : n.y;
-    var src = byId(n.from), h = src ? shape(src)[1] : PH, w = src ? tileW(src) : W;
-    for (var i = got; i < want; i++) { out.push({ x: n.x + NODE_W + 70, y: y, w: w, h: h, first: i === got }); y += h + 30 + 24; }
+    var k0 = B.tiles.filter(function (k) { return k.via === n.id; }).length;
+    for (var i = got; i < want; i++) { var g = slot(n, k0 + i - got); g.first = i === got; out.push(g); }
     return out;
   }
   function renderNodes() {
@@ -615,10 +620,11 @@
       var p = byId(n.from); if (!p) return;
       var x1 = p.x + tileW(p), y1 = p.y + tileH(p) / 2, x2 = n.x, y2 = n.y + 22, mx = (x1 + x2) / 2;
       d += '<path class="on" d="M' + x1 + " " + y1 + " C" + mx + " " + y1 + "," + mx + " " + y2 + "," + x2 + " " + y2 + '"/>';
-      ghosts(n).forEach(function (g) {
-        var a1 = n.x + NODE_W, b1 = n.y + 22, a2 = g.x, b2 = g.y + (g.h + 30) / 2, am = (a1 + a2) / 2;
+      var g0 = ghosts(n)[0];
+      if (g0 && !B.tiles.some(function (k) { return k.via === n.id; })) {
+        var a1 = n.x + NODE_W, b1 = n.y + 22, a2 = g0.x, b2 = g0.y + (g0.h + 30) / 2, am = (a1 + a2) / 2;
         d += '<path class="on drag" d="M' + a1 + " " + b1 + " C" + am + " " + b1 + "," + am + " " + b2 + "," + a2 + " " + b2 + '"/>';
-      });
+      }
     });
     // The line you dragged out stays while you pick a tool.
     var at = acts && acts.x != null && byId(acts.from);
@@ -660,9 +666,8 @@
     if (!res || !res.path || has(res.path)) return;
     var src = byId(n.from);
     var t = { id: uid(), kind: "result", path: res.path, name: res.name, w: res.w, h: res.h, from: src ? src.id : null, via: n.id, made: Date.now() };
-    var mine = B.tiles.filter(function (k) { return k.via === n.id; });
-    var y = mine.length ? Math.max.apply(null, mine.map(function (k) { return k.y + tileH(k); })) + 24 : n.y;
-    t.x = n.x + NODE_W + 70; t.y = y;
+    var g = slot(n, B.tiles.filter(function (k) { return k.via === n.id; }).length);
+    t.x = g.x; t.y = g.y;
     if (res.preview) thumbs[t.path] = res.preview;
     B.tiles.push(t); n.made = (n.made || 0) + 1; n.got = (n.got || 0) + 1; save(); render(); show(t);
   }
