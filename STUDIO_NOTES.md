@@ -1,5 +1,11 @@
 # Vistiq Studio (test build)
 
+## 0.4.99
+- Faster sketch + words: words about the object (materials, colours, parts) go into the CGI finish pass, one model run less per variation (2K, 2 variations: about 2 minutes instead of 5).
+- 3D views: empty until you press 3D on a picture (in Create, or right-click a tile › 3D views); × clears it. The navigator shows at once. New views fit the screen whole and render at 1K or more; a single seat or part is treated as an object, with the whole of it in frame.
+- Board: the Live tile always hangs below the Photoshop bar (no pin); the arrow folds it away.
+- "Maintain the camera view" no longer shows a Camera warning.
+
 ## 0.4.98
 - Your words go to the model exactly as you type them, plus one short line per Keep lock. No more extra rules or rewriting by the picture reader (they made it do random things, e.g. redesign a steering wheel when asked for new materials).
 - What you see is what changes: words or a selection on a result change that result.
