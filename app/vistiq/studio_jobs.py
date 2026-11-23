@@ -414,6 +414,28 @@ class Studio:
         res = np.clip(acc / np.maximum(wsum, 1e-6), 0, 255).astype(np.uint8)
         return Image.fromarray(res)
 
+    def _briefs(self, path, words, n, say):
+        """Concrete design ideas (one per variation) for a short design request, by the picture reader."""
+        if not studio.reader_installed(self.settings):
+            return []
+        try:
+            say("Imagining designs", None)
+            from . import reader
+            with self.__dict__.setdefault("_read_lock", threading.Lock()):
+                if not hasattr(self, "_reader"):
+                    self._reader = reader.Reader(lambda: studio.models_dir(self.settings))
+                out = self._reader.describe(path, "brief", words + "\x00" + str(max(1, n)), temperature=0.8, max_tokens=120 * max(1, n))
+            ideas = []
+            # one per line, or numbered on one line ("1. ... 2. ...")
+            for line in re.split(r"(?:^|\n|\s)(?=\d+[.)]\s)", out or ""):
+                line = re.sub(r"^\s*(?:\d+[.):]|[-*•])\s*", "", line).strip()
+                if len(line.split()) >= 6:
+                    ideas.append(line)
+            return ideas[:max(1, n)]
+        except Exception as e:                     # never block a run over this
+            log.warning("imagine: %s", e)
+            return []
+
     def _read(self, path, use, say, req=""):
         """The picture reader's words for this picture, or "" (not installed, or it failed)."""
         if (sys.platform == "darwin" and not self.settings.get("smart_read", True)) or not studio.reader_installed(self.settings):
@@ -1179,6 +1201,16 @@ class Studio:
             detail_src = (locks_.get("camera", True) and locks_.get("design", True) and not cam_i
                           and (job.get("preset") or "") != "sketch" and not job.get("instant")
                           and "style" not in uses)
+            # Imagine (Nov 2026): a request for a new design ("a handle inspired by a carabiner") is first read
+            # by the picture reader as a designer would, into a concrete idea per variation; the image model
+            # then draws that idea. Exact changes (a material, a colour, remove this) go to the model as typed.
+            briefs = []
+            uw_ = (job.get("said") or job.get("text") or "").strip()
+            if (uw_ and DESIGN_WORDS.search(uw_) and not job.get("instant") and not job.get("view") and not refs
+                    and sys.platform != "darwin" and lab.get("imagine", True)):
+                briefs = self._briefs(work_path, uw_, n, say)
+                if briefs:
+                    log.info("create %s: design ideas: %s", job_id, " | ".join(briefs))
             # The picture reader (llama.cpp) keeps several GB on the graphics card; with it there the image
             # model spills to system memory and runs about 3x slower (12 s a step instead of 4, Nov 2026).
             if hasattr(self, "_reader"):
@@ -1299,7 +1331,12 @@ class Studio:
                     real = float(lab.get("realism", 0.8)) if studio.find("qie_real", s) else 0.0
                     if real and job.get("instant"):      # Anything2Real's own wording first
                         text = "Change picture 1 to a realistic photograph. " + text
-                    prompt = studio.qwenedit_prompt(s, imgs, studio.juice_pick(text, int(job.get("look", seed % 60)) + v), seed + v, frame=fr,
+                    tv = text
+                    if briefs:                     # this variation's design idea in place of the short request
+                        ws = " ".join(studio.clean_prompt(uw_).split()).rstrip(".")
+                        idea = briefs[v % len(briefs)]
+                        tv = tv.replace(ws, idea) if ws and ws in tv else ("Design idea: " + idea + " " + tv)
+                    prompt = studio.qwenedit_prompt(s, imgs, studio.juice_pick(tv, int(job.get("look", seed % 60)) + v), seed + v, frame=fr,
                                                     realism=real if job.get("instant") else 0.0,
                                                     # a selected part is drawn zoomed in (up to 2x), so the new part
                                                     # comes out as crisp as the picture around it (Nov 2026)
@@ -1470,7 +1507,13 @@ class Studio:
                         log.exception("keeping the unchanged pixels failed; the picture as the model made it")
                 if mask is not None:
                     blend = int(float(job.get("blend", 0.35)) * 0.06 * max(box[2] - box[0], box[3] - box[1])) + 2
-                    result = composite(original, result, mask, box, blend,
+                    cmask = mask
+                    if job.get("mask") == "painted":
+                        # the model sometimes draws the marked area's outline as a seam: the outermost band
+                        # stays the original's (Nov 2026)
+                        k = max(3, int(max(box[2] - box[0], box[3] - box[1]) * 0.03) | 1)
+                        cmask = mask.filter(ImageFilter.MinFilter(min(k, 61)))
+                    result = composite(original, result, cmask, box, blend,
                                        grow=bool(ADD_WORDS.search(job.get("said") or job.get("text") or "")))
                 buf = io.BytesIO()
                 result.save(buf, "PNG")
@@ -1484,6 +1527,8 @@ class Studio:
                         "prompt": text, "lab": lab or None, "juice": job.get("juice") or 0, "lora": job.get("lora"),
                         "kind": "reference" if mode == "reference" else "create",
                         "made": time.strftime("%Y-%m-%d %H:%M:%S")}
+                if briefs:
+                    meta["idea"] = briefs[v % len(briefs)]
                 _write_meta(path, meta)
                 item = {"path": path, "w": w, "h": h, "name": os.path.basename(path),
                         "preview": imaging.preview(path), "meta": meta}

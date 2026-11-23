@@ -81,6 +81,16 @@ ASK = {
              "the instruction only."),
     # What the picture is and what the person wants (Nov 2026): Studio builds the prompt from this
     # instead of matching words.
+    # Imagine (Nov 2026): a short design request ("a handle inspired by a carabiner") becomes concrete
+    # design ideas for the image model, the way a designer would read it; one idea per line.
+    "brief": ("You are a senior automotive interior and exterior designer. Here is a picture of a design and a "
+              "request for a new design: \"{req}\". Look at the part the request is about in THIS picture: what it "
+              "is, where it sits, its size, the materials and the design language around it. Write {n} different "
+              "design ideas for that part, each one a single concrete sentence an image AI can draw: its new form "
+              "and silhouette, how the inspiration shows (abstracted into proportions, lines, cut-outs and details, "
+              "never a literal copy of the inspiring object), its materials and finish, and that it fits in the same "
+              "place and size, production-ready and in the design language of the parts around it. Keep everything "
+              "the request asks to keep. Number them 1 to {n}, one per line, nothing else."),
     "intent": ("Here is a picture and what someone wants done to it: \"{req}\". Answer in exactly this form, "
                "nothing else: medium=<sketch|render|photo>; task=<render|relight|edit|scene|view|style>. "
                "medium: sketch for a drawing (lines, strokes, flat or unfinished shading); render for a finished "
@@ -233,8 +243,11 @@ class Reader:
             time.sleep(0.5)
         raise RuntimeError("The picture reader took too long to start.")
 
-    def describe(self, path, use, req=""):
+    def describe(self, path, use, req="", temperature=0.2, max_tokens=200):
         ask = ASK.get(use)
+        if ask and "{n}" in ask:
+            ask = ask.replace("{n}", str(max(1, int(req.split("\x00")[1]) if "\x00" in (req or "") else 1)))
+            req = (req or "").split("\x00")[0]
         if ask and "{req}" in ask:
             ask = ask.replace("{req}", " ".join((req or "").split())[:400].replace('"', "'"))
         if not ask:
@@ -244,7 +257,7 @@ class Reader:
             body = {"messages": [{"role": "user", "content": [
                         {"type": "image_url", "image_url": {"url": _jpeg(path)}},
                         {"type": "text", "text": ask}]}],
-                    "max_tokens": 200, "temperature": 0.2,
+                    "max_tokens": int(max_tokens), "temperature": float(temperature),
                     "cache_prompt": False}           # every picture read fresh (a cached one answered for the last)
             s = requests.Session()
             s.trust_env = False
