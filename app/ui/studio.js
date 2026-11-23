@@ -2044,12 +2044,14 @@
   }
 
   function renderWarn() {
-    var p = S.create, el = $("c-warn"), t = p.text || "", L = effLocks(p), hit = [];
+    var p = S.create, el = $("c-warn"), L = effLocks(p), hit = [];
+    // "maintain the original camera view" asks to keep it: not a clash (Nov 2026)
+    var t = (p.text || "").replace(/\b(keep|keeps|keeping|maintain\w*|preserv\w*|retain\w*|same|original|do not change|don'?t change)\b[^.,;!?]*/gi, " ");
     Object.keys(LOCK_WORDS).forEach(function (k) { var m = L[k] && t.match(LOCK_WORDS[k]); if (m) hit.push([k, m[0]]); });
     // A sketch is rendered: describing its materials and light is the point, not a clash.
     // Your words win over the Design, Materials and Light locks (Nov 2026), so only Camera can clash.
     hit = hit.filter(function (h) { return h[0] === "camera"; });
-    if (p.libText && p.libText === t) hit = [];      // a library prompt comes with its own locks
+    if (p.libText && p.libText === p.text) hit = [];      // a library prompt comes with its own locks
     var names = { design: "Design", materials: "Materials", light: "Light", camera: "Camera" };
     var h = hit.length ? svg("lock") + '<span><b>"' + hit.map(function (x) { return esc(x[1]); }).join('", "') + '"</b> would change ' +
       hit.map(function (x) { return names[x[0]]; }).join(" and ") + ', which ' + (hit.length > 1 ? "are" : "is") + ' locked. <button type="button" class="s-link" data-unlock="' +

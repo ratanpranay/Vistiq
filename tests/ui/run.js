@@ -483,6 +483,8 @@ const frame = (n, name) => ({ path: "live://photoshop/" + n, name: name || "flat
     check("words win over Materials and Light: no warning", await p.evaluate(() => document.getElementById("c-warn").hidden), await p.text("#c-warn"));
     await p.fill("#c-text", "make the seats red leather, seen from a side view"); await p.waitForTimeout(80);
     check("words that move a locked camera show a warning", /locked/.test(await p.text("#c-warn")), await p.text("#c-warn"));
+    await p.fill("#c-text", "red leather, maintain the original camera view and composition"); await p.waitForTimeout(80);
+    check("keeping the camera is not a clash", await p.evaluate(() => document.getElementById("c-warn").hidden), await p.text("#c-warn"));
     await p.click("#c-locks button[data-v=materials]"); await p.click("#c-locks button[data-v=light]");
     await p.fill("#c-text", "make the seats red leather, at sunset"); await p.waitForTimeout(80);
     await p.evaluate(() => { window.__job = null; window.pywebview.api.studio_run = (j) => { window.__job = j; return Promise.resolve("j7"); }; window.VS.S.status = Object.assign(window.VS.S.status || {}, { create_ready: true }); });

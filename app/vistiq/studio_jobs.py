@@ -884,6 +884,7 @@ class Studio:
         n = max(1, min(4, int(job.get("variations") or 1)))
         say = lambda stage, frac: self.emit("studio-job", {"id": job_id, "state": "running", "stage": stage,
                                                             "fraction": frac})
+        t_job = time.time()
         try:
             say("Getting ready", None)
             self.app.free_upscaler()
@@ -1259,6 +1260,17 @@ class Studio:
                     # Materials only: a new scene here made 2511 turn the car (tested Nov 2026), so the setting,
                     # light and camera of the 2.1 picture stay.
                     ftext = (studio.QE_FINISH + " " + studio.QE_FINISH_KEEP + " " + (locals().get("cam_words") or "")).strip()
+                    # Words about the object (materials, colours, parts) go into this pass: one model run less per
+                    # variation (Nov 2026: a sketch with words took three runs). A new scene or light still gets
+                    # its own pass after it (here it made 2511 turn the car).
+                    w_chain = job.get("said") or job.get("text") or ""
+                    merge = bool(locals().get("chain") and w_chain.strip() and not studio.PLACE_WORDS.search(w_chain)
+                                 and not studio.NIGHT_WORDS.search(w_chain) and not studio.SUN_WORDS.search(w_chain)
+                                 and not studio.SOFT_WORDS.search(w_chain) and lab.get("merge_words", True))
+                    if merge:
+                        ftext = studio.QE_FINISH + " " + " ".join(studio.clean_prompt(w_chain).split()).rstrip(".") + ". " + \
+                            studio.QE_FINISH_KEEP + " " + (locals().get("cam_words") or "")
+                        ftext = ftext.strip()
                     if (locals().get("kind") or "") == "interior" and not studio.night_clause(job.get("said") or job.get("text") or ""):
                         ftext += " " + studio.QE_INT_BRIGHT
                     if real2:
@@ -1271,7 +1283,7 @@ class Studio:
                     finished = self.engine.run(studio.cap_megapixels(fp, job.get("res")), None, self._cancel.is_set)
                     if not _is_blank(finished):
                         data = finished
-                    if locals().get("chain"):
+                    if locals().get("chain") and not merge:
                         # The words on the CGI it just made (lighting, scene, materials), with 2511.
                         say("Your change · " + label.lower(), (v + 0.85) / n)
                         cpath = os.path.join(tmp_dir, "cgi_%s_%d.png" % (job_id, v))
@@ -1360,6 +1372,9 @@ class Studio:
                         "preview": imaging.preview(path), "meta": meta}
                 results.append(item)
                 took = time.time() - t_var
+                log.info("create %s: variation %d of %d in %.1f s (%s, %s, %dx%d, read %.1f s before)", job_id, v + 1, n, took,
+                         tag, "sketch" if (job.get("preset") or "") == "sketch" else (job.get("preset") or "-"), w, h,
+                         t_start - t_job)
                 if v == 0 and first:
                     # The first variation includes loading the models: learn both parts.
                     times["load" + tk] = round(max(0.0, took - (per or took * 0.5)), 1) if per else round(took * 0.5, 1)
@@ -1372,6 +1387,7 @@ class Studio:
                     log.exception("couldn't save creation times")
                 self._warm = True
                 self.emit("studio-result", {"id": job_id, "result": item, "index": v, "of": n})
+            log.info("create %s: done in %.1f s", job_id, time.time() - t_job)
             self.emit("studio-job", {"id": job_id, "state": "done", "count": len(results)})
         except Exception as exc:
             msg = str(exc)
