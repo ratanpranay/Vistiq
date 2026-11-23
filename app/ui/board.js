@@ -151,7 +151,7 @@
     pic = pic.replace('class="b-pic"', 'class="b-pic" style="height:' + shape(t)[1] + 'px"').replace('class="b-empty"', 'class="b-empty" style="height:' + shape(t)[1] + 'px"');
     return '<div class="b-tile' + sel + '" data-id="' + t.id + '" style="left:' + t.x + "px;top:" + t.y + "px;width:" + tileW(t) + 'px">' +
       '<div class="b-h"><span>' + esc(VS().short(t.name || "")) + "</span><small>" + (t.w ? t.w + " × " + t.h : "") + "</small></div>" + pic + badge +
-      (t.path ? '<button type="button" class="b-port" data-port="' + t.id + '" title="Drag out (or click) for Refine, Relight, Variations, 3D views, Upscale">+</button>' : "") + "</div>";
+      (t.path ? '<button type="button" class="b-port" data-port="' + t.id + '" title="Drag out for Refine, Relight, Variations, 3D views, Upscale"><svg viewBox="0 0 24 24"><path d="M12 6v12M6 12h12"/></svg></button>' : "") + "</div>";
   }
 
   function linksSVG() {
@@ -462,11 +462,10 @@
     ["3d", "⬡", "3D views", "", "make"], ["upscale", "↑", "Upscale", "", "make"],
     ["ps", "Ps", "Send to Photoshop", "", "do"], ["open", "⤢", "Open in Create", "", "do"]
   ];
-  var LIGHTS = [["golden", "Golden hour", "warm golden hour sunlight from a low sun, long soft shadows"],
-                ["overcast", "Overcast", "soft overcast daylight, even diffuse light, gentle shadows"],
-                ["night", "Night", "night scene, dark sky, artificial lights and reflections"],
-                ["studio", "Studio", "clean studio lighting, softboxes, seamless backdrop"],
-                ["sunset", "Sunset", "sunset light, orange sky, warm rim light"]];
+  // Studio words these into interior or exterior lighting, a different light direction for each variation.
+  var LIGHTS = [["studio", "Studio", "studio lighting"], ["airy", "Bright & airy", "bright and airy daylight"],
+                ["golden", "Golden hour", "golden hour sunlight"], ["overcast", "Overcast", "overcast daylight"],
+                ["sunset", "Sunset", "sunset light"], ["city", "Cityscape", "city lights at dusk"], ["night", "Night", "night lighting"]];
   var VIEWS3 = [["front-left", "Front ¾ L"], ["front", "Front"], ["front-right", "Front ¾ R"], ["left", "Side L"],
                 ["right", "Side R"], ["rear-left", "Rear ¾ L"], ["rear", "Rear"], ["rear-right", "Rear ¾ R"]];
   var UPS = [["2", "2×"], ["4", "4×"], ["max", "Max"]];
@@ -487,13 +486,13 @@
     };
     el.innerHTML = '<input id="ba-q" placeholder="What do you want to do?" autocomplete="off">' +
       grp("change", "Change it") + grp("make", "Make from it") + grp("do", "");
-    el.hidden = false;
+    el.hidden = false; svgEl.innerHTML = linksSVG();
     var r = root.getBoundingClientRect();
     el.style.left = Math.max(8, Math.min(sx - r.left, r.width - el.offsetWidth - 8)) + "px";
     el.style.top = Math.max(60, Math.min(sy - r.top - 20, r.height - el.offsetHeight - 8)) + "px";
     setTimeout(function () { var q = el.querySelector("#ba-q"); if (q) q.focus(); }, 0);
   }
-  function actsClose() { acts = null; var el = root && root.querySelector("#b-acts"); if (el) el.hidden = true; }
+  function actsClose() { var had = acts && acts.x != null; acts = null; var el = root && root.querySelector("#b-acts"); if (el) el.hidden = true; if (had && svgEl) svgEl.innerHTML = linksSVG(); }
   function actsFilter(q) {
     var el = root.querySelector("#b-acts"), first = null;
     el.querySelectorAll("[data-tool]").forEach(function (b) {
@@ -554,11 +553,35 @@
       label = "Upscale";
     }
     var st = n.busy ? '<div class="bn-prog"><i style="width:' + Math.round((n.frac || 0) * 100) + '%"></i></div><div class="bn-est">' + esc(n.status || "Working") + "</div>" :
-      (n.err ? '<div class="bn-err">' + esc(n.err) + "</div>" : "");
+      (n.err ? '<div class="bn-err">' + esc(n.err) + "</div>" : '<div class="bn-est">' + esc(nodeEta(n)) + "</div>");
     var done = (n.made || 0) > 0;
     return '<div class="b-node' + (n.busy ? " busy" : "") + '" data-nid="' + n.id + '" style="left:' + n.x + "px;top:" + n.y + "px;width:" + NODE_W + 'px">' +
       '<div class="bn-h" data-nh="' + n.id + '"><span class="bn-ic">' + tl[1] + "</span><b>" + tl[2] + '</b><button type="button" class="bn-x" data-nx title="Close">×</button></div>' +
       '<div class="bn-b">' + body + '<button type="button" class="bn-run" data-nr' + (n.busy || !can ? " disabled" : "") + ">" + (n.busy ? "Working…" : done ? label + " again" : label) + "</button>" + st + "</div></div>";
+  }
+  // How long a run takes, from earlier runs on this computer (as Create shows it).
+  function mmss(sec) { sec = Math.max(0, Math.round(sec)); return Math.floor(sec / 60) + ":" + ("0" + sec % 60).slice(-2); }
+  function nodeEta(n) {
+    if (n.kind === "upscale") return "";
+    var t = VS().S.status && VS().S.status.times, k = n.kind === "3d" ? 1 : n.vars || 1;
+    if (!t || !t.per) return "The first run loads the models, so it takes a little longer";
+    return "About " + mmss(t.per * k + (t.warm ? 0 : (t.load || 0))) + " for " + k + (k > 1 ? " pictures" : " picture");
+  }
+  function left(n) {
+    var p = VS().S.create;
+    if (n.kind === "upscale" || runNode !== n || !p.started) return "";
+    var el = (Date.now() - p.started) / 1000;
+    return p.estimate ? (p.estimate > el ? " · about " + mmss(p.estimate - el) + " left" : " · almost done") : " · " + mmss(el);
+  }
+  // Where the pictures of a run will land: a placeholder each, at the end of the line, until they come.
+  function ghosts(n) {
+    if (!n.busy) return [];
+    var want = n.kind === "upscale" || n.kind === "3d" ? 1 : (n.vars || 1), got = n.got || 0, out = [];
+    var mine = B.tiles.filter(function (k) { return k.via === n.id; });
+    var y = mine.length ? Math.max.apply(null, mine.map(function (k) { return k.y + tileH(k); })) + 24 : n.y;
+    var src = byId(n.from), h = src ? shape(src)[1] : PH, w = src ? tileW(src) : W;
+    for (var i = got; i < want; i++) { out.push({ x: n.x + NODE_W + 70, y: y, w: w, h: h, first: i === got }); y += h + 30 + 24; }
+    return out;
   }
   function renderNodes() {
     var box = world.querySelector("#b-nodes");
@@ -574,6 +597,17 @@
       if (keep) { var ta = nu.querySelector("textarea"); if (ta) { ta.focus(); ta.setSelectionRange(keep[0], keep[1]); } }
     });
     box.querySelectorAll(".b-node").forEach(function (el) { if (!ids[el.getAttribute("data-nid")]) el.remove(); });
+    var gh = "";
+    nodes().forEach(function (n) {
+      ghosts(n).forEach(function (g) {
+        gh += '<div class="b-ghost" style="left:' + g.x + "px;top:" + g.y + "px;width:" + g.w + 'px"><div class="b-h"><span>' + (g.first ? "Making…" : "Next") + "</span></div>" +
+          '<div class="bg-ph" style="height:' + g.h + 'px"><span>' + (g.first ? esc((n.status || "Starting").replace(/ · \d+%$/, "")) : "waiting") + "</span>" +
+          (g.first ? '<i style="width:' + Math.round((n.frac || 0) * 100) + '%"></i>' : "") + "</div></div>";
+      });
+    });
+    var gb = world.querySelector("#b-ghosts");
+    if (!gb) { gb = document.createElement("div"); gb.id = "b-ghosts"; world.appendChild(gb); }
+    if (gb.getAttribute("data-h") !== gh) { gb.innerHTML = gh; gb.setAttribute("data-h", gh); }
   }
   function nodeLinks() {
     var d = "";
@@ -581,7 +615,17 @@
       var p = byId(n.from); if (!p) return;
       var x1 = p.x + tileW(p), y1 = p.y + tileH(p) / 2, x2 = n.x, y2 = n.y + 22, mx = (x1 + x2) / 2;
       d += '<path class="on" d="M' + x1 + " " + y1 + " C" + mx + " " + y1 + "," + mx + " " + y2 + "," + x2 + " " + y2 + '"/>';
+      ghosts(n).forEach(function (g) {
+        var a1 = n.x + NODE_W, b1 = n.y + 22, a2 = g.x, b2 = g.y + (g.h + 30) / 2, am = (a1 + a2) / 2;
+        d += '<path class="on drag" d="M' + a1 + " " + b1 + " C" + am + " " + b1 + "," + am + " " + b2 + "," + a2 + " " + b2 + '"/>';
+      });
     });
+    // The line you dragged out stays while you pick a tool.
+    var at = acts && acts.x != null && byId(acts.from);
+    if (at) {
+      var c1 = at.x + tileW(at), e1 = at.y + tileH(at) / 2, c2 = acts.x, e2 = acts.y + 22, cm = (c1 + c2) / 2;
+      d += '<path class="on drag" d="M' + c1 + " " + e1 + " C" + cm + " " + e1 + "," + cm + " " + e2 + "," + c2 + " " + e2 + '"/>';
+    }
     return d;
   }
 
@@ -620,12 +664,12 @@
     var y = mine.length ? Math.max.apply(null, mine.map(function (k) { return k.y + tileH(k); })) + 24 : n.y;
     t.x = n.x + NODE_W + 70; t.y = y;
     if (res.preview) thumbs[t.path] = res.preview;
-    B.tiles.push(t); n.made = (n.made || 0) + 1; save(); render(); show(t);
+    B.tiles.push(t); n.made = (n.made || 0) + 1; n.got = (n.got || 0) + 1; save(); render(); show(t);
   }
   function nodeText(n) {
     var w = (n.text || "").trim();
     if (n.kind === "refine") return w;
-    if (n.kind === "relight") { var l = LIGHTS.filter(function (x) { return x[0] === n.light; })[0] || LIGHTS[0]; return l[2] + (w ? ", " + w : ""); }
+    if (n.kind === "relight") { var l = LIGHTS.filter(function (x) { return x[0] === n.light; })[0] || LIGHTS[2]; return l[2] + (w ? ", " + w : ""); }
     if (n.kind === "variations") return "imagine new design variations" + (w ? " of " + w : " of this design");
     return w;
   }
@@ -638,7 +682,7 @@
       call("set_setting", "scale", n.scale).then(function () { return call("studio_to_upscale", t.path); }).then(function (added) {
         var it = (added || [])[0];
         if (!it) { n.err = "Couldn't add it to Upscale."; render(); return; }
-        hook(); n.upPath = it.path; n.busy = true; n.frac = 0; n.status = "Starting"; render();
+        hook(); n.upPath = it.path; n.busy = true; n.frac = 0; n.got = 0; n.status = "Starting"; render();
         if (it.status === "done" && it.out_path) { nodeEvent("item", it); return; }
         call("start").then(function (ok) { if (!ok && n.busy && it.status !== "running" && it.status !== "queued") { n.busy = false; n.err = "Upscale is busy: try again when it's done."; render(); } });
       });
@@ -647,7 +691,7 @@
     if (p.job || runNode) { V.toast("Studio is still working on something"); return; }
     var text = nodeText(n);
     if (n.kind === "refine" && !text) { V.toast("Type what to change first"); return; }
-    hook(); runNode = n; n.busy = true; n.frac = 0; n.status = "Starting"; n.job = null; n.seen = false; n.wait = 0; render();
+    hook(); runNode = n; n.busy = true; n.frac = 0; n.got = 0; n.status = "Starting"; n.job = null; n.seen = false; n.wait = 0; render();
     call("studio_image", t.path).then(function (info) {
       if (!info) { runNode = null; n.busy = false; n.err = "That file was moved or deleted."; render(); return; }
       S.create.source = "image"; V.setImage(p, "src", info); S.boardFrom = t.id; p.refs = [];
@@ -656,7 +700,10 @@
         var hgt = { eye: 0, high: 25, low: -20 }[n.height] || 0;
         extra = Object.assign(extra, { view: { yaw: 0, pitch: hgt, dist: 0, lens: "normal", target: n.view, cabin: null }, text: "", preset: "", variations: 1,
                                        res: p.res === "512" ? "1k" : p.res });
-      } else { p.text = text; p.vars = n.vars; extra = Object.assign(extra, { text: text, variations: n.vars }); }
+      } else {
+        p.text = text; p.vars = n.vars; extra = Object.assign(extra, { text: text, variations: n.vars });
+        if (n.kind === "relight") extra = Object.assign(extra, { light: n.light || "golden", light_more: (n.text || "").trim() });
+      }
       V.job("c", extra);
       if (!p.job) {           // Create couldn't start (still setting up, or busy)
         runNode = null; n.busy = false; n.err = (S.status && S.status.create_ready) ? "Studio is busy: try again in a moment." : "Image making isn't set up yet: open Create once.";
@@ -671,8 +718,8 @@
     if (p.job && p.job !== "starting" && !n.job) n.job = p.job;
     if (p.job) n.seen = true;
     if (p.job) {
-      n.frac = p.frac || 0; n.status = (p.stage || "Working") + (p.frac ? " · " + Math.round(p.frac * 100) + "%" : "");
-      renderNodes(); setTimeout(function () { nodeWatch(n); }, 600);
+      n.frac = p.frac || 0; n.status = (p.stage || "Working") + left(n);
+      renderNodes(); svgEl.innerHTML = linksSVG(); setTimeout(function () { nodeWatch(n); }, 600);
     } else if (n.busy && !n.seen && (n.wait = (n.wait || 0) + 1) < 20) { setTimeout(function () { nodeWatch(n); }, 300); }
     else { n.busy = false; n.wait = 0; n.status = ""; if (p.error) n.err = p.error; runNode = null; render(); }
   }
@@ -1012,7 +1059,7 @@
         var pd2 = portDrag; portDrag = null;
         try { cv.releasePointerCapture(e.pointerId); } catch (x) {}
         if (pd2.moved) { svgEl.innerHTML = linksSVG(); actsOpen(pd2.t, e.clientX, e.clientY, pd2.wx, pd2.wy - 22); }
-        else { B.sel = pd2.t.id; actsOpen(pd2.t, e.clientX + 14, e.clientY, null, null); }
+        else VS().toast("Drag the + out to a free spot to pick a tool");
         return;
       }
       if (drag && drag.node) { if (drag.moved) save(); drag = null; try { cv.releasePointerCapture(e.pointerId); } catch (x) {} return; }

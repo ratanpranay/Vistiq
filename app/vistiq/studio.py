@@ -2362,6 +2362,53 @@ INSTANT = ("Turn this design sketch into a finished, photorealistic CGI render, 
            "new, never worn, dusty or blotchy. Clean studio lighting with soft reflections and gentle shadows.")
 
 
+# Relight presets (Nov 2026): worded for an interior (the cabin, its ambient light) or an exterior (the
+# body, its lamps and reflections); each variation gets its own light direction and strength, so a few
+# runs show different shadow play, not the same light again.
+LIGHT_PRESETS = {
+    "studio": {"interior": "clean studio lighting inside the cabin, soft even key light, crisp highlights on every surface, neutral white balance",
+               "exterior": "studio car photography, a large softbox overhead, clean long reflections along the body, seamless grey backdrop, soft floor shadow",
+               "any": "clean studio lighting, soft even key light, crisp highlights, neutral white balance, seamless backdrop"},
+    "airy": {"interior": "bright and airy daylight filling the cabin, soft white light through the windows, pale soft shadows, light fresh mood",
+             "exterior": "bright and airy daylight, soft high sun, pale bright surroundings, light soft shadows, fresh clean mood",
+             "any": "bright and airy daylight, soft white light, pale soft shadows, light fresh mood"},
+    "golden": {"interior": "golden hour sunlight streaming into the cabin through the windows, warm low sun, long soft shadows across the seats and panels",
+               "exterior": "golden hour, warm low sun, long soft shadows on the ground, warm highlights running along the body",
+               "any": "golden hour sunlight, warm low sun, long soft shadows, warm highlights"},
+    "overcast": {"interior": "soft overcast daylight through the windows, even diffuse light, gentle soft shadows in the cabin",
+                 "exterior": "overcast sky, soft even diffuse light, gentle sky reflections in the paint, muted soft shadows",
+                 "any": "soft overcast daylight, even diffuse light, gentle soft shadows"},
+    "sunset": {"interior": "sunset light entering the cabin, orange and pink glow through the windows, warm rim light on the edges of the seats",
+               "exterior": "sunset, orange and pink sky, warm rim light along the silhouette, the sky reflected in the paint and glass",
+               "any": "sunset light, orange and pink glow, warm rim light along the edges"},
+    "city": {"interior": "dusk in the city, city lights outside the windows, colourful reflections on glossy surfaces, soft ambient cabin light",
+             "exterior": "cityscape at dusk, city lights and neon reflected in the paint and glass, glowing wet street",
+             "any": "city lights at dusk, colourful reflections on glossy surfaces, soft ambient glow"},
+    "night": {"interior": "night, dark outside the windows, soft ambient interior lighting, glowing ambient light strips and displays, warm pools of light on the seats",
+              "exterior": "night, dark surroundings, headlights and tail lights switched on and glowing, street lights bouncing off the paint, crisp reflections",
+              "any": "night, dark surroundings, soft ambient lights glowing, warm pools of light, crisp reflections"},
+}
+LIGHT_DIRS = ["the main light comes from the left", "the main light comes from the right",
+              "back-lit, the main light comes from behind", "the main light comes from the front at a low angle",
+              "the main light comes from high above", "low raking light from the side"]
+LIGHT_MOODS = ["soft", "strong, high contrast", "gentle", "dramatic"]
+
+
+def light_texts(key, kind, n, start=0, more=""):
+    """One relight instruction per variation: the preset for this kind of picture, a different light
+    direction and strength each, then: change only the light."""
+    p = LIGHT_PRESETS.get(key) or LIGHT_PRESETS["golden"]
+    base = p.get(kind if kind in ("interior", "exterior") else ("exterior" if kind == "product" else "any"))
+    more = " ".join((more or "").split()).rstrip(".")
+    out = []
+    for i in range(max(1, n)):
+        d = LIGHT_DIRS[(start + i) % len(LIGHT_DIRS)]
+        m = LIGHT_MOODS[(start + i * 3) % len(LIGHT_MOODS)]
+        out.append("Relight the picture: %s; %s, %s light and shadows.%s Change only the lighting; keep the shapes, "
+                   "materials, colours and camera exactly the same." % (base, d, m, (" " + more + ".") if more else ""))
+    return out
+
+
 def instant_text(text="", scene=""):
     text = clean_prompt(text)
     out = [INSTANT]

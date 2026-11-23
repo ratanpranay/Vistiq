@@ -301,6 +301,7 @@ const frame = (n, name) => ({ path: "live://photoshop/" + n, name: name || "flat
     check("dragging the + draws a line", await p.evaluate(() => !!document.querySelector("#b-links path.drag")), "");
     await p.mouse.move(port[0] + 160, port[1] - 40, { steps: 5 }); await p.mouse.up(); await p.waitForTimeout(100);
     check("letting go opens the tool list", await p.isVisible("#b-acts"), "");
+    check("the dragged line stays while the list is open", await p.evaluate(() => !!document.querySelector("#b-links path.drag")), "");
     await p.keyboard.type("refi"); await p.keyboard.press("Enter"); await p.waitForTimeout(100);
     check("typing picks a tool: a Refine window opens, joined to the tile", await p.evaluate(() => (window.VSBoard._state().nodes || []).length === 1 && !!document.querySelector(".b-node") && document.querySelectorAll("#b-links path.on").length === 1),
       await p.evaluate(() => JSON.stringify(window.VSBoard._state().nodes)));
@@ -311,9 +312,13 @@ const frame = (n, name) => ({ path: "live://photoshop/" + n, name: name || "flat
     await p.click(".b-node [data-nr]"); await p.waitForTimeout(300);
     const job = await p.evaluate(() => window.__lastJob);
     check("Run sends the tile's picture and the words", !!job && job.image === "C:/a/truck.png" && job.text === "golden hour light" && job.variations === 2 && !job.mask, JSON.stringify(job));
+    if (process.env.NSHOT) await p.screenshot({ path: "/tmp/claude-0/-home-claude/dcd924c8-68bd-54b8-af15-65d2e5e10346/scratchpad/board_ghost.png" });
+    check("2 placeholders wait at the end of the line", await p.evaluate(() => document.querySelectorAll(".b-ghost").length) === 2, "");
     check("the window shows it is working", await p.evaluate(() => /Working/.test(document.querySelector(".b-node [data-nr]").textContent)), "");
     check("the board stays open", await p.evaluate(() => document.body.getAttribute("data-page")) === "board", "");
     await p.ev("studio-result", { id: "j1", index: 0, of: 2, result: { path: "C:/o/g1.png", name: "g1.png", w: 1600, h: 900, preview: img } });
+    await p.waitForTimeout(100);
+    check("a result takes a placeholder's place", await p.evaluate(() => document.querySelectorAll(".b-ghost").length) === 1, "");
     await p.ev("studio-result", { id: "j1", index: 1, of: 2, result: { path: "C:/o/g2.png", name: "g2.png", w: 1600, h: 900, preview: img } });
     await p.ev("studio-job", { id: "j1", state: "done" }); await p.waitForTimeout(800);
     const st = await p.evaluate(() => { const B = window.VSBoard._state(), n = B.nodes[0]; return { n, res: B.tiles.filter((t) => t.via === n.id).map((t) => [t.x, t.y]) }; });

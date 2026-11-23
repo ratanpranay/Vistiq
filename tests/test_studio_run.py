@@ -240,6 +240,20 @@ class WholeRun(unittest.TestCase):
         self.assertEqual(n["ImageScaleToTotalPixels"]["megapixels"], 2.0)
 
     @unittest.skipIf(sys.platform == "darwin", "the Mac has its own image engine")
+    def test_relight_preset_varies(self):
+        src = os.path.join(self.tmp.name, "cab.png")
+        Image.new("RGB", (1200, 800), "white").save(src)
+        self.engine.runs.clear()
+        with mock.patch.object(studio, "workflow_ready", lambda s=None: True), \
+                mock.patch.object(self.st, "_read", lambda *a, **k: "kind=interior side=rear"):
+            self.go({"mode": "create", "image": src, "text": "night lighting", "variations": 2, "light": "night"})
+        texts = [v["inputs"]["text"] for p in self.engine.runs for v in p.values()
+                 if isinstance(v, dict) and v.get("class_type") == "CLIPTextEncode"]
+        self.assertEqual(len(texts), 2, texts)
+        self.assertNotEqual(texts[0], texts[1])                     # a different light each
+        self.assertTrue(all("ambient interior lighting" in t and "headlights" not in t for t in texts), texts)
+
+    @unittest.skipIf(sys.platform == "darwin", "the Mac has its own image engine")
     def test_qwen_detail_pass(self):
         src = os.path.join(self.tmp.name, "big.png")
         Image.new("RGB", (2400, 1350), "white").save(src)

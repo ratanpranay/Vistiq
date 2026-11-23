@@ -1285,8 +1285,9 @@ body.studio .s-stage>.s-top,body.studio .s-stage>.s-under{transform:translateZ(0
 .s-flh.s-flv :is(.s-tag,.s-ra,.s-zpill){scale:-1 -1}
 
 /* Board tool windows (Nov 2026): drag the + out of a tile, pick a tool, a small window opens joined to it. */
-.b-tile .b-port{position:absolute;right:-12px;top:50%;width:24px;height:24px;margin-top:-12px;border-radius:50%;background:#6d5df5;color:#fff;font-size:16px;line-height:22px;text-align:center;
-  box-shadow:0 0 0 4px rgba(109,93,245,.18);opacity:0;transition:opacity .12s;cursor:crosshair;z-index:2;padding:0}
+.b-tile .b-port{position:absolute;right:-12px;top:50%;width:24px;height:24px;margin-top:-12px;border-radius:50%;background:#6d5df5;display:flex;align-items:center;justify-content:center;
+  box-shadow:0 0 0 4px rgba(109,93,245,.18);opacity:0;transition:opacity .12s;cursor:grab;z-index:2;padding:0}
+.b-tile .b-port svg{width:14px;height:14px;fill:none;stroke:#fff;stroke-width:2.4;stroke-linecap:round;display:block}
 .b-tile:hover .b-port,.b-tile.sel .b-port{opacity:1}
 .b-links path.on{stroke:#7b6cf6;stroke-dasharray:none;stroke-width:1.8}
 .b-links path.drag{stroke-dasharray:6 5}
@@ -1321,3 +1322,10 @@ body.studio .s-stage>.s-top,body.studio .s-stage>.s-under{transform:translateZ(0
 .b-node .bn-prog i{display:block;height:100%;background:linear-gradient(90deg,#3b82f6,#6d5df5);transition:width .4s}
 .b-node .bn-est{text-align:center;font-size:10.5px;color:#888;margin-top:-4px}
 .b-node .bn-err{font-size:11px;color:#c0392b}
+.b-ghost{position:absolute;background:#fff;border-radius:12px;padding:6px;border:1.5px dashed #b9b2fb;box-shadow:none;z-index:1}
+.b-ghost .b-h{font-size:11px;color:#6d5df5}
+.b-ghost .bg-ph{position:relative;border-radius:8px;overflow:hidden;background:repeating-linear-gradient(45deg,#f3f1fe,#f3f1fe 9px,#ebe8fd 9px,#ebe8fd 18px);display:flex;align-items:center;justify-content:center}
+.b-ghost .bg-ph span{font-size:11.5px;color:#6d5df5;background:#fffc;border-radius:12px;padding:3px 10px}
+.b-ghost .bg-ph i{position:absolute;left:0;bottom:0;height:3px;background:linear-gradient(90deg,#3b82f6,#6d5df5);transition:width .4s}
+.b-ghost .bg-ph{animation:bgsh 1.6s linear infinite;background-size:200% 200%}
+@keyframes bgsh{from{background-position:0 0}to{background-position:51px 0}}

@@ -1125,6 +1125,13 @@ class Studio:
                 rp = os.path.join(tmp_dir, "cref%d_%s.png" % (i, job_id))
                 load_rgb(self.real_path(r["path"])).save(rp, "PNG", compress_level=1)
                 ref_images.append(self.engine.upload(rp))
+            # Relight presets (board, Nov 2026): interior or exterior wording, a different light per variation.
+            if job.get("light") and not job.get("view"):
+                va_l = self._read(work_path, "view", say) or ""
+                kind_l = studio.parse_view(va_l)[0] if va_l else ""
+                vary = studio.light_texts(job["light"], kind_l, n, start=int(time.time()) % 6, more=job.get("light_more") or "")
+                log.info("create %s: relight %s (%s)", job_id, job["light"], kind_l or "kind unknown")
+                job = dict(job, text=vary[0], said=vary[0], light_vary=vary, preset="photo")
             job = dict(job, text=self._condense(job.get("preset") or "", job.get("text") or ""))
             if mode == "reference":
                 ref_path = os.path.join(tmp_dir, "ref_%s.png" % job_id)
@@ -1288,6 +1295,8 @@ class Studio:
                 briefs = self._briefs(work_path, uw_, n, say)
                 if briefs:
                     log.info("create %s: design ideas: %s", job_id, " | ".join(briefs))
+            if job.get("light_vary"):
+                briefs = list(job["light_vary"])
             # The picture reader (llama.cpp) keeps several GB on the graphics card; with it there the image
             # model spills to system memory and runs about 3x slower (12 s a step instead of 4, Nov 2026).
             if hasattr(self, "_reader"):
@@ -1312,7 +1321,7 @@ class Studio:
                 if (sys.platform != "darwin" and studio.workflow_ready(s) and lab.get("workflow", True) and mode == "create"
                         and uw_ and not DESIGN_WORDS.search(uw_) and not job.get("view") and not job.get("instant")
                         and not refs and not reframe):
-                    wtext = " ".join(studio.clean_prompt(uw_).split())
+                    wtext = " ".join(studio.clean_prompt(briefs[v % len(briefs)] if briefs else uw_).split())
                     if (job.get("preset") or "") == "sketch" and not re.search(r"\b(sketch|render|photo)", wtext, re.I):
                         wtext = "turn this sketch into a hyper realistic photo, " + wtext
                     prompt = studio.workflow_prompt(s, image, wtext, seed + v, megapixels=float(lab.get("wf_mp", 2.0)))
@@ -1426,7 +1435,7 @@ class Studio:
                     if briefs:                     # this variation's design idea in place of the short request
                         ws = " ".join(studio.clean_prompt(uw_).split()).rstrip(".")
                         idea = briefs[v % len(briefs)]
-                        tv = tv.replace(ws, idea) if ws and ws in tv else ("Design idea: " + idea + " " + tv)
+                        tv = tv.replace(ws, idea) if ws and ws in tv else (idea if job.get("light_vary") else ("Design idea: " + idea + " " + tv))
                     if use_fibo:
                         # Fibo 2.0 (design requests): the picture and the idea; the selection is handled as
                         # for any engine (only that part of the picture, put back with the rest untouched).
@@ -1459,6 +1468,8 @@ class Studio:
                         text = ("Redesign the main part in this picture: " + " ".join(studio.clean_prompt(w_).split()).rstrip(".") +
                                 ". Replace it with a clearly new, refined production-ready design of the same part, the "
                                 "same size, position and perspective, matching the materials, quality and light around it.")
+                    if job.get("light_vary"):
+                        text = briefs[v % len(briefs)]
                     prompt = {"image": image, "ref": ref_image or (ref_images[0] if ref_images else None), "text": text,
                               "seed": seed + v, "keep": keep,
                               "lines": mode == "reference" and job.get("preset") in ("cmf", "style")}
