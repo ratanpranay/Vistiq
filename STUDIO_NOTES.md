@@ -1,5 +1,10 @@
 # Vistiq Studio (test build)
 
+## 0.5.3
+- Relight from your reference pictures: Night shows the glowing light lines themselves, their light bouncing onto the seats and panels, stars outside, a different light colour per variation. Golden hour puts the low sun in the windows with sunbeams and long shadows, the sun in a different place each time. Bright & airy fills the cabin with soft daylight and a bright view outside (beach, desert, mountains, sea). Sunset: the sun on the horizon, strips glowing orange. Materials keep their colour and finish.
+- Pictures you drop, pick or paste from a file are copied into Vistiq Studio\Imported, so deleting or moving the original no longer breaks the board or Focus view.
+- Mac: Cmd+C, Cmd+V (paste onto the board), Cmd+Z, Cmd+Enter and Cmd+D work like Ctrl.
+
 ## 0.5.2
 - Board tool windows: the + is centred and works by dragging only; the line you drag stays while you pick a tool; placeholders show where the pictures will land, with progress; time estimates before and during a run.
 - Results of a window sit in rows of 4 to its right (1 2 3 4, then 5 6 7 8), with one line from the window.
