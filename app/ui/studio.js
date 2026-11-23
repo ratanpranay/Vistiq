@@ -2047,7 +2047,8 @@
     var p = S.create, el = $("c-warn"), t = p.text || "", L = effLocks(p), hit = [];
     Object.keys(LOCK_WORDS).forEach(function (k) { var m = L[k] && t.match(LOCK_WORDS[k]); if (m) hit.push([k, m[0]]); });
     // A sketch is rendered: describing its materials and light is the point, not a clash.
-    if (!isRender(p.src)) hit = hit.filter(function (h) { return h[0] === "camera"; });
+    // Your words win over the Design, Materials and Light locks (Nov 2026), so only Camera can clash.
+    hit = hit.filter(function (h) { return h[0] === "camera"; });
     if (p.libText && p.libText === t) hit = [];      // a library prompt comes with its own locks
     var names = { design: "Design", materials: "Materials", light: "Light", camera: "Camera" };
     var h = hit.length ? svg("lock") + '<span><b>"' + hit.map(function (x) { return esc(x[1]); }).join('", "') + '"</b> would change ' +

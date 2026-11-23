@@ -480,9 +480,11 @@ const frame = (n, name) => ({ path: "live://photoshop/" + n, name: name || "flat
     await p.waitForTimeout(150);
     check("a render starts with everything locked", (await locks()) === "design,materials,light,camera", await locks());
     await p.fill("#c-text", "make the seats red leather, at sunset"); await p.waitForTimeout(80);
-    check("words that change locked things show a warning", /locked/.test(await p.text("#c-warn")) && !(await p.evaluate(() => document.getElementById("c-warn").hidden)), await p.text("#c-warn"));
-    await p.click("#c-warn [data-unlock]"); await p.waitForTimeout(80);
-    check("Unlock frees them", (await locks()) === "design,camera", await locks());
+    check("words win over Materials and Light: no warning", await p.evaluate(() => document.getElementById("c-warn").hidden), await p.text("#c-warn"));
+    await p.fill("#c-text", "make the seats red leather, seen from a side view"); await p.waitForTimeout(80);
+    check("words that move a locked camera show a warning", /locked/.test(await p.text("#c-warn")), await p.text("#c-warn"));
+    await p.click("#c-locks button[data-v=materials]"); await p.click("#c-locks button[data-v=light]");
+    await p.fill("#c-text", "make the seats red leather, at sunset"); await p.waitForTimeout(80);
     await p.evaluate(() => { window.__job = null; window.pywebview.api.studio_run = (j) => { window.__job = j; return Promise.resolve("j7"); }; window.VS.S.status = Object.assign(window.VS.S.status || {}, { create_ready: true }); });
     await p.click("#c-go"); await p.waitForTimeout(80);
     check("Create sends the locks", await p.evaluate(() => !!(window.__job && window.__job.locks && window.__job.locks.design && !window.__job.locks.materials)), JSON.stringify(await p.evaluate(() => window.__job && window.__job.locks)));
