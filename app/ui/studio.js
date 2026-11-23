@@ -1072,7 +1072,7 @@
   function wire() {
     document.querySelector(".s-nav").addEventListener("click", function (e) {
       var b = e.target.closest("button[data-page]");
-      if (b && b.getAttribute("data-page") === "3d" && window.VS3D) { go("3d"); window.VS3D.fromCreate(); }   // takes Create's current file
+      if (b && b.getAttribute("data-page") === "3d" && window.VS3D) { go("3d"); }   // empty until you press 3D on a picture (Nov 2026)
       else if (b && b.getAttribute("data-page") === "projects") {
         // Projects with work open (Nov 2026): first click goes back to the picture or board you were on;
         // from there, a second click shows all projects.

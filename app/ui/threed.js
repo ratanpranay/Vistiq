@@ -53,7 +53,7 @@
       '<div class="s-busy t-busy" id="t-prog" hidden><span></span><i><b></b></i></div>' +
       '<div class="t-orbit t-plan" id="t-orbit" title="Drag the dot to place the camera (seen from above, front at the top)"><div class="t-ph" id="t-ph"></div><div class="t-pload" id="t-pload" hidden><i></i>Loading view navigator…</div><canvas id="t-plan" width="340" height="440"></canvas></div>' +
       '<div class="t-tip" id="t-tip">Drag the picture or the dot to turn the camera · scroll to move closer</div>' +
-      '<div class="t-empty" id="t-empty">Open a picture from the board, or press 3D in Create</div></div>' +
+      '<div class="t-empty" id="t-empty">Press 3D on a picture in Create, or right-click a tile › 3D views</div></div>' +
       '<div class="t-strip" id="t-strip"></div></div>' +
       '<aside class="s-rail t-rail"><div class="s-rh"><h3>3D views</h3></div>' +
       '<div><div class="s-label">Working on</div><div class="s-work" id="t-work"></div><p class="s-hint" id="t-seen"></p></div>' +
@@ -99,8 +99,10 @@
     ri.hidden = !showRes; if (res && ri.getAttribute("src") !== (res.preview || "")) ri.src = res.preview || "";
     var tag = root.querySelector("#t-tag"); tag.hidden = !res;
     if (res) tag.textContent = (res.label || "New view") + " · hold to see the original";
-    root.querySelector("#t-orbit").hidden = showRes || busy; root.querySelector("#t-tip").hidden = showRes || !has || busy;
-    root.querySelector("#t-work").innerHTML = has ? '<img src="' + T.src.preview + '" alt=""><div><b>' + esc(V.short(T.src.name || "")) + "</b><small>" + (T.src.w || "") + " × " + (T.src.h || "") + "</small></div>" : "<small>Nothing yet</small>";
+    root.querySelector("#t-orbit").hidden = showRes || busy || !has; root.querySelector("#t-tip").hidden = showRes || !has || busy;
+    var wh = has ? '<img src="' + T.src.preview + '" alt=""><div><b>' + esc(V.short(T.src.name || "")) + "</b><small>" + (T.src.w || "") + " × " + (T.src.h || "") + "</small></div>" +
+      '<button type="button" class="t-clear" data-clear title="Clear: take this picture out of 3D views">×</button>' : "<small>Nothing yet</small>";
+    var we = root.querySelector("#t-work"); if (we.getAttribute("data-k") !== wh) { we.innerHTML = wh; we.setAttribute("data-k", wh); }
     var rd = has && T.reading;
     root.querySelector("#t-pload").hidden = !rd; root.querySelector("#t-plan").style.visibility = rd ? "hidden" : "";
     root.classList.toggle("t-reading", rd);
@@ -254,6 +256,7 @@
       else if (l) { T.lens = l.getAttribute("data-l"); render(); }
       else if (r) { var k = +r.getAttribute("data-r"); T.sel = k === T.sel ? -1 : k; full(T.results[T.sel]); render(); }   // again: back to your picture
       else if (x) act(x.getAttribute("data-x"));
+      else if (e.target.closest("[data-clear]")) { if (!T.running) { T.src = null; T.origin = null; T.results = []; T.sel = -1; T.base = null; T.kind = ""; T.cam = null; T.yaw = 0; T.pitch = 0; T.dist = 0; T.reading = false; render(); } }
       else if (e.target.closest("#t-reset")) { T.cam = null; T.yaw = 0; T.pitch = 0; T.dist = 0; T.lens = "normal"; T.sel = -1; render(); }
       else if (e.target.closest("#t-go")) go();
     });
@@ -294,7 +297,8 @@
     T.running = true; T.wantLabel = (inCab() ? cabinLabel(T.cam) : viewName(target())) + (heightName() === "eye level" ? "" : ", " + heightName());
     V.job("c", { view: { yaw: T.yaw, pitch: T.pitch, dist: T.dist, lens: T.lens, target: target(),
                        cabin: inCab() ? { u: T.cam.x / CAB.x, v: T.cam.y / CAB.y, look: T.cam.look } : null }, text: T.text, preset: "",
-                 refs: [], mask: null, variations: 1, instant: false });
+                 refs: [], mask: null, variations: 1, instant: false,
+                 res: p.res === "512" ? "1k" : p.res });     // a new view at 512 came out 432 px tall: too soft to judge
     render();
   }
 
@@ -328,14 +332,17 @@
     VS().go("3d"); render();
     var a = VS().api();
     // Which side the picture shows (the picture reader, a few seconds).
+    // The navigator shows at once (Nov 2026: it waited ~20 s for the picture reader); the reader's
+    // answer then places your picture on it, unless you have already moved the camera.
+    T.base = "front-left"; T.kind = "product"; render();
     if (a && a.studio_describe) {
-      T.reading = true; render();
       a.studio_describe(info.path, "view").then(function (res) {
-        T.reading = false;
-        var r = parseView(res && res.text || ""); T.base = r.side; T.kind = r.kind;
+        if (T.src !== info) return;
+        var r = parseView(res && res.text || "");
+        if (!moved() && !T.cam) { T.base = r.side; T.kind = r.kind; }
         render();
       });
-    } else { T.base = "front-left"; T.kind = "exterior"; }
+    }
     // Views made before from this picture.
     if (a && a.studio_results_for) a.studio_results_for(info.name || "").then(function (list) {
       if (T.src !== info || !list) return;

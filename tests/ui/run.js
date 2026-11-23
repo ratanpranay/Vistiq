@@ -231,10 +231,7 @@ const frame = (n, name) => ({ path: "live://photoshop/" + n, name: name || "flat
     check("the arrow folds the Live tile away", await p.evaluate(() => !document.querySelector('.b-tile[data-id="live"]')), "");
     await p.click('.b-tabs [data-b="livefold"]'); await p.waitForTimeout(80);
     check("and opens it again", await p.isVisible('#b-livefloat .b-tile[data-id="live"]'), "");
-    await p.click('#b-livefloat [data-b="livepin"]'); await p.waitForTimeout(80);
-    check("unpinned, the Live tile sits on the board", await p.isVisible('#b-world .b-tile[data-id="live"]') && !(await p.evaluate(() => document.querySelector("#b-livefloat").children.length)), "");
-    await p.click('#b-world [data-b="livepin"]'); await p.waitForTimeout(80);
-    check("pinned again: back below the bar", await p.isVisible('#b-livefloat .b-tile[data-id="live"]'), "");
+    check("no pin on the Live tile (always on top)", !(await p.evaluate(() => !!document.querySelector('[data-b="livepin"], .b-pin'))), "");
     await p.ev("studio-dropped", { target: "board", images: [{ path: "C:/a/sketch.png", name: "sketch.png", w: 1600, h: 900, preview: img }] });
     await p.waitForTimeout(150);
     check("a dropped image becomes a tile", await p.evaluate(() => document.querySelectorAll(".b-tile:not([data-id=live])").length) === 1, await p.evaluate(() => document.querySelectorAll(".b-tile").length));
@@ -793,6 +790,7 @@ const frame = (n, name) => ({ path: "live://photoshop/" + n, name: name || "flat
       api.studio_results_for = () => Promise.resolve([]);
       window.VS3D.open({ path: "C:/o/car.png", name: "car.png", w: 1600, h: 900, preview: "data:image/gif;base64,R0lGODlhAQABAAAAACw=" });
     });
+    check("the navigator shows at once (no waiting for the reader)", await p.evaluate(() => !document.getElementById("t-plan").style.visibility && document.getElementById("t-pload").hidden), "");
     await p.waitForTimeout(200);
     check("the side follows where the nose points", await p.evaluate(() => window.VS3D._state().base) === "right", await p.evaluate(() => window.VS3D._state().base));
     await p.click("#t-angles [data-a=front-left]");
@@ -860,7 +858,9 @@ const frame = (n, name) => ({ path: "live://photoshop/" + n, name: name || "flat
       window.VS.setImage(window.VS.S.create, "src", { path: "C:/o/cabin.png", name: "cabin.png", w: 1600, h: 900, preview: g });
     });
     await p.click(".s-nav button[data-page='3d']"); await p.waitForTimeout(300);
-    check("3D views takes the file open in Create", await p.evaluate(() => (window.VS3D._state().src || {}).path) === "C:/o/cabin.png", await p.evaluate(() => JSON.stringify(window.VS3D._state().src)));
+    check("the 3D views tab alone stays empty", await p.evaluate(() => !window.VS3D._state().src && !document.getElementById("t-empty").hidden), "");
+    await p.evaluate(() => window.VS3D.fromCreate()); await p.waitForTimeout(300);
+    check("3D on a picture takes the file open in Create", await p.evaluate(() => (window.VS3D._state().src || {}).path) === "C:/o/cabin.png", await p.evaluate(() => JSON.stringify(window.VS3D._state().src)));
     await p.evaluate(() => window.VS3D.onResult({ path: "C:/o/v9.png", name: "v9.png", w: 1600, h: 900, preview: "data:image/gif;base64,R0lGODlhAQABAIAAAP///wAAACw=", meta: { view: { target: "left" } } }));
     await p.click("#t-acts [data-x=layer]"); await p.waitForTimeout(400);
     check("Add as layer puts the view on that picture in Create", await p.evaluate(() => { const d = window.VSSketch._state().docs["C:/o/cabin.png"]; return !!d && d.layers.some((L) => L.kind !== "base" && /3D|Driver|v9/.test(L.name || "")); }),
@@ -868,7 +868,9 @@ const frame = (n, name) => ({ path: "live://photoshop/" + n, name: name || "flat
     check("3D views stay off the board", await p.evaluate(() => !window.VSBoard._state().tiles.some((k) => k.path === "C:/o/v9.png")), "");
     // A Live picture: the view goes back into Photoshop.
     await p.evaluate(() => { window.VS.S.live.app = "photoshop"; window.VS.setImage(window.VS.S.create, "src", { path: "live://photoshop/3", name: "flat.psd", w: 1600, h: 900, n: 3, live: true, app: "photoshop", preview: "data:image/gif;base64,R0lGODlhAQABAAAAACw=" }); });
-    await p.board(); await p.click(".s-nav button[data-page='3d']"); await p.waitForTimeout(300);
+    await p.click("#t-work [data-clear]"); await p.waitForTimeout(80);
+    check("the X clears 3D views", await p.evaluate(() => !window.VS3D._state().src && !document.getElementById("t-empty").hidden), "");
+    await p.board(); await p.evaluate(() => window.VS3D.fromCreate()); await p.waitForTimeout(300);
     check("from Live, 3D views takes a still copy", await p.evaluate(() => window.VS3D._state().src.path) === "C:/o/frozen.png", "");
     await p.evaluate(() => window.VS3D.onResult({ path: "C:/o/v10.png", name: "v10.png", w: 1600, h: 900, preview: "x", meta: { view: { target: "left" } } }));
     await p.click("#t-acts [data-x=layer]"); await p.waitForTimeout(200);

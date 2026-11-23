@@ -101,18 +101,14 @@
   // The Live tile (Nov 2026): hangs below the Photoshop bar ("always on top", pinned) or sits on the
   // board like any tile (unpinned); the bar's arrow folds it away. Only there while a file is linked.
   var psAsked = false;
-  function livePinned() { return B.livePin !== false; }
+  function livePinned() { return true; }      // always on top, below the bar (Nov 2026: no pin)
   function liveOpen() { return B.liveOpen !== false; }
   function liveInWorld() { return liveInfo().on && liveOpen() && !livePinned(); }
-  var PIN_SVG = '<svg viewBox="0 0 24 24"><path d="M9 3h6l-1 6 4 4H6l4-4z"/><path d="M12 13v8"/></svg>';
   function liveCard(t, sel, float) {
     var L = liveInfo();
     return '<div class="b-tile b-live on' + (float ? " b-float" : "") + sel + '" data-id="live"' +
       (float ? "" : ' style="left:' + t.x + "px;top:" + t.y + "px;width:" + W + 'px"') + ">" +
-      '<div class="b-h"><span><i class="b-dot"></i>Live' + (L.doc ? " · " + esc(L.doc) : "") + "</span>" +
-      '<button type="button" class="b-pin' + (livePinned() ? " on" : "") + '" data-b="livepin" title="' +
-      (livePinned() ? "Always on top: stays below the Photoshop bar. Click to put it on the board" : "On the board. Click to keep it always on top, below the Photoshop bar") +
-      '">' + PIN_SVG + "</button></div>" +
+      '<div class="b-h"><span><i class="b-dot"></i>Live' + (L.doc ? " · " + esc(L.doc) : "") + "</span></div>" +
       '<div class="b-pic"><img src="' + L.src.preview + '" alt=""></div></div>';
   }
   function psBar() {
@@ -451,7 +447,7 @@
   function showMenu(t, x, y) {
     var V = VS(), isLive = t.kind === "live", ps = V.S.psOn;
     var items = [["open", "Open in Focus view"]];
-    if (!isLive) items.push(["refine", "Refine…"], ["variations", "More like this"], ["upscale", "Upscale"]);
+    if (!isLive) items.push(["refine", "Refine…"], ["variations", "More like this"], ["3d", "3D views"], ["upscale", "Upscale"]);
     if (!isLive && ps) items.push(["ps", "Send to Photoshop"]);
     if (!isLive) items.push(["ref", "Use as reference"], ["folder", "Show in folder"], ["export", "Save a copy…"], ["-"],
                             ["copy", "Copy<k>Ctrl C</k>"], ["move", "Move to project…"], ["cover", "Use as project cover"], ["-"], ["remove", "Remove from board"]);
@@ -487,6 +483,7 @@
       });
     }
     else if (a === "upscale") call("studio_to_upscale", t.path).then(function () { V.go("upscale"); });
+    else if (a === "3d") call("studio_image", t.path).then(function (info) { if (info && window.VS3D) window.VS3D.open(info, null); });
     else if (a === "ps") V.sendPS(t.path);
     else if (a === "ref") call("studio_image", t.path).then(function (info) { if (info) { V.addRef(info); V.go("create"); } });
     else if (a === "folder") { var x = api(); if (x && x.reveal) x.reveal(t.path); }
@@ -619,14 +616,7 @@
           render();
         }
         else if (a === "livefold") { B.liveOpen = !liveOpen(); lastHTML = ""; save(); render(); }
-        else if (a === "livepin") {
-          B.livePin = !livePinned();
-          var lv = live();
-          if (!B.livePin && lv) {          // onto the board: where you are looking, top left
-            var v = B.view; lv.x = Math.round((24 - v.x) / v.z); lv.y = Math.round((80 - v.y) / v.z);
-          }
-          lastHTML = ""; save(); render();
-        }
+
         return;
       }
       var g = e.target.closest("[data-g]");

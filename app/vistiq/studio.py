@@ -838,7 +838,9 @@ def view_words(kind, side, yaw, pitch, dist=0.0, lens="normal", target=None, des
     design = " ".join((design or "").split()).strip()
     if design and design[-1] not in ".!?":
         design += "."
-    return ("Show this exact same design from a new camera: " + where + (", " + ", ".join(extra) if extra else "") + ". " +
+    # The whole subject in the frame (Nov 2026: a seat's front view showed only its headrest).
+    frame = "" if dist <= -0.25 else " The whole subject is in the picture, complete and centred, with some space around it."
+    return ("Show this exact same design from a new camera: " + where + (", " + ", ".join(extra) if extra else "") + "." + frame + " " +
             ("The design: " + design + " " if design else "") +
             # Generic on purpose (Nov 2026): naming a grille and wheels drew a car's face onto a seat.
             "It is the same subject as in the picture, whatever it is (a seat, a cabin, a car, a building, a product, "

@@ -990,7 +990,8 @@ body.studio .s-vars>.s-ph.sel{border-color:var(--ink)}
 
 #p-3d .t-main{display:flex;flex-direction:column}
 #p-3d .t-stage{position:relative;inset:auto;flex:1;min-height:0}
-.t-res{width:86%;height:80%;object-fit:contain;border-radius:10px;box-shadow:0 20px 50px rgba(14,16,32,.2)}
+/* The new view fits the stage whole (Nov 2026: its height didn't resolve, so a tall view was blown up and cut to the headrest) */
+.t-res{position:absolute;left:6%;top:5%;width:88%;height:84%;object-fit:contain;filter:drop-shadow(0 18px 34px rgba(14,16,32,.18))}
 .t-res[hidden],.t-both[hidden],.t-seg[hidden],.t-prog[hidden],.t-acts[hidden],.t-orbit[hidden],.t-tip[hidden]{display:none}
 .t-seg{position:absolute;top:16px;left:50%;transform:translateX(-50%);display:flex;background:#fff;border-radius:11px;padding:3px;box-shadow:0 4px 16px rgba(14,16,32,.1);z-index:3}
 .t-seg button{border:0;background:none;padding:7px 13px;border-radius:8px;font:12.5px inherit;cursor:pointer;color:#14161f}
@@ -1275,3 +1276,5 @@ body.studio .s-stage>.s-top,body.studio .s-stage>.s-under{transform:translateZ(0
 .b-pin.on{opacity:1}
 .b-pin svg{width:15px;height:15px;fill:none;stroke:var(--ink);stroke-width:2;stroke-linejoin:round;stroke-linecap:round}
 .b-pin.on svg path:first-child{fill:var(--ink)}
+.t-clear{margin-left:auto;flex:none;width:26px;height:26px;border-radius:50%;border:1px solid var(--line);background:#fff;color:var(--ink-2);font:inherit;font-size:16px;line-height:1;cursor:pointer;display:grid;place-items:center;padding:0}
+.t-clear:hover{background:var(--field);color:var(--ink)}
