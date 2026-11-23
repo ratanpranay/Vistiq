@@ -211,11 +211,30 @@ const frame = (n, name) => ({ path: "live://photoshop/" + n, name: name || "flat
     check("a project's card opens its board", await p.evaluate(() => document.body.getAttribute("data-page")) === "board" && /My board/.test(await p.text("#b-title")), await p.text("#b-title"));
     await p.waitForTimeout(200);
     check("the Photoshop / Affinity tab shows not connected", await p.evaluate(() => !document.querySelector("#b-tdot.on")), "");
-    check("every board has the Photoshop / Affinity tile, with Connect", await p.isVisible('.b-tile[data-id="live"] [data-b="connect"]'), "");
-    check("no Board button next to the Photoshop tab", await p.evaluate(() => !/Board/.test(document.querySelector(".b-tabs").textContent)), "");
+    check("the Photoshop bar has Connect while not linked", await p.isVisible('.b-tabs [data-b="connect"]'), "");
+    check("no Live tile until a file is linked", await p.evaluate(() => !document.querySelector('.b-tile[data-id="live"]')), "");
+    check("no Board button next to the Photoshop tab", await p.evaluate(() => !/Board/.test(document.querySelector(".b-tabs").textContent.replace("Connect", ""))), "");
+    await p.click('.b-tabs [data-b="connect"]'); await p.waitForTimeout(100);
+    check("Connect with no file open says what to do", /Open the file you want to work on in Photoshop/.test(await p.text("#b-psmsg")) && await p.isVisible("#b-psmsg"), await p.text("#b-psmsg"));
     await p.ev("studio-live", frame(1));
     await p.waitForTimeout(100);
     check("the tab turns green when Photoshop is live", await p.evaluate(() => !!document.querySelector("#b-tdot.on")), "");
+    check("linked: the message goes, Connect becomes the fold arrow", !(await p.isVisible("#b-psmsg")) && await p.isVisible('.b-tabs [data-b="livefold"]') && !(await p.isVisible('.b-tabs [data-b="connect"]')), "");
+    check("the Live tile hangs below the Photoshop bar", await p.evaluate(() => {
+      const f = document.querySelector('#b-livefloat .b-tile[data-id="live"]'), bar = document.querySelector(".b-tabs").getBoundingClientRect();
+      return !!f && f.getBoundingClientRect().top > bar.bottom && !document.querySelector('#b-world .b-tile[data-id="live"]');
+    }), "");
+    const panBefore = await p.evaluate(() => document.querySelector("#b-livefloat").getBoundingClientRect().left);
+    await p.evaluate(() => { const v = window.VSBoard._state().view; v.x += 200; window.VSBoard.render(); });
+    check("pinned, it stays put when the board moves", await p.evaluate(() => document.querySelector("#b-livefloat").getBoundingClientRect().left) === panBefore, "");
+    await p.click('.b-tabs [data-b="livefold"]'); await p.waitForTimeout(80);
+    check("the arrow folds the Live tile away", await p.evaluate(() => !document.querySelector('.b-tile[data-id="live"]')), "");
+    await p.click('.b-tabs [data-b="livefold"]'); await p.waitForTimeout(80);
+    check("and opens it again", await p.isVisible('#b-livefloat .b-tile[data-id="live"]'), "");
+    await p.click('#b-livefloat [data-b="livepin"]'); await p.waitForTimeout(80);
+    check("unpinned, the Live tile sits on the board", await p.isVisible('#b-world .b-tile[data-id="live"]') && !(await p.evaluate(() => document.querySelector("#b-livefloat").children.length)), "");
+    await p.click('#b-world [data-b="livepin"]'); await p.waitForTimeout(80);
+    check("pinned again: back below the bar", await p.isVisible('#b-livefloat .b-tile[data-id="live"]'), "");
     await p.ev("studio-dropped", { target: "board", images: [{ path: "C:/a/sketch.png", name: "sketch.png", w: 1600, h: 900, preview: img }] });
     await p.waitForTimeout(150);
     check("a dropped image becomes a tile", await p.evaluate(() => document.querySelectorAll(".b-tile:not([data-id=live])").length) === 1, await p.evaluate(() => document.querySelectorAll(".b-tile").length));
@@ -252,7 +271,7 @@ const frame = (n, name) => ({ path: "live://photoshop/" + n, name: name || "flat
     check("no Organize button (freeform board)", await p.evaluate(() => !document.querySelector(".b-bar [data-b=organize]")), "");
     check("a result sits to the right of its source", await p.evaluate(() => {
       const t = window.VSBoard._state().tiles, live = t.find((x) => x.id === "live"), s = t.find((x) => x.path === "C:/a/sketch.png"), r = t.find((x) => x.path === "C:/o/r1.png");
-      return live.x < s.x && r.x > s.x;
+      return r.x > s.x;
     }), JSON.stringify(await p.evaluate(() => window.VSBoard._state().tiles.map((x) => [x.id, x.x, x.y]))));
     check("the board is saved", await p.evaluate(() => !!(window.__board && window.__board.tiles.length === 3)), "not saved");
     // Opening another tile must not lose the results made from the first one.

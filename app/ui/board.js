@@ -53,8 +53,9 @@
     root.innerHTML =
       '<div class="b-cv" id="b-cv"><div class="b-world" id="b-world"><svg class="b-links" id="b-links"></svg></div></div>' +
       '<div class="b-top"><button type="button" class="b-back" data-b="projects">← Projects</button><div class="b-title" id="b-title">My board</div>' +
-      '<div class="b-tabs"><button type="button" class="b-tab" data-b="pstab" title="Your open Photoshop or Affinity file, live, in this project">' +
-      '<span class="m-ico ps">Ps</span><span>Photoshop / Affinity</span><i class="b-tdot" id="b-tdot"></i></button></div></div>' +
+      '<div class="b-pswrap"><div class="b-tabs"><button type="button" class="b-tab" data-b="pstab" title="Your open Photoshop or Affinity file, live, in this project">' +
+      '<span class="m-ico ps">Ps</span><span>Photoshop / Affinity</span><i class="b-tdot" id="b-tdot"></i></button><span class="b-psact" id="b-psact"></span></div>' +
+      '<div class="b-psmsg" id="b-psmsg" hidden></div><div class="b-livefloat" id="b-livefloat"></div></div></div>' +
       '<div class="b-bar"><button type="button" class="b-plus" data-b="plus" title="Add: blank canvas, image, paste, phone">' +
       '<svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></button><span class="b-sep"></span>' +
       '<button type="button" data-b="fit">Fit</button><span class="b-zoom" id="b-zoom">80%</span></div>' +
@@ -97,6 +98,38 @@
     return { on: !!(S.live && S.live.on && src), src: src, doc: S.live && S.live.doc, state: S.live && S.live.state, msg: S.live && S.live.msg };
   }
 
+  // The Live tile (Nov 2026): hangs below the Photoshop bar ("always on top", pinned) or sits on the
+  // board like any tile (unpinned); the bar's arrow folds it away. Only there while a file is linked.
+  var psAsked = false;
+  function livePinned() { return B.livePin !== false; }
+  function liveOpen() { return B.liveOpen !== false; }
+  function liveInWorld() { return liveInfo().on && liveOpen() && !livePinned(); }
+  var PIN_SVG = '<svg viewBox="0 0 24 24"><path d="M9 3h6l-1 6 4 4H6l4-4z"/><path d="M12 13v8"/></svg>';
+  function liveCard(t, sel, float) {
+    var L = liveInfo();
+    return '<div class="b-tile b-live on' + (float ? " b-float" : "") + sel + '" data-id="live"' +
+      (float ? "" : ' style="left:' + t.x + "px;top:" + t.y + "px;width:" + W + 'px"') + ">" +
+      '<div class="b-h"><span><i class="b-dot"></i>Live' + (L.doc ? " · " + esc(L.doc) : "") + "</span>" +
+      '<button type="button" class="b-pin' + (livePinned() ? " on" : "") + '" data-b="livepin" title="' +
+      (livePinned() ? "Always on top: stays below the Photoshop bar. Click to put it on the board" : "On the board. Click to keep it always on top, below the Photoshop bar") +
+      '">' + PIN_SVG + "</button></div>" +
+      '<div class="b-pic"><img src="' + L.src.preview + '" alt=""></div></div>';
+  }
+  function psBar() {
+    if (!root) return;
+    var L = liveInfo(), act = root.querySelector("#b-psact"), msg = root.querySelector("#b-psmsg"), fl = root.querySelector("#b-livefloat");
+    if (!act) return;
+    var a = L.on ? '<button type="button" class="b-fold' + (liveOpen() ? " open" : "") + '" data-b="livefold" title="' + (liveOpen() ? "Hide" : "Show") + ' the live file">' +
+      '<svg viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg></button>' :
+      '<button type="button" class="b-psconnect" data-b="connect">Connect</button>';
+    if (act.innerHTML !== a) act.innerHTML = a;
+    if (L.on) psAsked = false;
+    var m = !L.on && psAsked ? (L.msg || "Open the file you want to work on in Photoshop or Affinity") : "";
+    msg.hidden = !m; if (msg.textContent !== m) msg.textContent = m;
+    var f = L.on && liveOpen() && livePinned() ? liveCard(live(), B.sel === "live" ? " sel" : "", true) : "";
+    if (fl.getAttribute("data-h") !== f) { fl.setAttribute("data-h", f); fl.innerHTML = f; }
+  }
+
   // Several tiles picked together (Ctrl or Shift click, up to 4): numbered in the order picked.
   var multi = [];
   function tileHTML(t) {
@@ -114,15 +147,7 @@
         '<div class="b-h"><span>' + esc(VS().short(t.name || "Picture")) + "</span><small>" + (t.failed ? "Couldn't add" : "Adding…") + "</small></div>" +
         '<div class="b-upbox"><div class="b-upbar' + (known ? "" : " creep") + (t.failed ? " bad" : "") + '"><i style="' + (known ? "width:" + Math.round(t.frac * 100) + "%" : "") + '"></i></div></div></div>';
     }
-    if (t.kind === "live") {                 // every board starts with it: Connect, or your live file
-
-      var L = liveInfo();
-      var img = L.on ? '<div class="b-pic"><img src="' + L.src.preview + '" alt=""></div>' :
-        '<div class="b-empty b-off"><span>' + (L.state ? esc(L.state) : "Photoshop or Affinity, live") + '</span><button type="button" data-b="connect">Connect</button>' + (L.msg ? "<small>" + esc(L.msg) + "</small>" : "") + "</div>";
-      return '<div class="b-tile b-live' + (L.on ? " on" : "") + sel + '" data-id="live" style="left:' + t.x + "px;top:" + t.y + "px;width:" + W + 'px">' +
-        '<div class="b-h"><span><i class="b-dot"></i>Live' + (L.on && L.doc ? " · " + esc(L.doc) : "") + "</span><small>" + (L.on ? "Photoshop" : "") + "</small></div>" + img +
-        "</div>";
-    }
+    if (t.kind === "live") return liveInWorld() ? liveCard(t, sel, false) : "";   // or below the bar, or folded away
     var th = thumbs[t.path];
     if (th === undefined) { thumbs[t.path] = null; call("studio_thumb", t.path).then(function (d) { thumbs[t.path] = d || "missing"; render(); }); }
     var pic = th && th !== "missing" ? '<div class="b-pic"><img src="' + th + '" alt=""></div>' : '<div class="b-empty">' + (th === "missing" ? "File moved or deleted" : "") + "</div>";
@@ -134,7 +159,7 @@
   function linksSVG() {
     var d = "";
     B.tiles.forEach(function (t) {
-      var p = t.from && byId(t.from); if (!p) return;
+      var p = t.from && byId(t.from); if (!p || (p.kind === "live" && !liveInWorld())) return;
       var x1 = p.x + tileW(p), y1 = p.y + tileH(p) / 2, x2 = t.x, y2 = t.y + tileH(t) / 2, mx = (x1 + x2) / 2;
       d += '<path d="M' + x1 + " " + y1 + " C" + mx + " " + y1 + "," + mx + " " + y2 + "," + x2 + " " + y2 + '"/>';
     });
@@ -154,6 +179,7 @@
     svgEl.innerHTML = linksSVG();
     if (pendingShow && root.querySelector("#b-cv").getBoundingClientRect().width) { var ps = pendingShow; pendingShow = null; show(ps); }
     var L = liveInfo(), dot = root.querySelector("#b-tdot"); if (dot) dot.className = "b-tdot" + (L.on ? " on" : "");
+    psBar();
     groupBar();
     applyView();
     root.querySelector("#b-hint").hidden = B.tiles.length > 1;
@@ -287,7 +313,7 @@
     var p = from && byId(from);
     var v = B.view, cv = root && root.querySelector("#b-cv"), r = cv ? cv.getBoundingClientRect() : { width: 1200, height: 800 };
     var vx0 = -v.x / v.z, vy0 = -v.y / v.z, vx1 = vx0 + r.width / v.z, vy1 = vy0 + r.height / v.z;
-    var s = B.sel && byId(B.sel), lv = live(), minX = lv ? lv.x + W + GAP_X : -1e9;
+    var s = B.sel && byId(B.sel), lv = liveInWorld() && live(), minX = lv ? lv.x + W + GAP_X : -1e9;
     var tx, ty;
     if (p) { tx = p.x + tileW(p) + GAP_X; ty = p.y; }
     else if (s && userSel && s !== t && s.kind !== "frame" && s.x < vx1 && s.x + tileW(s) > vx0 && s.y < vy1 && s.y + tileH(s) > vy0) { tx = s.x + tileW(s) + GAP_X; ty = s.y; }
@@ -537,7 +563,9 @@
       (kids[t.id] || []).forEach(function (c) { var r = lay(c, x + tileW(t) + GAP_X, cy); cy = r[1] + GAP_Y; right = Math.max(right, r[0]); bottom = Math.max(bottom, r[1]); });
       return [right, bottom];
     }
-    var lv = live(), roots = (kids[""] || []).filter(function (t) { return t !== lv; });
+    var lv0 = live(), lv = liveInWorld() ? lv0 : null;
+    var roots = (kids[""] || []).filter(function (t) { return t !== lv0; });
+    if (!lv && lv0) roots = roots.concat(kids[lv0.id] || []);     // Live isn't on the board: what came from it starts rows
     if (lv) { lv.x = 0; lv.y = 0; }
     // Lay the groups out in a block about as wide as the screen is (16:9), not one long line.
     var area = 0;
@@ -554,10 +582,11 @@
   }
 
   function fit() {
-    if (!B.tiles.length) return;
+    var tiles = B.tiles.filter(function (t) { return t.kind !== "live" || liveInWorld(); });
+    if (!tiles.length) return;
     var cv = root.querySelector("#b-cv").getBoundingClientRect();
-    var x0 = Math.min.apply(null, B.tiles.map(function (t) { return t.x; })), y0 = Math.min.apply(null, B.tiles.map(function (t) { return t.y; }));
-    var x1 = Math.max.apply(null, B.tiles.map(function (t) { return t.x + tileW(t); })), y1 = Math.max.apply(null, B.tiles.map(function (t) { return t.y + tileH(t); }));
+    var x0 = Math.min.apply(null, tiles.map(function (t) { return t.x; })), y0 = Math.min.apply(null, tiles.map(function (t) { return t.y; }));
+    var x1 = Math.max.apply(null, tiles.map(function (t) { return t.x + tileW(t); })), y1 = Math.max.apply(null, tiles.map(function (t) { return t.y + tileH(t); }));
     var z = Math.max(0.15, Math.min(1.2, Math.min((cv.width - 120) / (x1 - x0), (cv.height - 160) / (y1 - y0))));
     B.view = { z: z, x: (cv.width - (x1 - x0) * z) / 2 - x0 * z, y: 70 + (cv.height - 110 - (y1 - y0) * z) / 2 - y0 * z };
     save(); applyView();
@@ -584,8 +613,19 @@
         else if (a === "pstab") { VS().useSource("live"); VS().S.boardFrom = "live"; VS().go("create"); }
         else if (a === "organize") organize();
         else if (a === "connect") {
-          var S = VS().S, app = S.liveApp || "photoshop"; S.live.stopped = false;
-          call("studio_live", true, app).then(function (r) { S.live.on = !!(r && r.on); S.live.app = app; S.live.frames = 0; S.live.msg = r && r.error || "Open a file in Photoshop; it appears here."; render(); });
+          // Links by itself once a file is open; until then, says what to do.
+          var S = VS().S, app = S.liveApp || "photoshop"; S.live.stopped = false; psAsked = true;
+          call("studio_live", true, app).then(function (r) { S.live.on = !!(r && r.on); S.live.app = app; S.live.frames = 0; S.live.msg = r && r.error || ""; render(); });
+          render();
+        }
+        else if (a === "livefold") { B.liveOpen = !liveOpen(); lastHTML = ""; save(); render(); }
+        else if (a === "livepin") {
+          B.livePin = !livePinned();
+          var lv = live();
+          if (!B.livePin && lv) {          // onto the board: where you are looking, top left
+            var v = B.view; lv.x = Math.round((24 - v.x) / v.z); lv.y = Math.round((80 - v.y) / v.z);
+          }
+          lastHTML = ""; save(); render();
         }
         return;
       }
@@ -607,6 +647,9 @@
       var m = e.target.closest("[data-m]");
       if (m) { var t = byId(menu.getAttribute("data-id")); if (t) menuAction(m.getAttribute("data-m"), t); return; }
       if (!e.target.closest("#b-menu")) menu.hidden = true;
+    });
+    root.querySelector("#b-livefloat").addEventListener("dblclick", function (e) {
+      if (!e.target.closest("button")) open(live());
     });
     cv.addEventListener("dblclick", function (e) {
       // The canvas holds the pointer while dragging, so find the tile under it.

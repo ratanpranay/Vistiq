@@ -1253,3 +1253,25 @@ body.studio .s-stage>.s-top,body.studio .s-stage>.s-under{transform:translateZ(0
 .s-model{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:0 0 10px;font-size:12.5px;color:var(--dim)}
 .s-model[hidden]{display:none}
 .s-model select{flex:1;max-width:220px;height:34px;border-radius:10px;border:1px solid var(--line-2);padding:0 10px;font:600 13px var(--font);color:var(--ink);background:#fff}
+
+/* Photoshop bar (Nov 2026): grey + Connect when not linked; green + an arrow that folds the live
+   file away when linked. The Live tile hangs below the bar while pinned (always on top). */
+.b-pswrap{position:relative;pointer-events:auto;margin-left:6px}
+.b-pswrap .b-tabs{margin-left:0;align-items:center}
+.b-psact{display:flex;align-items:center}
+.b-psact:empty{display:none}
+.b-psconnect{height:30px;padding:0 14px;border:1.5px solid var(--ink);border-radius:9px;background:#fff;color:var(--ink);font:inherit;font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;cursor:pointer}
+.b-psconnect:hover{background:var(--ink);color:#fff}
+.b-fold{width:30px;height:30px;border-radius:50%;border:1.5px solid var(--ink);background:#fff;display:grid;place-items:center;cursor:pointer;padding:0}
+.b-fold svg{width:16px;height:16px;fill:none;stroke:var(--ink);stroke-width:2.4;stroke-linecap:round;stroke-linejoin:round;transition:transform .2s;transform:rotate(-90deg)}
+.b-fold.open svg{transform:none}
+.b-psmsg{position:absolute;left:10px;top:calc(100% + 6px);font-size:11.5px;color:var(--dim);white-space:nowrap}
+.b-livefloat{position:absolute;left:0;top:calc(100% + 12px);width:340px;z-index:5}
+.b-livefloat:empty{display:none}
+.b-tile.b-float{position:relative;left:auto;top:auto;width:100%;outline:2px solid #6d5df5;box-shadow:0 12px 32px rgba(20,22,31,.16);cursor:default}
+.b-live .b-h{align-items:center}
+.b-pin{width:24px;height:24px;border:0;border-radius:6px;background:transparent;display:grid;place-items:center;cursor:pointer;padding:0;opacity:.45}
+.b-pin:hover{opacity:1;background:var(--field)}
+.b-pin.on{opacity:1}
+.b-pin svg{width:15px;height:15px;fill:none;stroke:var(--ink);stroke-width:2;stroke-linejoin:round;stroke-linecap:round}
+.b-pin.on svg path:first-child{fill:var(--ink)}
