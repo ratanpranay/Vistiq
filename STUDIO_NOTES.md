@@ -1,5 +1,10 @@
 # Vistiq Studio (test build)
 
+## 0.5.1
+- Board tool windows: drag the + out of a tile (or right-click it) and pick Refine, Relight, Variations, 3D views or Upscale. A small window opens next to the tile, joined by a line, with only that tool's settings; results land at the end of its line, each with its own +, so you can chain steps. Type in the tool list to find a tool.
+- Painted marks fixed: with a render layer on top of a sketch, only your strokes count as the marked area (before, the whole render did, and Studio re-rendered the bare sketch with its labels). The marking is taken out of the picture you see, not back to the sketch.
+- Mac: "change the design" in a marked area asks for a new design of that part, same size and place.
+
 ## 0.5.0
 - Your ComfyUI workflow inside Studio (Settings): FLUX.2 Klein 9B + Klein-consistency 0.8, 2 MP, 4 steps, guidance 4, your words as typed. When its files are there it does renders, new light, new materials and edits in a selection. Klein 9B needs a free sign-in at Black Forest Labs; copy flux-2-klein-9b-fp8mixed.safetensors into Models\diffusion_models. The rest downloads from Settings.
 - Fibo 2.0 (Settings, 13 GB, testing, non-commercial licence): design requests (imagine, redesign, inspired by, variations) go to it.
