@@ -71,6 +71,37 @@ def home(settings=None):
     return chosen or os.path.join(_documents(), "Vistiq Studio")
 
 
+def imported_dir(settings=None):
+    """Pictures brought in (dropped, pasted, picked): a copy is kept here, so deleting or moving the
+    original never breaks the board, Focus view or the results made from it (Nov 2026)."""
+    return os.path.join(home(settings), "Imported")
+
+
+def keep_copy(path, settings=None):
+    """The path of Studio's own copy of a picture brought in (made once), or the path itself when it is
+    already one of Studio's files or can't be copied."""
+    try:
+        import shutil
+        src = os.path.abspath(path)
+        h = os.path.abspath(home(settings))
+        if not os.path.isfile(src) or src.lower().startswith(h.lower() + os.sep):
+            return path
+        d = imported_dir(settings)
+        os.makedirs(d, exist_ok=True)
+        base, ext = os.path.splitext(os.path.basename(src))
+        size = os.path.getsize(src)
+        for i in range(200):
+            dst = os.path.join(d, base + ext if i == 0 else "%s_%d%s" % (base, i, ext))
+            if not os.path.exists(dst):
+                shutil.copy2(src, dst)
+                return dst
+            if os.path.getsize(dst) == size:          # the same picture brought in again
+                return dst
+        return path
+    except Exception:
+        return path
+
+
 def outputs_dir(settings=None):
     return os.path.join(home(settings), "Outputs")
 
@@ -2369,52 +2400,68 @@ LIGHT_PRESETS = {
     "studio": {"interior": "clean studio lighting inside the cabin, soft even key light, crisp highlights on every surface, neutral white balance",
                "exterior": "studio car photography, a large softbox overhead, clean long reflections along the body, seamless grey backdrop, soft floor shadow",
                "any": "clean studio lighting, soft even key light, crisp highlights, neutral white balance, seamless backdrop"},
-    "airy": {"interior": "bright and airy daylight filling the cabin, soft white light through the windows, pale soft shadows, light fresh mood",
-             "exterior": "bright and airy daylight, soft high sun, pale bright surroundings, light soft shadows, fresh clean mood",
-             "any": "bright and airy daylight, soft white light, pale soft shadows, light fresh mood"},
-    "golden": {"interior": "golden hour sunlight streaming into the cabin through the windows, warm low sun, long soft shadows across the seats and panels",
-               "exterior": "golden hour, warm low sun, long soft shadows on the ground, warm highlights running along the body",
-               "any": "golden hour sunlight, warm low sun, long soft shadows, warm highlights"},
-    "overcast": {"interior": "soft overcast daylight through the windows, even diffuse light, gentle soft shadows in the cabin",
+    "airy": {"interior": "bright and airy: the windows full of soft daylight, the whole cabin filled with soft even light, "
+                         "delicate soft shadows, high-key clean airy look, a bright open view outside the windows",
+             "exterior": "bright and airy daylight, soft high sun, a pale bright open landscape around, light soft shadows, high-key clean airy look",
+             "any": "bright and airy daylight, soft even light, delicate soft shadows, high-key clean airy look"},
+    "golden": {"interior": "golden hour: the low sun is visible through the windows, warm golden sunbeams stream into the cabin and cast long "
+                           "warm patches of light and long shadows across the seats and panels, glowing golden sky and landscape outside, "
+                           "a soft lens flare",
+               "exterior": "golden hour, the low sun near the horizon, long soft shadows on the ground, warm golden highlights running along the body, "
+                           "glowing warm sky, a soft lens flare",
+               "any": "golden hour, a low warm sun, warm golden sunbeams, long shadows, glowing warm sky, a soft lens flare"},
+    "overcast": {"interior": "soft overcast daylight through the windows, even diffuse light, gentle soft shadows in the cabin, a calm grey sky outside",
                  "exterior": "overcast sky, soft even diffuse light, gentle sky reflections in the paint, muted soft shadows",
                  "any": "soft overcast daylight, even diffuse light, gentle soft shadows"},
-    "sunset": {"interior": "sunset light entering the cabin, orange and pink glow through the windows, warm rim light on the edges of the seats",
-               "exterior": "sunset, orange and pink sky, warm rim light along the silhouette, the sky reflected in the paint and glass",
-               "any": "sunset light, orange and pink glow, warm rim light along the edges"},
-    "city": {"interior": "dusk in the city, city lights outside the windows, colourful reflections on glossy surfaces, soft ambient cabin light",
+    "sunset": {"interior": "sunset: the sun is sinking on the horizon outside, an orange, pink and purple sky through the windows, "
+                           "warm orange light washing across the cabin, ambient light strips glowing softly in warm orange along the doors and dashboard",
+               "exterior": "sunset, an orange and pink sky, warm rim light along the silhouette, the sky reflected in the paint and glass",
+               "any": "sunset, an orange and pink sky, warm orange light, warm rim light along the edges"},
+    "city": {"interior": "dusk in the city, city lights outside the windows, colourful reflections on glossy surfaces, ambient light strips glowing in the cabin",
              "exterior": "cityscape at dusk, city lights and neon reflected in the paint and glass, glowing wet street",
              "any": "city lights at dusk, colourful reflections on glossy surfaces, soft ambient glow"},
-    "night": {"interior": "night, dark cabin and dark outside the windows, no direct light and no lamps: only soft indirect ambient "
-                          "lighting, thin glowing light strips along the doors, dashboard and footwells, their coloured glow bouncing "
-                          "softly off the nearby surfaces, displays glowing, deep soft shadows",
+    "night": {"interior": "night: a dark, moody cabin with a dark night sky and stars outside the windows. Thin ambient light lines run along the "
+                          "door panels, dashboard, console and footwells; the light lines themselves glow brightly and are clearly visible, and "
+                          "their coloured light spills and bounces softly onto the nearby panels, seats and floor. Glowing displays. No spotlights "
+                          "and no lamps shining on the seats; deep soft shadows elsewhere",
               "exterior": "night, dark surroundings, headlights and tail lights switched on and glowing, street lights bouncing off the paint, crisp reflections",
-              "any": "night, dark surroundings, no direct light: only a soft indirect glow bouncing off the surfaces, deep soft shadows"},
+              "any": "night, dark surroundings, glowing light lines clearly visible, their light bouncing softly off the nearby surfaces, deep soft shadows"},
 }
 LIGHT_DIRS = ["the main light comes from the left", "the main light comes from the right",
               "back-lit, the main light comes from behind", "the main light comes from the front at a low angle",
               "the main light comes from high above", "low raking light from the side"]
 LIGHT_MOODS = ["soft", "strong, high contrast", "gentle", "dramatic"]
-# Night inside a car has no main light: the variety is the ambient colour and what is outside the windows.
-NIGHT_AMBIENT = ["cool blue ambient glow", "warm amber ambient glow", "soft red ambient glow", "soft white ambient glow, a deep blue dusk sky outside",
-                 "purple ambient glow", "warm amber ambient glow, a fading orange dusk on the horizon"]
-KEEP_FINISH = ("Every material keeps its own finish: fabric stays matte fabric, leather stays leather, matte stays matte; "
+# What changes from one variation to the next, per preset (Nov 2026, from the person's reference pictures):
+# the sun's place for golden hour and sunset, the view outside for bright and airy, the ambient colour at night.
+LIGHT_VARY = {
+    ("night", "interior"): ["cool blue light lines", "warm amber light lines", "orange-red light lines", "purple light lines",
+                            "teal-green light lines", "warm white light lines, a deep blue dusk on the horizon"],
+    ("golden", "interior"): ["the sun ahead through the windscreen", "the sun low on the left", "the sun low on the right",
+                             "the sun behind, back-lighting the seats", "the sun high and to the side, beams falling across the seats"],
+    ("sunset", "interior"): ["the sun ahead on the horizon", "the sun to the left", "the sun to the right", "the sun just set, a glowing horizon"],
+    ("airy", "interior"): ["a sunny beach with palm trees and calm sea outside", "a pale desert with red rocks outside",
+                           "soft misty mountains outside", "a calm sea and open sky at dawn outside", "a soft pale blue sky and coast outside"],
+}
+KEEP_FINISH = ("Every material keeps its own colour and finish: fabric stays matte fabric, leather stays leather, matte stays matte; "
                "no added gloss, shine or wet look.")
 
 
 def light_texts(key, kind, n, start=0, more=""):
-    """One relight instruction per variation: the preset for this kind of picture, a different light
-    direction and strength each, then: change only the light."""
+    """One relight instruction per variation: the preset for this kind of picture, with what varies (the sun's
+    place, the view outside, the ambient colour, or the light's direction and strength) different each time."""
     p = LIGHT_PRESETS.get(key) or LIGHT_PRESETS["golden"]
-    base = p.get(kind if kind in ("interior", "exterior") else ("exterior" if kind == "product" else "any"))
+    k = kind if kind in ("interior", "exterior") else ("exterior" if kind == "product" else "any")
+    base = p.get(k)
+    vary = LIGHT_VARY.get((key, "interior" if k in ("interior", "any") else k))
     more = " ".join((more or "").split()).rstrip(".")
     out = []
     for i in range(max(1, n)):
-        if key == "night" and kind != "exterior":
-            how = NIGHT_AMBIENT[(start + i) % len(NIGHT_AMBIENT)]
+        if vary and k != "exterior":
+            how = vary[(start + i) % len(vary)]
         else:
             how = "%s, %s light and shadows" % (LIGHT_DIRS[(start + i) % len(LIGHT_DIRS)], LIGHT_MOODS[(start + i * 3) % len(LIGHT_MOODS)])
-        out.append("Relight the picture: %s; %s.%s Change only the lighting; keep the shapes, materials, colours and camera "
-                   "exactly the same. %s" % (base, how, (" " + more + ".") if more else "", KEEP_FINISH))
+        out.append("Relight the picture: %s; %s.%s Change only the lighting and the view outside; keep the shapes, materials and "
+                   "camera exactly the same. %s" % (base, how, (" " + more + ".") if more else "", KEEP_FINISH))
     return out
 
 

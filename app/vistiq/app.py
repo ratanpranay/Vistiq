@@ -270,14 +270,16 @@ class Api:
         picked = self._app.window.create_file_dialog(
             webview.OPEN_DIALOG, allow_multiple=False,
             file_types=("Images (*.png;*.jpg;*.jpeg;*.webp;*.bmp;*.tif;*.tiff)", "All files (*.*)"))
-        return _image_info(picked[0]) if picked else None
+        from . import studio
+        return _image_info(studio.keep_copy(picked[0], self._app.settings)) if picked else None
 
     def studio_pick_path(self):
         """Just the file chosen (the board shows where it lands while it's read)."""
         picked = self._app.window.create_file_dialog(
             webview.OPEN_DIALOG, allow_multiple=False,
             file_types=("Images (*.png;*.jpg;*.jpeg;*.webp;*.bmp;*.tif;*.tiff)", "All files (*.*)"))
-        return picked[0] if picked else None
+        from . import studio
+        return studio.keep_copy(picked[0], self._app.settings) if picked else None
 
     def studio_image(self, path):
         return _image_info(path)
@@ -377,7 +379,8 @@ class Api:
             return None
         if isinstance(grabbed, list):
             paths = [p for p in grabbed if imaging.is_image(p)]
-            return _image_info(paths[0]) if paths else None
+            from . import studio
+            return _image_info(studio.keep_copy(paths[0], self._app.settings)) if paths else None
         folder = os.path.join(data_dir(), "pasted")
         os.makedirs(folder, exist_ok=True)
         path = os.path.join(folder, "pasted_%s.png" % time.strftime("%Y%m%d_%H%M%S"))
@@ -1412,7 +1415,8 @@ def _on_drop(app):
         paths = [f.get("pywebviewFullPath") for f in files if f.get("pywebviewFullPath")]
         app.emit("dropped", {})
         if app.studio and app.drop_target and app.drop_target != "upscale":
-            imgs = [p for p in imaging.expand(paths)][:2]
+            from . import studio
+            imgs = [studio.keep_copy(p, app.settings) for p in imaging.expand(paths)][:2]
             if imgs:
                 token = "d%d" % int(time.time() * 1000)
                 # The board shows where they land, with a bar, while they are read.

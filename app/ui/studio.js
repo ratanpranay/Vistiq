@@ -1358,8 +1358,8 @@
       var pg = S.page; if (pg !== "create" && pg !== "reference") return;
       var inText = /^(TEXTAREA|INPUT)$/.test((document.activeElement || {}).tagName || "");
       var id = pg === "create" ? "c" : "r";
-      if (e.ctrlKey && e.key === "Enter") { e.preventDefault(); job(id); return; }
-      if (e.ctrlKey && e.key.toLowerCase() === "v" && !inText) {
+      if ((e.ctrlKey || e.metaKey) && e.key === "Enter") { e.preventDefault(); job(id); return; }
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "v" && !inText) {
         e.preventDefault();
         var osPaste = function () {
           api().studio_paste().then(function (info) {

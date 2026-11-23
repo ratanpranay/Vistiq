@@ -251,7 +251,7 @@ class WholeRun(unittest.TestCase):
                  if isinstance(v, dict) and v.get("class_type") == "CLIPTextEncode"]
         self.assertEqual(len(texts), 2, texts)
         self.assertNotEqual(texts[0], texts[1])                     # a different light each
-        self.assertTrue(all("indirect ambient" in t and "headlights" not in t and "no added gloss" in t for t in texts), texts)
+        self.assertTrue(all("light lines" in t and "headlights" not in t and "no added gloss" in t for t in texts), texts)
 
     @unittest.skipIf(sys.platform == "darwin", "the Mac has its own image engine")
     def test_qwen_detail_pass(self):

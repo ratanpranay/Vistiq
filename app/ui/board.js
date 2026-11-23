@@ -1097,8 +1097,8 @@
       if (e.key === " " && !spaceDown) { spaceDown = true; cv.classList.add("pan"); e.preventDefault(); return; }
       if ((e.key === "q" || e.key === "Q") && !e.ctrlKey && multi.length > 1) { e.preventDefault(); groupAction("mix"); return; }
       if ((e.key === "Delete" || e.key === "Backspace") && multi.length > 1) { removeTiles(multi.map(byId).filter(Boolean)); return; }
-      if (e.ctrlKey && e.key.toLowerCase() === "c") { var sel = multi.length ? multi.map(byId).filter(Boolean) : (B.sel && byId(B.sel) ? [byId(B.sel)] : []); if (sel.length) { e.preventDefault(); copyTiles(sel); } return; }
-      if (e.ctrlKey && e.key.toLowerCase() === "v") {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "c") { var sel = multi.length ? multi.map(byId).filter(Boolean) : (B.sel && byId(B.sel) ? [byId(B.sel)] : []); if (sel.length) { e.preventDefault(); copyTiles(sel); } return; }
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "v") {
         e.preventDefault();
         var clip = VS().S.tileClip, img = function () { addWith(function () { return call("studio_paste"); }, "Pasted picture"); };
         if (!clip) img();

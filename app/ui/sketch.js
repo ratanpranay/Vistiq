@@ -663,9 +663,9 @@
   function key(e) {
     if (!doc || !view) return false;
     var k = e.key.toLowerCase();
-    if (e.ctrlKey && k === "z") { e.preventDefault(); if (e.shiftKey) redo(); else undo(); return true; }
-    if (e.ctrlKey && k === "y") { e.preventDefault(); redo(); return true; }
-    if (e.ctrlKey && k === "d") { e.preventDefault(); deselect(); return true; }
+    if ((e.ctrlKey || e.metaKey) && k === "z") { e.preventDefault(); if (e.shiftKey) redo(); else undo(); return true; }
+    if ((e.ctrlKey || e.metaKey) && k === "y") { e.preventDefault(); redo(); return true; }
+    if ((e.ctrlKey || e.metaKey) && k === "d") { e.preventDefault(); deselect(); return true; }
     if (tf && e.key === "Enter") { e.preventDefault(); tfAction("apply"); return true; }
     if (tf && e.key === "Escape") { cancelTf(); T.tool = "brush"; refreshBars(); return true; }
     if (isSel(T.tool) && V().painter.key(e)) return true;

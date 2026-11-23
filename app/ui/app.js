@@ -887,7 +887,7 @@
     if (e.key === "Escape" && !$("support").hidden) { $("support").hidden = true; return; }
     if (e.key === "Escape" && state.menu.open) { openMenu(false); return; }
     if (e.key === "Delete" && $("sheet").hidden && $("support").hidden) { var c = current(); if (c) removeItem(c.id); return; }
-    if (!e.ctrlKey) return;
+    if (!e.ctrlKey && !e.metaKey) return;
     var k = e.key.toLowerCase();
     if (k === "o") { e.preventDefault(); choose(); }
     else if (k === "v") { e.preventDefault(); if (api()) api().paste().then(merge); }
