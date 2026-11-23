@@ -1,5 +1,13 @@
 # Vistiq Studio (test build)
 
+## 0.4.98
+- Your words go to the model exactly as you type them, plus one short line per Keep lock. No more extra rules or rewriting by the picture reader (they made it do random things, e.g. redesign a steering wheel when asked for new materials).
+- What you see is what changes: words or a selection on a result change that result.
+- Selections: Snap to object and object select look at the picture on screen (not the sketch under a layer), and the snapped selection is one solid piece. A selected part changes as asked: new material, new colour, or something added inside it.
+- Lock warnings only for Camera (your words win over Design, Materials and Light).
+- Board: the Photoshop bar shows Connect (grey) when not linked and a fold arrow (green) when linked. Connect with no file open tells you to open one; it links by itself. The Live tile hangs below the bar (pinned, always on top) or sits on the board (unpinned).
+- Mac: Klein 4B downloads file by file with live progress (it looked stuck at 79%).
+
 ## 0.4.97
 - Smart reading (Settings › Optional extras): before each run the picture reader works out what the picture is (sketch, render, photo) and what you ask for (render, relight, edit, new scene, new view, restyle); the prompt follows that. On a Mac it needs the small picture reader (2.6 GB) and runs on the processor.
 - Your instruction always wins (remove, add, change...), on a sketch or a CGI; the Keep locks only hold what it doesn't mention.
