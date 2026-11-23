@@ -135,6 +135,7 @@ def _blend(base, top, mode):
     return top
 
 
+DESIGN_WORDS = re.compile(r"\b(design\w*|redesign\w*|inspired|inspiration|variation\w*|concept\w*|imagine|reimagine|new shape)\b", re.I)
 # Words that say the strokes only mark a place ("in the green highlighted area", "remove green").
 MARK_WORDS = re.compile(r"\b(?:in|inside|within|on)?\s*(?:the\s+)?(?:green|red|blue|yellow|pink|purple|orange|painted|marked|"
                         r"highlighted|circled|scribbled)\s+(?:highlighted\s+|marked\s+)?(?:area|part|region|zone|spot|bit|marking|"
@@ -1281,6 +1282,11 @@ class Studio:
                                 # at all (Nov 2026): the words, aimed at the marked part, and nothing else.
                                 head = "In picture 1, the part marked white in picture 2: "
                             text = head + text.replace(" Keep everything else exactly as it is.", "") + " Do not draw picture 2."
+                            # "inspired by a carabiner" came back as a literal carabiner bolted on (Nov 2026): a new
+                            # design in a selection is a refined part that belongs to the design around it.
+                            if DESIGN_WORDS.search(w_):
+                                text += (" Make it a refined, production-ready design that fits the design language, "
+                                         "proportions, materials and mounting of the parts around it.")
                     fr = cam_i if refs else (1 if mode == "reference" and (job.get("preset") or "camera") == "camera" else 0)
                     # Photo realism on by default for Instant render once it's here (tested Nov 2026: photographic,
                     # follows the sketch)

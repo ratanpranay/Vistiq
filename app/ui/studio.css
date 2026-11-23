@@ -1280,6 +1280,6 @@ body.studio .s-stage>.s-top,body.studio .s-stage>.s-under{transform:translateZ(0
 .t-clear:hover{background:var(--field);color:var(--ink)}
 
 /* Flip the view (H / Shift H) mirrors the picture only: labels and buttons on it stay readable (Nov 2026) */
-.s-flh :is(.s-tag,.s-ra,button){scale:-1 1}
-.s-flv :is(.s-tag,.s-ra,button){scale:1 -1}
-.s-flh.s-flv :is(.s-tag,.s-ra,button){scale:-1 -1}
+.s-flh :is(.s-tag,.s-ra,.s-zpill){scale:-1 1}
+.s-flv :is(.s-tag,.s-ra,.s-zpill){scale:1 -1}
+.s-flh.s-flv :is(.s-tag,.s-ra,.s-zpill){scale:-1 -1}
