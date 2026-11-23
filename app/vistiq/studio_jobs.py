@@ -167,6 +167,29 @@ def painted_area(spec, size, grow=0.02):
     return small.resize((W, H), Image.BILINEAR).point(lambda v: 255 if v > 127 else 0)
 
 
+def marker_colour(spec):
+    """True when the painted strokes are a bright marker colour (green, red, yellow, neon...): a marking,
+    not a drawing (black or grey lines are a drawing of the new shape)."""
+    import numpy as np
+    px = []
+    for L in [x for x in (spec.get("layers") or []) if not x.get("below_base")]:
+        try:
+            im = Image.open(io.BytesIO(base64.b64decode(L["png"].split(",", 1)[1]))).convert("RGBA")
+        except Exception:
+            continue
+        im.thumbnail((256, 256))
+        a = np.asarray(im).reshape(-1, 4)
+        px.append(a[a[:, 3] > 128, :3])
+    if not px:
+        return False
+    p = np.concatenate(px).astype(np.float32)
+    if len(p) < 10:
+        return False
+    mx, mn = p.max(axis=1), p.min(axis=1)
+    sat = np.where(mx > 0, (mx - mn) / np.maximum(mx, 1), 0)
+    return float(np.median(sat)) > 0.45 and float(np.median(mx)) > 110
+
+
 def keep_unchanged(original, result, thresh=0.07):
     """The original's own pixels wherever the model didn't change the picture, the model's only where
     it did (Nov 2026: every edit redrew the whole picture at about 1 MP and lost the speaker mesh, the
@@ -975,7 +998,7 @@ class Studio:
                     if pm is not None:
                         painted_mask = pm
                         job = dict(job, mask="painted")
-                        if MARK_WORDS.search(job.get("text") or ""):
+                        if MARK_WORDS.search(job.get("text") or "") or marker_colour(job["layers"]):
                             original = plain
                             job = dict(job, text=MARK_WORDS.sub(" ", job.get("text") or ""))
             # Reference images (Create): each gives one thing (camera, materials, style, light).
@@ -1266,8 +1289,10 @@ class Studio:
                         text = "Change picture 1 to a realistic photograph. " + text
                     prompt = studio.qwenedit_prompt(s, imgs, studio.juice_pick(text, int(job.get("look", seed % 60)) + v), seed + v, frame=fr,
                                                     realism=real if job.get("instant") else 0.0,
+                                                    # a selected part is drawn zoomed in (up to 2x), so the new part
+                                                    # comes out as crisp as the picture around it (Nov 2026)
                                                     megapixels=float(lab.get("qe_mp", min(studio.QE_MP, max(
-                                                        studio.QE_MP_MIN, work.size[0] * work.size[1] / 1e6)))),
+                                                        studio.QE_MP_MIN, work.size[0] * work.size[1] / 1e6 * (4 if mask is not None else 1))))),
                                                     steps=int(lab.get("qe_steps", studio.QE_STEPS)),
                                                     # the full-size picture holds every part in place: right when
                                                     # the camera stays, but it stops a new view (3D, Camera unlocked,

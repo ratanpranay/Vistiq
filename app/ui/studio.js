@@ -2367,6 +2367,7 @@
       var fl = window.VSSketch && v.id === "c-view" ? window.VSSketch.flip() : {};
       f.style.transform = "translate(" + z.x + "px," + z.y + "px) rotate(" + (z.r || 0) + "deg) scale(" + z.z * (fl.h ? -1 : 1) + "," + z.z * (fl.v ? -1 : 1) + ")";
       f.classList.toggle("s-zoomed", z.z !== 1);
+      f.classList.toggle("s-flh", !!fl.h); f.classList.toggle("s-flv", !!fl.v);   // flip the picture, not the labels and buttons
       var pill = v.querySelector(".s-zpill");
       if (!pill) {
         pill = document.createElement("div"); pill.className = "s-zpill";

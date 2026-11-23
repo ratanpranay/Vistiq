@@ -1278,3 +1278,8 @@ body.studio .s-stage>.s-top,body.studio .s-stage>.s-under{transform:translateZ(0
 .b-pin.on svg path:first-child{fill:var(--ink)}
 .t-clear{margin-left:auto;flex:none;width:26px;height:26px;border-radius:50%;border:1px solid var(--line);background:#fff;color:var(--ink-2);font:inherit;font-size:16px;line-height:1;cursor:pointer;display:grid;place-items:center;padding:0}
 .t-clear:hover{background:var(--field);color:var(--ink)}
+
+/* Flip the view (H / Shift H) mirrors the picture only: labels and buttons on it stay readable (Nov 2026) */
+.s-flh :is(.s-tag,.s-ra,button){scale:-1 1}
+.s-flv :is(.s-tag,.s-ra,button){scale:1 -1}
+.s-flh.s-flv :is(.s-tag,.s-ra,button){scale:-1 -1}

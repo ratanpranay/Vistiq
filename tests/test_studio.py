@@ -1156,3 +1156,18 @@ class KeepUnchangedTest(unittest.TestCase):
         left = studio_jobs.MARK_WORDS.sub(" ", t)
         self.assertNotIn("green", left)
         self.assertIn("door grab handlebar", left)
+
+
+class MarkerColourTest(unittest.TestCase):
+    def _spec(self, rgb):
+        import base64, io
+        from PIL import Image, ImageDraw
+        lay = Image.new("RGBA", (300, 200), (0, 0, 0, 0))
+        ImageDraw.Draw(lay).ellipse([50, 40, 200, 160], outline=rgb + (255,), width=12)
+        b = io.BytesIO(); lay.save(b, "PNG")
+        return {"layers": [{"png": "data:image/png;base64," + base64.b64encode(b.getvalue()).decode()}]}
+
+    def test_green_is_a_marker_black_is_a_drawing(self):
+        from vistiq import studio_jobs
+        self.assertTrue(studio_jobs.marker_colour(self._spec((110, 230, 60))))
+        self.assertFalse(studio_jobs.marker_colour(self._spec((20, 20, 20))))
