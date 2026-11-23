@@ -1115,3 +1115,44 @@ class IntentTest(unittest.TestCase):
         self.assertEqual(studio.parse_intent("medium = sketch ; task = render."), ("sketch", "render"))
         self.assertEqual(studio.parse_intent("no idea"), ("", ""))
 
+
+
+class KeepUnchangedTest(unittest.TestCase):
+    # Nov 2026: every edit redrew the whole picture at about 1 MP and lost fine detail everywhere.
+    def _pics(self):
+        import numpy as np
+        from PIL import Image, ImageFilter
+        rng = np.random.default_rng(1)
+        o = (rng.random((600, 800, 3)) * 60 + 100).astype("uint8")          # fine "perforation" texture
+        orig = Image.fromarray(o)
+        res = orig.resize((400, 300)).resize((800, 600)).filter(ImageFilter.GaussianBlur(1.5))  # soft redraw
+        r = np.asarray(res).copy()
+        r[200:400, 300:500] = (200, 40, 40)                                  # the asked change: a red part
+        return orig, Image.fromarray(r)
+
+    def test_detail_kept_outside_the_change(self):
+        import numpy as np
+        sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "app"))
+        from vistiq import studio_jobs
+        orig, res = self._pics()
+        out, share = studio_jobs.keep_unchanged(orig, res)
+        o, q = np.asarray(orig), np.asarray(out)
+        self.assertTrue((q[20:150, 20:200] == o[20:150, 20:200]).all())     # untouched: the original's pixels
+        self.assertTrue((q[260:340, 360:440] == (200, 40, 40)).all())        # the change is there
+        self.assertLess(share, 0.3)
+
+    def test_painted_marker(self):
+        import base64, io
+        from PIL import Image, ImageDraw
+        from vistiq import studio_jobs
+        lay = Image.new("RGBA", (400, 300), (0, 0, 0, 0))
+        ImageDraw.Draw(lay).ellipse([100, 80, 200, 160], outline=(0, 255, 0, 255), width=8)
+        b = io.BytesIO(); lay.save(b, "PNG")
+        spec = {"layers": [{"png": "data:image/png;base64," + base64.b64encode(b.getvalue()).decode(), "opacity": 1}]}
+        m = studio_jobs.painted_area(spec, (400, 300))
+        self.assertEqual(m.getpixel((150, 120)), 255)                        # inside the circle: filled
+        self.assertEqual(m.getpixel((350, 250)), 0)
+        t = "create different design variations for the door grab handlebar in the green highlighted area. remove green"
+        left = studio_jobs.MARK_WORDS.sub(" ", t)
+        self.assertNotIn("green", left)
+        self.assertIn("door grab handlebar", left)

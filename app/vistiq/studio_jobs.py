@@ -135,6 +135,62 @@ def _blend(base, top, mode):
     return top
 
 
+# Words that say the strokes only mark a place ("in the green highlighted area", "remove green").
+MARK_WORDS = re.compile(r"\b(?:in|inside|within|on)?\s*(?:the\s+)?(?:green|red|blue|yellow|pink|purple|orange|painted|marked|"
+                        r"highlighted|circled|scribbled)\s+(?:highlighted\s+|marked\s+)?(?:area|part|region|zone|spot|bit|marking|"
+                        r"strokes?|lines?)\b|\bremove (?:the\s+)?(?:green|red|blue|yellow|pink|purple|orange)(?:\s+(?:paint|marking|"
+                        r"strokes?|lines?|colou?r|highlight))?\b|\bhighlighted\b", re.I)
+
+
+def painted_area(spec, size, grow=0.02):
+    """The area covered by painted strokes (layers above the picture), grown a little and filled,
+    as a selection mask; None when nothing is painted."""
+    import numpy as np
+    from . import picker
+    W, H = size
+    acc = None
+    for L in [x for x in (spec.get("layers") or []) if not x.get("below_base")]:
+        try:
+            im = Image.open(io.BytesIO(base64.b64decode(L["png"].split(",", 1)[1]))).convert("RGBA").resize((W, H), Image.BILINEAR)
+        except Exception:
+            continue
+        a = np.asarray(im.getchannel("A")) > 40
+        acc = a if acc is None else (acc | a)
+    if acc is None or acc.sum() < 0.0005 * W * H:
+        return None
+    m = Image.fromarray((acc * 255).astype("uint8"), "L")
+    f = max(1, max(W, H) // 512)
+    small = m.resize((max(1, W // f), max(1, H // f)), Image.BILINEAR)
+    k = max(3, int(max(small.size) * grow) | 1)
+    small = small.filter(ImageFilter.MaxFilter(k))
+    small = picker.fill_holes(small.point(lambda v: 255 if v > 60 else 0))
+    return small.resize((W, H), Image.BILINEAR).point(lambda v: 255 if v > 127 else 0)
+
+
+def keep_unchanged(original, result, thresh=0.07):
+    """The original's own pixels wherever the model didn't change the picture, the model's only where
+    it did (Nov 2026: every edit redrew the whole picture at about 1 MP and lost the speaker mesh, the
+    leather perforation and the brushed metal). Changes are judged on blurred copies, so a slight shift
+    in tone or detail counts as unchanged; thin edge differences are dropped, real changes are kept
+    whole with a soft border."""
+    import numpy as np
+    W, H = original.size
+    w = min(512, W); h = max(8, round(w * H / W))
+    O = np.asarray(original.convert("RGB").resize((w, h), Image.BOX)).astype(np.float32) / 255
+    R = np.asarray(result.convert("RGB").resize((w, h), Image.BOX)).astype(np.float32) / 255
+    d = np.abs(_blur(O, 2) - _blur(R, 2)).max(axis=2)
+    ch = Image.fromarray(((d > thresh) * 255).astype("uint8"), "L")
+    ch = ch.filter(ImageFilter.MinFilter(5)).filter(ImageFilter.MaxFilter(5))      # no thin edge slivers
+    big = _big_areas(np.asarray(ch) > 127, 0.0015)
+    m = Image.fromarray((big * 255).astype("uint8"), "L").filter(ImageFilter.MaxFilter(9)).filter(ImageFilter.GaussianBlur(4))
+    M = np.asarray(m.resize((W, H), Image.BILINEAR)).astype(np.float32)[..., None] / 255
+    if M.mean() > 0.85:          # the whole picture changed (a restyle): the model's picture
+        return result.convert("RGB").resize((W, H), Image.LANCZOS), float(M.mean())
+    o = np.asarray(original.convert("RGB")).astype(np.float32)
+    r = np.asarray(result.convert("RGB").resize((W, H), Image.LANCZOS)).astype(np.float32)
+    return Image.fromarray((o * (1 - M) + r * M + 0.5).clip(0, 255).astype(np.uint8)), float(M.mean())
+
+
 def flatten_layers(original, spec):
     """The picture with the layers painted in Studio, flattened at the picture's
     full size: what Create works on. spec = {base: {visible, opacity, blend},
@@ -906,8 +962,22 @@ class Studio:
                     say("Getting the full-size canvas from Affinity", None)
                 src_path = self.affinity.export_full(need, src_path) or src_path
             original = load_rgb(src_path)
+            painted_mask = None
             if job.get("layers"):
+                plain = original
                 original = flatten_layers(original, job["layers"])   # painted layers on top, as seen
+                # Strokes painted over a picture, with words and no selection (Nov 2026: "the door handle in
+                # the green highlighted area"): the strokes mark WHERE to change, like a selection, so the
+                # rest of the picture stays exactly as it was. Words about the marking ("highlighted",
+                # "marked", "remove green") make it a marker only: the model gets the picture without it.
+                if not job.get("mask") and (job.get("text") or "").strip() and not job.get("view") and not job.get("instant"):
+                    pm = painted_area(job["layers"], original.size)
+                    if pm is not None:
+                        painted_mask = pm
+                        job = dict(job, mask="painted")
+                        if MARK_WORDS.search(job.get("text") or ""):
+                            original = plain
+                            job = dict(job, text=MARK_WORDS.sub(" ", job.get("text") or ""))
             # Reference images (Create): each gives one thing (camera, materials, style, light).
             refs = [r for r in (job.get("refs") or []) if r and r.get("path")][:3] if job.get("mode", "create") == "create" else []
             uses = [r.get("use") or "describe" for r in refs]
@@ -915,7 +985,7 @@ class Studio:
             sent = list(range(len(refs)))
             mask = box = None
             if job.get("mask") and not cam_i:      # a new camera view changes the whole picture
-                mask = decode_mask(job["mask"], original.size)
+                mask = painted_mask if job.get("mask") == "painted" else decode_mask(job["mask"], original.size)
                 box = crop_box(mask, original.size)
                 if not box:
                     mask = None
@@ -1351,6 +1421,16 @@ class Studio:
                 if not (mode == "reference" and job.get("preset") == "style") and "style" not in uses \
                         and s.get("studio_finish", True):
                     result = finish(result)        # a style reference keeps its own look
+                # What the model didn't change keeps the original's own pixels (full detail, no softening).
+                if (mode == "create" and not job.get("view") and not job.get("instant") and not cam_i
+                        and (job.get("preset") or "") != "sketch" and (job.get("locks") or {}).get("camera", True)
+                        and lab.get("keep_unchanged", True)):
+                    try:
+                        if aligned(work, result, need=0.45):
+                            result, share = keep_unchanged(work, result)
+                            log.info("create %s: kept the original's pixels on %d%% of the picture", job_id, round(100 * (1 - share)))
+                    except Exception:
+                        log.exception("keeping the unchanged pixels failed; the picture as the model made it")
                 if mask is not None:
                     blend = int(float(job.get("blend", 0.35)) * 0.06 * max(box[2] - box[0], box[3] - box[1])) + 2
                     result = composite(original, result, mask, box, blend,
