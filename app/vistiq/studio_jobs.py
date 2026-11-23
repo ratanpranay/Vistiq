@@ -143,6 +143,36 @@ MARK_WORDS = re.compile(r"\b(?:in|inside|within|on)?\s*(?:the\s+)?(?:green|red|b
                         r"strokes?|lines?|colou?r|highlight))?\b|\bhighlighted\b", re.I)
 
 
+def _layer_rgba(L, size=None):
+    im = Image.open(io.BytesIO(base64.b64decode(L["png"].split(",", 1)[1]))).convert("RGBA")
+    return im.resize(size, Image.BILINEAR) if size else im
+
+
+def stroke_layers(spec):
+    """The layers above the picture that are strokes (a marking or a drawing), not pictures: a render
+    put on the sketch as a layer covered the whole canvas, so the "marked area" was the whole picture
+    and the change ran on the bare sketch (Nov 2026, Mac: the door in the green patch never changed)."""
+    import numpy as np
+    out = []
+    for L in [x for x in (spec.get("layers") or []) if not x.get("below_base")]:
+        if L.get("image"):
+            continue
+        try:
+            im = _layer_rgba(L)
+        except Exception:
+            continue
+        im.thumbnail((256, 256))
+        if (np.asarray(im.getchannel("A")) > 40).mean() < 0.5:
+            out.append(L)
+    return out
+
+
+def without_strokes(spec):
+    """The layer spec with the stroke layers left out (the picture as it was before the marking)."""
+    ids = set(id(L) for L in stroke_layers(spec))
+    return dict(spec, layers=[L for L in (spec.get("layers") or []) if id(L) not in ids])
+
+
 def painted_area(spec, size, grow=0.02):
     """The area covered by painted strokes (layers above the picture), grown a little and filled,
     as a selection mask; None when nothing is painted."""
@@ -150,9 +180,9 @@ def painted_area(spec, size, grow=0.02):
     from . import picker
     W, H = size
     acc = None
-    for L in [x for x in (spec.get("layers") or []) if not x.get("below_base")]:
+    for L in stroke_layers(spec):
         try:
-            im = Image.open(io.BytesIO(base64.b64decode(L["png"].split(",", 1)[1]))).convert("RGBA").resize((W, H), Image.BILINEAR)
+            im = _layer_rgba(L, (W, H))
         except Exception:
             continue
         a = np.asarray(im.getchannel("A")) > 40
@@ -173,9 +203,9 @@ def marker_colour(spec):
     not a drawing (black or grey lines are a drawing of the new shape)."""
     import numpy as np
     px = []
-    for L in [x for x in (spec.get("layers") or []) if not x.get("below_base")]:
+    for L in stroke_layers(spec):
         try:
-            im = Image.open(io.BytesIO(base64.b64decode(L["png"].split(",", 1)[1]))).convert("RGBA")
+            im = _layer_rgba(L)
         except Exception:
             continue
         im.thumbnail((256, 256))
@@ -1056,7 +1086,7 @@ class Studio:
             original = load_rgb(src_path)
             painted_mask = None
             if job.get("layers"):
-                plain = original
+                base_pic = original
                 original = flatten_layers(original, job["layers"])   # painted layers on top, as seen
                 # Strokes painted over a picture, with words and no selection (Nov 2026: "the door handle in
                 # the green highlighted area"): the strokes mark WHERE to change, like a selection, so the
@@ -1068,7 +1098,8 @@ class Studio:
                         painted_mask = pm
                         job = dict(job, mask="painted")
                         if MARK_WORDS.search(job.get("text") or "") or marker_colour(job["layers"]):
-                            original = plain
+                            # the picture as seen (render layers included), only the marking taken out
+                            original = flatten_layers(base_pic, without_strokes(job["layers"]))
                             job = dict(job, text=MARK_WORDS.sub(" ", job.get("text") or ""))
             # Reference images (Create): each gives one thing (camera, materials, style, light).
             refs = [r for r in (job.get("refs") or []) if r and r.get("path")][:3] if job.get("mode", "create") == "create" else []
@@ -1421,6 +1452,13 @@ class Studio:
                                                     ref_latent=bool(lab.get("qe_reflat", not job.get("view") and not cam_i and
                                                                             (job.get("locks") or {}).get("camera") is not False)))
                 elif sys.platform == "darwin":
+                    w_ = MARK_WORDS.sub(" ", job.get("said") or job.get("text") or "").strip()
+                    if mask is not None and w_ and DESIGN_WORDS.search(w_) and not ADD_WORDS.search(w_):
+                        # The Mac model sees only the marked part (cropped): say it is a new design of that
+                        # part, in place, or it redraws the same part (Nov 2026).
+                        text = ("Redesign the main part in this picture: " + " ".join(studio.clean_prompt(w_).split()).rstrip(".") +
+                                ". Replace it with a clearly new, refined production-ready design of the same part, the "
+                                "same size, position and perspective, matching the materials, quality and light around it.")
                     prompt = {"image": image, "ref": ref_image or (ref_images[0] if ref_images else None), "text": text,
                               "seed": seed + v, "keep": keep,
                               "lines": mode == "reference" and job.get("preset") in ("cmf", "style")}

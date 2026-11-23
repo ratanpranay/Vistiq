@@ -1158,6 +1158,34 @@ class KeepUnchangedTest(unittest.TestCase):
         self.assertIn("door grab handlebar", left)
 
 
+class RenderLayerMarkTest(unittest.TestCase):
+    """Nov 2026 (Mac): a render put on the sketch as a layer, a green patch painted over the door. The marked
+    area is the patch (not the whole render layer) and the model gets the render without the patch."""
+    def _png(self, im):
+        import base64, io
+        b = io.BytesIO(); im.save(b, "PNG")
+        return "data:image/png;base64," + base64.b64encode(b.getvalue()).decode()
+
+    def test_render_layer_is_not_a_marking(self):
+        from PIL import Image, ImageDraw
+        from vistiq import studio_jobs
+        sketch = Image.new("RGB", (400, 300), "white")
+        render = Image.new("RGBA", (400, 300), (210, 200, 180, 255))
+        patch = Image.new("RGBA", (400, 300), (0, 0, 0, 0))
+        ImageDraw.Draw(patch).ellipse([250, 60, 390, 260], fill=(110, 230, 60, 200))
+        spec = {"base": {"visible": True}, "layers": [{"png": self._png(render), "opacity": 1},
+                                                      {"png": self._png(patch), "opacity": 1}]}
+        m = studio_jobs.painted_area(spec, (400, 300))
+        self.assertEqual(m.getpixel((320, 160)), 255)
+        self.assertEqual(m.getpixel((60, 60)), 0)                       # the render layer is not marked
+        self.assertTrue(studio_jobs.marker_colour(spec))
+        plain = studio_jobs.flatten_layers(sketch, studio_jobs.without_strokes(spec))
+        self.assertEqual(plain.getpixel((320, 160)), (210, 200, 180))   # the render, without the green
+        # A layer flagged as a picture never counts as strokes, however small.
+        small = Image.new("RGBA", (400, 300), (0, 0, 0, 0)); small.paste((90, 90, 90, 255), (0, 0, 80, 80))
+        self.assertEqual(studio_jobs.stroke_layers({"layers": [{"png": self._png(small), "image": True}]}), [])
+
+
 class MarkerColourTest(unittest.TestCase):
     def _spec(self, rgb):
         import base64, io

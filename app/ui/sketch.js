@@ -855,7 +855,7 @@
     }
     var data = { w: d.w, h: d.h, active: d.active, flat: flat,
       layers: d.layers.map(function (L) {
-        return { id: L.id, kind: L.kind, name: L.name, visible: L.visible, opacity: L.opacity, blend: L.blend, locked: !!L.locked,
+        return { id: L.id, kind: L.kind, image: !!L.image, name: L.name, visible: L.visible, opacity: L.opacity, blend: L.blend, locked: !!L.locked,
                  png: L.kind === "base" ? "" : (hasPaint(L) ? L.canvas.toDataURL("image/png") : "") };
       }) };
     a.studio_doc_save(d.src.path, data).then(function () { if (window.VSBoard && window.VSBoard.refreshThumb) window.VSBoard.refreshThumb(d.src.path); });
@@ -870,7 +870,7 @@
       data.layers.forEach(function (S) {
         if (S.kind === "base") { Object.assign(d.base, { visible: S.visible, opacity: S.opacity, blend: S.blend }); list.push(d.base); return; }
         var c = document.createElement("canvas"); c.width = d.w; c.height = d.h;
-        var L = { id: S.id, kind: "paint", name: S.name, canvas: c, visible: S.visible, opacity: S.opacity, blend: S.blend, locked: S.locked };
+        var L = { id: S.id, kind: "paint", image: !!S.image, name: S.name, canvas: c, visible: S.visible, opacity: S.opacity, blend: S.blend, locked: S.locked };
         list.push(L);
         if (S.png) { left++; var im = new Image(); im.onload = function () { c.getContext("2d").drawImage(im, 0, 0, d.w, d.h); if (--left === 0) done(); }; im.src = S.png; }
       });
@@ -887,7 +887,7 @@
   function addImageLayer(src, url, name) {
     var d = get(src), im = new Image();
     im.onload = function () {
-      var L = addLayer(d, name || "Render");
+      var L = addLayer(d, name || "Render"); L.image = true;      // a picture, not strokes (a marking)
       d.layers.splice(d.layers.indexOf(L), 1); d.layers.push(L); d.active = L.id;
       L.canvas.getContext("2d").drawImage(im, 0, 0, d.w, d.h);
       if (d === doc && fit) { L.canvas.className = "sk-layer"; fit.appendChild(L.canvas); order(); panel(); thumbs(); }
@@ -903,7 +903,7 @@
     return {
       base: { visible: d.base.visible, opacity: d.base.opacity, blend: d.base.blend },
       layers: d.layers.filter(function (L) { return L.kind !== "base" && L.visible && L.opacity > 0 && hasPaint(L); })
-        .map(function (L) { return { png: L.canvas.toDataURL("image/png"), opacity: L.opacity, blend: L.blend, below_base: d.layers.indexOf(L) < d.layers.indexOf(d.base) }; })
+        .map(function (L) { return { png: L.canvas.toDataURL("image/png"), image: !!L.image, opacity: L.opacity, blend: L.blend, below_base: d.layers.indexOf(L) < d.layers.indexOf(d.base) }; })
     };
   }
 
