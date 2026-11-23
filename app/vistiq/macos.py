@@ -293,10 +293,15 @@ def hf_files(repo):
 
 
 def install_mage(models_dir, download, on_progress, cancelled=lambda: False):
-    m = mage_dir(models_dir)
+    install_hf(MAGE_REPO, mage_dir(models_dir), download, on_progress, cancelled)
+
+
+def install_hf(repo, m, download, on_progress, cancelled=lambda: False, label="Image model"):
+    """A Hugging Face model, file by file, with real progress (GB) and resume; files already
+    complete are kept (Nov 2026: Klein's own downloader showed only whole files and looked stuck)."""
     if os.path.isfile(os.path.join(m, "ready.txt")):
         return
-    files = hf_files(MAGE_REPO)
+    files = hf_files(repo)
     total = sum(sz for _, sz in files) or 1
     done = 0
     for path, sz in files:
@@ -306,12 +311,11 @@ def install_mage(models_dir, download, on_progress, cancelled=lambda: False):
 
             def prog(label, frac, base=base, sz=sz):
                 got = base + (frac or 0) * sz
-                on_progress("Image model: %.1f of %.1f GB" % (got / 1e9, total / 1e9), got / total)
-            download("https://huggingface.co/%s/resolve/main/%s" % (MAGE_REPO, path), dest, prog, "Image model",
-                     cancelled)
+                on_progress("%s: %.1f of %.1f GB" % (label, got / 1e9, total / 1e9), got / total)
+            download("https://huggingface.co/%s/resolve/main/%s" % (repo, path), dest, prog, label, cancelled)
         done += sz
     with open(os.path.join(m, "ready.txt"), "w") as fh:
-        fh.write(MAGE_REPO)
+        fh.write(repo)
 
 
 def install(models_dir, download, on_progress, cancelled=lambda: False, want_generate=True, t="light"):
@@ -343,15 +347,7 @@ def install(models_dir, download, on_progress, cancelled=lambda: False, want_gen
     m = model_dir(models_dir)
     if want_generate and not os.path.isfile(os.path.join(m, "ready.txt")):
         on_progress("Image model: starting download (about 5 GB)", None)
-        script = ("import sys\nfrom huggingface_hub import snapshot_download\n"
-                  "snapshot_download(%r, local_dir=sys.argv[1])\n" % KLEIN_REPO)
-
-        def line(l):
-            if "%" in l:
-                on_progress("Image model · " + l.strip()[-70:], None)
-        _run([python(), "-c", script, m], on_line=line, env=_env(models_dir), cancelled=cancelled)
-        with open(os.path.join(m, "ready.txt"), "w") as fh:
-            fh.write(KLEIN_REPO)
+        install_hf(KLEIN_REPO, m, download, on_progress, cancelled)
     up = upscaler_path(models_dir)
     if not os.path.isfile(up):
         download(UPSCALER, up, on_progress, "Upscaler", cancelled)
