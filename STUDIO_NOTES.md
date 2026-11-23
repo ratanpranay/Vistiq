@@ -1,5 +1,12 @@
 # Vistiq Studio (test build)
 
+## 0.5.2
+- Board tool windows: the + is centred and works by dragging only; the line you drag stays while you pick a tool; placeholders show where the pictures will land, with progress; time estimates before and during a run.
+- Results of a window sit in rows of 4 to its right (1 2 3 4, then 5 6 7 8), with one line from the window.
+- Relight: 7 presets (Studio, Bright & airy, Golden hour, Overcast, Sunset, Cityscape, Night), worded for an interior or an exterior. Each variation gets its own light direction and strength; Relight again starts somewhere else.
+- Night inside: no lamps, only soft indirect ambient glow from light strips and displays, a different ambient colour per variation. Night outside: headlights and tail lights on, street lights in the paint.
+- Relight keeps each material's finish: fabric stays matte, no added gloss.
+
 ## 0.5.1
 - Board tool windows: drag the + out of a tile (or right-click it) and pick Refine, Relight, Variations, 3D views or Upscale. A small window opens next to the tile, joined by a line, with only that tool's settings; results land at the end of its line, each with its own +, so you can chain steps. Type in the tool list to find a tool.
 - Painted marks fixed: with a render layer on top of a sketch, only your strokes count as the marked area (before, the whole render did, and Studio re-rendered the bare sketch with its labels). The marking is taken out of the picture you see, not back to the sketch.
