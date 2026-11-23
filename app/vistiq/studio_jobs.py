@@ -1270,6 +1270,7 @@ class Studio:
                 if self._cancel.is_set():
                     raise RuntimeError("Cancelled")
                 t_var = time.time()
+                model_used = None                         # Fibo2 / Klein9B when those engines draw it
                 label = "Variation %d of %d" % (v + 1, n) if n > 1 else "Creating"
                 say(label, v / n)
                 prog = lambda f, v=v: say(label, (v + f) / n)
@@ -1284,6 +1285,7 @@ class Studio:
                     if (job.get("preset") or "") == "sketch" and not re.search(r"\b(sketch|render|photo)", wtext, re.I):
                         wtext = "turn this sketch into a hyper realistic photo, " + wtext
                     prompt = studio.workflow_prompt(s, image, wtext, seed + v, megapixels=float(lab.get("wf_mp", 2.0)))
+                    model_used = "Klein9B"
                 elif sys.platform != "darwin" and reframe and studio.metaview_ready(s):
                     # MetaView (testing): the same scene from a camera turned by yaw / pitch degrees.
                     prompt = studio.metaview_prompt(s, image, reframe.get("yaw", 0), reframe.get("pitch", 0), seed + v,
@@ -1587,7 +1589,7 @@ class Studio:
                 buf = io.BytesIO()
                 result.save(buf, "PNG")
                 path, w, h = imaging.save(buf.getvalue(), stem + ".png", out_dir, "PNG",
-                                          "%s_v%d_%s" % (tag, v + 1, model_tag), limit=16384)
+                                          "%s_v%d_%s" % (tag, v + 1, model_used or model_tag), limit=16384)
                 meta = {"mode": mode, "preset": job.get("preset"), "view": job.get("view"),
                         "text": job.get("said") if job.get("view") else (job.get("said") or job.get("text") or ""),
                         "keep": keep, "seed": seed + v, "source": src_path, "reference": job.get("reference"),

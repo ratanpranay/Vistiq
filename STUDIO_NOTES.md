@@ -1,5 +1,13 @@
 # Vistiq Studio (test build)
 
+## 0.5.0
+- Your ComfyUI workflow inside Studio (Settings): FLUX.2 Klein 9B + Klein-consistency 0.8, 2 MP, 4 steps, guidance 4, your words as typed. When its files are there it does renders, new light, new materials and edits in a selection. Klein 9B needs a free sign-in at Black Forest Labs; copy flux-2-klein-9b-fp8mixed.safetensors into Models\diffusion_models. The rest downloads from Settings.
+- Fibo 2.0 (Settings, 13 GB, testing, non-commercial licence): design requests (imagine, redesign, inspired by, variations) go to it.
+- Relight fixed: no more blotchy patchwork. The original's pixels are kept only for small changes; a relight or restyle comes back whole.
+- Imagine: a design request first gets one concrete design idea per variation, then it is drawn.
+- Painted marks: strokes with words act as a selection (bright marker colours are taken out of the picture first). A selection is drawn zoomed in, so new parts are as sharp as the rest; no seam line at its edge. Redesign in a selection replaces the old part with a new design of the same part.
+- Flip (H) no longer flips the buttons and labels on the canvas.
+
 ## 0.4.99
 - Faster sketch + words: words about the object (materials, colours, parts) go into the CGI finish pass, one model run less per variation (2K, 2 variations: about 2 minutes instead of 5).
 - 3D views: empty until you press 3D on a picture (in Create, or right-click a tile › 3D views); × clears it. The navigator shows at once. New views fit the screen whole and render at 1K or more; a single seat or part is treated as an object, with the whole of it in frame.
