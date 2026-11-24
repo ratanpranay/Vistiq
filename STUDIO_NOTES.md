@@ -1,5 +1,13 @@
 # Vistiq Studio (test build)
 
+## 0.5.4
+- Board: a new run starts on a new row below the earlier results and lands clear of any tile or window, also ones you moved into the way.
+- Board: the placeholders of a run can be dragged; the picture lands where you put it.
+- Board: zoom up to 1000%.
+- Board: the lines to tool windows leave a tile from one dot; the selected window's line is dark, the others grey.
+- Board: ‹ in a tool window goes back to the tool list (pick another tool).
+- Create: the selected result in the strip has a white outline; a click beside the picture closes the result (like Escape).
+
 ## 0.5.3
 - Relight from your reference pictures: Night shows the glowing light lines themselves, their light bouncing onto the seats and panels, stars outside, a different light colour per variation. Golden hour puts the low sun in the windows with sunbeams and long shadows, the sun in a different place each time. Bright & airy fills the cabin with soft daylight and a bright view outside (beach, desert, mountains, sea). Sunset: the sun on the horizon, strips glowing orange. Materials keep their colour and finish.
 - Pictures you drop, pick or paste from a file are copied into Vistiq Studio\Imported, so deleting or moving the original no longer breaks the board or Focus view.
