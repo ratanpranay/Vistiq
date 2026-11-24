@@ -162,7 +162,7 @@
         var firstOf = B.tiles.filter(function (k) { return k.via === nv.id; })[0];
         if (firstOf !== t) return;
         var a1 = nv.x + NODE_W, b1 = nv.y + 22, a2 = t.x, b2 = t.y + tileH(t) / 2, am = (a1 + a2) / 2;
-        d += '<path class="on" d="M' + a1 + " " + b1 + " C" + am + " " + b1 + "," + am + " " + b2 + "," + a2 + " " + b2 + '"/>';
+        d += '<path class="' + (nv.id === selNodeId() ? "on dk" : "on gr") + '" d="M' + a1 + " " + b1 + " C" + am + " " + b1 + "," + am + " " + b2 + "," + a2 + " " + b2 + '"/>';
         return;
       }
       var p = t.from && byId(t.from); if (!p || (p.kind === "live" && !liveInWorld())) return;
@@ -558,7 +558,8 @@
       (n.err ? '<div class="bn-err">' + esc(n.err) + "</div>" : '<div class="bn-est">' + esc(nodeEta(n)) + "</div>");
     var done = (n.made || 0) > 0;
     return '<div class="b-node' + (n.busy ? " busy" : "") + '" data-nid="' + n.id + '" style="left:' + n.x + "px;top:" + n.y + "px;width:" + NODE_W + 'px">' +
-      '<div class="bn-h" data-nh="' + n.id + '"><span class="bn-ic">' + tl[1] + "</span><b>" + tl[2] + '</b><button type="button" class="bn-x" data-nx title="Close">×</button></div>' +
+      '<div class="bn-h" data-nh="' + n.id + '"><button type="button" class="bn-back" data-nback title="Back to the tools (pick another)"' + (n.busy ? " disabled" : "") + '>‹</button><span class="bn-ic">' + tl[1] + "</span><b>" + tl[2] +
+      '</b><button type="button" class="bn-x" data-nx title="Close">×</button></div>' +
       '<div class="bn-b">' + body + '<button type="button" class="bn-run" data-nr' + (n.busy || !can ? " disabled" : "") + ">" + (n.busy ? "Working…" : done ? label + " again" : label) + "</button>" + st + "</div></div>";
   }
   // How long a run takes, from earlier runs on this computer (as Create shows it).
@@ -580,12 +581,34 @@
     var src = byId(n.from), w = src ? tileW(src) : W, h = src ? tileH(src) : PH + 30;
     return { x: n.x + NODE_W + 70 + (i % 4) * (w + 30), y: n.y + Math.floor(i / 4) * (h + 30), w: w, h: h - 30 };
   }
+  // Where a run's pictures go (Nov 2026): a new run starts on a new row below the window's earlier pictures, and the
+  // whole block moves down until it is clear of every tile and window (also ones you moved into the way).
+  function planRun(n, want) {
+    var src = byId(n.from), w = src ? tileW(src) : W, h = src ? tileH(src) : PH + 30;
+    var mine = B.tiles.filter(function (k) { return k.via === n.id; });
+    var x0 = n.x + NODE_W + 70, y0 = mine.length ? Math.max.apply(null, mine.map(function (k) { return k.y + tileH(k); })) + 30 : n.y;
+    var rects = B.tiles.filter(function (k) { return k.kind !== "frame" && (k.kind !== "live" || liveInWorld()); })
+      .map(function (k) { return [k.x, k.y, tileW(k), tileH(k)]; })
+      .concat(nodes().filter(function (m) { return m !== n; }).map(function (m) { return [m.x, m.y, NODE_W, 300]; }))
+      .concat([].concat.apply([], nodes().filter(function (m) { return m !== n && m.busy && m.slots; }).map(function (m) {
+        return m.slots.slice(m.got || 0).map(function (g) { return [g.x, g.y, g.w, g.h + 30]; }); })));
+    var hit = function (x, y) { return rects.some(function (r) { return r[0] < x + w + 15 && r[0] + r[2] + 15 > x && r[1] < y + h + 15 && r[1] + r[3] + 15 > y; }); };
+    for (var tries = 0; tries < 80; tries++) {
+      var clear = true;
+      for (var i = 0; i < want && clear; i++) if (hit(x0 + (i % 4) * (w + 30), y0 + Math.floor(i / 4) * (h + 30))) clear = false;
+      if (clear) break;
+      y0 += 40;
+    }
+    var out = [];
+    for (var j = 0; j < want; j++) out.push({ x: x0 + (j % 4) * (w + 30), y: y0 + Math.floor(j / 4) * (h + 30), w: w, h: h - 30 });
+    n.slots = out;
+  }
   // Where the pictures of a run will land: a placeholder each, at the end of the line, until they come.
   function ghosts(n) {
     if (!n.busy) return [];
     var want = n.kind === "upscale" || n.kind === "3d" ? 1 : (n.vars || 1), got = n.got || 0, out = [];
-    var k0 = B.tiles.filter(function (k) { return k.via === n.id; }).length;
-    for (var i = got; i < want; i++) { var g = slot(n, k0 + i - got); g.first = i === got; out.push(g); }
+    if (!n.slots || n.slots.length < want) planRun(n, want);
+    for (var i = got; i < want; i++) out.push({ x: n.slots[i].x, y: n.slots[i].y, w: n.slots[i].w, h: n.slots[i].h, first: i === got, i: i });
     return out;
   }
   function renderNodes() {
@@ -605,7 +628,7 @@
     var gh = "";
     nodes().forEach(function (n) {
       ghosts(n).forEach(function (g) {
-        gh += '<div class="b-ghost" style="left:' + g.x + "px;top:" + g.y + "px;width:" + g.w + 'px"><div class="b-h"><span>' + (g.first ? "Making…" : "Next") + "</span></div>" +
+        gh += '<div class="b-ghost" data-gn="' + n.id + '" data-gi="' + g.i + '" style="left:' + g.x + "px;top:" + g.y + "px;width:" + g.w + 'px"><div class="b-h"><span>' + (g.first ? "Making…" : "Next") + "</span></div>" +
           '<div class="bg-ph" style="height:' + g.h + 'px"><span>' + (g.first ? esc((n.status || "Starting").replace(/ · \d+%$/, "")) : "waiting") + "</span>" +
           (g.first ? '<i style="width:' + Math.round((n.frac || 0) * 100) + '%"></i>' : "") + "</div></div>";
       });
@@ -614,12 +637,24 @@
     if (!gb) { gb = document.createElement("div"); gb.id = "b-ghosts"; world.appendChild(gb); }
     if (gb.getAttribute("data-h") !== gh) { gb.innerHTML = gh; gb.setAttribute("data-h", gh); }
   }
+  function selNodeId() {
+    var ns = nodes(); if (!ns.length) return null;
+    return nodeById(B.selNode) ? B.selNode : ns[ns.length - 1].id;
+  }
   function nodeLinks() {
     var d = "";
+    // one dot where the lines leave each tile (they all start from the same point, as in Vizcom)
+    var from = {};
+    nodes().forEach(function (n) { var p = byId(n.from); if (p) from[p.id] = p; });
+    Object.keys(from).forEach(function (id) {
+      var p = from[id];
+      d += '<circle class="b-jn" cx="' + (p.x + tileW(p)) + '" cy="' + (p.y + tileH(p) / 2) + '" r="4.5"/>';
+    });
     nodes().forEach(function (n) {
       var p = byId(n.from); if (!p) return;
       var x1 = p.x + tileW(p), y1 = p.y + tileH(p) / 2, x2 = n.x, y2 = n.y + 22, mx = (x1 + x2) / 2;
-      d += '<path class="on" d="M' + x1 + " " + y1 + " C" + mx + " " + y1 + "," + mx + " " + y2 + "," + x2 + " " + y2 + '"/>';
+      var cls = n.id === selNodeId() ? "on dk" : "on gr";
+      d += '<path class="' + cls + '" d="M' + x1 + " " + y1 + " C" + mx + " " + y1 + "," + mx + " " + y2 + "," + x2 + " " + y2 + '"/>';
       var g0 = ghosts(n)[0];
       if (g0 && !B.tiles.some(function (k) { return k.via === n.id; })) {
         var a1 = n.x + NODE_W, b1 = n.y + 22, a2 = g0.x, b2 = g0.y + (g0.h + 30) / 2, am = (a1 + a2) / 2;
@@ -666,7 +701,7 @@
     if (!res || !res.path || has(res.path)) return;
     var src = byId(n.from);
     var t = { id: uid(), kind: "result", path: res.path, name: res.name, w: res.w, h: res.h, from: src ? src.id : null, via: n.id, made: Date.now() };
-    var g = slot(n, B.tiles.filter(function (k) { return k.via === n.id; }).length);
+    var g = n.slots && n.slots[n.got || 0] || slot(n, B.tiles.filter(function (k) { return k.via === n.id; }).length);
     t.x = g.x; t.y = g.y;
     if (res.preview) thumbs[t.path] = res.preview;
     B.tiles.push(t); n.made = (n.made || 0) + 1; n.got = (n.got || 0) + 1; save(); render(); show(t);
@@ -687,7 +722,7 @@
       call("set_setting", "scale", n.scale).then(function () { return call("studio_to_upscale", t.path); }).then(function (added) {
         var it = (added || [])[0];
         if (!it) { n.err = "Couldn't add it to Upscale."; render(); return; }
-        hook(); n.upPath = it.path; n.busy = true; n.frac = 0; n.got = 0; n.status = "Starting"; render();
+        hook(); n.upPath = it.path; n.busy = true; n.frac = 0; n.got = 0; n.status = "Starting"; B.selNode = n.id; planRun(n, 1); render();
         if (it.status === "done" && it.out_path) { nodeEvent("item", it); return; }
         call("start").then(function (ok) { if (!ok && n.busy && it.status !== "running" && it.status !== "queued") { n.busy = false; n.err = "Upscale is busy: try again when it's done."; render(); } });
       });
@@ -696,7 +731,8 @@
     if (p.job || runNode) { V.toast("Studio is still working on something"); return; }
     var text = nodeText(n);
     if (n.kind === "refine" && !text) { V.toast("Type what to change first"); return; }
-    hook(); runNode = n; n.busy = true; n.frac = 0; n.got = 0; n.status = "Starting"; n.job = null; n.seen = false; n.wait = 0; render();
+    hook(); runNode = n; n.busy = true; n.frac = 0; n.got = 0; n.status = "Starting"; n.job = null; n.seen = false; n.wait = 0;
+    B.selNode = n.id; planRun(n, n.kind === "3d" ? 1 : (n.vars || 1)); render();
     call("studio_image", t.path).then(function (info) {
       if (!info) { runNode = null; n.busy = false; n.err = "That file was moved or deleted."; render(); return; }
       S.create.source = "image"; V.setImage(p, "src", info); S.boardFrom = t.id; p.refs = [];
@@ -925,6 +961,13 @@
         var n = nodeById(ne.getAttribute("data-nid")), nb = e.target.closest("button");
         if (!n || !nb) return;
         if (nb.hasAttribute("data-nx")) nodeClose(n);
+        else if (nb.hasAttribute("data-nback")) {           // back to the tool list, where the window was
+          if (n.busy) return;
+          var tt = byId(n.from), rr = root.getBoundingClientRect(), vz = B.view, wx = n.x, wy = n.y;
+          nodeClose(n);
+          if (tt) actsOpen(tt, rr.left + wx * vz.z + vz.x, rr.top + wy * vz.z + vz.y + 20, wx, wy);
+          return;
+        }
         else if (nb.hasAttribute("data-nr")) nodeRun(n);
         else if (n.busy) return;
         else if (nb.hasAttribute("data-nv")) n.vars = +nb.getAttribute("data-nv");
@@ -977,11 +1020,18 @@
       }
       var nh = e.button === 0 && e.target.closest(".bn-h");
       if (nh && !e.target.closest("button")) {          // a tool window moves by its title
-        var nd = nodeById(nh.getAttribute("data-nh"));
+        var nd = nodeById(nh.getAttribute("data-nh")); if (nd) B.selNode = nd.id;
         if (nd) { drag = { node: nd, sx: e.clientX, sy: e.clientY, x: nd.x, y: nd.y, moved: false }; cv.setPointerCapture(e.pointerId); }
         return;
       }
-      if (e.target.closest(".b-node")) { menu.hidden = true; return; }      // typing and buttons in a tool window
+      var gst = e.button === 0 && e.target.closest(".b-ghost");
+      if (gst) {                     // a placeholder moves like a tile; the picture then lands where it is
+        var gn = nodeById(gst.getAttribute("data-gn")), gi = +gst.getAttribute("data-gi");
+        if (gn && gn.slots && gn.slots[gi]) { drag = { ghost: gn.slots[gi], node: null, sx: e.clientX, sy: e.clientY, x: gn.slots[gi].x, y: gn.slots[gi].y, moved: false }; cv.setPointerCapture(e.pointerId); }
+        return;
+      }
+      var tn = e.target.closest(".b-node");
+      if (tn) { menu.hidden = true; if (B.selNode !== tn.getAttribute("data-nid")) { B.selNode = tn.getAttribute("data-nid"); svgEl.innerHTML = linksSVG(); } return; }      // typing and buttons in a tool window
       if (e.target.closest("button")) return;
       menu.hidden = true;
       var fh = e.button === 0 && e.target.closest(".b-fh");
@@ -1024,6 +1074,12 @@
         svgEl.innerHTML = linksSVG(); return;
       }
       if (!drag) return;
+      if (drag.ghost) {
+        var gx = e.clientX - drag.sx, gy = e.clientY - drag.sy;
+        if (!drag.moved && Math.abs(gx) + Math.abs(gy) < 3) return;
+        drag.moved = true; drag.ghost.x = Math.round(drag.x + gx / B.view.z); drag.ghost.y = Math.round(drag.y + gy / B.view.z);
+        renderNodes(); svgEl.innerHTML = linksSVG(); return;
+      }
       if (drag.node) {
         var ddx = e.clientX - drag.sx, ddy = e.clientY - drag.sy;
         if (!drag.moved && Math.abs(ddx) + Math.abs(ddy) < 3) return;
@@ -1067,7 +1123,7 @@
         else VS().toast("Drag the + out to a free spot to pick a tool");
         return;
       }
-      if (drag && drag.node) { if (drag.moved) save(); drag = null; try { cv.releasePointerCapture(e.pointerId); } catch (x) {} return; }
+      if (drag && (drag.node || drag.ghost)) { if (drag.moved) save(); drag = null; try { cv.releasePointerCapture(e.pointerId); } catch (x) {} return; }
       if (drag && drag.box) {
         root.querySelector("#b-marq").hidden = true;
         if (multi.length === 1) { B.sel = multi[0]; multi = []; lastHTML = ""; render(); }
@@ -1082,7 +1138,7 @@
         (e.wheelDeltaY !== undefined ? e.wheelDeltaY % 120 === 0 : Math.abs(e.deltaY) >= 40) && !e.shiftKey;
       if (!e.ctrlKey && !mouse) padUntil = now + 350;      // a touchpad slide, glide included, stays a pan
       if (e.ctrlKey || mouse) {
-        var z = Math.max(0.1, Math.min(3, v.z * Math.exp(-e.deltaY * (e.ctrlKey ? 0.01 : 0.0015))));
+        var z = Math.max(0.1, Math.min(10, v.z * Math.exp(-e.deltaY * (e.ctrlKey ? 0.01 : 0.0015))));
         var mx = e.clientX - r.left, my = e.clientY - r.top;
         v.x = mx - (mx - v.x) * z / v.z; v.y = my - (my - v.y) * z / v.z; v.z = z;
       } else { v.x -= e.deltaX; v.y -= e.deltaY; }        // trackpad: two fingers pan

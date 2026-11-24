@@ -83,7 +83,7 @@ body.studio .s-page.on{display:flex;flex:1;min-width:0;height:100%}
 
 .s-vars{display:flex;gap:10px;align-items:center;min-height:66px;overflow-x:auto}
 .s-vars img{width:112px;height:63px;object-fit:cover;border-radius:12px;border:2px solid transparent;cursor:pointer;flex-shrink:0}
-.s-vars img.sel{border-color:var(--ink)}
+.s-vars img.sel{border-color:#fff;box-shadow:0 0 0 1.5px rgba(20,22,31,.45),0 4px 14px rgba(14,16,32,.22)}
 .s-vars .s-ph{width:112px;height:63px;border-radius:12px;background:linear-gradient(90deg,#E6E8ED,#F2F3F6,#E6E8ED);background-size:200% 100%;animation:s-shim 1.2s linear infinite;flex-shrink:0}
 @keyframes s-shim{to{background-position:-200% 0}}
 .s-more{height:63px;padding:0 16px;border-radius:12px;border:2px dashed var(--line-2);display:flex;align-items:center;font-size:13px;font-weight:700;color:var(--dim);flex-shrink:0}
@@ -310,7 +310,7 @@ body.studio .s-page.on{display:flex;flex:1;min-width:0;height:100%}
 .s-vars .s-fillt .s-fillc img{width:112px;height:63px;object-fit:cover;border:0;border-radius:0;max-width:none}
 .s-vars .s-fillt .s-fillb{position:absolute;left:0;right:0;bottom:0;height:3px;background:rgba(255,255,255,.6)}
 .s-vars .s-fillt .s-fillb i{display:block;height:100%;background:linear-gradient(90deg,#4FA3F7,#7B3FF2,#E0517E,#F2A15A);transition:width .4s}
-.s-vars .s-fillt.sel{box-shadow:0 0 0 2px var(--ink)}
+.s-vars .s-fillt.sel{box-shadow:0 0 0 2.5px #fff,0 0 0 4px rgba(20,22,31,.45)}
 
 /* 0.3.11 — calmer, consistent type across Create, Reference and Upscale */
 .s-rail-body>*{flex:0 0 auto}                       /* tall windows: nothing stretches */
@@ -1329,3 +1329,11 @@ body.studio .s-stage>.s-top,body.studio .s-stage>.s-under{transform:translateZ(0
 .b-ghost .bg-ph i{position:absolute;left:0;bottom:0;height:3px;background:linear-gradient(90deg,#3b82f6,#6d5df5);transition:width .4s}
 .b-ghost .bg-ph{animation:bgsh 1.6s linear infinite;background-size:200% 200%}
 @keyframes bgsh{from{background-position:0 0}to{background-position:51px 0}}
+.b-links path.on.dk{stroke:#1d1d24;stroke-width:1.9}
+.b-links path.on.gr{stroke:#c3c5d1;stroke-width:1.6}
+.b-links path.on.drag{stroke:#7b6cf6}
+.b-links circle.b-jn{fill:#fff;stroke:#1d1d24;stroke-width:1.8}
+.b-node .bn-back{width:22px;height:22px;border-radius:6px;color:#666;font-size:18px;line-height:18px;padding:0;margin-right:-2px}
+.b-node .bn-back:hover{background:#f3f2f8;color:#16161d}
+.b-node .bn-back:disabled{opacity:.3}
+.b-ghost{cursor:grab}

@@ -1245,6 +1245,16 @@
       }, true);
       view.addEventListener("pointerdown", function (e) { if (e.button !== 0 || zoom.space || zoom.pan || e.target.closest(".s-zpill,.s-paintbtn,.s-ra")) return; var img = view.querySelector("img.s-res"), c = current(p), o = (c && c.orig) || (p.src && p.src.preview); if (img && o) { img.src = o; view.classList.add("hold"); } });
       var up = function () { var img = view.querySelector("img.s-res"), c = current(p); if (img && c) img.src = c.preview; };
+      // A click beside the picture (not on it, its buttons or the tools) closes the result, like Escape (Nov 2026).
+      var downAt = null;
+      view.addEventListener("pointerdown", function (e) { downAt = e.button === 0 ? [e.clientX, e.clientY] : null; }, true);
+      view.addEventListener("click", function (e) {
+        var d = downAt; downAt = null;
+        if (p.sel === -1 || !d || Math.abs(e.clientX - d[0]) + Math.abs(e.clientY - d[1]) > 5 || zoom.space || zoom.pan) return;
+        if (e.target.closest("img,canvas,button,a,input,textarea,select,.sk-bar,.sk-opts,.sk-panel,.s-zpill,.s-ra,.s-paintbtn,.s-res,.s-fit,[data-ra]")) return;
+        if (p.job) p.follow = false;
+        p.sel = -1; render();
+      });
       view.addEventListener("pointerup", up); view.addEventListener("pointerleave", up);
     });
     // Library

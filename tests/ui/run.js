@@ -326,6 +326,24 @@ const frame = (n, name) => ({ path: "live://photoshop/" + n, name: name || "flat
     check("the window is free again: Refine again", await p.evaluate(() => /again/.test(document.querySelector(".b-node [data-nr]").textContent) && !document.querySelector(".b-node [data-nr]").disabled),
       await p.evaluate(() => document.querySelector(".b-node").outerHTML.slice(0, 300)));
     if (process.env.NSHOT) await p.screenshot({ path: "/tmp/claude-0/-home-claude/dcd924c8-68bd-54b8-af15-65d2e5e10346/scratchpad/board_nodes.png" });
+    // A second run starts on a new row below the first, clear of a tile moved into the way.
+    await p.evaluate(() => { const B = window.VSBoard._state(), n = B.nodes[0];
+      const blocker = { id: "blk", kind: "image", path: "C:/a/blk.png", name: "blk.png", w: 1600, h: 900, x: n.x + 320, y: Math.max(...B.tiles.filter((t) => t.via === n.id).map((t) => t.y)) + 230, made: 1 };
+      B.tiles.push(blocker); window.VSBoard.render(); window.__lastJob = null; });
+    await p.click(".b-node [data-nr]"); await p.waitForTimeout(300);
+    const plan = await p.evaluate(() => { const B = window.VSBoard._state(), n = B.nodes[0], blk = B.tiles.find((t) => t.id === "blk");
+      const prev = Math.max(...B.tiles.filter((t) => t.via === n.id).map((t) => t.y));
+      return { slots: n.slots, prev, blk: [blk.x, blk.y] }; });
+    check("a new run starts below the earlier results and clear of a tile in the way", plan.slots[0].y > plan.prev && plan.slots.every((g) => !(g.x < plan.blk[0] + 300 && g.x + g.w > plan.blk[0] && g.y < plan.blk[1] + 200 && g.y + g.h + 30 > plan.blk[1])), JSON.stringify(plan));
+    const gb = await p.evaluate(() => { const r = document.querySelector(".b-ghost").getBoundingClientRect(); return [r.x + 40, r.y + 60]; });
+    await p.mouse.move(gb[0], gb[1]); await p.mouse.down(); await p.mouse.move(gb[0] + 120, gb[1] + 90, { steps: 6 }); await p.mouse.up(); await p.waitForTimeout(80);
+    check("a placeholder can be dragged", await p.evaluate((pl) => window.VSBoard._state().nodes[0].slots[0].x > pl.slots[0].x, plan), "");
+    await p.ev("studio-result", { id: "j1", index: 0, of: 2, result: { path: "C:/o/g3.png", name: "g3.png", w: 1600, h: 900, preview: img } });
+    await p.waitForTimeout(100);
+    check("the picture lands where the placeholder was dragged", await p.evaluate(() => { const B = window.VSBoard._state(), n = B.nodes[0], t = B.tiles.find((x) => x.path === "C:/o/g3.png"); return t.x === n.slots[0].x && t.y === n.slots[0].y; }), "");
+    await p.ev("studio-result", { id: "j1", index: 1, of: 2, result: { path: "C:/o/g4.png", name: "g4.png", w: 1600, h: 900, preview: img } });
+    await p.ev("studio-job", { id: "j1", state: "done" }); await p.waitForTimeout(700);
+    await p.evaluate(() => { const B = window.VSBoard._state(); B.tiles = B.tiles.filter((t) => !["C:/o/g3.png", "C:/o/g4.png", "C:/a/blk.png"].includes(t.path)); window.VSBoard.render(); });
     check("lines: tile → window → its results (one line)", await p.evaluate(() => document.querySelectorAll("#b-links path.on").length) === 2, "");
     // Right-click a result → 3D views: same kind of window, chained.
     const rid = await p.evaluate(() => window.VSBoard._state().tiles.find((t) => t.path === "C:/o/g2.png").id);
@@ -334,7 +352,7 @@ const frame = (n, name) => ({ path: "live://photoshop/" + n, name: name || "flat
     check("right-click → 3D views opens a window next to that result", await p.evaluate((id) => window.VSBoard._state().nodes.some((n) => n.kind === "3d" && n.from === id), rid), "");
     await p.evaluate(() => { window.__lastJob = null; });
     const n3 = '.b-node[data-nid="' + await p.evaluate(() => window.VSBoard._state().nodes.find((n) => n.kind === "3d").id) + '"]';
-    await p.click(n3 + ' [data-n3="rear"]'); await p.click(n3 + " [data-nr]"); await p.waitForTimeout(300);
+    await p.evaluate((sel) => { document.querySelector(sel + ' [data-n3="rear"]').click(); document.querySelector(sel + " [data-nr]").click(); }, n3); await p.waitForTimeout(300);
     const j3 = await p.evaluate(() => window.__lastJob);
     check("3D views runs that result to the view picked", !!j3 && j3.image === "C:/o/g2.png" && j3.view && j3.view.target === "rear", JSON.stringify(j3));
     await p.ev("studio-job", { id: "j1", state: "done" }); await p.waitForTimeout(700);
@@ -346,15 +364,52 @@ const frame = (n, name) => ({ path: "live://photoshop/" + n, name: name || "flat
     await p.click('.b-tile[data-id="' + rid + '"]', { button: "right" }); await p.waitForTimeout(80);
     await p.click('#b-menu [data-m="upscale"]'); await p.waitForTimeout(100);
     const nu = '.b-node[data-nid="' + await p.evaluate(() => window.VSBoard._state().nodes.find((n) => n.kind === "upscale").id) + '"]';
-    await p.click(nu + ' [data-nu="4"]'); await p.click(nu + " [data-nr]"); await p.waitForTimeout(200);
+    await p.evaluate((sel) => { document.querySelector(sel + ' [data-nu="4"]').click(); document.querySelector(sel + " [data-nr]").click(); }, nu); await p.waitForTimeout(200);
     check("Upscale sets the size and starts", (await p.evaluate(() => window.__ups.join(","))) === "scale=4,start", await p.evaluate(() => window.__ups.join(",")));
     await p.ev("item", { id: "u1", name: "g2.png", preview: img, path: "C:/o/g2.png", status: "done", out_path: "C:/o/g2_x4.png", out_w: 6400, out_h: 3600, out_preview: img });
     await p.waitForTimeout(150);
     check("the upscaled picture lands at the end of the Upscale window", await p.evaluate(() => window.VSBoard._state().tiles.some((t) => t.path === "C:/o/g2_x4.png" && t.via)), "");
-    await p.click(nu + " [data-nx]"); await p.waitForTimeout(80);
+    check("the selected window's line is dark, the others grey", await p.evaluate(() => document.querySelectorAll("#b-links path.dk").length >= 1 && document.querySelectorAll("#b-links path.gr").length >= 1), "");
+    // ‹ goes back to the tool list where the window was.
+    await p.evaluate((sel) => document.querySelector(sel + " [data-nback]").click(), nu); await p.waitForTimeout(100);
+    check("‹ closes the window and opens the tool list", await p.evaluate(() => !window.VSBoard._state().nodes.some((n) => n.kind === "upscale") && !document.getElementById("b-acts").hidden), "");
+    await p.keyboard.press("Escape"); await p.waitForTimeout(50);
+    await p.click('.b-tile[data-id="' + rid + '"]', { button: "right" }); await p.waitForTimeout(80);
+    await p.click('#b-menu [data-m="upscale"]'); await p.waitForTimeout(100);
+    const nu2 = '.b-node[data-nid="' + await p.evaluate(() => window.VSBoard._state().nodes.find((n) => n.kind === "upscale").id) + '"]';
+    await p.evaluate((sel) => document.querySelector(sel + " [data-nx]").click(), nu2); await p.waitForTimeout(80);
     check("× closes the window; its pictures stay", await p.evaluate(() => !window.VSBoard._state().nodes.some((n) => n.kind === "upscale") && window.VSBoard._state().tiles.some((t) => t.path === "C:/o/g2_x4.png")), "");
     check("windows are saved with the board", await p.evaluate(() => (window.__board.nodes || []).length === 2), await p.evaluate(() => JSON.stringify((window.__board || {}).nodes)));
     check("no page errors with tool windows", p.errors.length === 0, p.errors.join(" | "));
+    await p.close();
+  }
+
+  // A click beside the picture closes a result in view (like Escape); board zoom goes to 1000%.
+  {
+    const p = await open(browser, null, {});
+    const g = "data:image/gif;base64,R0lGODlhAQABAAAAACw=";
+    await p.evaluate((g) => { const S = window.VS.S.create; S.source = "image"; window.VS.setImage(S, "src", { path: "C:/i/a.png", name: "a.png", w: 1600, h: 900, preview: g });
+      S.results = [{ path: "C:/o/r1.png", name: "r1.png", w: 1600, h: 900, preview: g, srcKey: "C:/i/a.png" }]; S.sel = 0; window.VS.render(); }, g);
+    await p.waitForTimeout(150);
+    const spot = await p.evaluate(() => { const v = document.getElementById("c-view").getBoundingClientRect(), f = document.querySelector("#c-view .s-fit, #c-view img.s-res");
+      const r = f ? f.getBoundingClientRect() : { left: v.left, right: v.left, top: v.top, bottom: v.top };
+      return [Math.round((v.left + r.left) / 2) || v.left + 10, Math.round(v.top + v.height * 0.5)]; });
+    await p.mouse.click(spot[0], spot[1]); await p.waitForTimeout(100);
+    check("a click beside the picture shows your picture again (like Escape)", await p.evaluate(() => window.VS.S.create.sel) === -1, JSON.stringify(spot));
+    await p.evaluate(() => { window.VS.S.create.sel = 0; window.VS.render(); }); await p.waitForTimeout(80);
+    const on = await p.evaluate(() => { const f = document.querySelector("#c-view img.s-res") || document.querySelector("#c-view .s-fit"); const r = f.getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height / 2]; });
+    await p.mouse.click(on[0], on[1]); await p.waitForTimeout(100);
+    check("a click on the picture keeps the result", await p.evaluate(() => window.VS.S.create.sel) === 0, "");
+    check("no page errors (click beside)", p.errors.length === 0, p.errors.join(" | "));
+    await p.close();
+  }
+  {
+    const p = await open(browser, null, { board: true });
+    const c = await p.evaluate(() => { const r = document.getElementById("b-cv").getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height / 2]; });
+    await p.mouse.move(c[0], c[1]);
+    for (let i = 0; i < 40; i++) await p.mouse.wheel(0, -400);
+    await p.waitForTimeout(100);
+    check("board zoom goes to 1000%", await p.evaluate(() => window.VSBoard._state().view.z) > 9.9, await p.evaluate(() => window.VSBoard._state().view.z));
     await p.close();
   }
 
