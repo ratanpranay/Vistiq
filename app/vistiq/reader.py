@@ -83,6 +83,16 @@ ASK = {
     # instead of matching words.
     # Imagine (Nov 2026): a short design request ("a handle inspired by a carabiner") becomes concrete
     # design ideas for the image model, the way a designer would read it; one idea per line.
+    # The judge (Nov 2026): picture 1 is what went in, picture 2 what came out; does 2 do what was asked?
+    "judge": ("Picture 1 is the design before. Picture 2 is the result of this request: \"{req}\". Review picture 2 "
+              "strictly, as a senior designer reviewing an AI result. First write diff: and list every visible difference "
+              "between picture 1 and picture 2 (which part, what changed: shape, colour, material, light), short. Then "
+              "answer in exactly this form: changed=<yes|no>; unwanted=<yes|no>; clean=<yes|no>; follows=<0-10>; score=<0-10>; "
+              "note=<one short sentence>. changed: did the part the request is about really change? unwanted: did any part "
+              "change that the request did not ask to change (another panel recoloured, a silver part turned black, a shape "
+              "altered)? clean: look closely at the changed part and its edges: is it sharp and solid, with no blur, smear, "
+              "melted or broken shapes, seams or leftover marker colour? follows: how well picture 2 does what was asked (a new "
+              "design must look clearly new and fit the inspiration). score: would a designer keep picture 2?"),
     "brief": ("You are a senior automotive interior and exterior designer. Here is a picture of a design and a "
               "request for a new design: \"{req}\". Look at the part the request is about in THIS picture: what it "
               "is, where it sits, its size, the materials and the design language around it. Write {n} different "
@@ -262,6 +272,28 @@ class Reader:
             s = requests.Session()
             s.trust_env = False
             r = s.post("http://127.0.0.1:%d/v1/chat/completions" % PORT, json=body, timeout=300)
+            r.raise_for_status()
+            return clean(r.json()["choices"][0]["message"]["content"])
+
+    def describe_pair(self, before, after, use, req="", temperature=0.1, max_tokens=320, third=None):
+        """Two pictures (before, after) in one question, and a third if given (the changed areas): for the judge."""
+        ask = ASK.get(use)
+        if not ask:
+            return ""
+        ask = ask.replace("{req}", " ".join((req or "").split())[:400].replace('"', "'"))
+        with self._lock:
+            self._start()
+            body = {"messages": [{"role": "user", "content": [
+                        {"type": "text", "text": "Picture 1:"},
+                        {"type": "image_url", "image_url": {"url": _jpeg(before)}},
+                        {"type": "text", "text": "Picture 2:"},
+                        {"type": "image_url", "image_url": {"url": _jpeg(after)}}] +
+                        ([{"type": "text", "text": "Picture 3:"}, {"type": "image_url", "image_url": {"url": _jpeg(third)}}] if third else []) +
+                        [{"type": "text", "text": ask}]}],
+                    "max_tokens": int(max_tokens), "temperature": float(temperature), "cache_prompt": False}
+            s = requests.Session()
+            s.trust_env = False
+            r = s.post("http://127.0.0.1:%d/v1/chat/completions" % PORT, json=body, timeout=600)
             r.raise_for_status()
             return clean(r.json()["choices"][0]["message"]["content"])
 

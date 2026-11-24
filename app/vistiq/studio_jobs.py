@@ -327,6 +327,8 @@ class Studio:
                                                 "message": "The Photoshop panel was updated. Restart Photoshop once."})
         self.bridge.on_old_panel = old_panel
         self.bridge.on_sel = self._on_sel
+        if _lab().get("judge_test"):
+            threading.Thread(target=self._judge_test, args=(_lab().get("judge_n", 24),), daemon=True).start()
         self.bridge.on_placed = lambda name, ok, msg: self.emit("studio-sent", {
             "app": "photoshop", "ok": ok, "message": ("Placed in Photoshop as a new layer: " + name) if ok
             else ("Photoshop couldn't place it: " + (msg or "unknown reason"))})
@@ -466,6 +468,63 @@ class Studio:
         except Exception as e:                     # never block a run over this
             log.warning("imagine: %s", e)
             return []
+
+    def judge(self, before, after, words):
+        """The picture reader as a reviewer: does `after` do what `words` asked of `before`? A dict of
+        changed / follows / kept / clean / score / note, or {} (no reader, or it failed)."""
+        if not studio.reader_installed(self.settings):
+            return {}
+        try:
+            from . import reader
+            with self.__dict__.setdefault("_read_lock", threading.Lock()):
+                if not hasattr(self, "_reader"):
+                    self._reader = reader.Reader(lambda: studio.models_dir(self.settings))
+                out = self._reader.describe_pair(before, after, "judge", words)
+            return parse_judge(out)
+        except Exception as e:
+            log.warning("judge: %s", e)
+            return {}
+
+    def _judge_test(self, n=24):
+        """Lab (lab.json "judge_test": true): the judge over the last results in Outputs\\Create, next to what
+        went in and what was asked, into judge_test.json, to see whether it agrees with the person."""
+        from .settings import data_dir
+        time.sleep(15)
+        folder = studio.create_dir(self.settings)
+        out_path = os.path.join(data_dir(), "judge_test.json")
+        try:
+            files = sorted((f for f in os.listdir(folder) if f.lower().endswith(".png")), reverse=False)
+        except OSError:
+            return
+        done = []
+        for f in files[:max(1, int(n))]:
+            p = os.path.join(folder, f)
+            m = _read_meta(p) or {}
+            src, words = m.get("source") or "", (m.get("text") or "").strip()
+            if not words or not src or not os.path.isfile(src) or m.get("view"):
+                continue
+            t0 = time.time()
+            raw = ""
+            try:
+                from . import reader
+                with self.__dict__.setdefault("_read_lock", threading.Lock()):
+                    if not hasattr(self, "_reader"):
+                        self._reader = reader.Reader(lambda: studio.models_dir(self.settings))
+                    raw = self._reader.describe_pair(src, p, "judge", words)
+            except Exception as e:
+                raw = "error: %s" % e
+            done.append({"result": f, "source": os.path.basename(src), "words": words, "raw": raw,
+                         "judge": parse_judge(raw), "pixels": change_metrics(src, p), "seconds": round(time.time() - t0, 1)})
+            try:
+                with open(out_path, "w", encoding="utf-8") as fh:
+                    json.dump(done, fh, indent=1)
+            except OSError:
+                pass
+            log.info("judge test %d: %s -> %s", len(done), f, raw)
+        try:
+            self._reader.stop()
+        except Exception:
+            pass
 
     def _read(self, path, use, say, req=""):
         """The picture reader's words for this picture, or "" (not installed, or it failed)."""
@@ -1820,6 +1879,64 @@ def _is_blank(data):
         return hi - lo < 8
     except Exception:
         return False
+
+
+def change_metrics(before, after, mask=None):
+    """What the pixels say, beside the reader's opinion: how much of the picture changed (area, 0..1) and how
+    sharp the changed part is compared with the same place before (sharp < 0.8: a blur or smear there, Nov 2026)."""
+    import numpy as np
+    try:
+        def load(p):
+            im = Image.open(p).convert("RGB")
+            return im.resize((1024, max(8, round(1024 * im.size[1] / im.size[0]))), Image.LANCZOS)
+        o = load(before); r = load(after).resize(o.size, Image.LANCZOS)
+        O = np.asarray(o.filter(ImageFilter.GaussianBlur(3)), float); R = np.asarray(r.filter(ImageFilter.GaussianBlur(3)), float)
+        d = np.abs(O - R).max(axis=2) > 25
+        if mask is not None:
+            d &= np.asarray(mask.convert("L").resize(o.size)) > 127
+        area = float(d.mean())
+        if area < 0.002:
+            return {"area": round(area, 4), "sharp": None}
+        edges = lambda im: np.abs(np.asarray(im.convert("L").filter(ImageFilter.FIND_EDGES), float))
+        return {"area": round(area, 4), "sharp": round(float((edges(r)[d].mean() + 1) / (edges(o)[d].mean() + 1)), 2)}
+    except Exception as e:
+        log.warning("change metrics: %s", e)
+        return {}
+
+
+def changed_view(before, after, out_path):
+    """Picture 2 with only what changed left bright (the rest darkened), for the judge to name the changed parts."""
+    import numpy as np
+    try:
+        o = Image.open(before).convert("RGB"); r = Image.open(after).convert("RGB")
+        w = 1024; h = max(8, round(w * r.size[1] / r.size[0]))
+        o = o.resize((w, h), Image.LANCZOS); r = r.resize((w, h), Image.LANCZOS)
+        d = np.abs(np.asarray(o.filter(ImageFilter.GaussianBlur(3)), float) - np.asarray(r.filter(ImageFilter.GaussianBlur(3)), float)).max(axis=2) > 25
+        m = Image.fromarray((d * 255).astype("uint8")).filter(ImageFilter.MaxFilter(9)).filter(ImageFilter.GaussianBlur(4))
+        a = np.asarray(m, float)[..., None] / 255
+        R = np.asarray(r, float)
+        Image.fromarray((R * (0.18 + 0.82 * a)).clip(0, 255).astype("uint8")).save(out_path, "JPEG", quality=90)
+        return out_path
+    except Exception as e:
+        log.warning("changed view: %s", e)
+        return None
+
+
+def parse_judge(text):
+    """changed=yes; follows=7; kept=no; clean=yes; score=6; note=... -> a dict."""
+    d = {}
+    for k in ("changed", "kept", "clean", "unwanted"):
+        m = re.search(r"\b%s\s*[=:]\s*(yes|no)" % k, text or "", re.I)
+        if m:
+            d[k] = m.group(1).lower() == "yes"
+    for k in ("follows", "score"):
+        m = re.search(r"\b%s\s*[=:]\s*(\d+(?:\.\d+)?)" % k, text or "", re.I)
+        if m:
+            d[k] = min(10.0, float(m.group(1)))
+    m = re.search(r"\bnote\s*[=:]\s*(.+)$", text or "", re.I)
+    if m:
+        d["note"] = m.group(1).strip()
+    return d
 
 
 def _lab():
