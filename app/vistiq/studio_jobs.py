@@ -1191,16 +1191,17 @@ class Studio:
                 zoom_shot = True
                 texts = [online.ZOOM_TEXT % words.rstrip(".")]
             elif mask is not None and not zoom_shot:
-                texts = ["This picture is a close-up of one part of a larger design. " + words.rstrip(".") +
+                texts = [online.refs_text([r.get("use") or "describe" for r in (job.get("refs") or []) if r and r.get("path")][:6]) + " " +
+                         "This picture is a close-up of one part of a larger design. " + words.rstrip(".") +
                          ". Keep the camera, perspective, light and everything around it exactly as it is; the result must fit "
                          "back seamlessly into the larger picture."]
             else:
-                texts = [online.context_text(words)]
+                texts = [online.context_text(words, [r.get("use") or "describe" for r in (job.get("refs") or [])[:6] if r and r.get("path")])]
             size = online.size_of(job.get("res") or "2k")
             usd1, cr1 = online.price(eng, size)
             ratio = online.ratio_of(*work.size)
             imgs = [work, original] if zoom_shot and box else [work]
-            for r in (job.get("refs") or [])[:3]:
+            for r in [r for r in (job.get("refs") or []) if r and r.get("path")][:6]:
                 try:
                     imgs.append(load_rgb(self.real_path(r["path"])))
                 except Exception:

@@ -110,6 +110,7 @@
     materials: ["Materials & colours", "Its colours and materials on my design", "materials", "Materials"],
     style: ["Rendering style", "Its rendering technique and finish", "", "Style"],
     light: ["Lighting", "Its light and mood", "light", "Lighting"],
+    design: ["Design", "Mix its shapes and design into mine", "", "Design"],
     describe: ["As I describe", "Say in the prompt what to take from it", "", "As I say"]
   };
   // Which locks a reference takes over: { camera: 1 } = the camera comes from Ref 1.
@@ -148,7 +149,7 @@
     if (!info) return;
     var p = S.create; p.refs = p.refs || [];
     // The same picture may come in twice (e.g. its materials and its light); it then takes the next free use.
-    if (p.refs.length >= 3) { toast("Three references at most: remove one first"); return; }
+    if (p.refs.length >= 6) { toast("Six references at most: remove one first"); return; }
     var used = p.refs.map(function (r) { return r.use; });
     var use = ["camera", "materials", "light", "style"].filter(function (u) { return used.indexOf(u) < 0; })[0] || "describe";
     var r = { path: info.path, name: info.name, w: info.w, h: info.h, preview: info.preview, use: use, desc: "" };
@@ -229,7 +230,8 @@
   function promptBox(id, ph, extraStyle) {
     return '<div class="s-pbox"><textarea class="s-prompt" id="' + id + '-text"' + (extraStyle || "") + ' placeholder="' + ph + '"></textarea>' +
       '<div class="s-pbar" id="' + id + '-imp"' + (id === "c" ? "" : " hidden") + '><button type="button" class="s-impb">✨ Improve</button>' +
-      (id === "c" ? '<button type="button" class="s-impb s-libb" id="c-libb" title="Tested prompts, by task">📚 Prompts</button>' : "") +
+      (id === "c" ? '<button type="button" class="s-impb s-libb" id="c-libb" title="Tested prompts and your saved ones, by task">📚 Prompts</button>' +
+        '<button type="button" class="s-impb" id="c-saveb" title="Keep these words in My prompts (Library › Assets)">💾 Save</button>' : "") +
       '<span class="s-impn"></span></div></div>' + (id === "c" ? '<div class="s-plib" id="c-plib" hidden></div>' : "");
   }
 
@@ -288,9 +290,18 @@
       ["Minimal 3D", "minimal 3D style, soft pastel colours, simple shapes", { materials: false, camera: true, light: false }]
     ]]
   ];
+  // Vistiq's tested prompts, plus the Assets folder's (Prompts.txt, My prompts.txt) by category.
+  function plibAll() {
+    var extra = {}, order = [];
+    ((S.assets && S.assets.prompts) || []).forEach(function (p) {
+      var k = "as:" + p.cat; if (!extra[k]) { extra[k] = [k, p.cat, p.mine ? "Prompts you saved (Assets › My prompts.txt)." : "From the Assets folder (Prompts.txt).", []]; order.push(k); }
+      extra[k][3].push([p.name, p.text, null, p.mine ? "mine" : ""]);
+    });
+    return PLIB.concat(order.map(function (k) { return extra[k]; }));
+  }
   function plibHtml(cat) {
-    var c = PLIB.filter(function (x) { return x[0] === cat; })[0] || PLIB[0];
-    return '<div class="s-plt">' + PLIB.map(function (x) { return '<button type="button" data-plc="' + x[0] + '"' + (x[0] === c[0] ? ' class="on"' : "") + ">" + x[1] + "</button>"; }).join("") + "</div>" +
+    var L = plibAll(), c = L.filter(function (x) { return x[0] === cat; })[0] || L[0];
+    return '<div class="s-plt">' + L.map(function (x) { return '<button type="button" data-plc="' + x[0] + '"' + (x[0] === c[0] ? ' class="on"' : "") + ">" + x[1] + "</button>"; }).join("") + "</div>" +
       '<p class="s-plh">' + c[2] + "</p>" +
       c[3].map(function (it, i) {
         var shown = esc(it[1]).replace(/\[([^\]]+)\]/g, "<u>$1</u>");
@@ -299,7 +310,7 @@
       }).join("");
   }
   function plibUse(cat, i) {
-    var c = PLIB.filter(function (x) { return x[0] === cat; })[0], it = c && c[3][i]; if (!it) return;
+    var c = plibAll().filter(function (x) { return x[0] === cat; })[0], it = c && c[3][i]; if (!it) return;
     var p = S.create, box = $("c-text");
     var first = it[1].indexOf("["), firstEnd = first >= 0 ? it[1].indexOf("]", first) - 1 : -1;
     var plain = it[1].replace(/[\[\]]/g, "");
@@ -377,9 +388,9 @@
     lib.className = "s-page"; lib.id = "p-library";
     lib.innerHTML = '<div class="s-scroll"><div class="s-ttl">Library<small id="l-sub"></small></div>' +
       '<div class="s-acts"><button type="button" id="l-open">Open folder</button></div>' +
-      '<div class="s-filters" id="l-filters">' + ["all", "create", "reference", "upscale"].map(function (f) {
-        return '<button type="button" data-v="' + f + '">' + f.charAt(0).toUpperCase() + f.slice(1) + "</button>";
-      }).join("") + '</div><div class="s-grid" id="l-grid"></div></div>';
+      '<div class="s-filters" id="l-filters">' + ["all", "create", "reference", "upscale", "assets"].map(function (f) {
+        return '<button type="button" data-v="' + f + '"' + (f === "assets" ? ' class="l-astab"' : "") + ">" + f.charAt(0).toUpperCase() + f.slice(1) + "</button>";
+      }).join("") + '</div><div class="s-grid" id="l-grid"></div><div id="l-assets" hidden></div></div>';
     document.body.appendChild(lib);
 
     var set = document.createElement("div");
@@ -1152,7 +1163,9 @@
       }
       if ((b = e.target.closest("[data-radd]"))) {
         pop(b, '<button type="button" class="it" data-p="pick">' + svg("image") + "<span>Upload an image</span></button>" +
-          '<button type="button" class="it" data-p="paste">' + svg("clip") + "<span>Paste from clipboard</span></button>", function (v) {
+          '<button type="button" class="it" data-p="paste">' + svg("clip") + "<span>Paste from clipboard</span></button>" +
+          '<button type="button" class="it" data-p="assets">' + svg("image") + "<span>From Assets<small>Your reference library</small></span></button>", function (v) {
+          if (v === "assets") { assetPicker(b); return; }
           if (v === "pick") api().studio_pick().then(addRef);
           else api().studio_paste().then(function (i) { if (i) addRef(i); else toast("Nothing to paste: copy a picture first."); });
         });
@@ -1308,9 +1321,23 @@
     });
     // Library
     $("l-filters").addEventListener("click", function (e) {
-      var b = e.target.closest("button"); if (!b) return; S.lib.filter = b.getAttribute("data-v"); render();
+      var b = e.target.closest("button"); if (!b) return; S.lib.filter = b.getAttribute("data-v"); if (S.lib.filter === "assets") loadAssets(); render();
     });
-    $("l-open").addEventListener("click", function () { api().studio_open_outputs(); });
+    $("l-open").addEventListener("click", function () { if (S.lib.filter === "assets") api().studio_open_assets(); else api().studio_open_outputs(); });
+    $("l-assets").addEventListener("click", function (e) {
+      var b = e.target.closest("[data-ac]");
+      if (b) { S.assetCat = b.getAttribute("data-ac"); render(); return; }
+      b = e.target.closest("[data-aact]");
+      if (b) {
+        var path = b.closest("[data-apath]").getAttribute("data-apath"), act = b.getAttribute("data-aact");
+        if (act === "ref") api().studio_image(path).then(function (info) { addRef(info); go("create"); toast("Added as a reference: pick what to take from it"); });
+        else if (act === "edit") api().studio_image(path).then(function (info) { setImage(S.create, "src", info); go("create"); });
+        else if (act === "folder") api().reveal(path);
+        return;
+      }
+      b = e.target.closest("[data-apr]");
+      if (b) { var pr = (S.assets.prompts || [])[+b.getAttribute("data-apr")]; if (pr) usePrompt(pr.text); }
+    });
     $("l-grid").addEventListener("click", function (e) {
       var b = e.target.closest("button[data-act]"); if (!b) return;
       var path = b.closest(".s-card").getAttribute("data-path"), act = b.getAttribute("data-act");
@@ -1343,8 +1370,13 @@
     S.plibCat = "sketch";
     $("c-libb").addEventListener("click", function () {
       var el = $("c-plib"), open = el.hidden;
-      if (open) { S.plibCat = isRender(S.create.src) ? (S.plibCat === "sketch" ? "light" : S.plibCat) : S.plibCat; el.innerHTML = plibHtml(S.plibCat); }
+      if (open) { S.plibCat = isRender(S.create.src) ? (S.plibCat === "sketch" ? "light" : S.plibCat) : S.plibCat; el.innerHTML = plibHtml(S.plibCat);
+        loadAssets(function () { if (!el.hidden) el.innerHTML = plibHtml(S.plibCat); }); }
       el.hidden = !open; this.classList.toggle("on", open);
+    });
+    $("c-saveb").addEventListener("click", function () {
+      var t = ($("c-text").value || "").trim(); if (!t) { toast("Write the prompt first"); return; }
+      api().studio_prompt_save("", t, "Mine").then(function (ok) { toast(ok ? "Saved in My prompts (Library › Assets)" : "Couldn't save it"); if (ok) loadAssets(); });
     });
     $("c-plib").addEventListener("click", function (e) {
       var b = e.target.closest("[data-plc]");
@@ -2113,7 +2145,7 @@
         '<button type="button" class="s-rn" data-rn="' + (i + 1) + '" title="Put \'ref ' + (i + 1) + '\' in the description">Ref ' + (i + 1) + "</button>" +
         '<button type="button" class="s-rx" data-rx="' + i + '" title="Remove">×</button></div>' +
         '<button type="button" class="s-ru" data-ru="' + i + '" title="' + RUSE[r.use][0] + '">' + RUSE[r.use][3] + "</button></div>";
-    }).join("") + (refs.length < 3 ? '<button type="button" class="s-radd" data-radd="1"><span>+</span>' + (refs.length ? "Add" : "Add a reference") + "</button>" : "");
+    }).join("") + (refs.length < 6 ? '<button type="button" class="s-radd" data-radd="1"><span>+</span>' + (refs.length ? "Add" : "Add a reference") + "</button>" : "");
     if (el.getAttribute("data-h") !== h) { el.innerHTML = h; el.setAttribute("data-h", h); }
     // Under the tiles: each reference's camera, light or style in words (read, or typed).
     var st = S.status || {}, dk = refs.map(function (r, i) { return i + r.use + (r.reading ? "r" : "") + (RPH[r.use] ? 1 : 0); }).join(",") + (st.reader_ready ? "R" : "");
@@ -2136,8 +2168,9 @@
     });
     var by = refLocks(p), names = { camera: "Camera", materials: "Materials", light: "Light" };
     var note = Object.keys(by).map(function (k) { return names[k] + " comes from Ref " + by[k]; }).join(" · ");
-    $("c-refs-hint").textContent = refs.length ? (note ? note + ", so it is unlocked. " : "") + "Type ref 1, ref 2 in the description to point at one."
-      : "Take the camera, materials, rendering style or light from another picture. Your design stays.";
+    $("c-refs-hint").textContent = refs.length ? (note ? note + ", so it is unlocked. " : "") + "Type ref 1, ref 2 in the description to point at one." +
+        (refs.length > 3 && !engineNow() ? " Local uses the first 3; Standard and Pro use all 6." : "")
+      : "Take the camera, materials, style, light or design from up to 6 pictures. Several Design references mix their designs.";
   }
 
   function renderWarn() {
@@ -3006,7 +3039,65 @@
         '<div class="s-cap"><span>' + esc(short(i.name)) + '</span><span class="s-pill">' + pill + "</span></div></div>";
     }).join("") : '<div class="s-none">' + (S.lib.loading ? "Loading…" : "Nothing here yet. What you create and upscale shows up here.") + "</div>";
     var g = $("l-grid");
+    var asv = f === "assets";
+    g.hidden = asv; $("l-assets").hidden = !asv; $("l-open").textContent = asv ? "Open Assets folder" : "Open folder";
+    if (asv) { $("l-sub").textContent = "References and prompts to use in Create · " + ((S.assets && S.assets.dir) || "Vistiq Studio\\Assets") + " · add folders and pictures there"; renderAssets(); return; }
     if (g.getAttribute("data-h") !== h) { g.innerHTML = h; g.setAttribute("data-h", h); }
+  }
+  // -- Assets (Nov 2026): Documents\Vistiq Studio\Assets — one folder per category, plus prompts ------
+  function loadAssets(then) {
+    if (!api() || !api().studio_assets) return;
+    if (!S.assets) S.assets = { loading: true, cats: [], prompts: [] };
+    api().studio_assets().then(function (a) { S.assets = a || { cats: [], prompts: [] }; render(); if (then) then(); });
+  }
+  function assetGrid(cat, pick) {
+    var A = S.assets || { cats: [] }, cats = A.cats.filter(function (c) { return c.items.length; });
+    var all = [].concat.apply([], cats.map(function (c) { return c.items.map(function (i) { return Object.assign({ cat: c.name }, i); }); }));
+    var items = cat && cat !== "All" ? (cats.filter(function (c) { return c.name === cat; })[0] || { items: [] }).items : all;
+    var chips = '<div class="as-chips">' + ["All"].concat(cats.map(function (c) { return c.name; })).map(function (n) {
+      var k = n === "All" ? all.length : (cats.filter(function (c) { return c.name === n; })[0] || { items: [] }).items.length;
+      return '<button type="button" data-ac="' + esc(n) + '"' + ((cat || "All") === n ? ' class="on"' : "") + ">" + esc(n) + " <small>" + k + "</small></button>";
+    }).join("") + "</div>";
+    var grid = items.length ? '<div class="as-grid">' + items.map(function (i) {
+      return '<div class="as-card" data-apath="' + esc(i.path) + '" title="' + esc(i.name + (i.desc ? " · " + i.desc : "")) + '"><img src="' + i.thumb + '" alt="" loading="lazy">' +
+        (pick ? '<span class="as-add">+ Reference</span>' : '<div class="as-hover"><button type="button" data-aact="ref">Use as reference</button><button type="button" data-aact="edit">Open in Create</button><button type="button" data-aact="folder">Folder</button></div>') +
+        "</div>";
+    }).join("") + "</div>" : '<div class="s-none">' + (A.loading ? "Loading…" : "No pictures here yet. Put pictures in the Assets folder, one folder per category.") + "</div>";
+    return chips + grid;
+  }
+  function renderAssets() {
+    var A = S.assets || {}, el = $("l-assets");
+    var pr = (A.prompts || []).map(function (p, i) {
+      return '<button type="button" class="as-pr" data-apr="' + i + '"><span><b>' + esc(p.name) + "</b><em>" + esc(p.cat) + (p.mine ? " · mine" : "") + "</em></span><small>" + esc(p.text) + "</small></button>";
+    }).join("");
+    var h = assetGrid(S.assetCat, false) + '<div class="as-sec">Prompts <small>Click one to use it in Create · save your own from Create › Save prompt</small></div>' +
+      (pr ? '<div class="as-prs">' + pr + "</div>" : '<div class="s-none">No prompts yet. Save one from Create, or add Prompts.txt to the Assets folder.</div>');
+    if (el.getAttribute("data-h") !== h) { el.innerHTML = h; el.setAttribute("data-h", h); }
+  }
+  function usePrompt(text) {
+    var p = S.create; p.text = text; p.viewing = false; var box = $("c-text"); if (box) box.value = text; go("create"); toast("Prompt in Create");
+  }
+  // Create › References › Browse assets: the same pictures as a picker.
+  function assetPicker(anchor) {
+    var show = function () {
+      closePop();
+      var m = document.createElement("div"); m.className = "as-modal"; m.id = "as-modal";
+      m.innerHTML = '<div class="as-dlg" role="dialog" aria-label="Assets"><div class="as-h"><b>Assets</b><small>Click a picture to add it as a reference (up to 6)</small><button type="button" class="as-x" data-asx>×</button></div><div class="as-body"></div></div>';
+      document.body.appendChild(m);
+      var paint = function () { m.querySelector(".as-body").innerHTML = assetGrid(S.assetCat, true); };
+      paint();
+      m.addEventListener("click", function (e) {
+        if (e.target === m || e.target.closest("[data-asx]")) { m.remove(); return; }
+        var b = e.target.closest("[data-ac]"); if (b) { S.assetCat = b.getAttribute("data-ac"); paint(); return; }
+        var c = e.target.closest("[data-apath]");
+        if (c) {
+          if ((S.create.refs || []).length >= 6) { toast("Six references at most: remove one first"); return; }
+          api().studio_image(c.getAttribute("data-apath")).then(function (info) { addRef(info); toast("Added · pick what to take from it under the picture"); });
+          c.classList.add("on");
+        }
+      });
+    };
+    if (S.assets && !S.assets.loading) show(); else loadAssets(show);
   }
 
   function render() {

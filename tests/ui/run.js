@@ -631,6 +631,31 @@ const frame = (n, name) => ({ path: "live://photoshop/" + n, name: name || "flat
     check("Create while running queues the run", await p.evaluate(() => (window.VS.S.create.queue || []).length === 1 && window.__n === 0) && /Queue another · 1 waiting/.test(await p.text("#c-golabel")), await p.text("#c-golabel"));
     await p.ev("studio-job", { id: "j7", state: "done" }); await p.waitForTimeout(500);
     check("the queued run starts by itself", await p.evaluate(() => window.__n === 1 && (window.VS.S.create.queue || []).length === 0), String(await p.evaluate(() => window.__n)));
+    // Assets: Library tab, the picker in References (up to 6), prompts in the Prompts list
+    await p.evaluate(() => { const c = document.createElement("canvas"); c.width = 40; c.height = 30; c.getContext("2d").fillStyle = "#a86"; c.getContext("2d").fillRect(0, 0, 40, 30); const u = c.toDataURL();
+      const it = (n) => ({ path: "C:/A/Seats/" + n + ".jpg", name: n, desc: "", thumb: u });
+      window.pywebview.api.studio_assets = () => Promise.resolve({ dir: "C:/A", cats: [{ name: "Seats", items: [it("s1"), it("s2"), it("s3"), it("s4"), it("s5"), it("s6"), it("s7")] }, { name: "Empty", items: [] }],
+        prompts: [{ cat: "Interior", name: "Cognac CMF", text: "cognac leather everywhere", mine: false }, { cat: "Mine", name: "night", text: "night lines", mine: true }] });
+      window.pywebview.api.studio_image = (path) => Promise.resolve({ path, name: path.split("/").pop(), w: 400, h: 300, preview: u });
+      window.VS.S.create.refs = []; window.VS.go("library"); });
+    await p.waitForTimeout(150);
+    await p.click('#l-filters [data-v="assets"]'); await p.waitForTimeout(250);
+    check("Library › Assets shows the categories and pictures", await p.evaluate(() => document.querySelectorAll("#l-assets .as-card").length === 7 && /Seats/.test(document.querySelector("#l-assets .as-chips").textContent) && !/Empty/.test(document.querySelector("#l-assets .as-chips").textContent)), "");
+    check("Library › Assets lists the prompts", await p.evaluate(() => document.querySelectorAll("#l-assets .as-pr").length === 2), "");
+    await p.screenshot({ path: (process.env.SHOT_DIR || "/tmp") + "/assets_lib.png" });
+    await p.evaluate(() => window.VS.go("create")); await p.waitForTimeout(150);
+    await p.click("#c-refs [data-radd]"); await p.waitForTimeout(80); await p.click('.s-pop [data-p="assets"]'); await p.waitForTimeout(150);
+    for (let k = 0; k < 7; k++) { await p.click("#as-modal .as-card >> nth=" + k); await p.waitForTimeout(60); }
+    check("References take up to 6 pictures from Assets", await p.evaluate(() => window.VS.S.create.refs.length === 6), String(await p.evaluate(() => window.VS.S.create.refs.length)));
+    await p.click("#as-modal [data-asx]"); await p.waitForTimeout(80);
+    await p.click("#c-refs [data-ru] >> nth=5"); await p.waitForTimeout(80);
+    check("Design is a reference use", await p.evaluate(() => !!document.querySelector('.s-pop [data-p="design"]')), "");
+    await p.click('.s-pop [data-p="design"]'); await p.waitForTimeout(80);
+    await p.screenshot({ path: (process.env.SHOT_DIR || "/tmp") + "/assets_refs.png" });
+    await p.click("#c-libb"); await p.waitForTimeout(200);
+    check("Prompts lists the Assets prompts too", await p.evaluate(() => /Mine/.test(document.querySelector("#c-plib").textContent) && /Interior/.test(document.querySelector("#c-plib").textContent)), "");
+    await p.click("#c-libb");
+    await p.evaluate(() => { window.VS.S.create.refs = []; window.VS.render(); });
     check("no page errors in the Create panel", p.errors.length === 0, p.errors.join(" | "));
     await p.close();
   }

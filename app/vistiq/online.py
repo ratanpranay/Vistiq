@@ -178,22 +178,45 @@ ENHANCE_TEXT = ("Re-render this exact picture at higher quality. Keep the design
                 "light falloff, no blur, no noise, no artefacts. Do not add, remove or move anything.")
 
 
-def context_text(words):
+REF_PIC = {
+    "camera": "Show the design of picture 1 from the camera position, angle and framing of picture {k}.",
+    "materials": "Apply the colours and materials of picture {k} to the matching parts of picture 1.",
+    "light": "Light picture 1 exactly like picture {k}: time of day, light direction, colour and mood.",
+    "style": "Render picture 1 in the rendering style of picture {k}.",
+    "design": "Mix the design of picture {k} into picture 1: its shapes, forms and design details, blended with picture 1's design.",
+    "describe": "Picture {k} is a reference: use it as the words say.",
+}
+
+
+def refs_text(uses, first=2):
+    """One sentence per reference picture (pictures 2, 3… after the one being worked on)."""
+    return " ".join(REF_PIC.get(u, REF_PIC["describe"]).format(k=first + i) for i, u in enumerate(uses))
+
+
+def context_text(words, uses=()):
+    """With reference pictures: what each one gives, and what it frees (a camera reference frees the camera...)."""
+    w = context_text_words(words, uses)
+    return (refs_text(uses) + " " + w).strip() if uses else w
+
+
+def context_text_words(words, uses=()):
     """Words for Nano Banana that lock only what the request doesn't touch. Nano Banana keeps a picture well by
     itself, so a blanket 'keep everything' line makes it read the request too narrowly (e.g. 'panels' → not
     the seats). Colour or material swaps apply to every matching part."""
     w = (words or "").strip().rstrip(".")
+    if not w and uses:
+        w = "Make the change the reference pictures describe"
     if not w:
         return "Make this a finished, photorealistic render. Keep the design and camera as they are."
     out = [w + "."]
     if _COLOUR.search(w) or _MATERIAL.search(w):
         out.append("Apply it to every part that matches, not just the most obvious one.")
     keep = []
-    if not _CAMERA.search(w):
+    if not _CAMERA.search(w) and "camera" not in uses:
         keep.append("camera")
-    if not _LIGHT.search(w):
+    if not _LIGHT.search(w) and "light" not in uses:
         keep.append("lighting")
-    if not _NEW.search(w):
+    if not _NEW.search(w) and "design" not in uses:
         keep.append("overall design and shapes")
     if keep:
         out.append("Keep the " + ", ".join(keep[:-1]) + (" and " if len(keep) > 1 else "") + keep[-1] + " as they are.")

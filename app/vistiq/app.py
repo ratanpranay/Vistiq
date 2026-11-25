@@ -1045,6 +1045,79 @@ class Api:
             self._app.settings.set("studio_tier", tier)
         return self._app.studio.status()
 
+    # -- Assets (Nov 2026): Documents\Vistiq Studio\Assets, one folder per category, plus prompts ------------
+    ASSET_CATS = ("Interior", "Exterior", "Details", "CMF", "Lighting", "Design", "Architecture", "Furniture", "Products")
+    _asset_thumbs = {}
+
+    def _assets_dir(self):
+        d = os.path.join(self._app.studio.home_dir(), "Assets")
+        if not os.path.isdir(d):
+            for c in self.ASSET_CATS:
+                os.makedirs(os.path.join(d, c), exist_ok=True)
+        return d
+
+    @staticmethod
+    def _read_prompts(path, mine):
+        out = []
+        try:
+            with open(path, encoding="utf-8") as f:
+                blocks = [b.strip() for b in f.read().replace("\r", "").split("\n\n") if b.strip()]
+        except OSError:
+            return out
+        for b in blocks:
+            head, _, text = b.partition("\n")
+            cat, _, name = head.partition("·") if "·" in head else ("", "", head)
+            if not text.strip():
+                continue
+            out.append({"cat": (cat.strip() or ("Mine" if mine else "Prompts")), "name": name.strip() or head.strip(),
+                        "text": " ".join(text.split()), "mine": mine})
+        return out
+
+    def studio_assets(self):
+        """The Assets folder: pictures by category (sub-folders) and prompts (Prompts.txt, My prompts.txt)."""
+        from . import imaging
+        d = self._assets_dir()
+        cats = []
+        for name in sorted(os.listdir(d), key=str.lower):
+            sub = os.path.join(d, name)
+            if not os.path.isdir(sub):
+                continue
+            items = []
+            for f in sorted(os.listdir(sub), key=str.lower):
+                fp = os.path.join(sub, f)
+                if not f.lower().endswith((".jpg", ".jpeg", ".png", ".webp")):
+                    continue
+                try:
+                    st = os.stat(fp)
+                    if st.st_size > 40 * 1024 * 1024:
+                        continue
+                    k = (fp, st.st_mtime)
+                    th = self._asset_thumbs.get(k)
+                    if th is None:
+                        th = imaging.preview_small(fp, side=360)
+                        self._asset_thumbs[k] = th
+                    title = os.path.splitext(f)[0]
+                    nm, _, desc = title.partition(" - ")
+                    items.append({"path": fp, "name": nm.strip(), "desc": desc.strip(), "thumb": th})
+                except Exception as exc:
+                    log.info("asset %s: %s", f, exc)
+            cats.append({"name": name, "items": items})
+        prompts = self._read_prompts(os.path.join(d, "Prompts.txt"), False) + self._read_prompts(os.path.join(d, "My prompts.txt"), True)
+        return {"dir": d, "cats": cats, "prompts": prompts}
+
+    def studio_prompt_save(self, name, text, cat="Mine"):
+        text = " ".join((text or "").split())
+        if not text:
+            return False
+        name = " ".join((name or "").split())[:60] or " ".join(text.split()[:5])
+        path = os.path.join(self._assets_dir(), "My prompts.txt")
+        with open(path, "a", encoding="utf-8") as f:
+            f.write("%s · %s\n%s\n\n" % (cat or "Mine", name, text))
+        return True
+
+    def studio_open_assets(self):
+        _open(self._assets_dir())
+
     def studio_library(self):
         return self._app.studio.library()
 

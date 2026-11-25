@@ -2057,7 +2057,7 @@ F3_CAMERA_KEEP = ("Keep every part, shape, proportion, material and colour of th
 
 # Create with reference images (Nov 2026): image 1 is the design, each
 # reference gives exactly one thing. Everything else stays the design's own.
-REF_USES = ("camera", "materials", "style", "light", "describe")
+REF_USES = ("camera", "materials", "style", "light", "design", "describe")
 REF_LOOSE_DESIGN = "Use image 1 as the design to start from; its shapes may be refined."
 # Worded as tested on the user's PC (Nov 2026): FLUX 3 copies colours and
 # materials from a reference picture, but only follows a camera, a light or a
@@ -2077,6 +2077,8 @@ REF_CLAUSE = {
     "light_nodesc": ("Light image 1 exactly like {n}: the same time of day, sky, light direction, colour "
                      "temperature, brightness, contrast, ambient light strips and mood. The view through the "
                      "windows changes to match."),
+    "design": ("Mix the design of {n} into image 1: take its shapes, forms, proportions and design details and blend "
+               "them with image 1's design, keeping image 1's camera and layout."),
     "describe": "{n} is a reference: use it only as the instructions below say.",
 }
 # Qwen Image Edit with references (tested Nov 2026): a reference sent as a picture pulls its
@@ -2092,6 +2094,7 @@ QE_REF_PIC = {
     "materials": "Apply the colours and materials of {n} to the matching parts of Picture 1.",
     "light": "Light Picture 1 exactly like {n}.",
     "style": "Render Picture 1 in the rendering style of {n}.",
+    "design": "Mix the design of {n} into Picture 1: its shapes, forms and design details, blended with Picture 1's design.",
     "describe": "{n} is a reference: use it only as the words below say.",
 }
 
@@ -2190,6 +2193,8 @@ def ref_plan(text, refs, locks=None, sketch=False, keep=0.8):
                                                       sk=" The colours in the sketch are only placeholders." if sketch else ""))
         elif u in ("camera", "style", "light"):
             out.append(REF_CLAUSE[u if d else u + "_nodesc"].format(n=n, desc=d))
+        elif u == "design":
+            out.append(REF_CLAUSE["design"].format(n=n))
         else:
             out.append(REF_CLAUSE["describe"].format(n=n))
     # One rule for what stays: everything a reference doesn't change.
