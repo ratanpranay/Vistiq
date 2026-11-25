@@ -1960,7 +1960,7 @@
     if (id === "c") $("c-go").classList.toggle("s-inst", inst && !busy);
     if (id === "c" && $("c-model")) {
       var me = (S.status && S.status.mac && S.status.mac.engines || []).filter(function (x) { return x.ready; });
-      $("c-model").hidden = me.length < 2;
+      $("c-model").hidden = true;          // FLUX only (Nov 2026)
       if (me.length >= 2) {
         var oh = me.map(function (x) { return '<option value="' + x.key + '"' + (x.key === S.status.mac.engine ? " selected" : "") + ">" + esc(x.label) + "</option>"; }).join("");
         var sel = $("c-modelsel"); if (sel.getAttribute("data-h") !== oh) { sel.innerHTML = oh; sel.setAttribute("data-h", oh); }
@@ -2616,7 +2616,7 @@
       var old = box.querySelector(":scope > img.s-sharp");
       var ref = under && under.parentNode === box ? under : box, r = ref.getBoundingClientRect(), clip = (box.closest(".b-cv,.s-view,[id$='-view']") || document.body).getBoundingClientRect();
       var dpr = window.devicePixelRatio || 1, shownW = r.width * dpr, prev = under && under.naturalWidth ? under.naturalWidth : 1600;
-      if (!r.width || shownW <= prev * 1.15 || (old && old.getAttribute("data-p") !== path && (old.remove(), false))) { if (old) old.remove(); return; }
+      if (!r.width || shownW <= prev * 1.15 || (old && old.getAttribute("data-sp") !== path && (old.remove(), false))) { if (old) old.remove(); return; }
       var x0 = Math.max(r.left, clip.left), y0 = Math.max(r.top, clip.top), x1 = Math.min(r.right, clip.right), y1 = Math.min(r.bottom, clip.bottom);
       if (x1 <= x0 || y1 <= y0) { if (old) old.remove(); return; }
       var u0 = (x0 - r.left) / r.width, v0 = (y0 - r.top) / r.height, u1 = (x1 - r.left) / r.width, v1 = (y1 - r.top) / r.height;
@@ -2626,7 +2626,7 @@
         if (!g || !box.isConnected) return;
         var im = box.querySelector(":scope > img.s-sharp");
         if (!im) { im = document.createElement("img"); im.className = "s-sharp"; im.alt = ""; if (under && under.parentNode === box) under.insertAdjacentElement("afterend", im); else box.appendChild(im); }
-        im.setAttribute("data-p", path);
+        im.setAttribute("data-sp", path);
         var ox = ref === box ? 0 : ref.offsetLeft, oy = ref === box ? 0 : ref.offsetTop, rw = ref === box ? box.clientWidth : ref.offsetWidth, rh = ref === box ? box.clientHeight : ref.offsetHeight;
         im.style.left = ox + g.u0 * rw + "px"; im.style.top = oy + g.v0 * rh + "px"; im.style.width = (g.u1 - g.u0) * rw + "px"; im.style.height = (g.v1 - g.v0) * rh + "px";
         im.src = g.src;
@@ -2741,7 +2741,7 @@
   }
   // Mac: the other render model, to compare (Create shows a picker once both are here).
   function macModelRows(st, running) {
-    return (st.mac.engines || []).filter(function (x) { return x.key !== st.mac.engine || !x.ready; }).map(function (x) {
+    return (st.mac.engines || []).filter(function (x) { return x.key !== "mage" && (x.key !== st.mac.engine || !x.ready); }).map(function (x) {
       var size = x.key === "mage" ? "9.8 GB" : "5.8 GB";
       var about = x.key === "mage" ? "Microsoft's editor: follows instructions closely, fast." : "FLUX.2 Klein 4B: another look, a little slower.";
       return '<div class="s-row"><div class="n"><b>' + esc(x.label) + ' (second render model)</b><small>' + about + ' Pick it in Create under Render model.</small></div><span class="s-pill">' + size + "</span>" +

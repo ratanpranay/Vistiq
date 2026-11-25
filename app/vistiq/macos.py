@@ -50,14 +50,14 @@ TIERS = [
     {"key": "light", "name": "Light", "range": "Under 10 GB memory", "min": 0, "engine": "klein",
      "speed": "about 60 s a picture", "gb": 5.1,
      "has": ["Sketch → render (FLUX.2 Klein 4B)", "Material & light changes", "3D views: basic, by prompt", "Upscale"],
-     "not": ["Mage-Flow quality"]},
-    {"key": "studio", "name": "Studio", "range": "10 – 20 GB memory", "min": 10, "engine": "mage",
-     "speed": "fast, 4 steps", "gb": MAGE_GB + 0.2,
-     "has": ["Sketch → render & CGI edits (Microsoft Mage-Flow Edit)", "Follows instructions closely",
+     "not": ["Bigger working size"]},
+    {"key": "studio", "name": "Studio", "range": "10 – 20 GB memory", "min": 10, "engine": "klein",
+     "speed": "about 40 s a picture", "gb": 5.1,
+     "has": ["Sketch → render & CGI edits (FLUX.2 Klein 4B)", "Material & light changes",
              "3D views: by prompt", "Upscale up to 4K"],
      "not": ["Bigger working size"]},
-    {"key": "pro", "name": "Pro", "range": "Over 20 GB memory", "min": 20.5, "engine": "mage",
-     "speed": "fast, 4 steps", "gb": MAGE_GB + 0.2,
+    {"key": "pro", "name": "Pro", "range": "Over 20 GB memory", "min": 20.5, "engine": "klein",
+     "speed": "about 30 s a picture", "gb": 5.1,
      "has": ["Everything in Studio", "Works at a bigger size (up to 1600 px)", "Upscale up to 8K"],
      "not": []},
 ]
@@ -113,10 +113,8 @@ def engine_ready(key, models_dir):
 
 def engine_of(settings=None, models_dir=None):
     """The render model in use: the one picked in Create (when it's downloaded), else the setup's."""
-    chosen = (settings.get("mac_engine") if settings else "") or ""
-    if chosen and models_dir and engine_ready(chosen, models_dir) and (chosen != "mage" or mage_supported()):
-        return chosen
-    return tier_by_key(tier(settings))["engine"]
+    # Nov 2026: FLUX only on the Mac (Mage-Flow taken out to keep it simple)
+    return "klein"
 
 
 def engine_tag(key):

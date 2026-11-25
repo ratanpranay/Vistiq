@@ -1268,9 +1268,7 @@ const frame = (n, name) => ({ path: "live://photoshop/" + n, name: name || "flat
       window.VS.go("create");
     });
     await p.waitForTimeout(200);
-    check("Mac: render model picker shows when both are here", await p.evaluate(() => !document.getElementById("c-model").hidden && document.querySelectorAll("#c-modelsel option").length === 2), await p.evaluate(() => [document.getElementById("c-model").hidden, document.querySelectorAll("#c-modelsel option").length, document.body.getAttribute("data-page"), (p => p)(window.VS.S.page)].join(",")));
-    await p.selectOption("#c-modelsel", "klein"); await p.waitForTimeout(100);
-    check("Mac: picking Klein 4B asks for it", await p.evaluate(() => window.__eng) === "klein", "");
+    check("Mac: no render model picker (FLUX only)", await p.evaluate(() => document.getElementById("c-model").hidden), "");
     // Prompt library: generic, no "tested" tags; [words] become purple and the first is selected.
     await p.evaluate(() => window.VS.go("create")); await p.waitForTimeout(200);
     const plib = await p.evaluate(() => { const b = document.getElementById("c-libb"); if (!b) return null; b.click(); return true; });

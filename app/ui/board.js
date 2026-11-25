@@ -311,7 +311,7 @@
     cv.style.backgroundPosition = v.x + "px " + v.y + "px";
     root.querySelector("#b-zoom").textContent = Math.round(v.z * 100) + "%";
     // sharp zoom: tiles shown bigger than their small preview get the on-screen part from the full picture
-    if (VS().sharpen) root.querySelectorAll(".b-pic > img[data-p]").forEach(function (im) { VS().sharpen(im.parentNode, im.getAttribute("data-p"), 0, 0, im); });
+    if (VS().sharpen) root.querySelectorAll(".b-pic > img[data-p]:not(.s-sharp)").forEach(function (im) { VS().sharpen(im.parentNode, im.getAttribute("data-p"), 0, 0, im); });
   }
 
   // ---------------------------------------------------------------- tiles

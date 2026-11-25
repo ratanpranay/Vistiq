@@ -1174,6 +1174,7 @@ class Studio:
             words = " ".join(studio.clean_prompt(job.get("said") or job.get("text") or "").split())
             texts = []
             zoom_shot = False
+            whole = False
             if job.get("enhance"):
                 texts = [online.ENHANCE_TEXT]
             elif job.get("view"):
@@ -1191,16 +1192,22 @@ class Studio:
                 zoom_shot = True
                 texts = [online.ZOOM_TEXT % words.rstrip(".")]
             elif mask is not None and not zoom_shot:
-                texts = [online.refs_text([r.get("use") or "describe" for r in (job.get("refs") or []) if r and r.get("path")][:6]) + " " +
-                         "This picture is a close-up of one part of a larger design. " + words.rstrip(".") +
-                         ". Keep the camera, perspective, light and everything around it exactly as it is; the result must fit "
-                         "back seamlessly into the larger picture."]
+                # Nov 2026: the whole picture plus the marked area as a mask picture (a crop alone lost the context:
+                # a sunset painted into a window came back as a smudge). Only the marked area is pasted back.
+                whole = True
+                texts = [online.MASK_TEXT % (words.rstrip(".") or "Improve this area") + " " +
+                         online.refs_text([r.get("use") or "describe" for r in (job.get("refs") or []) if r and r.get("path")][:6], first=3)]
             else:
                 texts = [online.context_text(words, [r.get("use") or "describe" for r in (job.get("refs") or [])[:6] if r and r.get("path")])]
             size = online.size_of(job.get("res") or "2k")
             usd1, cr1 = online.price(eng, size)
             ratio = online.ratio_of(*work.size)
-            imgs = [work, original] if zoom_shot and box else [work]
+            if whole:
+                work = original
+                mpic = Image.new("RGB", original.size, (0, 0, 0)); mpic.paste((255, 255, 255), (0, 0), mask.convert("L").point(lambda v: 255 if v > 96 else 0))
+                imgs = [original, mpic]
+            else:
+                imgs = [work, original] if zoom_shot and box else [work]
             for r in [r for r in (job.get("refs") or []) if r and r.get("path")][:6]:
                 try:
                     imgs.append(load_rgb(self.real_path(r["path"])))
@@ -1247,7 +1254,16 @@ class Studio:
                 s.set("nb_avg", av)
                 u = online.add_usage(s, usd1, cr1, eng)
                 result = Image.open(io.BytesIO(data)).convert("RGB")
-                if mask is not None:
+                if mask is not None and whole:
+                    result = result.resize(original.size, Image.LANCZOS)
+                    full = (0, 0) + original.size
+                    blend = int(float(job.get("blend", 0.35)) * 0.03 * max(box[2] - box[0], box[3] - box[1])) + 2
+                    cm = mask
+                    if job.get("mask") == "painted":
+                        k = max(3, int(max(box[2] - box[0], box[3] - box[1]) * 0.02) | 1)
+                        cm = mask.filter(ImageFilter.MinFilter(min(k, 41)))
+                    result = composite(original, result, cm, full, blend, grow=bool(ADD_WORDS.search(words)))
+                elif mask is not None and not zoom_shot:
                     result = result.resize(work.size, Image.LANCZOS)
                     blend = int(float(job.get("blend", 0.35)) * 0.06 * max(box[2] - box[0], box[3] - box[1])) + 2
                     cmask = mask

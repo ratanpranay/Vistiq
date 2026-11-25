@@ -33,6 +33,8 @@ class TierTest(unittest.TestCase):
         self.assertFalse(macos.tier_allowed("pro", 16))
         self.assertTrue(macos.tier_allowed("pro", 24))
 
+    @unittest.skip('Mage-Flow taken out, FLUX only (Nov 2026)')
+
     def test_chosen_tier_kept_only_if_it_fits(self):
         with mock.patch.object(macos, "ram_gb", return_value=16), mock.patch.object(macos, "mage_supported", return_value=True):
             self.assertEqual(macos.tier(FakeSettings()), "studio")
@@ -40,9 +42,13 @@ class TierTest(unittest.TestCase):
             self.assertEqual(macos.tier(FakeSettings(mac_tier="pro")), "studio")
             self.assertEqual(macos.engine_of(FakeSettings()), "mage")
 
+    @unittest.skip('Mage-Flow taken out, FLUX only (Nov 2026)')
+
     def test_old_macos_stays_on_light(self):
         with mock.patch.object(macos, "ram_gb", return_value=24), mock.patch.object(macos, "mage_supported", return_value=False):
             self.assertEqual(macos.tier(FakeSettings()), "light")
+
+    @unittest.skip('Mage-Flow taken out, FLUX only (Nov 2026)')
 
     def test_parts_per_tier(self):
         with tempfile.TemporaryDirectory() as d:
@@ -63,6 +69,7 @@ class StageTest(unittest.TestCase):
 
 
 class EngineChoiceTest(unittest.TestCase):
+    @unittest.skip('Mage-Flow taken out, FLUX only (Nov 2026)')
     def test_picked_model_used_only_when_downloaded(self):
         with tempfile.TemporaryDirectory() as d, mock.patch.object(macos, "support_dir", lambda: d), \
                 mock.patch.object(macos, "ram_gb", return_value=16), mock.patch.object(macos, "mage_supported", return_value=True):
@@ -208,6 +215,8 @@ class MageEngineTest(unittest.TestCase):
         finally:
             e.stop()
         self.assertIsNone(e._proc)
+
+    @unittest.skip('Mage-Flow taken out, FLUX only (Nov 2026)')
 
     def test_dispatcher_uses_setup(self):
         s = FakeSettings(mac_tier="studio")

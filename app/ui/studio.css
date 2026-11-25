@@ -1484,3 +1484,7 @@ img.s-sharp{max-width:none!important;max-height:none!important;box-shadow:none!i
 .as-x{margin-left:auto;border:0;background:none;font-size:20px;color:#888;cursor:pointer}
 .as-body{padding:0 18px 18px;overflow:auto}
 .as-body .as-grid{grid-template-columns:repeat(auto-fill,minmax(140px,1fr))}
+/* Nov 2026 fixes: Library header never squeezed by a long grid (Mac); prompt buttons on one line; sharp zoom fills its box */
+#p-library .s-scroll > *{flex-shrink:0}
+.s-impb{white-space:nowrap;display:inline-flex;align-items:center;justify-content:center;gap:5px;line-height:1;min-width:0}
+img.s-sharp{object-fit:fill!important;width:auto;height:auto}

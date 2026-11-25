@@ -249,7 +249,7 @@ class WholeRun(unittest.TestCase):
         self.settings.set("nb_key", "AIzaTEST"); self.settings.set("nb_limit", 10.0)
         sent = []
         def fake(key, eng, imgs, text, size="1K", ratio="16:9", cancelled=None):
-            sent.append((key, eng, imgs[0].size, size, text))
+            sent.append((key, eng, imgs[0].size, size, text, len(imgs)))
             b = _io.BytesIO(); Image.new("RGB", imgs[0].size, (200, 30, 30)).save(b, "PNG"); return b.getvalue()
         from PIL import ImageDraw
         m = Image.new("L", (800, 600), 0); ImageDraw.Draw(m).rectangle([300, 200, 500, 400], fill=255)
@@ -259,7 +259,8 @@ class WholeRun(unittest.TestCase):
             r = self.go({"mode": "create", "image": src, "text": "red handle", "variations": 2, "engine": "pro", "res": "4k", "mask": mask})
         self.assertEqual(len(r), 2)
         self.assertEqual(sent[0][1], "pro"); self.assertEqual(sent[0][3], "2K")        # 4K is made at 2K online
-        self.assertLess(sent[0][2][0], 800)                                           # only the selected part was sent
+        self.assertEqual(sent[0][2], (800, 600)); self.assertEqual(sent[0][5], 2)      # the whole picture + the mask picture
+        self.assertIn("mask", sent[0][4])
         out = Image.open(r[0]["path"]).convert("RGB")
         self.assertEqual(out.getpixel((20, 20)), (40, 40, 40))                          # outside: untouched
         self.assertGreater(out.getpixel((400, 300))[0], 150)                           # inside: changed
