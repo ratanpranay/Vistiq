@@ -555,7 +555,11 @@
       label = "Upscale";
     }
     var oo = VS().S.status && VS().S.status.online;
-    if (oo && oo.on && n.kind !== "upscale") {
+    if (oo && oo.on && n.kind === "upscale") {
+      var ue = nodeEngine(n);
+      body += '<div class="bn-row"><span>Engine</span><select data-ne><option value=""' + (ue ? "" : " selected") + ">Upscale only · free</option>" +
+        ["standard", "pro"].map(function (k) { return '<option value="' + k + '"' + (ue === k ? " selected" : "") + ">Enhance + upscale · " + oo.engines[k].label + "</option>"; }).join("") + "</select></div>";
+    } else if (oo && oo.on) {
       var ne = nodeEngine(n), loc = VS().S.status.local_ready;
       body += '<div class="bn-row"><span>Engine</span><select data-ne>' + (loc ? '<option value=""' + (ne ? "" : " selected") + ">Local · free</option>" : "") +
         ["standard", "pro"].map(function (k) { return '<option value="' + k + '"' + (ne === k ? " selected" : "") + ">" + oo.engines[k].label + "</option>"; }).join("") + "</select></div>";
@@ -572,13 +576,14 @@
   function mmss(sec) { sec = Math.max(0, Math.round(sec)); return Math.floor(sec / 60) + ":" + ("0" + sec % 60).slice(-2); }
   function nodeEngine(n) {
     var oo = VS().S.status && VS().S.status.online;
-    if (!oo || !oo.on || n.kind === "upscale") return "";
+    if (!oo || !oo.on) return "";
+    if (n.kind === "upscale") return oo.engines[n.engine] ? n.engine : "";
     var e = n.engine != null ? n.engine : VS().engineNow();
     if (!e && !VS().S.status.local_ready) e = "standard";
     return oo.engines[e] ? e : "";
   }
   function nodeEta(n) {
-    if (n.kind === "upscale") return "";
+    if (n.kind === "upscale") return nodeEngine(n) ? VS().onlineCost(nodeEngine(n), 1, "2k") + " · sharper textures, stitching and light, then upscaled here for free" : "";
     if (nodeEngine(n)) return VS().onlineCost(nodeEngine(n), n.kind === "3d" ? 1 : n.vars || 1, VS().S.create.res);
     var t = VS().S.status && VS().S.status.times, k = n.kind === "3d" ? 1 : n.vars || 1;
     if (!t || !t.per) return "The first run loads the models, so it takes a little longer";
@@ -699,6 +704,7 @@
     if (kind === "studio-result" && runNode && data && data.result) {
       var p = VS().S.create;
       if (runNode.job && data.id !== runNode.job && data.id !== p.job) return;
+      if (runNode.enhancing) { runNode.enhPath = data.result.path; return; }
       nodeResult(runNode, data.result);
     } else if (kind === "item" && data) {
       nodes().forEach(function (n) {
@@ -731,9 +737,24 @@
     var V = VS(), S = V.S, p = S.create, t = byId(n.from);
     if (!t || !t.path) { V.toast("The picture for this is gone from the board."); return; }
     n.err = "";
+    if (n.kind === "upscale" && nodeEngine(n) && !n.enhPath) {
+      // Enhance first (Nano Banana repaints it at 2K, same design), then the free upscaler takes it further.
+      if (p.job || runNode) { V.toast("Studio is still working on something"); return; }
+      hook(); runNode = n; n.enhancing = true; n.busy = true; n.frac = 0; n.got = 0; n.status = "Enhancing"; n.job = null; n.seen = false; n.wait = 0;
+      B.selNode = n.id; planRun(n, 1); render();
+      call("studio_image", t.path).then(function (info) {
+        if (!info) { runNode = null; n.busy = false; n.enhancing = false; n.err = "That file was moved or deleted."; render(); return; }
+        S.create.source = "image"; V.setImage(p, "src", info); S.boardFrom = t.id; p.refs = [];
+        V.job("c", { mask: null, refs: [], instant: false, text: "", preset: "", variations: 1, res: "2k", enhance: true, engine: nodeEngine(n) });
+        if (!p.job) { runNode = null; n.busy = false; n.enhancing = false; n.err = "Studio is busy: try again in a moment."; render(); return; }
+        nodeWatch(n);
+      });
+      return;
+    }
     if (n.kind === "upscale") {
-      if (n.busy) return;
-      call("set_setting", "scale", n.scale).then(function () { return call("studio_to_upscale", t.path); }).then(function (added) {
+      if (n.busy && !n.enhPath) return;
+      var upFrom = n.enhPath || t.path; n.enhPath = null;
+      call("set_setting", "scale", n.scale).then(function () { return call("studio_to_upscale", upFrom); }).then(function (added) {
         var it = (added || [])[0];
         if (!it) { n.err = "Couldn't add it to Upscale."; render(); return; }
         hook(); n.upPath = it.path; n.busy = true; n.frac = 0; n.got = 0; n.status = "Starting"; B.selNode = n.id; planRun(n, 1); render();
@@ -777,6 +798,11 @@
       n.frac = p.frac || 0; n.status = (p.stage || "Working") + left(n);
       renderNodes(); svgEl.innerHTML = linksSVG(); setTimeout(function () { nodeWatch(n); }, 600);
     } else if (n.busy && !n.seen && (n.wait = (n.wait || 0) + 1) < 20) { setTimeout(function () { nodeWatch(n); }, 300); }
+    else if (n.enhancing) {
+      n.enhancing = false; n.wait = 0; runNode = null;
+      if (n.enhPath && !p.error) { n.status = "Upscaling"; nodeRun(n); }
+      else { n.busy = false; n.status = ""; n.enhPath = null; n.err = p.error || "Enhance didn't make a picture."; render(); }
+    }
     else { n.busy = false; n.wait = 0; n.status = ""; if (p.error) n.err = p.error; runNode = null; render(); }
   }
 

@@ -1174,7 +1174,9 @@ class Studio:
             words = " ".join(studio.clean_prompt(job.get("said") or job.get("text") or "").split())
             texts = []
             zoom_shot = False
-            if job.get("view"):
+            if job.get("enhance"):
+                texts = [online.ENHANCE_TEXT]
+            elif job.get("view"):
                 vw = job["view"]
                 t, _ = studio.view_words("exterior", "front-left", vw.get("yaw", 0), vw.get("pitch", 0), vw.get("dist", 0),
                                          vw.get("lens", "normal"), target=vw.get("target"))

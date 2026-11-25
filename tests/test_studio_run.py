@@ -266,6 +266,12 @@ class WholeRun(unittest.TestCase):
         u = online.usage(self.settings)
         self.assertEqual(u["n"], 2); self.assertAlmostEqual(u["usd"], 0.268, places=3); self.assertEqual(u["credits"], 8)
         self.assertIn("NanoBananaPro", r[0]["name"])
+        # Enhance (before upscaling): the whole picture at 2K, words that keep the design
+        sent.clear()
+        with mock.patch.object(online, "generate", fake):
+            r2 = self.go({"mode": "create", "image": src, "text": "", "variations": 1, "engine": "standard", "res": "2k", "enhance": True})
+        self.assertEqual(len(r2), 1); self.assertEqual(sent[0][2], (800, 600)); self.assertEqual(sent[0][3], "2K")
+        self.assertIn("Keep the design", sent[0][4])
         # the limit stops the next run before it costs anything
         self.settings.set("nb_limit", 0.2)
         jid = self.st.run({"mode": "create", "image": src, "text": "x", "variations": 1, "engine": "standard"})

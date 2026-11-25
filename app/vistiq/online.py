@@ -172,6 +172,12 @@ ZOOM_TEXT = ("This picture is the part of a design that matters. %s. Make a new 
              "field. The second picture is the whole scene, for its light and surroundings only. Remove any green highlight paint.")
 
 
+ENHANCE_TEXT = ("Re-render this exact picture at higher quality. Keep the design, every shape, the camera, framing, colours, "
+                "materials and lighting exactly as they are. Only improve quality: crisp realistic material textures (leather "
+                "grain, perforation, fabric weave, brushed metal), clean sharp stitching and edges, cleaner reflections and "
+                "light falloff, no blur, no noise, no artefacts. Do not add, remove or move anything.")
+
+
 def context_text(words):
     """Words for Nano Banana that lock only what the request doesn't touch. Nano Banana keeps a picture well by
     itself, so a blanket 'keep everything' line makes it read the request too narrowly (e.g. 'panels' → not
