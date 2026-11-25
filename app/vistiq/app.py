@@ -803,9 +803,10 @@ class Api:
         """Save a picture as PNG or JPEG where the user picks."""
         from PIL import Image
         path = self._app.studio.real_path(path)
-        fmt = "jpg" if str(fmt).lower() in ("jpg", "jpeg") else "png"
+        fmt = str(fmt).lower()
+        fmt = "jpg" if fmt in ("jpg", "jpeg") else "webp" if fmt == "webp" else "png"
         stem = os.path.splitext(os.path.basename(path))[0]
-        types = ("JPEG (*.jpg;*.jpeg)",) if fmt == "jpg" else ("PNG (*.png)",)
+        types = {"jpg": ("JPEG (*.jpg;*.jpeg)",), "webp": ("WebP (*.webp)",)}.get(fmt, ("PNG (*.png)",))
         picked = self._app.window.create_file_dialog(webview.SAVE_DIALOG, save_filename=stem + "." + fmt, file_types=types)
         if not picked:
             return None
@@ -815,6 +816,8 @@ class Api:
         im = Image.open(path)
         if fmt == "jpg":
             im.convert("RGB").save(dest, "JPEG", quality=95, subsampling=0)
+        elif fmt == "webp":
+            im.save(dest, "WEBP", quality=95, method=4)
         else:
             im.save(dest, "PNG")
         return os.path.basename(dest)

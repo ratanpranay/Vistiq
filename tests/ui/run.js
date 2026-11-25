@@ -502,7 +502,7 @@ const frame = (n, name) => ({ path: "live://photoshop/" + n, name: name || "flat
     await p.mouse.move(...at(0.1, 0.1)); await p.mouse.down(); await p.mouse.move(...at(0.4, 0.4), { steps: 5 }); await p.mouse.up(); await p.waitForTimeout(100);
     check("the rectangle makes a selection", await anyMask(), "no mask");
     // Colour pick from the picture (white test picture) and the colour pop-up.
-    await p.keyboard.press("i"); await p.mouse.click(...at(0.9, 0.9)); await p.waitForTimeout(50);
+    await p.keyboard.press("i"); await p.mouse.click(...at(0.7, 0.6)); await p.waitForTimeout(50);
     check("the eyedropper takes the picture's colour", (await st()).color === "#ffffff", (await st()).color);
     await p.click("#sk-bar .sk-sw"); await p.waitForTimeout(100);
     check("the colour pop-up opens", await p.evaluate(() => !!document.querySelector(".s-pop .sk-cp")), "no pop-up");
@@ -629,9 +629,17 @@ const frame = (n, name) => ({ path: "live://photoshop/" + n, name: name || "flat
       const S = window.VS.S.create; S.results.push({ path: "C:/o/k_create_v1.png", name: "k_create_v1.png", w: 1600, h: 900, preview: c.toDataURL(), srcKey: "C:/s/k.png" }); S.sel = S.results.length - 1; window.VS.render(); });
     await p.waitForTimeout(100);
     check("a result shows Add and Export on the picture", await p.evaluate(() => !!document.querySelector("#c-view .s-ra [data-ra=add]") && !!document.querySelector("#c-view .s-ra [data-ra=export]")), "missing");
-    await p.evaluate(() => { window.pywebview.api.studio_export = (path, fmt) => { window.__exp = [path, fmt]; return Promise.resolve("x." + fmt); }; });
-    await p.click("#c-view .s-ra [data-ra=export]"); await p.waitForTimeout(80); await p.click(".s-pop [data-p=jpg]"); await p.waitForTimeout(80);
-    check("Export saves the result as JPEG", JSON.stringify(await p.evaluate(() => window.__exp)) === JSON.stringify(["C:/o/k_create_v1.png", "jpg"]), JSON.stringify(await p.evaluate(() => window.__exp)));
+    await p.evaluate(() => { window.pywebview.api.studio_save_copy = (path) => { window.__exp = [path, "orig"]; return Promise.resolve("x.png"); };
+      window.pywebview.api.studio_to_upscale = (path) => { window.__up = path; return Promise.resolve(true); }; });
+    await p.click("#c-view .s-ra [data-ra=export]"); await p.waitForTimeout(80);
+    check("Export offers original and upscale", await p.evaluate(() => !!document.querySelector(".s-pop [data-p=orig]") && !!document.querySelector(".s-pop [data-p=up]")), "");
+    await p.click(".s-pop [data-p=orig]"); await p.waitForTimeout(80);
+    check("Export original saves the result as it is", JSON.stringify(await p.evaluate(() => window.__exp)) === JSON.stringify(["C:/o/k_create_v1.png", "orig"]), JSON.stringify(await p.evaluate(() => window.__exp)));
+    await p.evaluate(() => { const S = window.VS.S.create; S.sel = -1; window.VS.render(); });
+    await p.waitForTimeout(80);
+    check("the original shows Export too", await p.evaluate(() => !!document.querySelector("#c-view .s-ra [data-ra=export]")), "missing");
+    await p.evaluate(() => { const S = window.VS.S.create; S.sel = S.results.length - 1; window.VS.render(); });
+    await p.waitForTimeout(80);
     await p.evaluate(() => { const c = document.createElement("canvas"); c.width = 16; c.height = 9; c.getContext("2d").fillRect(0, 0, 16, 9); const u = c.toDataURL();
       window.pywebview.api.studio_image = (path) => { window.__imgFor = path; return Promise.resolve({ path, name: "k_create_v1.png", w: 1600, h: 900, preview: u }); }; });
     await p.click("#c-view .s-ra [data-ra=add]"); await p.waitForTimeout(300);

@@ -1216,11 +1216,24 @@
       // Floating on a result: Add (as a layer over your picture) and Export (PNG / JPEG).
       $(id + "-view").addEventListener("click", function (e) {
         var b = e.target.closest("[data-ra]"); if (!b) return;
-        var c = current(p); if (!c) return;
-        if (b.getAttribute("data-ra") === "add") { if (id === "c") addAsLayer(); return; }
-        pop(b, '<div class="ttl">Export this picture</div><button type="button" class="it" data-p="png">' + svg("image") + '<span>PNG<small>Full quality, larger file</small></span></button>' +
-          '<button type="button" class="it" data-p="jpg">' + svg("image") + '<span>JPEG<small>Smaller file, for sharing</small></span></button>', function (fmt) {
-          api().studio_export(c.path, fmt).then(function (r) { if (r) toast("Saved " + r); });
+        var c = current(p) || (p.src && !p.src.frozen && p.src.path ? p.src : null); if (!c) return;
+        if (b.getAttribute("data-ra") === "add") { if (id === "c" && current(p)) addAsLayer(); return; }
+        if (id === "u" && current(p)) {
+          // the upscaled picture: pick the format
+          pop(b, '<div class="ttl">Export the upscaled picture</div><button type="button" class="it" data-p="png">' + svg("image") + '<span>PNG<small>Full quality, larger file</small></span></button>' +
+            '<button type="button" class="it" data-p="jpg">' + svg("image") + '<span>JPEG<small>Smaller file, for sharing</small></span></button>' +
+            '<button type="button" class="it" data-p="webp">' + svg("image") + '<span>WebP<small>Smallest, for the web</small></span></button>', function (fmt) {
+            api().studio_export(c.path, fmt).then(function (r) { if (r) toast("Saved " + r); });
+          });
+          return;
+        }
+        pop(b, '<div class="ttl">Export this picture</div><button type="button" class="it" data-p="orig">' + svg("download") + '<span>Export original<small>Full size, its own format</small></span></button>' +
+          '<button type="button" class="it" data-p="up">' + svg("image") + '<span>Upscale and export<small>Bigger and sharper · PNG, JPEG or WebP</small></span></button>', function (what) {
+          var run = function (t) {
+            if (what === "orig") api().studio_save_copy(t.path).then(function (r) { if (r) toast("Saved " + r); });
+            else api().studio_to_upscale(t.path).then(function () { go("upscale"); });
+          };
+          if (current(p)) run(c); else withTarget(p, function (t) { run(t); });   // the original, with its layers
         });
       });
       var addAsLayer = function () {
@@ -2031,6 +2044,10 @@
     else if (p.job && p.sel === -2) what = { k: "job:" + (p.jobOrig || "").length, img: p.jobOrig || p.src.preview, w: p.src.w, h: p.src.h, job: true };
     else if (origOf) what = { k: "orig:" + origOf.length, img: origOf, w: p.src.w, h: p.src.h };
     var mt = view.querySelector(":scope > .s-tag"); if (mt) mt.hidden = !!what;
+    // the original (with its layers) can be exported too, when no result is showing
+    var oe = view.querySelector(":scope > .s-oexp"), wantOe = !what && p.src && !p.src.frozen && !!p.src.path && !p.job;
+    if (wantOe && !oe) { oe = document.createElement("div"); oe.className = "s-ra s-oexp"; oe.innerHTML = '<button type="button" data-ra="export" title="Export the original, or upscale and export">' + svg("download") + "Export</button>"; view.appendChild(oe); }
+    else if (!wantOe && oe) oe.remove();
     if (!what) { if (pane) { pane.remove(); layout(); } return; }
     if (!pane) { pane = document.createElement("div"); pane.className = "s-pane"; view.appendChild(pane); }
     if (pane.getAttribute("data-k") !== what.k) {
@@ -2040,7 +2057,7 @@
       pane.innerHTML = '<div class="s-pfit"><img class="' + (what.res ? "s-res" : "") + '" src="' + what.img + '" alt=""></div>' +
         '<span class="s-tag">' + (what.res ? "Result" + (n ? " " + n + " of " + mine.length : "") + " · click it again for your picture" : what.job ? "Making…" : "Sketch these were made from") + "</span>" +
         (what.res ? '<div class="s-ra">' + '<button type="button" data-ra="add" title="Put this result on a layer over your picture">' + svg("plus") + "Add</button>" +
-          '<button type="button" data-ra="export" title="Save as PNG or JPEG">' + svg("download") + "Export</button></div>" : "");
+          '<button type="button" data-ra="export" title="Export the original, or upscale and export">' + svg("download") + "Export</button></div>" : "");
       layout();
     }
     // While making: the sketch blurred, the steps coming through, a progress ring and the stage.
@@ -2297,7 +2314,8 @@
         view.innerHTML = '<div class="s-fit" data-w="' + info.w + '" data-h="' + info.h + '"><img class="' + (mode === "result" ? "s-res" : "") + '" src="' + info.preview + '" alt="">' + dev + selOv + "</div>" +
           (mode === "result" ? '<span class="s-tag">Result · hold to see the original</span>' +
             '<div class="s-ra">' + (id === "c" ? '<button type="button" data-ra="add" title="Put this result on a layer over your picture">' + svg("plus") + "Add</button>" : "") +
-            '<button type="button" data-ra="export" title="Save as PNG or JPEG">' + svg("download") + "Export</button></div>" : '<span class="s-tag' + (info.live ? " s-livetag" : "") + '">' + (info.live ? '<i class="s-ldot"></i>' : "") + (info.live ? "Live from " + ((APPS[info.app] || APPS.photoshop)[1]) : info.frozen ? (mode === "orig" && p.job ? "Making…" : mode === "orig" && !p.job ? "Sketch · what these results were made from" : "Sketch · frozen while creating") : "Original") + "</span>");
+            '<button type="button" data-ra="export" title="Export the original, or upscale and export">' + svg("download") + "Export</button></div>" : '<span class="s-tag' + (info.live ? " s-livetag" : "") + '">' + (info.live ? '<i class="s-ldot"></i>' : "") + (info.live ? "Live from " + ((APPS[info.app] || APPS.photoshop)[1]) : info.frozen ? (mode === "orig" && p.job ? "Making…" : mode === "orig" && !p.job ? "Sketch · what these results were made from" : "Sketch · frozen while creating") : "Original") + "</span>" +
+            (mode === "src" && !info.frozen && info.path ? '<div class="s-ra"><button type="button" data-ra="export" title="Export the original, or upscale and export">' + svg("download") + "Export</button></div>" : ""));
       }
     }
     if (mode === "paint") {
