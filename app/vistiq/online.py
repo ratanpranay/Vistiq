@@ -169,7 +169,7 @@ _NEW = _re.compile(r"\b(new|redesign|re-design|imagine|idea|ideas|concept|explor
 ZOOM = _re.compile(r"\b(zoom(ed)?[- ]?in|close[- ]?up|closeup|macro|detail(ed)? shot|cinematic shot)\b", _re.I)
 ZOOM_TEXT = ("This picture is the part of a design that matters. %s. Make a new cinematic close-up photograph of exactly "
              "this part: same design, shapes, materials and colours, only the camera moves closer with shallow depth of "
-             "field. Remove any green highlight paint.")
+             "field. The second picture is the whole scene, for its light and surroundings only. Remove any green highlight paint.")
 
 
 def context_text(words):

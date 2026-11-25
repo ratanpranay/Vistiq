@@ -1197,7 +1197,7 @@ class Studio:
             size = online.size_of(job.get("res") or "2k")
             usd1, cr1 = online.price(eng, size)
             ratio = online.ratio_of(*work.size)
-            imgs = [work]
+            imgs = [work, original] if zoom_shot and box else [work]
             for r in (job.get("refs") or [])[:3]:
                 try:
                     imgs.append(load_rgb(self.real_path(r["path"])))
