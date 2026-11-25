@@ -152,6 +152,42 @@ def generate(key, engine, images, text, size="1K", ratio="16:9", cancelled=lambd
     raise OnlineError(last or "Google couldn't make the picture.")
 
 
+import re as _re
+
+_COLOUR = _re.compile(r"\b(colou?r|recolou?r|paint|red|orange|yellow|green|teal|cyan|blue|navy|purple|violet|pink|"
+                      r"black|white|grey|gray|beige|brown|tan|gold|silver|bronze|chrome)\b", _re.I)
+_MATERIAL = _re.compile(r"\b(material|leather|fabric|alcantara|suede|wood|metal|aluminium|aluminum|carbon|plastic|"
+                        r"glass|matte|gloss|glossy|satin|knit|textile|velvet|stone|marble|finish|texture)\b", _re.I)
+_LIGHT = _re.compile(r"\b(light|lighting|lit|sun|sunset|sunrise|golden|night|dusk|dawn|shadow|glow|ambient|bright|"
+                     r"dark|moody|studio|overcast|neon)\b", _re.I)
+_CAMERA = _re.compile(r"\b(camera|view|angle|side view|top view|rear|front view|zoom|close-up|closeup|wide|"
+                      r"perspective|rotate|turn)\b", _re.I)
+_NEW = _re.compile(r"\b(new|redesign|re-design|imagine|idea|ideas|concept|explore|variation|different|futuristic|"
+                   r"reinvent|rethink|sketch)\b", _re.I)
+
+
+def context_text(words):
+    """Words for Nano Banana that lock only what the request doesn't touch. Nano Banana keeps a picture well by
+    itself, so a blanket 'keep everything' line makes it read the request too narrowly (e.g. 'panels' → not
+    the seats). Colour or material swaps apply to every matching part."""
+    w = (words or "").strip().rstrip(".")
+    if not w:
+        return "Make this a finished, photorealistic render. Keep the design and camera as they are."
+    out = [w + "."]
+    if _COLOUR.search(w) or _MATERIAL.search(w):
+        out.append("Apply it to every part that matches, not just the most obvious one.")
+    keep = []
+    if not _CAMERA.search(w):
+        keep.append("camera")
+    if not _LIGHT.search(w):
+        keep.append("lighting")
+    if not _NEW.search(w):
+        keep.append("overall design and shapes")
+    if keep:
+        out.append("Keep the " + ", ".join(keep[:-1]) + (" and " if len(keep) > 1 else "") + keep[-1] + " as they are.")
+    return " ".join(out)
+
+
 # -- the month's count ---------------------------------------------------------------
 
 def month():

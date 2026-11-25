@@ -1187,7 +1187,7 @@ class Studio:
                          ". Keep the camera, perspective, light and everything around it exactly as it is; the result must fit "
                          "back seamlessly into the larger picture."]
             else:
-                texts = [(words.rstrip(".") + ". " if words else "") + "Keep the camera and everything not mentioned exactly as it is."]
+                texts = [online.context_text(words)]
             size = online.size_of(job.get("res") or "2k")
             usd1, cr1 = online.price(eng, size)
             ratio = online.ratio_of(*work.size)
