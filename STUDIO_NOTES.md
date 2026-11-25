@@ -1,5 +1,12 @@
 # Vistiq Studio (test build)
 
+## 0.5.8
+- Board tool windows: the engine is now three tiles (Local / Standard / Pro) with credits, instead of a plain dropdown.
+- Sharp zoom: zoomed past the preview, board tiles and the Create / Focus view read the part on screen from the full picture.
+- 3D views: choose 1, 2 or 4 variations (3D views page and the board's 3D window).
+- Turned or flipped canvas: labels and the Add / Export buttons stay upright and readable.
+- Queue: press Create while a run is going and the next one waits and starts by itself (Cancel clears the queue).
+
 ## 0.5.7
 - Usage pill at the bottom centre: click for the month's details. Own key: what's left of your limit, pictures it still buys, per engine, change the limit, Add balance. Local: this month's pictures. Vistiq Plus shown as coming soon.
 - Upscale window on the board: Engine dropdown with Enhance + upscale (Standard or Pro). Nano Banana sharpens textures, stitching, materials and light at 2K, then the free upscaler takes it further.

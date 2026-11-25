@@ -1026,7 +1026,8 @@
   function job(id, extra) {
     var p = P(id);
     var st = S.status;
-    if (!p.src || p.job || !st || !st.create_ready) return;
+    var queueIt = !!p.job && id === "c" && !extra;          // Create while a run is going: queued, starts by itself (Nov 2026)
+    if (!p.src || (p.job && !queueIt) || !st || !st.create_ready) return;
     if (id === "r" && !p.refimg) return;
     if (id === "c" && !extra && (p.refs || []).some(function (r) { return r.reading; })) { toast("Studio is still reading a reference: a moment"); return; }
     var j = {
@@ -1062,6 +1063,14 @@
       j.locks = Object.assign(defaultLocks(cur), { design: true, camera: (j.locks || {}).camera !== false });
     }
     Object.assign(j, extra || {});
+    if (queueIt) {
+      if (j.instant === undefined) delete j.instant;
+      p.queue = (p.queue || []).concat([{ j: j, src: p.src }]);
+      toast("Queued · " + p.queue.length + (p.queue.length > 1 ? " runs" : " run") + " waiting"); render(); return;
+    }
+    startJob(id, p, j);
+  }
+  function startJob(id, p, j) {
     p.error = ""; p.stage = "Starting"; p.frac = 0; p.raw = null; p.rawAt = 0; p.stepSize = 0; p.stepDur = 0; p.pending = j.variations; p.started = Date.now(); p.estimate = 0;
     p.jobKey = srcKey(p.src); p.jobRes = j.res || "";
     // Create works on the sketch as it is now: freeze a copy. Live keeps
@@ -1194,7 +1203,7 @@
         p.res = b.getAttribute("data-v"); keep(pre + "res", p.res); render();
       });
       $(id + "-go").addEventListener("click", function () { job(id); });
-      $(id + "-cancel").addEventListener("click", function () { api().studio_cancel(); });
+      $(id + "-cancel").addEventListener("click", function () { p.queue = []; api().studio_cancel(); });
       $(id + "-refine-go").addEventListener("click", function () { refine(id); });
       $(id + "-refine").addEventListener("keydown", function (e) { if (e.key === "Enter") refine(id); });
       $(id + "-up").addEventListener("click", function () {
@@ -1906,13 +1915,14 @@
   function renderRail(id) {
     var p = P(id), st = S.status, ready = st && st.create_ready;
     var busy = !!p.job;
-    var can = ready && p.src && (id === "c" || p.refimg) && !busy;
+    var can = ready && p.src && (id === "c" || p.refimg) && (!busy || id === "c");
     $(id + "-go").disabled = !can;
     $(id + "-cancel").hidden = !busy;
     $(id + "-fill").style.width = busy ? Math.round(varFrac(p) * 100) + "%" : "0";
     var inst = id === "c" && !painter.any && instantMode(p);
     var label = id === "c" ? (painter.any ? "Change selected area" : inst ? "Instant render" : "Create") : "Transfer";
-    var gl = $(id + "-golabel"), gh = busy ? esc(p.stage || "Working") : esc(label);
+    var qn = (p.queue || []).length;
+    var gl = $(id + "-golabel"), gh = busy ? (id === "c" ? "Queue another" + (qn ? " · " + qn + " waiting" : "") : esc(p.stage || "Working")) : esc(label);
     $(id + "-go").title = inst ? "A studio-quality CGI render that follows your sketch as it is. Words, if you add them, set the scene." : "";
     if (gl.getAttribute("data-h") !== gh) { gl.innerHTML = gh; gl.setAttribute("data-h", gh); }
     if (id === "c") $("c-go").classList.toggle("s-inst", inst && !busy);
@@ -2456,6 +2466,7 @@
       f.style.transform = "translate(" + z.x + "px," + z.y + "px) rotate(" + (z.r || 0) + "deg) scale(" + z.z * (fl.h ? -1 : 1) + "," + z.z * (fl.v ? -1 : 1) + ")";
       f.classList.toggle("s-zoomed", z.z !== 1);
       f.classList.toggle("s-flh", !!fl.h); f.classList.toggle("s-flv", !!fl.v);   // flip the picture, not the labels and buttons
+      f.style.setProperty("--zr", ((!!fl.h !== !!fl.v) ? 1 : -1) * (z.r || 0) + "deg");                           // and turn them back upright
       var pill = v.querySelector(".s-zpill");
       if (!pill) {
         pill = document.createElement("div"); pill.className = "s-zpill";
@@ -2463,6 +2474,7 @@
         v.appendChild(pill);
       }
       pill.querySelector("b").textContent = Math.round(z.z * 100) + "%" + (z.r ? " · " + Math.round(z.r) + "°" : "");
+      try { sharpView(v); } catch (e) { /* only a nicer zoom */ }
     },
     // Zoom by f around a point given in the view's coordinates.
     by: function (v, f, px, py) {
@@ -2560,6 +2572,43 @@
     if (!zoom.rot) { zoom.rot = true; document.body.classList.add("s-rot"); }
   }, true);
 
+  // Sharp zoom (Nov 2026): past the preview's resolution, the part on screen is read again from the full
+  // picture and laid over the preview (inside the same box, so it moves and scales with it).
+  var sharpT = {};
+  function sharpen(box, path, w, h, under) {
+    if (!box || !path || !api() || !api().studio_region) return;
+    var key = box.getAttribute("data-sk") || (box.setAttribute("data-sk", "k" + Math.random().toString(36).slice(2)), box.getAttribute("data-sk"));
+    clearTimeout(sharpT[key]);
+    sharpT[key] = setTimeout(function () {
+      var old = box.querySelector(":scope > img.s-sharp");
+      var ref = under && under.parentNode === box ? under : box, r = ref.getBoundingClientRect(), clip = (box.closest(".b-cv,.s-view,[id$='-view']") || document.body).getBoundingClientRect();
+      var dpr = window.devicePixelRatio || 1, shownW = r.width * dpr, prev = under && under.naturalWidth ? under.naturalWidth : 1600;
+      if (!r.width || shownW <= prev * 1.15 || (old && old.getAttribute("data-p") !== path && (old.remove(), false))) { if (old) old.remove(); return; }
+      var x0 = Math.max(r.left, clip.left), y0 = Math.max(r.top, clip.top), x1 = Math.min(r.right, clip.right), y1 = Math.min(r.bottom, clip.bottom);
+      if (x1 <= x0 || y1 <= y0) { if (old) old.remove(); return; }
+      var u0 = (x0 - r.left) / r.width, v0 = (y0 - r.top) / r.height, u1 = (x1 - r.left) / r.width, v1 = (y1 - r.top) / r.height;
+      var pad = 0.08 * (u1 - u0); u0 = Math.max(0, u0 - pad); u1 = Math.min(1, u1 + pad); pad = 0.08 * (v1 - v0); v0 = Math.max(0, v0 - pad); v1 = Math.min(1, v1 + pad);
+      var outW = Math.round((u1 - u0) * shownW);
+      api().studio_region(path, u0, v0, u1, v1, outW).then(function (g) {
+        if (!g || !box.isConnected) return;
+        var im = box.querySelector(":scope > img.s-sharp");
+        if (!im) { im = document.createElement("img"); im.className = "s-sharp"; im.alt = ""; if (under && under.parentNode === box) under.insertAdjacentElement("afterend", im); else box.appendChild(im); }
+        im.setAttribute("data-p", path);
+        var ox = ref === box ? 0 : ref.offsetLeft, oy = ref === box ? 0 : ref.offsetTop, rw = ref === box ? box.clientWidth : ref.offsetWidth, rh = ref === box ? box.clientHeight : ref.offsetHeight;
+        im.style.left = ox + g.u0 * rw + "px"; im.style.top = oy + g.v0 * rh + "px"; im.style.width = (g.u1 - g.u0) * rw + "px"; im.style.height = (g.v1 - g.v0) * rh + "px";
+        im.src = g.src;
+      });
+    }, 280);
+  }
+  function sharpView(v) {
+    var p = v.id === "c-view" ? S.create : v.id === "r-view" ? S.ref : null; if (!p) return;
+    var c = current(p), pane = v.querySelector(".s-pane"), f = v.querySelector(":scope > .s-fit");
+    if (zoom.of(v).r) { v.querySelectorAll("img.s-sharp").forEach(function (x) { x.remove(); }); return; }
+    if (c && pane && !pane.hidden) { var pi = pane.querySelector("img"); if (pi) sharpen(pi.parentNode, c.path, c.w, c.h, pi); }
+    else if (f && p.src && p.src.path && !p.src.live && !p.src.frozen) { var bi = f.querySelector("img"); sharpen(f, p.src.path, p.src.w, p.src.h, bi); }
+    else if (f && c) { var ri = f.querySelector("img"); sharpen(f, c.path, c.w, c.h, ri); }
+  }
+
   function layout() {
     document.querySelectorAll(".s-page.on .s-fit").forEach(function (f) {
       var v = f.parentNode, W = v.clientWidth, H = v.clientHeight, w = +f.getAttribute("data-w"), h = +f.getAttribute("data-h");
@@ -2576,7 +2625,8 @@
       if (pad) zoom.apply(v, f, w, h);
       // A result shown over the picture: same place, same size, same zoom.
       var pane = pad && v.querySelector(".s-pane");
-      if (pane) { ["left", "top", "width", "height", "transform", "transformOrigin"].forEach(function (q) { pane.style[q] = f.style[q]; }); }
+      if (pane) { ["left", "top", "width", "height", "transform", "transformOrigin"].forEach(function (q) { pane.style[q] = f.style[q]; });
+        pane.classList.toggle("s-flh", f.classList.contains("s-flh")); pane.classList.toggle("s-flv", f.classList.contains("s-flv")); pane.style.setProperty("--zr", f.style.getPropertyValue("--zr")); }
       // The "Variation 1 of 2" pill sits on the picture, near its bottom edge.
       // Add / Export float at the picture's bottom-right corner.
       var ra = pad && v.querySelector(":scope > .s-ra");
@@ -3029,6 +3079,11 @@
           }
           p.error = data.state === "error" ? (data.message || "Something went wrong.") : (p.note || "");
           p.note = "";
+          // the next queued run starts by itself (a cancel clears the queue)
+          if (p.queue && p.queue.length) {
+            if (data.state === "cancelled" || /cancel/i.test(data.message || "")) p.queue = [];
+            else { var nx = p.queue.shift(), pid = p === S.create ? "c" : "r"; setTimeout(function () { if (!p.job) startJob(pid, p, nx.j); }, 300); }
+          }
         }
       } else if (kind === "studio-preview") {
         var pv = byJob(data.id); if (!pv) return;
@@ -3092,7 +3147,7 @@
   }
 
   // For the board (board.js): the shared state and the actions it reuses.
-  window.VS = { useSource: function (v) { useSource(v); }, currentFile: currentFile, addRef: addRef, local: function (e, f) { return zoom.local(e, f); }, layout: function () { layout(); }, zoomSpace: function () { return zoom.space || !!zoom.pan; }, plusMenu: plusMenu, pop: pop, closePop: closePop, painter: painter, S: S, api: api, esc: esc, short: short, go: go, render: render, setImage: setImage, sendPS: sendPS,
+  window.VS = { sharpen: function () { return sharpen.apply(null, arguments); }, useSource: function (v) { useSource(v); }, currentFile: currentFile, addRef: addRef, local: function (e, f) { return zoom.local(e, f); }, layout: function () { layout(); }, zoomSpace: function () { return zoom.space || !!zoom.pan; }, plusMenu: plusMenu, pop: pop, closePop: closePop, painter: painter, S: S, api: api, esc: esc, short: short, go: go, render: render, setImage: setImage, sendPS: sendPS,
                 toast: toast, refresh: refresh, current: current, P: P, job: job, readRef: readRef, engineNow: engineNow, onlineCost: onlineCost };
 
   function start() {

@@ -1436,3 +1436,24 @@ body.studio[data-page=create] .s-usage,body.studio[data-page=reference] .s-usage
 .su-plus{display:flex;align-items:center;gap:10px;border:1px solid #ecebf3;border-radius:12px;padding:10px 12px}
 .su-plus div{flex:1;display:flex;flex-direction:column}.su-plus b{color:#14161f}.su-plus small{color:#8a90a2}
 .su-plus.off div{opacity:.5}
+
+/* board windows: engine as tiles (Nov 2026) */
+.b-node .bn-eng{display:flex;flex-direction:column;gap:6px}
+.b-node .bn-lab{font-size:11px;color:#8a90a2}
+.b-node .bn-engs{display:grid;grid-template-columns:repeat(auto-fit,minmax(0,1fr));gap:5px}
+.b-node .bn-engs button{display:flex;flex-direction:column;align-items:flex-start;gap:1px;padding:7px 7px;border:1.5px solid #ecebf3;border-radius:10px;background:#fff;text-align:left;cursor:pointer;min-width:0}
+.b-node .bn-engs button b{font-size:11px;letter-spacing:-.01em;font-weight:600;color:#14161f;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+.b-node .bn-engs button small{font-size:10px;color:#8a90a2}
+.b-node .bn-engs button:hover{border-color:#cfc9f7}
+.b-node .bn-engs button.on{border-color:#6d5df5;background:#f6f4ff}.b-node .bn-engs button.on small{color:#5b4ce0}
+
+img.s-sharp{position:absolute;pointer-events:none;max-width:none;object-fit:fill;z-index:1}
+img.s-sharp{z-index:auto}
+.b-pic{position:relative}
+img.s-sharp{max-width:none!important;max-height:none!important;box-shadow:none!important;border-radius:0!important;position:absolute!important}
+.t-vars{display:flex;align-items:center;justify-content:space-between}
+.t-varseg{display:flex;background:#f3f2f8;border-radius:9px;padding:2px}
+.t-varseg button{border:0;background:transparent;min-width:34px;height:28px;border-radius:7px;font:inherit;font-size:12.5px;color:#555;cursor:pointer}
+.t-varseg button.on{background:#fff;color:#14161f;font-weight:700;box-shadow:0 1px 3px rgba(0,0,0,.08)}
+/* labels and buttons on a turned or flipped picture stay upright and readable */
+:is(.s-fit,.s-pane) :is(.s-tag,.s-ra,.s-zpill){rotate:var(--zr,0deg)}

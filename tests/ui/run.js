@@ -235,6 +235,12 @@ const frame = (n, name) => ({ path: "live://photoshop/" + n, name: name || "flat
     await p.ev("studio-dropped", { target: "board", images: [{ path: "C:/a/sketch.png", name: "sketch.png", w: 1600, h: 900, preview: img }] });
     await p.waitForTimeout(150);
     check("a dropped image becomes a tile", await p.evaluate(() => document.querySelectorAll(".b-tile:not([data-id=live])").length) === 1, await p.evaluate(() => document.querySelectorAll(".b-tile").length));
+    await p.evaluate(() => { window.__reg = null; window.pywebview.api.studio_region = (path, u0, v0, u1, v1, w) => { window.__reg = [path, w]; const c = document.createElement("canvas"); c.width = 8; c.height = 8; return Promise.resolve({ src: c.toDataURL(), u0, v0, u1, v1 }); };
+      const st = window.VSBoard._state(), v = st.view; window.__v0 = Object.assign({}, v); const t = st.tiles.filter((k) => k.id !== "live")[0]; v.z = 9; v.x = -(t.x + 40) * 9 + 100; v.y = -(t.y + 60) * 9 + 100; window.VSBoard.render(); });
+    await p.waitForTimeout(700);
+    check("zoomed in, a board tile gets a sharp piece from the full picture", await p.evaluate(() => !!window.__reg && window.__reg[0] === "C:/a/sketch.png" && !!document.querySelector(".b-pic img.s-sharp")), JSON.stringify(await p.evaluate(() => window.__reg)));
+    await p.evaluate(() => { Object.assign(window.VSBoard._state().view, window.__v0); window.VSBoard.render(); });
+    await p.waitForTimeout(500);
     await p.dblclick('.b-tile:not([data-id="live"])');
     await p.waitForTimeout(250);
     check("double-click opens Focus view with that image", await p.evaluate(() => document.body.getAttribute("data-page")) === "create" && /sketch/.test(await p.text("#c-ttl")), await p.text("#c-ttl"));
@@ -308,6 +314,11 @@ const frame = (n, name) => ({ path: "live://photoshop/" + n, name: name || "flat
     check("Refine needs words before it runs", await p.evaluate(() => document.querySelector(".b-node [data-nr]").disabled), "");
     await p.fill(".b-node textarea", "golden hour light");
     await p.click('.b-node [data-nv="2"]');
+    await p.evaluate(() => { const S = window.VS.S; S.status = Object.assign(S.status || {}, { local_ready: true, online: { on: true, has_key: true, limit: 10, usage: { n: 0, usd: 0 }, engines: { standard: { label: "Standard", usd: { "1K": 0.0336, "2K": 0.0504 }, credits: { "1K": 1, "2K": 1.5 } }, pro: { label: "Pro", usd: { "1K": 0.134, "2K": 0.134 }, credits: { "1K": 4, "2K": 4 } } } } }); window.VSBoard.render(); });
+    await p.waitForTimeout(100);
+    await p.locator(".b-node").screenshot({ path: (process.env.SHOT_DIR || "/tmp") + "/node.png" });
+    check("tool window: engine as tiles", await p.evaluate(() => document.querySelectorAll(".b-node [data-neng]").length === 3), "");
+    await p.evaluate(() => { window.VS.S.status.online = null; window.VSBoard.render(); });
     await p.evaluate(() => { window.__lastJob = null; });
     await p.click(".b-node [data-nr]"); await p.waitForTimeout(300);
     const job = await p.evaluate(() => window.__lastJob);
@@ -614,6 +625,12 @@ const frame = (n, name) => ({ path: "live://photoshop/" + n, name: name || "flat
     await p.evaluate(() => { window.__job = null; window.pywebview.api.studio_run = (j) => { window.__job = j; return Promise.resolve("j7"); }; window.VS.S.status = Object.assign(window.VS.S.status || {}, { create_ready: true }); });
     await p.click("#c-go"); await p.waitForTimeout(80);
     check("Create sends the locks", await p.evaluate(() => !!(window.__job && window.__job.locks && window.__job.locks.design && !window.__job.locks.materials)), JSON.stringify(await p.evaluate(() => window.__job && window.__job.locks)));
+    // a second Create while the first runs is queued and starts when it's done
+    await p.evaluate(() => { window.__n = 0; window.pywebview.api.studio_run = (j) => { window.__n++; return Promise.resolve("q" + window.__n); }; });
+    await p.click("#c-go"); await p.waitForTimeout(80);
+    check("Create while running queues the run", await p.evaluate(() => (window.VS.S.create.queue || []).length === 1 && window.__n === 0) && /Queue another · 1 waiting/.test(await p.text("#c-golabel")), await p.text("#c-golabel"));
+    await p.ev("studio-job", { id: "j7", state: "done" }); await p.waitForTimeout(500);
+    check("the queued run starts by itself", await p.evaluate(() => window.__n === 1 && (window.VS.S.create.queue || []).length === 0), String(await p.evaluate(() => window.__n)));
     check("no page errors in the Create panel", p.errors.length === 0, p.errors.join(" | "));
     await p.close();
   }

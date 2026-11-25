@@ -70,6 +70,7 @@
       '<button type="button" class="s-btn" data-x="create" title="Open this view in Create" disabled><svg viewBox="0 0 24 24"><path d="M4 20h4L19 9l-4-4L4 16z"/><path d="M13 7l4 4"/></svg><span>Open in Create</span></button>' +
       '<button type="button" class="s-btn" data-x="ps" title="Send this view to Photoshop as a new layer" disabled><span class="m-ico ps">Ps</span><span>Photoshop</span></button>' +
       '<button type="button" class="s-btn" data-x="up" title="Upscale this view" disabled><svg viewBox="0 0 24 24"><path d="M12 19V5M6 11l6-6 6 6"/></svg><span>Upscale</span></button></div>' +
+      '<div class="t-vars"><span class="s-label">Variations</span><div class="t-varseg">' + [1, 2, 4].map(function (k) { return '<button type="button" data-tv="' + k + '">' + k + "</button>"; }).join("") + "</div></div>" +
       '<div class="t-go"><div class="t-will" id="t-will"></div><button type="button" class="s-go" id="t-go">Render this view</button><button type="button" class="s-btn t-reset" id="t-reset">Reset</button>' +
       '<p class="s-hint" id="t-hint"></p></div></aside>';
     wire();
@@ -127,6 +128,7 @@
         esc(viewName(a) || NAME[a]) + "</button>"; }).join("");
     var ae = root.querySelector("#t-angles"); if (ae.getAttribute("data-k") !== ah) { ae.innerHTML = ah; ae.setAttribute("data-k", ah); }
     root.querySelectorAll(".t-heights button").forEach(function (b) { var h = HEIGHTS.filter(function (x) { return x[0] === b.getAttribute("data-h"); })[0]; b.classList.toggle("on", T.pitch === h[2]); });
+    root.querySelectorAll("[data-tv]").forEach(function (b) { b.classList.toggle("on", +b.getAttribute("data-tv") === (T.vars || 1)); });
     root.querySelector("#t-will").innerHTML = tg && moved() ? "Will show: <b>" + esc(inCab() ? cabinLabel(T.cam) : viewName(tg)) + "</b>, " + heightName() : "";
     var go = root.querySelector("#t-go");
     go.disabled = !has || T.reading || !moved() || busy || !!p.job && !T.running;
@@ -259,6 +261,7 @@
       else if (e.target.closest("[data-clear]")) { if (!T.running) { T.src = null; T.origin = null; T.results = []; T.sel = -1; T.base = null; T.kind = ""; T.cam = null; T.yaw = 0; T.pitch = 0; T.dist = 0; T.reading = false; render(); } }
       else if (e.target.closest("#t-reset")) { T.cam = null; T.yaw = 0; T.pitch = 0; T.dist = 0; T.lens = "normal"; T.sel = -1; render(); }
       else if (e.target.closest("#t-go")) go();
+      else if (e.target.closest("[data-tv]")) { T.vars = +e.target.closest("[data-tv]").getAttribute("data-tv"); render(); }
     });
     root.addEventListener("input", function (e) {
       if (e.target.id === "t-yaw") { T.yaw = +e.target.value; T.cam = null; }
@@ -297,7 +300,7 @@
     T.running = true; T.wantLabel = (inCab() ? cabinLabel(T.cam) : viewName(target())) + (heightName() === "eye level" ? "" : ", " + heightName());
     V.job("c", { view: { yaw: T.yaw, pitch: T.pitch, dist: T.dist, lens: T.lens, target: target(),
                        cabin: inCab() ? { u: T.cam.x / CAB.x, v: T.cam.y / CAB.y, look: T.cam.look } : null }, text: T.text, preset: "",
-                 refs: [], mask: null, variations: 1, instant: false,
+                 refs: [], mask: null, variations: T.vars || 1, instant: false,
                  res: p.res === "512" ? "1k" : p.res });     // a new view at 512 came out 432 px tall: too soft to judge
     render();
   }

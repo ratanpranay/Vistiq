@@ -147,7 +147,7 @@
     if (t.kind === "live") return liveInWorld() ? liveCard(t, sel, false) : "";   // or below the bar, or folded away
     var th = thumbs[t.path];
     if (th === undefined) { thumbs[t.path] = null; call("studio_thumb", t.path).then(function (d) { thumbs[t.path] = d || "missing"; render(); }); }
-    var pic = th && th !== "missing" ? '<div class="b-pic"><img src="' + th + '" alt=""></div>' : '<div class="b-empty">' + (th === "missing" ? "File moved or deleted" : "") + "</div>";
+    var pic = th && th !== "missing" ? '<div class="b-pic"><img data-p="' + esc(t.path) + '" src="' + th + '" alt=""></div>' : '<div class="b-empty">' + (th === "missing" ? "File moved or deleted" : "") + "</div>";
     pic = pic.replace('class="b-pic"', 'class="b-pic" style="height:' + shape(t)[1] + 'px"').replace('class="b-empty"', 'class="b-empty" style="height:' + shape(t)[1] + 'px"');
     return '<div class="b-tile' + sel + '" data-id="' + t.id + '" style="left:' + t.x + "px;top:" + t.y + "px;width:" + tileW(t) + 'px">' +
       '<div class="b-h"><span>' + esc(VS().short(t.name || "")) + "</span><small>" + (t.w ? t.w + " × " + t.h : "") + "</small></div>" + pic + badge +
@@ -310,6 +310,8 @@
     cv.style.backgroundSize = (22 * v.z) + "px " + (22 * v.z) + "px";
     cv.style.backgroundPosition = v.x + "px " + v.y + "px";
     root.querySelector("#b-zoom").textContent = Math.round(v.z * 100) + "%";
+    // sharp zoom: tiles shown bigger than their small preview get the on-screen part from the full picture
+    if (VS().sharpen) root.querySelectorAll(".b-pic > img[data-p]").forEach(function (im) { VS().sharpen(im.parentNode, im.getAttribute("data-p"), 0, 0, im); });
   }
 
   // ---------------------------------------------------------------- tiles
@@ -548,21 +550,26 @@
       label = "Make variations";
     } else if (n.kind === "3d") {
       body = '<div class="bn-chips">' + VIEWS3.map(function (v) { return '<button type="button" data-n3="' + v[0] + '"' + (n.view === v[0] ? ' class="on"' : "") + ">" + v[1] + "</button>"; }).join("") + "</div>" +
-        '<div class="bn-row"><span>Height</span>' + seg("nh", [["eye", "Eye"], ["high", "Above"], ["low", "Low"]], n.height) + "</div>";
+        '<div class="bn-row"><span>Height</span>' + seg("nh", [["eye", "Eye"], ["high", "Above"], ["low", "Low"]], n.height) + "</div>" +
+        '<div class="bn-row"><span>Variations</span>' + seg("nv", [[1, "1"], [2, "2"], [4, "4"]], n.vars || 1) + "</div>";
       label = "Make view";
     } else if (n.kind === "upscale") {
       body = '<div class="bn-row"><span>Size</span>' + seg("nu", UPS, n.scale) + "</div>";
       label = "Upscale";
     }
     var oo = VS().S.status && VS().S.status.online;
-    if (oo && oo.on && n.kind === "upscale") {
-      var ue = nodeEngine(n);
-      body += '<div class="bn-row"><span>Engine</span><select data-ne><option value=""' + (ue ? "" : " selected") + ">Upscale only · free</option>" +
-        ["standard", "pro"].map(function (k) { return '<option value="' + k + '"' + (ue === k ? " selected" : "") + ">Enhance + upscale · " + oo.engines[k].label + "</option>"; }).join("") + "</select></div>";
-    } else if (oo && oo.on) {
-      var ne = nodeEngine(n), loc = VS().S.status.local_ready;
-      body += '<div class="bn-row"><span>Engine</span><select data-ne>' + (loc ? '<option value=""' + (ne ? "" : " selected") + ">Local · free</option>" : "") +
-        ["standard", "pro"].map(function (k) { return '<option value="' + k + '"' + (ne === k ? " selected" : "") + ">" + oo.engines[k].label + "</option>"; }).join("") + "</select></div>";
+    if (oo && oo.on) {
+      // the engine as three tiles (Nov 2026: was a plain dropdown)
+      var en = nodeEngine(n), up = n.kind === "upscale", k = up ? 1 : (n.vars || 1);
+      var opts = [];
+      if (up || VS().S.status.local_ready) opts.push(["", up ? "Only upscale" : "Local", "Free"]);
+      ["standard", "pro"].forEach(function (e) {
+        var cr = oo.engines[e].credits[up ? "2K" : (/2k|4k/i.test(VS().S.create.res || "2k") ? "2K" : "1K")] * k;
+        opts.push([e, oo.engines[e].label, (up ? "Enhance · " : "") + (Math.round(cr * 10) / 10) + (up ? " cr" : cr === 1 ? " credit" : " credits")]);
+      });
+      body += '<div class="bn-eng"><span class="bn-lab">Engine</span><div class="bn-engs">' + opts.map(function (o) {
+        return '<button type="button" data-neng="' + o[0] + '"' + (en === o[0] ? ' class="on"' : "") + "><b>" + o[1] + "</b><small>" + o[2] + "</small></button>";
+      }).join("") + "</div></div>";
     }
     var st = n.busy ? '<div class="bn-prog"><i style="width:' + Math.round((n.frac || 0) * 100) + '%"></i></div><div class="bn-est">' + esc(n.status || "Working") + "</div>" :
       (n.err ? '<div class="bn-err">' + esc(n.err) + "</div>" : '<div class="bn-est">' + esc(nodeEta(n)) + "</div>");
@@ -584,10 +591,10 @@
   }
   function nodeEta(n) {
     if (n.kind === "upscale") return nodeEngine(n) ? VS().onlineCost(nodeEngine(n), 1, "2k") + " · sharper textures, stitching and light, then upscaled here for free" : "";
-    if (nodeEngine(n)) return VS().onlineCost(nodeEngine(n), n.kind === "3d" ? 1 : n.vars || 1, VS().S.create.res);
-    var t = VS().S.status && VS().S.status.times, k = n.kind === "3d" ? 1 : n.vars || 1;
+    if (nodeEngine(n)) return VS().onlineCost(nodeEngine(n), n.vars || 1, VS().S.create.res);
+    var t = VS().S.status && VS().S.status.times, k = n.vars || 1;
     if (!t || !t.per) return "The first run loads the models, so it takes a little longer";
-    return "About " + mmss(t.per * k + (t.warm ? 0 : (t.load || 0))) + " for " + k + (k > 1 ? " pictures" : " picture");
+    return "About " + mmss(t.per * k + (t.warm ? 0 : (t.load || 0))) + " · " + k + (k > 1 ? " pictures" : " picture") + " · free";
   }
   function left(n) {
     var p = VS().S.create;
@@ -625,7 +632,7 @@
   // Where the pictures of a run will land: a placeholder each, at the end of the line, until they come.
   function ghosts(n) {
     if (!n.busy) return [];
-    var want = n.kind === "upscale" || n.kind === "3d" ? 1 : (n.vars || 1), got = n.got || 0, out = [];
+    var want = n.kind === "upscale" ? 1 : (n.vars || 1), got = n.got || 0, out = [];
     if (!n.slots || n.slots.length < want) planRun(n, want);
     for (var i = got; i < want; i++) out.push({ x: n.slots[i].x, y: n.slots[i].y, w: n.slots[i].w, h: n.slots[i].h, first: i === got, i: i });
     return out;
@@ -767,14 +774,14 @@
     var text = nodeText(n);
     if (n.kind === "refine" && !text) { V.toast("Type what to change first"); return; }
     hook(); runNode = n; n.busy = true; n.frac = 0; n.got = 0; n.status = "Starting"; n.job = null; n.seen = false; n.wait = 0;
-    B.selNode = n.id; planRun(n, n.kind === "3d" ? 1 : (n.vars || 1)); render();
+    B.selNode = n.id; planRun(n, n.vars || 1); render();
     call("studio_image", t.path).then(function (info) {
       if (!info) { runNode = null; n.busy = false; n.err = "That file was moved or deleted."; render(); return; }
       S.create.source = "image"; V.setImage(p, "src", info); S.boardFrom = t.id; p.refs = [];
       var extra = { mask: null, refs: [], instant: false };
       if (n.kind === "3d") {
         var hgt = { eye: 0, high: 25, low: -20 }[n.height] || 0;
-        extra = Object.assign(extra, { view: { yaw: 0, pitch: hgt, dist: 0, lens: "normal", target: n.view, cabin: null }, text: "", preset: "", variations: 1,
+        extra = Object.assign(extra, { view: { yaw: 0, pitch: hgt, dist: 0, lens: "normal", target: n.view, cabin: null }, text: "", preset: "", variations: n.vars || 1,
                                        res: p.res === "512" ? "1k" : p.res });
       } else {
         p.text = text; p.vars = n.vars; extra = Object.assign(extra, { text: text, variations: n.vars });
@@ -1021,6 +1028,7 @@
         else if (nb.hasAttribute("data-n3")) n.view = nb.getAttribute("data-n3");
         else if (nb.hasAttribute("data-nh")) n.height = nb.getAttribute("data-nh");
         else if (nb.hasAttribute("data-nu")) n.scale = nb.getAttribute("data-nu");
+        else if (nb.hasAttribute("data-neng")) n.engine = nb.getAttribute("data-neng");
         save(); renderNodes(); return;
       }
       var mx = e.target.closest("#b-mix");

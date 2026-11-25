@@ -376,6 +376,31 @@ class Api:
             return {"error": str(exc)}
         return {"on": True, "url": url, "qr": segno.make(url, error="m").svg_data_uri(scale=6, border=2)}
 
+    def studio_region(self, path, u0, v0, u1, v1, out_w):
+        """A sharp piece of a picture (fractions of its width/height), at most out_w pixels wide: what's on screen
+        when zoomed in past the preview's resolution."""
+        try:
+            from PIL import Image, ImageOps
+            import base64, io
+            src = self._app.studio.real_path(path)
+            im = Image.open(src)
+            im = ImageOps.exif_transpose(im)
+            W, H = im.size
+            box = (max(0, int(u0 * W)), max(0, int(v0 * H)), min(W, int(round(u1 * W))), min(H, int(round(v1 * H))))
+            if box[2] - box[0] < 2 or box[3] - box[1] < 2:
+                return None
+            im = im.crop(box).convert("RGB")
+            ow = max(16, min(int(out_w or 2000), 4096))
+            if im.width > ow:
+                im = im.resize((ow, max(1, round(im.height * ow / im.width))), Image.LANCZOS)
+            buf = io.BytesIO()
+            im.save(buf, "JPEG", quality=90)
+            return {"src": "data:image/jpeg;base64," + base64.b64encode(buf.getvalue()).decode("ascii"),
+                    "u0": box[0] / W, "v0": box[1] / H, "u1": box[2] / W, "v1": box[3] / H}
+        except Exception as exc:
+            log.info("region: %s", exc)
+            return None
+
     def studio_month(self):
         """Pictures made on this computer this month (files in Outputs, not online ones), for the usage panel."""
         try:
