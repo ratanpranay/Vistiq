@@ -1,5 +1,9 @@
 # Vistiq Studio (test build)
 
+## 0.5.7
+- Usage pill at the bottom centre: click for the month's details. Own key: what's left of your limit, pictures it still buys, per engine, change the limit, Add balance. Local: this month's pictures. Vistiq Plus shown as coming soon.
+- Upscale window on the board: Engine dropdown with Enhance + upscale (Standard or Pro). Nano Banana sharpens textures, stitching, materials and light at 2K, then the free upscaler takes it further.
+
 ## 0.5.6
 - Export on every picture, the original too: Export original (full size, its own format) or Upscale and export (PNG, JPEG or WebP).
 - Nano Banana prompts read your request: only what you don't mention is kept (camera, light, design). Colour and material changes apply to every matching part.
