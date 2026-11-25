@@ -120,7 +120,7 @@ def generate(key, engine, images, text, size="1K", ratio="16:9", cancelled=lambd
                 "input": [{"type": "text", "text": text}] + [{"type": "image", "mime_type": "image/png", "data": b} for b in parts64],
                 "response_format": {"type": "image", "mime_type": "image/png", "aspect_ratio": ratio, "image_size": size}}
         try:
-            r = s.post(API + "/interactions", headers=head, json=body, timeout=300)
+            r = s.post(API + "/interactions", headers=head, json=body, timeout=(20, 150))
         except Exception as ex:
             raise OnlineError("Couldn't reach Google: %s" % ex)
         if r.status_code == 200:
@@ -138,7 +138,7 @@ def generate(key, engine, images, text, size="1K", ratio="16:9", cancelled=lambd
         body2 = {"contents": [{"role": "user", "parts": [{"text": text}] + [{"inline_data": {"mime_type": "image/png", "data": b}} for b in parts64]}],
                  "generationConfig": {"responseModalities": ["IMAGE"], "imageConfig": {"aspectRatio": ratio, "imageSize": size}}}
         try:
-            r2 = s.post(API + "/models/%s:generateContent" % model, headers=head, json=body2, timeout=300)
+            r2 = s.post(API + "/models/%s:generateContent" % model, headers=head, json=body2, timeout=(20, 150))
         except Exception as ex:
             raise OnlineError("Couldn't reach Google: %s" % ex)
         if r2.status_code == 200:
@@ -164,6 +164,12 @@ _CAMERA = _re.compile(r"\b(camera|view|angle|side view|top view|rear|front view|
                       r"perspective|rotate|turn)\b", _re.I)
 _NEW = _re.compile(r"\b(new|redesign|re-design|imagine|idea|ideas|concept|explore|variation|different|futuristic|"
                    r"reinvent|rethink|sketch)\b", _re.I)
+
+
+ZOOM = _re.compile(r"\b(zoom(ed)?[- ]?in|close[- ]?up|closeup|macro|detail(ed)? shot|cinematic shot)\b", _re.I)
+ZOOM_TEXT = ("This picture is the part of a design that matters. %s. Make a new cinematic close-up photograph of exactly "
+             "this part: same design, shapes, materials and colours, only the camera moves closer with shallow depth of "
+             "field. Remove any green highlight paint.")
 
 
 def context_text(words):

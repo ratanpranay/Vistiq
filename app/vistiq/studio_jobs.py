@@ -3,6 +3,8 @@
 Lives next to the upscaler's App; `Studio(app)` is made only in the Studio
 build.
 """
+import math
+import threading
 import base64
 import glob
 import io
@@ -11,7 +13,6 @@ import re
 import logging
 import os
 import sys
-import threading
 import time
 
 from PIL import Image, ImageFilter, ImageOps
@@ -1172,6 +1173,7 @@ class Studio:
             work = original.crop(box) if box else original
             words = " ".join(studio.clean_prompt(job.get("said") or job.get("text") or "").split())
             texts = []
+            zoom_shot = False
             if job.get("view"):
                 vw = job["view"]
                 t, _ = studio.view_words("exterior", "front-left", vw.get("yaw", 0), vw.get("pitch", 0), vw.get("dist", 0),
@@ -1182,7 +1184,11 @@ class Studio:
             elif job.get("instant") or (not words and (job.get("preset") or "") == "sketch"):
                 texts = ["Turn this sketch into a finished, photorealistic product render with studio lighting. Keep the "
                          "design, proportions, perspective and camera exactly as drawn." + (" " + words if words else "")]
-            elif mask is not None:
+            elif mask is not None and online.ZOOM.search(words):
+                # a close-up of the marked part: a new picture of that part, not pasted back
+                zoom_shot = True
+                texts = [online.ZOOM_TEXT % words.rstrip(".")]
+            elif mask is not None and not zoom_shot:
                 texts = ["This picture is a close-up of one part of a larger design. " + words.rstrip(".") +
                          ". Keep the camera, perspective, light and everything around it exactly as it is; the result must fit "
                          "back seamlessly into the larger picture."]
@@ -1217,7 +1223,25 @@ class Studio:
                 text = texts[v % len(texts)]
                 if n > 1 and len(texts) == 1 and not job.get("view"):
                     text += " (Variation %d: a different take.)" % (v + 1)
-                data = online.generate(s.get("nb_key"), eng, imgs, text, size=size, ratio=ratio, cancelled=self._cancel.is_set)
+                # Google gives no progress: move the bar by the time this engine usually takes
+                avg = dict(s.get("nb_avg") or {}).get(eng) or (40.0 if eng == "pro" else 30.0)
+                t0 = time.time()
+                done_evt = threading.Event()
+
+                def tick(v=v, label=label, avg=avg, t0=t0, done_evt=done_evt):
+                    while not done_evt.wait(0.5):
+                        el = time.time() - t0
+                        f = min(0.95, 1 - math.exp(-1.6 * el / avg))
+                        left = avg - el
+                        say(label + (" · about %d s" % left if left > 2 else " · almost done"), (v + f) / n)
+                threading.Thread(target=tick, daemon=True).start()
+                try:
+                    data = online.generate(s.get("nb_key"), eng, imgs, text, size=size, ratio=ratio, cancelled=self._cancel.is_set)
+                finally:
+                    done_evt.set()
+                av = dict(s.get("nb_avg") or {})
+                av[eng] = round(0.6 * avg + 0.4 * (time.time() - t0), 1)
+                s.set("nb_avg", av)
                 u = online.add_usage(s, usd1, cr1)
                 result = Image.open(io.BytesIO(data)).convert("RGB")
                 if mask is not None:

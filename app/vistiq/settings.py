@@ -61,6 +61,7 @@ DEFAULTS = {
     "nb_on": True,                # online pictures with that key allowed
     "nb_limit": 10.0,             # stop online pictures at this many USD a month (Vistiq counts, Google bills)
     "nb_usage": {},               # this month's online pictures: {month, n, usd, credits}
+    "nb_avg": {},                 # seconds each online engine usually takes (for the progress bar)
     "nb_ok": False,               # the key worked when it was added
     "onboarded": False,           # the welcome page was done or skipped
     "keep_design": 0.8,
