@@ -20,7 +20,7 @@
     sizes: load("sizes", { brush: 6, erase: 40, magic: 50 }),
     opacity: load("opacity", 1), flow: load("flow", 0.85), smooth: load("smooth", 0.35), pressure: load("pressure", true),
     color: load("color", "#14161f"), recents: load("recents", ["#14161f", "#ffffff", "#e8562a", "#6d5df5", "#2a9d8f", "#e9c46a"]),
-    selTool: load("selTool", "lasso"), selMode: "new", snapObj: load("snapObj", true), flipH: false, flipV: false, folded: true
+    selTool: load("selTool", "lasso"), selMode: "new", snapObj: load("snapObj", true), flipH: false, flipV: false, folded: !load("layersPinned", false)
   };
   var docs = {}, doc = null, fit = null, view = null, catcher = null, ring = null, buf = null, magicBuf = null, stroke = null, tf = null;
 
@@ -705,7 +705,9 @@
         '<span class="op" data-a="op" title="Drag across to change opacity"><u style="width:' + L.opacity * 100 + '%"></u></span></span>' +
         '<button type="button" class="m" data-a="menu" title="More">' + ic("dots", 15) + "</button></div>";
     }).join("");
-    el.innerHTML = '<div class="hd">' + ic("layers", 15) + "<span>Layers</span></div>" + rows +
+    el.innerHTML = '<div class="hd">' + ic("layers", 15) + "<span>Layers</span>" +
+      '<button type="button" class="pin' + (T.folded ? "" : " on") + '" data-a="pin" title="' + (T.folded ? "Keep Layers open" : "Unpin: open Layers on hover") + '">' +
+      '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 17v5"/><path d="M9 3h6l-1 6 3 3H7l3-3z"/></svg></button></div>' + rows +
       '<div class="ft"><button type="button" data-a="add">' + ic("plus", 13) + "<span>Layer</span></button><button type=\"button\" data-a=\"merge\"><span>Merge down</span></button></div>";
     el.classList.toggle("open", !T.folded || el.matches(":hover"));
     thumbs();
@@ -718,6 +720,7 @@
     el.addEventListener("click", function (e) {
       var a = e.target.closest("[data-a]"), row = e.target.closest("[data-l]");
       var L = row && byId(doc, row.getAttribute("data-l")), act = a && a.getAttribute("data-a");
+      if (act === "pin") { T.folded = !T.folded; keep("layersPinned", !T.folded); panel(); return; }
       if (act === "add") { var n = addLayer(doc); n.canvas.className = "sk-layer"; fit.appendChild(n.canvas); order(); panel(); return; }
       if (act === "merge") { mergeDown(active()); return; }
       if (!L) return;

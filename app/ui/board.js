@@ -577,7 +577,8 @@
     return '<div class="b-node' + (n.busy ? " busy" : "") + '" data-nid="' + n.id + '" style="left:' + n.x + "px;top:" + n.y + "px;width:" + NODE_W + 'px">' +
       '<div class="bn-h" data-nh="' + n.id + '"><button type="button" class="bn-back" data-nback title="Back to the tools (pick another)"' + (n.busy ? " disabled" : "") + '>‹</button><span class="bn-ic">' + tl[1] + "</span><b>" + tl[2] +
       '</b><button type="button" class="bn-x" data-nx title="Close">×</button></div>' +
-      '<div class="bn-b">' + body + '<button type="button" class="bn-run" data-nr' + (n.busy || !can ? " disabled" : "") + ">" + (n.busy ? "Working…" : done ? label + " again" : label) + "</button>" + st + "</div></div>";
+      '<div class="bn-b">' + body + '<button type="button" class="bn-run" data-nr' + ((n.busy && n.kind === "upscale") || !can ? " disabled" : "") + ">" +
+        (n.busy || n.queued ? (n.kind === "upscale" ? "Working…" : "Queue another" + (n.queued ? " · " + n.queued + " waiting" : "")) : done ? label + " again" : label) + "</button>" + st + "</div></div>";
   }
   // How long a run takes, from earlier runs on this computer (as Create shows it).
   function mmss(sec) { sec = Math.max(0, Math.round(sec)); return Math.floor(sec / 60) + ":" + ("0" + sec % 60).slice(-2); }
@@ -740,13 +741,26 @@
     if (n.kind === "variations") return "imagine new design variations" + (w ? " of " + w : " of this design");
     return w;
   }
+  // A run asked for while Studio is busy waits its turn (Nov 2026), then starts by itself.
+  function queueNode(n) {
+    B.q = (B.q || []).concat([n.id]); n.queued = (n.queued || 0) + 1;
+    VS().toast("Queued · " + B.q.length + (B.q.length > 1 ? " runs" : " run") + " waiting"); renderNodes();
+  }
+  function nextQueued() {
+    setTimeout(function () {
+      var p = VS().S.create;
+      if (p.job || runNode || !(B.q || []).length) { if ((B.q || []).length && (p.job || runNode)) nextQueued(); return; }
+      var n = nodeById(B.q.shift()); if (!n) { nextQueued(); return; }
+      n.queued = Math.max(0, (n.queued || 0) - 1); nodeRun(n);
+    }, 600);
+  }
   function nodeRun(n) {
     var V = VS(), S = V.S, p = S.create, t = byId(n.from);
     if (!t || !t.path) { V.toast("The picture for this is gone from the board."); return; }
     n.err = "";
     if (n.kind === "upscale" && nodeEngine(n) && !n.enhPath) {
       // Enhance first (Nano Banana repaints it at 2K, same design), then the free upscaler takes it further.
-      if (p.job || runNode) { V.toast("Studio is still working on something"); return; }
+      if (p.job || runNode) { queueNode(n); return; }
       hook(); runNode = n; n.enhancing = true; n.busy = true; n.frac = 0; n.got = 0; n.status = "Enhancing"; n.job = null; n.seen = false; n.wait = 0;
       B.selNode = n.id; planRun(n, 1); render();
       call("studio_image", t.path).then(function (info) {
@@ -770,7 +784,7 @@
       });
       return;
     }
-    if (p.job || runNode) { V.toast("Studio is still working on something"); return; }
+    if (p.job || runNode) { queueNode(n); return; }
     var text = nodeText(n);
     if (n.kind === "refine" && !text) { V.toast("Type what to change first"); return; }
     hook(); runNode = n; n.busy = true; n.frac = 0; n.got = 0; n.status = "Starting"; n.job = null; n.seen = false; n.wait = 0;
@@ -810,7 +824,7 @@
       if (n.enhPath && !p.error) { n.status = "Upscaling"; nodeRun(n); }
       else { n.busy = false; n.status = ""; n.enhPath = null; n.err = p.error || "Enhance didn't make a picture."; render(); }
     }
-    else { n.busy = false; n.wait = 0; n.status = ""; if (p.error) n.err = p.error; runNode = null; render(); }
+    else { n.busy = false; n.wait = 0; n.status = ""; if (p.error) n.err = p.error; runNode = null; render(); nextQueued(); }
   }
 
   // ---------------------------------------------------------------- menu

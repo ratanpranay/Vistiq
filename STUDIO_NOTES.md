@@ -1,5 +1,11 @@
 # Vistiq Studio (test build)
 
+## 0.6.1
+- Board tool windows: press the button again while it works to queue more runs; they start by themselves.
+- Create: the engine as tiles (Local / Standard / Pro) with credits and cost, like the board windows.
+- Create: Upscale · Photoshop · 3D (To board taken out: send to the board from the layers).
+- Layers: a pin keeps the panel open (remembered).
+
 ## 0.6.0
 - Mac: FLUX only for local pictures (the second render model and its picker are gone).
 - Standard / Pro with a selection or marker: the whole picture and a mask go to Google, so the change fits the scene's light; softer smudges gone.

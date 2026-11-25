@@ -192,14 +192,16 @@
       '<svg viewBox="0 0 24 24"><path d="M6 15l6-6 6 6"/></svg></button></div><div class="s-rail-body">' + inner + "</div>" +
       '<div class="s-rail-foot"><div class="s-err" id="' + id + '-err" hidden></div>' +
       // What to do with the chosen result, right above Create.
-      '<div class="s-acts3">' + (id === "c" ? '<button type="button" class="s-btn" id="c-to3d" title="Turn the camera around this picture">' + svg("3d") + '<span>3D</span></button>' +
+      // Nov 2026: Upscale · Photoshop · 3D (To board left out: add to the board from the layers)
+      '<div class="s-acts3">' +
+      '<button type="button" class="s-btn" id="' + id + '-up" title="Upscale this result" disabled>' + svg("upscale") + '<span>Upscale</span></button>' +
+      '<button type="button" class="s-btn" id="' + id + '-tops" title="Send this result to Photoshop as a new layer" disabled><span class="m-ico ps">Ps</span><span>Photoshop</span></button>' +
+      (id === "c" ? '<button type="button" class="s-btn" id="c-to3d" title="Turn the camera around this picture">' + svg("3d") + '<span>3D</span></button>' +
         '<button type="button" class="s-btn" id="' + id + '-refine-this" hidden disabled></button>' :
         '<button type="button" class="s-btn" id="' + id + '-refine-this" title="Change this result with your words" disabled>' + svg("sketch") + '<span>Refine</span></button>') +
-      '<button type="button" class="s-btn" id="' + id + '-toboard" title="Put this result on the board" disabled>' + svg("board") + '<span>To board</span></button>' +
-      '<button type="button" class="s-btn" id="' + id + '-tops" title="Send this result to Photoshop as a new layer" disabled><span class="m-ico ps">Ps</span><span>Photoshop</span></button>' +
-      '<button type="button" class="s-btn" id="' + id + '-up" title="Upscale this result" disabled>' + svg("upscale") + '<span>Upscale</span></button></div>' +
+      '<button type="button" class="s-btn" id="' + id + '-toboard" hidden disabled></button></div>' +
       (id === "c" ? '<label class="s-model" id="c-model" hidden><span>Render model</span><select id="c-modelsel"></select></label>' +
-        '<label class="s-model" id="c-eng" hidden><span>Engine</span><select id="c-engsel"></select></label>' : "") +
+        '<div class="s-engw" id="c-eng" hidden><span class="s-engl">Engine</span><div class="s-engt" id="c-engt"></div></div>' : "") +
       '<div class="s-gorow">' +
       '<button type="button" class="s-go" id="' + id + '-go"><span class="s-go-fill" id="' + id + '-fill" style="width:0"></span><span id="' + id + '-golabel">' + goText + "</span></button>" +
       '</div><button type="button" class="s-cancel" id="' + id + '-cancel" hidden>Cancel</button>' +
@@ -1129,7 +1131,7 @@
     });
     // Create
     $("c-slot").addEventListener("click", function () { pick("c", "src"); });
-    $("c-engsel").addEventListener("change", function (e) { S.engineSel = e.target.value; keep("engine", S.engineSel); render(); });
+    $("c-engt").addEventListener("click", function (e) { var b = e.target.closest("[data-ce]"); if (!b || b.disabled) return; S.engineSel = b.getAttribute("data-ce"); keep("engine", S.engineSel); render(); });
     $("c-modelsel").addEventListener("change", function (e) {
       api().studio_mac_engine(e.target.value).then(function (st) { if (st) S.status = st; render(); });
     });
@@ -1972,10 +1974,11 @@
       var oo = st && st.online, showE = !!(oo && oo.on);
       $("c-eng").hidden = !showE;
       if (showE) {
-        var eh = (st.local_ready ? '<option value="">Auto (Local) · free</option>' : "") + ["standard", "pro"].map(function (k) {
-          var e = oo.engines[k]; return '<option value="' + k + '"' + (eng === k ? " selected" : "") + ">" + e.label + " · " + e.credits["1K"] + (e.credits["1K"] === 1 ? " credit" : " credits") + " · " + money(e.usd["1K"]) + "</option>";
-        }).join("");
-        var es = $("c-engsel"); if (es.getAttribute("data-h") !== eh) { es.innerHTML = eh; es.setAttribute("data-h", eh); } es.value = eng; es.disabled = busy;
+        var rz = /2k|4k/i.test(S.create.res || "2k") ? "2K" : "1K", opts = [];
+        if (st.local_ready) opts.push(["", "Local", "Free"]);
+        ["standard", "pro"].forEach(function (k) { var e = oo.engines[k], c = e.credits[rz]; opts.push([k, e.label, c + (c === 1 ? " credit" : " credits") + " · " + money(e.usd[rz])]); });
+        var eh = opts.map(function (o) { return '<button type="button" data-ce="' + o[0] + '"' + (eng === o[0] ? ' class="on"' : "") + "><b>" + o[1] + "</b><small>" + o[2] + "</small></button>"; }).join("");
+        var et = $("c-engt"); if (et.getAttribute("data-h") !== eh) { et.innerHTML = eh; et.setAttribute("data-h", eh); }
       }
     }
     var meta = "", t = st && st.times;
@@ -2318,7 +2321,7 @@
     var tg = target(p), onB = !!(tg && window.VSBoard && window.VSBoard.has(tg.path));
     $(id + "-up").disabled = !tg || !!p.job; $(id + "-reveal").disabled = !tg;
     $(id + "-toboard").disabled = !tg || onB;
-    $(id + "-toboard").querySelector("span").textContent = onB ? "On board" : "To board";
+    var tbs = $(id + "-toboard").querySelector("span"); if (tbs) tbs.textContent = onB ? "On board" : "To board";
     $(id + "-refine-this").hidden = id === "c"; $(id + "-refine-this").disabled = !c || !!p.job;
     if ($(id + "-to3d")) $(id + "-to3d").disabled = !tg || !!p.job;
     $(id + "-tops").hidden = false; $(id + "-tops").disabled = !tg;

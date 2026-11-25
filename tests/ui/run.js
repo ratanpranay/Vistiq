@@ -246,7 +246,7 @@ const frame = (n, name) => ({ path: "live://photoshop/" + n, name: name || "flat
     check("double-click opens Focus view with that image", await p.evaluate(() => document.body.getAttribute("data-page")) === "create" && /sketch/.test(await p.text("#c-ttl")), await p.text("#c-ttl"));
     await p.ev("studio-result", { id: "", index: 0, of: 1, result: { path: "C:/o/r1.png", name: "r1.png", w: 1600, h: 900, preview: img } });
     await p.evaluate(() => { window.VS.S.create.results = [{ path: "C:/o/r1.png", name: "r1.png", w: 1600, h: 900, preview: "x" }]; window.VS.S.create.sel = 0; window.VS.render(); });
-    await p.click("#c-toboard");
+    await p.evaluate(() => document.getElementById("c-toboard").click());   // (hidden in the rail since Nov 2026; layers send to board)
     await p.waitForTimeout(100);
     check("Add to board puts the result on the board", await p.evaluate(() => window.VSBoard._state().tiles.some((t) => t.path === "C:/o/r1.png" && t.from)), JSON.stringify(await p.evaluate(() => window.VSBoard._state().tiles)));
     await p.board();
@@ -325,7 +325,10 @@ const frame = (n, name) => ({ path: "live://photoshop/" + n, name: name || "flat
     check("Run sends the tile's picture and the words", !!job && job.image === "C:/a/truck.png" && job.text === "golden hour light" && job.variations === 2 && !job.mask, JSON.stringify(job));
     if (process.env.NSHOT) await p.screenshot({ path: "/tmp/claude-0/-home-claude/dcd924c8-68bd-54b8-af15-65d2e5e10346/scratchpad/board_ghost.png" });
     check("2 placeholders wait at the end of the line", await p.evaluate(() => document.querySelectorAll(".b-ghost").length) === 2, "");
-    check("the window shows it is working", await p.evaluate(() => /Working/.test(document.querySelector(".b-node [data-nr]").textContent)), "");
+    check("while working, the window's button queues another run", await p.evaluate(() => /Queue another/.test(document.querySelector(".b-node [data-nr]").textContent) && !document.querySelector(".b-node [data-nr]").disabled), "");
+    await p.click(".b-node [data-nr]"); await p.waitForTimeout(100);
+    check("a second run waits in the queue", await p.evaluate(() => (window.VSBoard._state().q || []).length === 1 && /1 waiting/.test(document.querySelector(".b-node [data-nr]").textContent)), await p.evaluate(() => document.querySelector(".b-node [data-nr]").textContent));
+    await p.evaluate(() => { window.VSBoard._state().q = []; window.VSBoard._state().nodes.forEach((n) => { n.queued = 0; }); window.VSBoard.render(); });
     check("the board stays open", await p.evaluate(() => document.body.getAttribute("data-page")) === "board", "");
     await p.ev("studio-result", { id: "j1", index: 0, of: 2, result: { path: "C:/o/g1.png", name: "g1.png", w: 1600, h: 900, preview: img } });
     await p.waitForTimeout(100);
@@ -1235,9 +1238,10 @@ const frame = (n, name) => ({ path: "live://photoshop/" + n, name: name || "flat
     check("welcome: a good key opens the app (online only)", await p.evaluate(() => window.__nbkey === "AIzaGOOD" && !document.body.classList.contains("s-gated")), "");
     await p.evaluate(() => { const S = window.VS.S.create; S.source = "image"; window.VS.setImage(S, "src", { path: "C:/i/a.png", name: "a.png", w: 1600, h: 900, preview: "x" }); S.vars = 2; S.res = "2k"; window.VS.go("create"); });
     await p.waitForTimeout(250);
-    check("Create: engine picker with Standard / Pro (no local yet)", await p.evaluate(() => !document.getElementById("c-eng").hidden && document.querySelectorAll("#c-engsel option").length === 2 && document.getElementById("c-engsel").value === "standard"), "");
+    check("Create: engine picker with Standard / Pro (no local yet)", await p.evaluate(() => !document.getElementById("c-eng").hidden && document.querySelectorAll("#c-engt [data-ce]").length === 2 && document.querySelector("#c-engt .on").getAttribute("data-ce") === "standard"), "");
     check("Create: the cost of the run before it starts", /Standard · 2 pictures at 2K · 3 credits · about \$0\.10/.test(await p.text("#c-meta")), await p.text("#c-meta"));
-    await p.selectOption("#c-engsel", "pro"); await p.waitForTimeout(80);
+    await p.click('#c-engt [data-ce="pro"]'); await p.waitForTimeout(80);
+    await p.locator("#c-eng").screenshot({ path: (process.env.SHOT_DIR || "/tmp") + "/c_eng.png" });
     check("Create: Pro costs 4 credits a picture", /Pro · 2 pictures at 2K · 8 credits · about \$0\.27/.test(await p.text("#c-meta")), await p.text("#c-meta"));
     await p.evaluate(() => { window.__lastJob = null; window.VS.S.create.text = "red seats"; });
     await p.evaluate(() => window.VS.job("c")); await p.waitForTimeout(150);
