@@ -1,5 +1,11 @@
 # Vistiq Studio (test build)
 
+## 0.5.9
+- Assets: Library › Assets shows Documents\Vistiq Studio\Assets, one folder per category (add your own folders and pictures any time). Use a picture as a reference or open it in Create.
+- Create › References › + Add › From Assets: pick references from your Assets.
+- Up to 6 references. New use: Design (mix its shapes and design into yours; several mix together). Standard and Pro use all 6, Local the first 3.
+- Prompts: Assets\Prompts.txt and your saved prompts appear in 📚 Prompts. 💾 Save keeps the current words in My prompts.
+
 ## 0.5.8
 - Board tool windows: the engine is now three tiles (Local / Standard / Pro) with credits, instead of a plain dropdown.
 - Sharp zoom: zoomed past the preview, board tiles and the Create / Focus view read the part on screen from the full picture.
