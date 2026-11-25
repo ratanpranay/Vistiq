@@ -1,5 +1,11 @@
 # Vistiq Studio (test build)
 
+## 0.6.0
+- Mac: FLUX only for local pictures (the second render model and its picker are gone).
+- Standard / Pro with a selection or marker: the whole picture and a mask go to Google, so the change fits the scene's light; softer smudges gone.
+- Sharp zoom on the board: fixed a glitch where a wrong piece showed over a tile.
+- Library on Mac: title and tabs no longer overlap. Improve / Prompts / Save on one line.
+
 ## 0.5.9
 - Assets: Library › Assets shows Documents\Vistiq Studio\Assets, one folder per category (add your own folders and pictures any time). Use a picture as a reference or open it in Create.
 - Create › References › + Add › From Assets: pick references from your Assets.
