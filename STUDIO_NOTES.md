@@ -1,5 +1,11 @@
 # Vistiq Studio (test build)
 
+## 0.5.6
+- Export on every picture, the original too: Export original (full size, its own format) or Upscale and export (PNG, JPEG or WebP).
+- Nano Banana prompts read your request: only what you don't mention is kept (camera, light, design). Colour and material changes apply to every matching part.
+- Close-up / zoomed-in shots of a marked area make a new picture of that part instead of pasting back.
+- Online runs: a moving progress bar with time left, and a 2.5-minute time-out instead of hanging.
+
 ## 0.5.5
 - First start: pick how to make images. On this computer (free, offline), Vistiq Plus (coming soon) or your own Google key. Shows this computer's graphics card, memory and disk; Skip for now to look around.
 - Your own key: Nano Banana online with your Google AI Studio key. Standard (Nano Banana 2.1) and Pro. The key is checked with Google and stays on this computer; Google bills you.
