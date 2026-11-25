@@ -1,5 +1,12 @@
 # Vistiq Studio (test build)
 
+## 0.5.5
+- First start: pick how to make images. On this computer (free, offline), Vistiq Plus (coming soon) or your own Google key. Shows this computer's graphics card, memory and disk; Skip for now to look around.
+- Your own key: Nano Banana online with your Google AI Studio key. Standard (Nano Banana 2.1) and Pro. The key is checked with Google and stays on this computer; Google bills you.
+- Engine picker in Create and in the board's tool windows: Local, Standard or Pro, with credits and cost before every run. Up to 2K online (upscale here for 4K, free). A selection sends only that part and puts it back in place.
+- Bottom bar: this month's online pictures and cost. A monthly limit (default $10) stops online runs.
+- Settings: Online models on top (your key, Vistiq Plus).
+
 ## 0.5.4
 - Board: a new run starts on a new row below the earlier results and lands clear of any tile or window, also ones you moved into the way.
 - Board: the placeholders of a run can be dragged; the picture lands where you put it.
