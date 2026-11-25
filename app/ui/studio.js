@@ -3097,7 +3097,7 @@
         }
       });
     };
-    if (S.assets && !S.assets.loading) show(); else loadAssets(show);
+    loadAssets(show);                // read the folder again each time: new folders and pictures show at once
   }
 
   function render() {
