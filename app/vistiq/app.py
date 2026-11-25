@@ -376,6 +376,27 @@ class Api:
             return {"error": str(exc)}
         return {"on": True, "url": url, "qr": segno.make(url, error="m").svg_data_uri(scale=6, border=2)}
 
+    def studio_month(self):
+        """Pictures made on this computer this month (files in Outputs, not online ones), for the usage panel."""
+        try:
+            from . import studio as _st
+            root = _st.outputs_dir(self._app.settings)
+            t = time.localtime()
+            start = time.mktime((t.tm_year, t.tm_mon, 1, 0, 0, 0, 0, 0, -1))
+            n = 0
+            for d, _dirs, files in os.walk(root):
+                for f in files:
+                    if f.lower().endswith((".png", ".jpg", ".jpeg", ".webp")) and "NanoBanana" not in f:
+                        try:
+                            if os.path.getmtime(os.path.join(d, f)) >= start:
+                                n += 1
+                        except OSError:
+                            pass
+            return {"local": n}
+        except Exception as exc:
+            log.info("month: %s", exc)
+            return {"local": 0}
+
     def studio_stats(self):
         """Graphics card, processor and memory, for the little bar under the canvas."""
         try:

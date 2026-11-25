@@ -207,8 +207,15 @@ def usage(settings):
     return u
 
 
-def add_usage(settings, usd, credits):
+def add_usage(settings, usd, credits, engine=None):
     u = usage(settings)
+    if engine:
+        by = dict(u.get("by") or {})
+        e = dict(by.get(engine) or {"n": 0, "usd": 0.0})
+        e["n"] = int(e.get("n", 0)) + 1
+        e["usd"] = round(float(e.get("usd", 0)) + usd, 4)
+        by[engine] = e
+        u["by"] = by
     u["n"] = int(u.get("n", 0)) + 1
     u["usd"] = round(float(u.get("usd", 0)) + usd, 4)
     u["credits"] = round(float(u.get("credits", 0)) + credits, 2)

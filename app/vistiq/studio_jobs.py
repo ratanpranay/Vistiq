@@ -1242,7 +1242,7 @@ class Studio:
                 av = dict(s.get("nb_avg") or {})
                 av[eng] = round(0.6 * avg + 0.4 * (time.time() - t0), 1)
                 s.set("nb_avg", av)
-                u = online.add_usage(s, usd1, cr1)
+                u = online.add_usage(s, usd1, cr1, eng)
                 result = Image.open(io.BytesIO(data)).convert("RGB")
                 if mask is not None:
                     result = result.resize(work.size, Image.LANCZOS)

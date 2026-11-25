@@ -11,6 +11,7 @@
   function short(n) { return String(n || "").replace(/^Vistiq_/, "").replace(/\.(png|jpe?g|webp)$/i, ""); }
 
   var ICON = {
+    chev: '<path d="M6 15l6-6 6 6"/>',
     "3d": '<path d="M12 3l8 4.5v9L12 21l-8-4.5v-9z"/><path d="M12 12l8-4.5M12 12v9M12 12L4 7.5"/>',
     trash: '<path d="M4 7h16M9 7V4.5h6V7M6.5 7l1 12.5h9l1-12.5"/><path d="M10 11v5M14 11v5"/>',
     projects: '<path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>',
@@ -426,6 +427,9 @@
     if (window.VS3D) window.VS3D.build(td);
     loadStrip();
     var mach = document.createElement("div"); mach.id = "s-machine"; mach.className = "s-machine"; document.body.appendChild(mach);
+    var ub = document.createElement("div"); ub.id = "s-usage"; ub.className = "s-usage"; document.body.appendChild(ub);
+    ub.addEventListener("click", usageClick);
+    document.addEventListener("pointerdown", function (e) { if (S.usageOpen && !e.target.closest("#s-usage")) { S.usageOpen = false; usageRender(); } });
     statsLoop();
 
     // Upscale's panel gets the same header (title + fold button) as the others.
@@ -851,7 +855,8 @@
       var el = $("s-machine"); if (m) S.mstats = m; if (!el) return; m = m || {};
       var p = S.page === "reference" ? S.ref : S.create, parts = [];
       var oo = S.status && S.status.online;
-      if (oo && oo.on) { var ou = oo.usage || {}; parts.push('<span class="nb" title="Online pictures this month with your own Google key">● Own key · <b>' + (ou.n || 0) + "</b> pictures · <b>" + money(ou.usd) + "</b>" + (oo.limit ? " of $" + oo.limit : "") + " this month</span><span class=\"sep\"></span>"); }
+      if (!S.monthAt || Date.now() - S.monthAt > 60000) { S.monthAt = Date.now(); if (api().studio_month) api().studio_month().then(function (mm) { S.month = mm; usageRender(); }); }
+      usageRender();
       if (p.job) parts.push('<span class="job">● ' + esc(p.stage || "Working") + (p.frac ? " · " + Math.round(varFrac(p) * 100) + "%" : "") + "</span><span class=\"sep\"></span>");
       if (m.gpu) parts.push("<span>GPU <b>" + esc(m.gpu.name) + "</b>" + bar(m.gpu.load, "g") + "<b>" + m.gpu.load + "%</b> <b class=\"" + (m.gpu.temp >= 80 ? "hot" : "") + "\">" + m.gpu.temp + "°</b></span>" +
         "<span>VRAM" + bar(100 * m.gpu.used / m.gpu.total, "g") + "<b>" + m.gpu.used.toFixed(1) + "/" + Math.round(m.gpu.total) + " GB</b></span><span class=\"sep\"></span>");
@@ -2696,6 +2701,58 @@
   }
 
   // -- online (Nov 2026): Nano Banana with your own Google key; Vistiq Plus comes later (shown, not active) --
+  // -- the usage pill (bottom centre) and its panel --------------------------------
+  function usageRender() {
+    var el = $("s-usage"); if (!el) return;
+    var o = (S.status && S.status.online) || {}, u = o.usage || {}, own = !!o.on, loc = !!(S.status && S.status.local_ready);
+    if (!own && !loc) { el.innerHTML = ""; return; }
+    var pill = own
+      ? '<button type="button" class="su-pill" data-us="t"><i class="d on"></i>Own key · <b>' + money(u.usd) + "</b>" + (o.limit ? " of $" + o.limit : "") + " this month" + svg("chev") + "</button>"
+      : '<button type="button" class="su-pill" data-us="t"><i class="d"></i>Local · <b>' + (S.month ? S.month.local : "–") + "</b> pictures this month" + svg("chev") + "</button>";
+    var h = pill;
+    if (S.usageOpen) {
+      var E = o.engines || {}, st = E.standard || { usd: { "1K": 0.0336, "2K": 0.0504 } }, pr = E.pro || { usd: { "1K": 0.134 } };
+      h += '<div class="su-pan" role="dialog" aria-label="Making images">';
+      if (own) {
+        var left = Math.max(0, (o.limit || 0) - (u.usd || 0)), pct = o.limit ? Math.min(100, 100 * (u.usd || 0) / o.limit) : 0, by = u.by || {};
+        var row = function (k, lab) { var b = by[k] || { n: 0, usd: 0 }; return "<tr><td>" + lab + "</td><td>" + b.n + "</td><td>" + money(b.usd) + "</td></tr>"; };
+        h += '<div class="su-hd"><b>Making images</b><span class="su-tag">Own key</span><small>resets 1st of the month</small></div>' +
+          '<div class="su-row"><span><b>' + money(left) + "</b> left of your $" + (o.limit || 0) + ' limit</span><span>' + money(u.usd) + " used</span></div>" +
+          '<div class="su-bar"><i style="width:' + pct + '%"></i></div>' +
+          '<div class="su-tiles"><div><small>≈ Standard 1K</small><b>' + Math.floor(left / st.usd["1K"]) + '</b></div><div><small>≈ Standard 2K</small><b>' + Math.floor(left / st.usd["2K"]) +
+          '</b></div><div><small>≈ Pro</small><b>' + Math.floor(left / pr.usd["1K"]) + "</b></div></div>" +
+          '<table class="su-t"><tr><th>This month</th><th>Pictures</th><th>Cost</th></tr>' + row("standard", "Standard") + row("pro", "Pro") + "</table>" +
+          '<div class="su-lim"><span>Monthly limit</span><span class="su-in">$<input type="number" min="1" step="1" value="' + (o.limit || 10) + '" data-us="lim"></span><small>Online pictures stop here. Vistiq counts; Google bills your key.</small></div>' +
+          '<div class="su-btns"><button type="button" class="su-p" data-us="bill">Add balance</button><button type="button" class="su-g" data-us="settings">Key settings</button></div>' +
+          '<div class="su-plus off"><div><b>Vistiq Plus</b><small>from €10/month · 150 credits · coming soon</small></div><button type="button" class="su-p" disabled>Subscribe</button></div>';
+      } else {
+        h += '<div class="su-hd"><b>Making images</b><span class="su-tag">On this computer</span></div>' +
+          '<div class="su-tiles"><div><small>This month</small><b>' + (S.month ? S.month.local : "–") + '</b><small>pictures</small></div><div><small>Cost</small><b>€0</b><small>free, offline</small></div><div><small>Upscaling</small><b>Free</b><small>up to 16K</small></div></div>' +
+          '<p class="su-q">Want Nano Banana online — stronger at new designs and light?</p>' +
+          '<div class="su-plus"><div><b>Your own key</b><small>Use your Google AI Studio key · Google bills you</small></div><button type="button" class="su-g" data-us="settings">Add my key</button></div>' +
+          '<div class="su-plus off"><div><b>Vistiq Plus</b><small>from €10/month · 150 credits · coming soon</small></div><button type="button" class="su-p" disabled>Subscribe</button></div>';
+      }
+      h += "</div>";
+    }
+    if (el.getAttribute("data-h") !== h) { el.setAttribute("data-h", h); el.innerHTML = h; }
+  }
+  function usageClick(e) {
+    var b = e.target.closest("[data-us]"); if (!b) return;
+    var a = b.getAttribute("data-us");
+    if (a === "t") {
+      S.usageOpen = !S.usageOpen;
+      if (S.usageOpen && api() && api().studio_month) api().studio_month().then(function (m) { S.month = m; usageRender(); });
+      usageRender(); return;
+    }
+    if (a === "bill") { var u = "https://aistudio.google.com/usage"; if (api() && api().open_url) api().open_url(u); else window.open(u); return; }
+    if (a === "settings") { S.usageOpen = false; usageRender(); go("settings"); return; }
+  }
+  document.addEventListener("change", function (e) {
+    var t = e.target; if (!t.matches || !t.matches('#s-usage [data-us="lim"]')) return;
+    var v = Math.max(1, parseFloat(t.value) || 10);
+    api().studio_online_set(null, v).then(function () { if (S.status && S.status.online) S.status.online.limit = v; usageRender(); toast("Monthly limit: $" + v); });
+  });
+
   function money(x) { return "$" + (Math.round((x || 0) * 100) / 100).toFixed(2); }
   function keyCard(compact) {
     var o = (S.status && S.status.online) || {}, u = o.usage || {};

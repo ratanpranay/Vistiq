@@ -1203,7 +1203,11 @@ const frame = (n, name) => ({ path: "live://photoshop/" + n, name: name || "flat
     await p.ev("studio-job", { id: "j1", state: "done" });
     await p.evaluate(() => { window.pywebview.api.studio_stats = () => Promise.resolve({ ram: { used: 20, total: 64 } }); });
     await p.ev("studio-online", { usage: { month: "2026-11", n: 5, usd: 0.37, credits: 11 } }); await p.waitForTimeout(1500);
-    check("bottom bar: the month's online count", /Own key · 5 pictures · \$0\.37 of \$10/.test(await p.text("#s-machine")), await p.text("#s-machine"));
+    check("usage pill: the month's online spend", /Own key · \$0\.37 of \$10 this month/.test(await p.evaluate(() => document.querySelector("#s-usage").textContent)), await p.evaluate(() => document.querySelector("#s-usage").textContent));
+    await p.evaluate(() => document.querySelector("#s-usage .su-pill").click()); await p.waitForTimeout(150);
+    check("usage panel: limit, Add balance, Plus greyed", await p.evaluate(() => !!document.querySelector("#s-usage [data-us=lim]") && /Add balance/.test(document.querySelector("#s-usage").textContent) && !!document.querySelector("#s-usage .su-plus.off button:disabled")), "");
+    await p.screenshot({ path: process.env.SHOT_DIR ? process.env.SHOT_DIR + "/usage.png" : "/tmp/usage.png" });
+    await p.evaluate(() => document.querySelector("#s-usage .su-pill").click());
     await p.evaluate(() => window.VS.go("settings")); await p.waitForTimeout(250);
     check("Settings: own key in use, Plus coming soon", await p.evaluate(() => /In use/.test(document.querySelector("#s-body .s-oc").textContent) && !!document.querySelector("#s-body .s-plus.off")), "");
     if (process.env.WSHOT) await p.screenshot({ path: process.env.WSHOT + "/settings.png", fullPage: false });
