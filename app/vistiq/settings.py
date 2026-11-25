@@ -57,6 +57,12 @@ DEFAULTS = {
     "studio_seq": 0,              # the last run number (results are named 0001_, 0002_…)
     "studio_engine": "flux3",     # which image model makes the pictures: flux3 or qwenedit
     "studio_finish": True,        # the finishing grade (colour, contrast, sharpness) on results
+    "nb_key": "",                 # Google AI Studio key for Nano Banana (own key, stays on this computer)
+    "nb_on": True,                # online pictures with that key allowed
+    "nb_limit": 10.0,             # stop online pictures at this many USD a month (Vistiq counts, Google bills)
+    "nb_usage": {},               # this month's online pictures: {month, n, usd, credits}
+    "nb_ok": False,               # the key worked when it was added
+    "onboarded": False,           # the welcome page was done or skipped
     "keep_design": 0.8,
     "variations": 2,
     "juice": 0.0,

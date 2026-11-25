@@ -554,6 +554,12 @@
       body = '<div class="bn-row"><span>Size</span>' + seg("nu", UPS, n.scale) + "</div>";
       label = "Upscale";
     }
+    var oo = VS().S.status && VS().S.status.online;
+    if (oo && oo.on && n.kind !== "upscale") {
+      var ne = nodeEngine(n), loc = VS().S.status.local_ready;
+      body += '<div class="bn-row"><span>Engine</span><select data-ne>' + (loc ? '<option value=""' + (ne ? "" : " selected") + ">Local · free</option>" : "") +
+        ["standard", "pro"].map(function (k) { return '<option value="' + k + '"' + (ne === k ? " selected" : "") + ">" + oo.engines[k].label + "</option>"; }).join("") + "</select></div>";
+    }
     var st = n.busy ? '<div class="bn-prog"><i style="width:' + Math.round((n.frac || 0) * 100) + '%"></i></div><div class="bn-est">' + esc(n.status || "Working") + "</div>" :
       (n.err ? '<div class="bn-err">' + esc(n.err) + "</div>" : '<div class="bn-est">' + esc(nodeEta(n)) + "</div>");
     var done = (n.made || 0) > 0;
@@ -564,8 +570,16 @@
   }
   // How long a run takes, from earlier runs on this computer (as Create shows it).
   function mmss(sec) { sec = Math.max(0, Math.round(sec)); return Math.floor(sec / 60) + ":" + ("0" + sec % 60).slice(-2); }
+  function nodeEngine(n) {
+    var oo = VS().S.status && VS().S.status.online;
+    if (!oo || !oo.on || n.kind === "upscale") return "";
+    var e = n.engine != null ? n.engine : VS().engineNow();
+    if (!e && !VS().S.status.local_ready) e = "standard";
+    return oo.engines[e] ? e : "";
+  }
   function nodeEta(n) {
     if (n.kind === "upscale") return "";
+    if (nodeEngine(n)) return VS().onlineCost(nodeEngine(n), n.kind === "3d" ? 1 : n.vars || 1, VS().S.create.res);
     var t = VS().S.status && VS().S.status.times, k = n.kind === "3d" ? 1 : n.vars || 1;
     if (!t || !t.per) return "The first run loads the models, so it takes a little longer";
     return "About " + mmss(t.per * k + (t.warm ? 0 : (t.load || 0))) + " for " + k + (k > 1 ? " pictures" : " picture");
@@ -745,6 +759,7 @@
         p.text = text; p.vars = n.vars; extra = Object.assign(extra, { text: text, variations: n.vars });
         if (n.kind === "relight") extra = Object.assign(extra, { light: n.light || "golden", light_more: (n.text || "").trim() });
       }
+      if (V.S.status && V.S.status.online && V.S.status.online.on) extra.engine = nodeEngine(n);
       V.job("c", extra);
       if (!p.job) {           // Create couldn't start (still setting up, or busy)
         runNode = null; n.busy = false; n.err = (S.status && S.status.create_ready) ? "Studio is busy: try again in a moment." : "Image making isn't set up yet: open Create once.";
@@ -916,6 +931,11 @@
       if (e.target.hasAttribute && e.target.hasAttribute("data-nt")) {
         var nn = nodeById(e.target.closest(".b-node").getAttribute("data-nid"));
         if (nn) { nn.text = e.target.value; save(); var rb = e.target.closest(".b-node").querySelector("[data-nr]"); if (rb && nn.kind === "refine" && !nn.busy) rb.disabled = !nn.text.trim(); }
+      }
+    });
+    root.addEventListener("change", function (e) {
+      if (e.target.hasAttribute && e.target.hasAttribute("data-ne")) {
+        var nn = nodeById(e.target.closest(".b-node").getAttribute("data-nid")); if (nn) { nn.engine = e.target.value; save(); renderNodes(); }
       }
     });
     root.addEventListener("keydown", function (e) {

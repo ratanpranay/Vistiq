@@ -239,6 +239,35 @@ class Api:
     def studio_status(self):
         return self._app.studio.status() if self._app.studio else None
 
+    def studio_online_key(self, key):
+        """Add (or, with "", remove) the Google key for Nano Banana; checked with Google first."""
+        from . import online
+        st = self._app.settings
+        key = (key or "").strip()
+        if not key:
+            st.set("nb_key", ""); st.set("nb_ok", False)
+            return {"ok": True}
+        ok, msg = online.check_key(key)
+        if not ok:
+            return {"ok": False, "error": msg}
+        st.set("nb_key", key); st.set("nb_ok", True); st.set("nb_on", True)
+        return {"ok": True}
+
+    def studio_online_set(self, on=None, limit=None):
+        st = self._app.settings
+        if on is not None:
+            st.set("nb_on", bool(on))
+        if limit is not None:
+            try:
+                st.set("nb_limit", max(0.0, float(limit)))
+            except (TypeError, ValueError):
+                pass
+        return True
+
+    def studio_onboarded(self):
+        self._app.settings.set("onboarded", True)
+        return True
+
     def studio_setup(self, juice=False):
         return self._app.studio.setup(bool(juice))
 

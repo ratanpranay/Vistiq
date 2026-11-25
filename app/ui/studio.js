@@ -196,7 +196,8 @@
       '<button type="button" class="s-btn" id="' + id + '-toboard" title="Put this result on the board" disabled>' + svg("board") + '<span>To board</span></button>' +
       '<button type="button" class="s-btn" id="' + id + '-tops" title="Send this result to Photoshop as a new layer" disabled><span class="m-ico ps">Ps</span><span>Photoshop</span></button>' +
       '<button type="button" class="s-btn" id="' + id + '-up" title="Upscale this result" disabled>' + svg("upscale") + '<span>Upscale</span></button></div>' +
-      (id === "c" ? '<label class="s-model" id="c-model" hidden><span>Render model</span><select id="c-modelsel"></select></label>' : "") +
+      (id === "c" ? '<label class="s-model" id="c-model" hidden><span>Render model</span><select id="c-modelsel"></select></label>' +
+        '<label class="s-model" id="c-eng" hidden><span>Engine</span><select id="c-engsel"></select></label>' : "") +
       '<div class="s-gorow">' +
       '<button type="button" class="s-go" id="' + id + '-go"><span class="s-go-fill" id="' + id + '-fill" style="width:0"></span><span id="' + id + '-golabel">' + goText + "</span></button>" +
       '</div><button type="button" class="s-cancel" id="' + id + '-cancel" hidden>Cancel</button>' +
@@ -664,6 +665,7 @@
   // First run: until the models are downloaded, the setup page is the whole app (Nov 2026).
   function needsSetup(st) {
     if (!st) return false;
+    if (S.skipSetup || st.onboarded) return false;           // "Skip for now": look around first (Nov 2026)
     return st.needs_setup !== undefined ? !!st.needs_setup : !(st.create_ready && st.engine_installed);
   }
   function applyGate() {
@@ -846,8 +848,10 @@
     statsT = setTimeout(statsLoop, document.hidden ? 6000 : busy ? 1200 : 3000);
     if (document.hidden || !api() || !api().studio_stats) return;
     api().studio_stats().then(function (m) {
-      var el = $("s-machine"); if (!el || !m) return;
+      var el = $("s-machine"); if (m) S.mstats = m; if (!el) return; m = m || {};
       var p = S.page === "reference" ? S.ref : S.create, parts = [];
+      var oo = S.status && S.status.online;
+      if (oo && oo.on) { var ou = oo.usage || {}; parts.push('<span class="nb" title="Online pictures this month with your own Google key">● Own key · <b>' + (ou.n || 0) + "</b> pictures · <b>" + money(ou.usd) + "</b>" + (oo.limit ? " of $" + oo.limit : "") + " this month</span><span class=\"sep\"></span>"); }
       if (p.job) parts.push('<span class="job">● ' + esc(p.stage || "Working") + (p.frac ? " · " + Math.round(varFrac(p) * 100) + "%" : "") + "</span><span class=\"sep\"></span>");
       if (m.gpu) parts.push("<span>GPU <b>" + esc(m.gpu.name) + "</b>" + bar(m.gpu.load, "g") + "<b>" + m.gpu.load + "%</b> <b class=\"" + (m.gpu.temp >= 80 ? "hot" : "") + "\">" + m.gpu.temp + "°</b></span>" +
         "<span>VRAM" + bar(100 * m.gpu.used / m.gpu.total, "g") + "<b>" + m.gpu.used.toFixed(1) + "/" + Math.round(m.gpu.total) + " GB</b></span><span class=\"sep\"></span>");
@@ -998,6 +1002,22 @@
     api().studio_pick().then(function (info) { setImage(P(id), slot, info); });
   }
 
+  // The engine Create uses: Auto (Local) or Standard / Pro online (own key), Nov 2026.
+  function engineNow() {
+    var st = S.status, oo = st && st.online;
+    if (!oo || !oo.on) return "";
+    var e = S.engineSel != null && S.engineSel !== undefined ? S.engineSel : load("engine", "");
+    if (e && !oo.engines[e]) e = "";
+    if (!e && !st.local_ready) e = "standard";
+    return e;
+  }
+  function onlineCost(eng, n, res) {
+    var oo = S.status && S.status.online; if (!oo || !oo.engines[eng]) return "";
+    var e = oo.engines[eng], sz = /^(2k|4k)$/i.test(res || "2k") ? "2K" : "1K";
+    var cr = e.credits[sz] * n, usd = e.usd[sz] * n;
+    return e.label + " · " + n + (n > 1 ? " pictures" : " picture") + " at " + sz + " · " + cr + (cr === 1 ? " credit" : " credits") + " · about " + money(usd) +
+      (/4k/i.test(res || "") ? " (made at 2K: upscale here for 4K, free)" : "");
+  }
   function job(id, extra) {
     var p = P(id);
     var st = S.status;
@@ -1010,6 +1030,7 @@
       preset: p.improved && p.text === p.improved ? "" : p.preset, text: p.text, keep: p.keep, variations: p.vars
     };
     if (id === "c") j.res = p.res || "2k";
+    if (id === "c" && engineNow()) j.engine = engineNow();
     if (id === "r") j.reference = p.refimg.path;
     if (id === "c" && !extra && instantMode(p)) j.instant = true;
     if (id === "c") {
@@ -1083,6 +1104,7 @@
     });
     // Create
     $("c-slot").addEventListener("click", function () { pick("c", "src"); });
+    $("c-engsel").addEventListener("change", function (e) { S.engineSel = e.target.value; keep("engine", S.engineSel); render(); });
     $("c-modelsel").addEventListener("change", function (e) {
       api().studio_mac_engine(e.target.value).then(function (st) { if (st) S.status = st; render(); });
     });
@@ -1315,10 +1337,29 @@
         });
       });
     });
+    document.body.addEventListener("change", function (e) {
+      if (e.target.hasAttribute && e.target.hasAttribute("data-nblimit")) api().studio_online_set(null, parseFloat(e.target.value) || 0).then(refresh);
+    });
     // Settings and setup (the same buttons appear in both)
     document.body.addEventListener("click", function (e) {
       var b = e.target.closest("[data-su]"); if (!b) return;
       var a = b.getAttribute("data-su");
+      if (a === "nb-add") {
+        var kin = document.querySelector('[data-nbkey]:not([hidden])'), key = kin ? kin.value.trim() : "";
+        if (!key) { S.nbMsg = "Paste your key first."; render(); return; }
+        S.nbMsg = "Checking the key with Google…"; render();
+        api().studio_online_key(key).then(function (r) {
+          S.nbMsg = r && r.ok ? "" : ((r && r.error) || "Google didn't accept the key.");
+          if (r && r.ok) { toast("Your key works: Standard and Pro are ready"); if (api().studio_onboarded) api().studio_onboarded(); }
+          refresh();
+        });
+        return;
+      }
+      if (a === "nb-open") { S.keyOpen = true; render(); setTimeout(function () { var k = document.querySelector("[data-nbkey]"); if (k) k.focus(); }, 30); return; }
+      if (a === "nb-remove") { api().studio_online_key("").then(function () { S.engineSel = null; refresh(); }); return; }
+      if (a === "nb-toggle") { var oo = S.status && S.status.online; api().studio_online_set(!(oo && oo.on), null).then(refresh); return; }
+      if (a === "nb-guide") { var ap = api(); if (ap && ap.open_url) ap.open_url("https://aistudio.google.com/apikey"); else window.open("https://aistudio.google.com/apikey"); return; }
+      if (a === "skip-setup") { if (api().studio_onboarded) api().studio_onboarded().then(refresh); S.skipSetup = true; applyGate(); render(); return; }
       if (a === "take") api().studio_take_from(b.getAttribute("data-path") || "");
       else if (a === "take-other") api().studio_take_from("");
       else if (a === "wipe") wipeDialog();
@@ -1866,11 +1907,23 @@
         sel.disabled = busy;
       }
     }
+    var eng = id === "c" ? engineNow() : "";
+    if (id === "c" && $("c-eng")) {
+      var oo = st && st.online, showE = !!(oo && oo.on);
+      $("c-eng").hidden = !showE;
+      if (showE) {
+        var eh = (st.local_ready ? '<option value="">Auto (Local) · free</option>' : "") + ["standard", "pro"].map(function (k) {
+          var e = oo.engines[k]; return '<option value="' + k + '"' + (eng === k ? " selected" : "") + ">" + e.label + " · " + e.credits["1K"] + (e.credits["1K"] === 1 ? " credit" : " credits") + " · " + money(e.usd["1K"]) + "</option>";
+        }).join("");
+        var es = $("c-engsel"); if (es.getAttribute("data-h") !== eh) { es.innerHTML = eh; es.setAttribute("data-h", eh); } es.value = eng; es.disabled = busy;
+      }
+    }
     var meta = "", t = st && st.times;
     if (busy && S.engine.state === "starting") meta = S.engine.message;
     else if (!ready) meta = st ? "Set up image generation first" : "";
     else if (t && t.per) meta = "About " + mmss(t.per * (id === "c" ? (SIZE_TIME[p.res] || 1) : 1) * p.vars + (t.warm ? 0 : (t.load || 0))) + " for " + p.vars + (p.vars > 1 ? " variations" : " variation");
     else meta = "The first run loads the models, so it takes a little longer";
+    if (eng && ready) meta = onlineCost(eng, p.vars, p.res);
     $(id + "-meta").textContent = meta;
     $(id + "-err").hidden = !p.error; $(id + "-err").textContent = p.error;
     $(id + "-vars-n").textContent = p.vars;
@@ -2624,20 +2677,93 @@
     }).join("") + "</div>";
   }
 
+  // -- online (Nov 2026): Nano Banana with your own Google key; Vistiq Plus comes later (shown, not active) --
+  function money(x) { return "$" + (Math.round((x || 0) * 100) / 100).toFixed(2); }
+  function keyCard(compact) {
+    var o = (S.status && S.status.online) || {}, u = o.usage || {};
+    var h = '<div class="s-oc' + (o.has_key ? " on" : "") + '"><div class="s-och"><b>Your own key</b>' +
+      (o.has_key ? '<span class="s-octag ok">' + (o.on ? "● In use" : "Off") + "</span>" : '<span class="s-octag">Advanced</span>') +
+      (o.has_key ? '<button type="button" class="s-tgl' + (o.on ? " on" : "") + '" data-su="nb-toggle" title="Use online pictures"></button>' : "") + "</div>" +
+      "<small>Nano Banana with your Google AI Studio key: Standard (Nano Banana 2.1) and Pro. Google bills you directly; the key stays on this computer.</small>";
+    if (o.has_key) {
+      h += '<div class="s-ocr"><span>Google key</span><code>' + esc(o.key_hint || "••••") + '</code><span class="s-ok">✓ Works</span><button type="button" class="s-btn" data-su="nb-remove">Remove</button></div>' +
+        '<div class="s-ocr"><span>This month</span><i class="s-ocbar"><u style="width:' + Math.min(100, o.limit ? 100 * (u.usd || 0) / o.limit : 0) + '%"></u></i><small>' + (u.n || 0) + " pictures · about " + money(u.usd) + " at Google's prices</small></div>" +
+        '<div class="s-ocr"><span>Limit</span><input type="number" min="0" step="1" data-nblimit value="' + (o.limit || 0) + '"><small>USD a month: online pictures stop there (Vistiq counts, Google bills)</small></div>';
+    } else {
+      h += '<div class="s-ocr"><input type="password" data-nbkey placeholder="Paste your Google AI Studio key (AIza…)" autocomplete="off"><button type="button" class="s-btn p" data-su="nb-add">Add my key</button></div>' +
+        '<small class="s-ocg">No key yet? <button type="button" class="s-link" data-su="nb-guide">Get one at aistudio.google.com</button> › sign in › Get API key (2 minutes, needs billing set up at Google for image models).</small>';
+    }
+    if (S.nbMsg) h += '<div class="s-err">' + esc(S.nbMsg) + "</div>";
+    return h + "</div>";
+  }
+  function plusCard() {
+    return '<div class="s-oc s-plus off"><div class="s-och"><b>Vistiq Plus</b><span class="s-octag">Coming soon</span><span class="s-ocp">from €10<small>/month</small></span></div>' +
+      "<small>No key, no download: Nano Banana online with credits every month. 150 credits ≈ 150 Standard 1K · 100 Standard 2K · 37 Pro pictures. " +
+      "Up to 2K on Plus (4K with the free upscaler on your PC). Top up any time, cancel any time.</small>" +
+      '<button type="button" class="s-btn" disabled>Not available yet</button></div>';
+  }
+  function welcome() {
+    var st = S.status, m = S.mstats || {}, g = m.gpu;
+    var spec = '<div class="s-wspec"><span><small>Graphics card</small><b>' + (g ? esc(g.name) + " · " + Math.round(g.total) + " GB" : "—") + "</b></span>" +
+      "<span><small>Memory</small><b>" + (m.ram ? m.ram.total + " GB" : "—") + "</b></span>" +
+      "<span><small>Free disk</small><b>" + (st.free_gb != null ? Math.round(st.free_gb) + " GB" : "—") + "</b></span>" +
+      (g && g.total >= 12 ? '<em class="ok">✓ Runs everything on this computer</em>' : g ? '<em>Smaller card: Good quality fits</em>' : "") + "</div>";
+    return '<div class="s-wel"><h1>Welcome. Let\'s set up Vistiq for this computer.</h1><p>We checked what this computer can run. Pick a way to make images; you can add the others any time in Settings.</p>' + spec;
+  }
+  // The first start (Nov 2026): three ways side by side, like the person's mockup.
+  function welcomePage() {
+    var st = S.status, m = S.mstats || {}, g = m.gpu, mac = st.mac;
+    var t = S.pickTier || st.chosen || st.tier || "best", err = S.setup.error ? '<div class="s-err">' + esc(S.setup.error) + "</div>" : "";
+    var need, name;
+    if (mac) { var mt = macPick(st), cur = (mac.tiers || []).filter(function (x) { return x.key === mt; })[0] || {};
+      need = cur.ready ? 0 : st.files.filter(function (f) { return !f.ready; }).reduce(function (a, f) { return a + f.gb; }, 0) + (st.select_ready ? 0 : 0.1); name = cur.name || ""; }
+    else { need = setupGB(st, t); name = TIER_TEXT[t] ? TIER_TEXT[t][0] : ""; }
+    var big = mac ? mac.can_generate : !g || g.total >= 12;
+    var ck = function (on, txt) { return '<li class="' + (on ? "y" : "d") + '"><i>' + (on ? "✓" : "·") + "</i>" + txt + "</li>"; };
+    var spec = '<div class="w-spec">' + (mac ? '<span><small>Chip</small><b>' + esc(mac.chip) + "</b></span><span><small>Memory</small><b>" + mac.ram + " GB</b></span>" :
+      '<span><small>Graphics card</small><b>' + (g ? esc(g.name) + " · " + Math.round(g.total) + " GB" : "Checking…") + "</b></span><span><small>Memory</small><b>" + (m.ram ? m.ram.total + " GB" : "—") + "</b></span>") +
+      "<span><small>Free disk</small><b>" + (st.free_gb != null ? Math.round(st.free_gb) + " GB" : "—") + "</b></span>" +
+      "<span><small>System</small><b>" + (mac ? "macOS" : "Windows") + "</b></span>" +
+      (big ? '<em class="ok">✓ Runs everything locally</em>' : '<em>Smaller ' + (mac ? "Mac" : "graphics card") + ": online is the better fit</em>") + "</div>";
+    var o = st.online || {};
+    var local = '<div class="w-card' + (big ? " rec" : "") + '"><span class="w-tag' + (big ? " rec" : "") + '">' + (big ? "Recommended for this computer" : "Free") + "</span><h2>On this computer</h2>" +
+      "<p>Free, offline and private. Your pictures never leave the " + (mac ? "Mac" : "PC") + ".</p><ul>" +
+      ck(1, "Sketch to render, materials, light, views") + ck(1, "Selections, board, Photoshop / Affinity live") + ck(1, "Upscale up to 16K") +
+      ck(0, (mac ? esc(name) + " package for this Mac" : esc(name) + " package" + (g ? " for " + Math.round(g.total) + " GB cards" : ""))) + "</ul>" +
+      (mac ? macTierCards(st) : "") + (!mac ? '<div class="w-tiers">' + ["best", "good"].map(function (k) { return '<button type="button" class="s-tier' + (t === k ? " on" : "") + '" data-su="tier" data-t="' + k + '"><b>' + TIER_TEXT[k][0] + "</b><small>about " + gb(setupGB(st, k)) + "</small></button>"; }).join("") + "</div>" : "") +
+      '<button type="button" class="w-btn grad" data-su="download">Download · ' + gb(need) + "</button><small class=\"w-sub\">runs in the background · resumes after a restart</small>" + err + "</div>";
+    var plus = '<div class="w-card off"><span class="w-tag g">No download</span><h2>Vistiq Plus</h2><p>Nano Banana online — the strongest at new designs and lighting. Works on any computer.</p>' +
+      '<div class="w-price">from €10 <small>/ month · 150 credits included</small></div><ul>' +
+      ck(1, "Standard 1 credit · Pro 4 credits") + ck(1, "≈ 150 Standard 1K · 100 Standard 2K · 37 Pro") + ck(1, "Up to 2K · Upscaling stays free on your PC") + "</ul>" +
+      '<button type="button" class="w-btn dark" disabled>Coming soon</button><small class="w-sub">pay with PayPal or card</small></div>';
+    var keyc = '<div class="w-card"><span class="w-tag n">Advanced</span><h2>Your own key</h2><p>Already have a Google AI Studio key? Use Nano Banana with it and pay Google directly.</p><ul>' +
+      ck(1, "No subscription") + ck(0, "You manage billing at Google") + ck(0, "The key stays on this computer") + "</ul>" +
+      (S.keyOpen ? '<input type="password" class="w-key" data-nbkey placeholder="Paste your key (AIza…)" autocomplete="off">' +
+        '<button type="button" class="w-btn light" data-su="nb-add">Add my key</button><small class="w-sub">No key yet? <button type="button" class="s-link" data-su="nb-guide">aistudio.google.com</button> › Get API key</small>'
+        : '<button type="button" class="w-btn light" data-su="nb-open">Add my key</button><small class="w-sub">2-minute guide included</small>') +
+      (S.nbMsg ? '<div class="s-err">' + esc(S.nbMsg) + "</div>" : "") + "</div>";
+    return '<div class="w-page"><div class="w-logo"><i></i>VISTIQ STUDIO</div><h1>Welcome. Let\'s set up Vistiq for this computer.</h1>' +
+      "<p class=\"w-lead\">We checked what your computer can run. Pick one way to make images — you can add the others any time in Settings.</p>" + spec +
+      '<div class="w-cards">' + local + plus + keyc + "</div>" +
+      '<div class="w-foot"><span class="w-up"><i>✓</i>The free upscaler comes with every option — needed for <b>Upscale</b></span>' +
+      (st.comfy_models || true ? '<span><button type="button" class="s-link" data-su="take-other">Have the files already?</button> · <button type="button" class="s-link" data-su="skip-setup">Skip for now ›</button></span>' : "") + "</div></div>";
+  }
   function setupCard() {
     var st = S.status, running = !!S.setup.run;
+    if (!running && !(S.setup.done && st.tier && !st.mac && tierFiles(st, S.pickTier || st.chosen || st.tier).some(function (f) { return !f.ready && !f.can_download; }))) return welcomePage();
     var t = S.pickTier || st.chosen || st.tier || "";
     var err = S.setup.error ? '<div class="s-err">' + esc(S.setup.error) + "</div>" : "";
     var h = '<div class="s-su"><h1>Set up Vistiq Studio</h1>';
     if (st.mac && !running) {
       var mt = macPick(st), cur = (st.mac.tiers || []).filter(function (x) { return x.key === mt; })[0] || {};
       var need = cur.ready ? 0 : st.files.filter(function (f) { return !f.ready; }).reduce(function (a, f) { return a + f.gb; }, 0);
-      h += "<p>We checked your Mac and suggest the fastest setup it can run. Only that setup's files are downloaded; after that everything runs on this Mac, also without internet.</p>" +
+      h += '<div class="s-oc s-local rec"><div class="s-och"><b>On this Mac</b><span class="s-octag rec">Free · offline</span></div>' +
+        "<p>We checked your Mac and suggest the fastest setup it can run. Only that setup's files are downloaded; after that everything runs on this Mac, also without internet.</p>" +
         '<div class="m-hw"><span>' + esc(st.mac.chip) + "</span><span>" + st.mac.ram + " GB memory</span></div>" +
         macTierCards(st) +
         (st.mac.can_generate ? "" : '<div class="s-err">Image generation needs a Mac with 16 GB of memory or more. Upscaling and the rest still work.</div>') +
         '<button type="button" class="s-go" style="height:50px" data-su="download"><span>Download ' + esc(cur.name || "") + " · " + gb(need + (st.select_ready ? 0 : 0.1)) + "</span></button>" + err +
-        "</div>";
+        '</div><div class="s-wcards s-wmac">' + plusCard() + keyCard() + '</div><p class="s-wskip"><button type="button" class="s-link" data-su="skip-setup">Skip for now ›</button></p></div>';
       return h;
     }
     if (running) {
@@ -2653,12 +2779,16 @@
           '<li>When it is in your Downloads folder: <button type="button" class="s-btn p" data-su="download">Finish setup</button></li></ol>' +
           '<p style="font-size:12px">Rather not sign up? <button type="button" class="s-link" data-su="tier" data-t="good">Use Good quality instead</button></p>' + err;
       } else {
-        h += "<p>A one-time setup. After that everything runs on this PC, also without internet. Pick one; you can switch later in Settings.</p>" +
+        h = '<div class="s-su s-wwrap">' + welcome() + '<div class="s-wcards"><div class="s-oc s-local rec"><div class="s-och"><b>On this computer</b><span class="s-octag rec">Recommended</span></div>' +
+          "<small>Free, offline and private. Your pictures never leave this PC.</small>" +
+        "<p>A one-time setup. After that everything runs on this PC, also without internet. Pick one; you can switch later in Settings.</p>" +
           '<div class="s-tiers">' + ["best", "good"].map(function (k) {
             return '<button type="button" class="s-tier' + (t === k ? " on" : "") + '" data-su="tier" data-t="' + k + '"><b>' + TIER_TEXT[k][0] +
               (st.tiers[k].ready ? ' <span class="s-ok">Ready</span>' : "") + "</b><small>" + TIER_TEXT[k][1] + "</small><em>about " + gb(setupGB(st, k)) + "</em></button>";
           }).join("") + "</div>" +
-          '<button type="button" class="s-go" style="height:50px" data-su="download"' + (t ? "" : " disabled") + "><span>Set up</span></button>" + err;
+          '<button type="button" class="s-go" style="height:50px" data-su="download"' + (t ? "" : " disabled") + "><span>Set up</span></button>" + err +
+          "</div>" + plusCard() + keyCard() + "</div>" +
+          '<p class="s-wskip"><button type="button" class="s-link" data-su="skip-setup">Skip for now ›</button></p>';
       }
     }
     h += '<p style="font-size:12px">Already have the files somewhere? <button type="button" class="s-link" data-su="take-other">Choose a folder</button></p></div>';
@@ -2697,6 +2827,7 @@
                       : '<button type="button" class="s-btn" data-su="check"' + (us === "checking" || us === "downloading" ? " disabled" : "") + ">Check for updates</button>") +
       (S.restartMsg ? '<small class="s-miss">' + esc(S.restartMsg) + "</small>" : "") + "</div>";
     var h = '<div class="s-ttl">Settings</div>' + upd +
+      '<div class="s-sec">Online models</div><div class="s-ocs">' + keyCard() + plusCard() + "</div>" +
       '<div class="s-sec">Vistiq Studio folder</div>' +
       '<button type="button" class="s-folder" data-su="home"><code>' + esc(st.home) + "</code><em>Change</em></button>" +
       '<p class="s-hint"><b>Outputs</b> every result, by date · <b>Models</b> the model files · <b>Models/loras</b> your own styles</p>' +
@@ -2807,6 +2938,7 @@
         render(); return;
       }
       if (kind === "studio-sent") { toast(data.message); return; }
+      if (kind === "studio-online") { if (S.status && S.status.online) S.status.online.usage = data.usage; statsLoop(); render(); return; }
       if (kind === "studio-sel") { S.psSel = data.on ? data : null; render(); return; }
       if (kind === "studio-note") { S.create.note = data.message; render(); return; }
       if (kind === "studio-engine") S.engine = data;
@@ -2886,7 +3018,7 @@
 
   // For the board (board.js): the shared state and the actions it reuses.
   window.VS = { useSource: function (v) { useSource(v); }, currentFile: currentFile, addRef: addRef, local: function (e, f) { return zoom.local(e, f); }, layout: function () { layout(); }, zoomSpace: function () { return zoom.space || !!zoom.pan; }, plusMenu: plusMenu, pop: pop, closePop: closePop, painter: painter, S: S, api: api, esc: esc, short: short, go: go, render: render, setImage: setImage, sendPS: sendPS,
-                toast: toast, refresh: refresh, current: current, P: P, job: job, readRef: readRef };
+                toast: toast, refresh: refresh, current: current, P: P, job: job, readRef: readRef, engineNow: engineNow, onlineCost: onlineCost };
 
   function start() {
     api().init().then(function (s) {
@@ -2901,3 +3033,4 @@
   }
   if (api()) start(); else window.addEventListener("pywebviewready", start);
 })();
+

@@ -670,6 +670,14 @@ class Studio:
         st["busy"] = bool(self._job and self._job.is_alive())
         st["setup_running"] = bool(self._setup and self._setup.is_alive())
         st["free_gb"] = _free_gb(studio.home(self.settings))
+        from . import online
+        st["online"] = online.status(self.settings)
+        st["local_ready"] = bool(st.get("create_ready") and st.get("engine_installed"))
+        st["onboarded"] = bool(self.settings.get("onboarded"))
+        # Own key only (no local models yet): Create works, online (Nov 2026).
+        if st["online"]["on"] and not st["local_ready"]:
+            st["create_ready"] = True
+            st["needs_setup"] = False
         return st
 
     def take_from(self, folder):
@@ -1085,6 +1093,20 @@ class Studio:
             except Exception as exc:
                 self.emit("studio-job", {"state": "error", "message": str(exc)})
                 return False
+        from . import online
+        if job.get("engine") in online.ENGINES:
+            ost = online.status(self.settings)
+            if not ost["on"]:
+                self.emit("studio-job", {"state": "error", "message": "Add your Google key in Settings to use Standard / Pro."})
+                return False
+            if ost["limit"] and ost["usage"]["usd"] >= ost["limit"]:
+                self.emit("studio-job", {"state": "error", "message": "This month's online limit ($%.0f) is reached. Raise it in Settings." % ost["limit"]})
+                return False
+            self._cancel.clear()
+            job_id = "%x" % int(time.time() * 1000)
+            self._job = threading.Thread(target=self._run_online, args=(job_id, job), daemon=True)
+            self._job.start()
+            return job_id
         if not studio.status(self.settings)["create_ready"]:
             self.emit("studio-job", {"state": "error", "message": "Some model files are missing. See Settings."})
             return False
@@ -1115,6 +1137,119 @@ class Studio:
             return keep
         except OSError:
             return path
+
+    def _run_online(self, job_id, job):
+        """Create with Nano Banana (own Google key): the same picture, selection and words as a local run;
+        a selected part is sent alone (cropped) and put back with the rest untouched."""
+        from . import online
+        s = self.settings
+        eng = job["engine"]
+        n = max(1, min(4, int(job.get("variations") or 1)))
+        say = lambda stage, frac: self.emit("studio-job", {"id": job_id, "state": "running", "stage": stage, "fraction": frac})
+        t_job = time.time()
+        try:
+            say("Getting ready", None)
+            src_path = job["image"]
+            original = load_rgb(src_path)
+            painted_mask = None
+            if job.get("layers"):
+                base_pic = original
+                original = flatten_layers(original, job["layers"])
+                if not job.get("mask") and (job.get("text") or "").strip() and not job.get("view") and not job.get("instant"):
+                    pm = painted_area(job["layers"], original.size)
+                    if pm is not None:
+                        painted_mask = pm
+                        job = dict(job, mask="painted")
+                        if MARK_WORDS.search(job.get("text") or "") or marker_colour(job["layers"]):
+                            original = flatten_layers(base_pic, without_strokes(job["layers"]))
+                            job = dict(job, text=MARK_WORDS.sub(" ", job.get("text") or ""))
+            mask = box = None
+            if job.get("mask"):
+                mask = painted_mask if job.get("mask") == "painted" else decode_mask(job["mask"], original.size)
+                box = crop_box(mask, original.size)
+                if not box:
+                    mask = None
+            work = original.crop(box) if box else original
+            words = " ".join(studio.clean_prompt(job.get("said") or job.get("text") or "").split())
+            texts = []
+            if job.get("view"):
+                vw = job["view"]
+                t, _ = studio.view_words("exterior", "front-left", vw.get("yaw", 0), vw.get("pitch", 0), vw.get("dist", 0),
+                                         vw.get("lens", "normal"), target=vw.get("target"))
+                texts = [t]
+            elif job.get("light"):
+                texts = studio.light_texts(job["light"], "", n, start=int(time.time()) % 6, more=job.get("light_more") or "")
+            elif job.get("instant") or (not words and (job.get("preset") or "") == "sketch"):
+                texts = ["Turn this sketch into a finished, photorealistic product render with studio lighting. Keep the "
+                         "design, proportions, perspective and camera exactly as drawn." + (" " + words if words else "")]
+            elif mask is not None:
+                texts = ["This picture is a close-up of one part of a larger design. " + words.rstrip(".") +
+                         ". Keep the camera, perspective, light and everything around it exactly as it is; the result must fit "
+                         "back seamlessly into the larger picture."]
+            else:
+                texts = [(words.rstrip(".") + ". " if words else "") + "Keep the camera and everything not mentioned exactly as it is."]
+            size = online.size_of(job.get("res") or "2k")
+            usd1, cr1 = online.price(eng, size)
+            ratio = online.ratio_of(*work.size)
+            imgs = [work]
+            for r in (job.get("refs") or [])[:3]:
+                try:
+                    imgs.append(load_rgb(self.real_path(r["path"])))
+                except Exception:
+                    pass
+            stem = os.path.splitext(os.path.basename(job.get("name") or src_path))[0]
+            if stem.lower().startswith("vistiq_"):
+                stem = stem[7:]
+            stem = _strip_tags(re.sub(r"^\d{4,}_", "", stem))
+            stem = "%s_%s" % (studio.newest_first(self._next_seq()), stem)
+            tag = "paint" if mask is not None else "create"
+            out_dir = studio.create_dir(s)
+            label_e = online.ENGINES[eng]["label"]
+            results = []
+            for v in range(n):
+                if self._cancel.is_set():
+                    raise RuntimeError("Cancelled")
+                ost = online.status(s)
+                if ost["limit"] and ost["usage"]["usd"] + usd1 > ost["limit"] + 1e-9:
+                    raise RuntimeError("This month's online limit ($%.0f) is reached. Raise it in Settings." % ost["limit"])
+                label = ("Variation %d of %d" % (v + 1, n) if n > 1 else "Creating") + " · " + label_e
+                say(label, v / n)
+                text = texts[v % len(texts)]
+                if n > 1 and len(texts) == 1 and not job.get("view"):
+                    text += " (Variation %d: a different take.)" % (v + 1)
+                data = online.generate(s.get("nb_key"), eng, imgs, text, size=size, ratio=ratio, cancelled=self._cancel.is_set)
+                u = online.add_usage(s, usd1, cr1)
+                result = Image.open(io.BytesIO(data)).convert("RGB")
+                if mask is not None:
+                    result = result.resize(work.size, Image.LANCZOS)
+                    blend = int(float(job.get("blend", 0.35)) * 0.06 * max(box[2] - box[0], box[3] - box[1])) + 2
+                    cmask = mask
+                    if job.get("mask") == "painted":
+                        k = max(3, int(max(box[2] - box[0], box[3] - box[1]) * 0.03) | 1)
+                        cmask = mask.filter(ImageFilter.MinFilter(min(k, 61)))
+                    result = composite(original, result, cmask, box, blend, grow=bool(ADD_WORDS.search(words)))
+                buf = io.BytesIO()
+                result.save(buf, "PNG")
+                path, w, h = imaging.save(buf.getvalue(), stem + ".png", out_dir, "PNG", "%s_v%d_NanoBanana%s" % (tag, v + 1, label_e), limit=16384)
+                meta = {"mode": "create", "preset": job.get("preset"), "view": job.get("view"), "text": words,
+                        "source": src_path, "painted": mask is not None, "instant": bool(job.get("instant")),
+                        "prompt": text, "kind": "create", "engine": eng, "online": {"usd": usd1, "credits": cr1, "size": size},
+                        "made": time.strftime("%Y-%m-%d %H:%M:%S")}
+                _write_meta(path, meta)
+                item = {"path": path, "w": w, "h": h, "name": os.path.basename(path), "preview": imaging.preview(path), "meta": meta}
+                results.append(item)
+                self.emit("studio-online", {"usage": u})
+                self.emit("studio-result", {"id": job_id, "result": item, "index": v, "of": n})
+            log.info("online %s %s: %d pictures in %.1f s", job_id, eng, len(results), time.time() - t_job)
+            self.emit("studio-job", {"id": job_id, "state": "done", "count": len(results)})
+        except Exception as exc:
+            msg = str(exc)
+            if msg.lower() == "cancelled":
+                msg = "Cancelled"
+            if msg != "Cancelled":
+                log.warning("online job failed: %s", msg)
+            self.emit("studio-job", {"id": job_id, "state": "cancelled" if msg == "Cancelled" else "error",
+                                     "message": "" if msg == "Cancelled" else msg})
 
     def _run(self, job_id, job):
         s = self.settings

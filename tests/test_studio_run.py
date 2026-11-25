@@ -239,6 +239,39 @@ class WholeRun(unittest.TestCase):
         self.assertEqual(n["LoraLoaderModelOnly"]["strength_model"], 0.8)
         self.assertEqual(n["ImageScaleToTotalPixels"]["megapixels"], 2.0)
 
+    def test_online_own_key(self):
+        """Nano Banana with the person's own key: the selected part goes alone, comes back in place, each
+        picture is counted, and the month's limit stops the run."""
+        import io as _io
+        from vistiq import online
+        src = os.path.join(self.tmp.name, "door.png")
+        Image.new("RGB", (800, 600), (40, 40, 40)).save(src)
+        self.settings.set("nb_key", "AIzaTEST"); self.settings.set("nb_limit", 10.0)
+        sent = []
+        def fake(key, eng, imgs, text, size="1K", ratio="16:9", cancelled=None):
+            sent.append((key, eng, imgs[0].size, size, text))
+            b = _io.BytesIO(); Image.new("RGB", imgs[0].size, (200, 30, 30)).save(b, "PNG"); return b.getvalue()
+        from PIL import ImageDraw
+        m = Image.new("L", (800, 600), 0); ImageDraw.Draw(m).rectangle([300, 200, 500, 400], fill=255)
+        b = _io.BytesIO(); m.save(b, "PNG")
+        mask = "data:image/png;base64," + __import__("base64").b64encode(b.getvalue()).decode()
+        with mock.patch.object(online, "generate", fake):
+            r = self.go({"mode": "create", "image": src, "text": "red handle", "variations": 2, "engine": "pro", "res": "4k", "mask": mask})
+        self.assertEqual(len(r), 2)
+        self.assertEqual(sent[0][1], "pro"); self.assertEqual(sent[0][3], "2K")        # 4K is made at 2K online
+        self.assertLess(sent[0][2][0], 800)                                           # only the selected part was sent
+        out = Image.open(r[0]["path"]).convert("RGB")
+        self.assertEqual(out.getpixel((20, 20)), (40, 40, 40))                          # outside: untouched
+        self.assertGreater(out.getpixel((400, 300))[0], 150)                           # inside: changed
+        u = online.usage(self.settings)
+        self.assertEqual(u["n"], 2); self.assertAlmostEqual(u["usd"], 0.268, places=3); self.assertEqual(u["credits"], 8)
+        self.assertIn("NanoBananaPro", r[0]["name"])
+        # the limit stops the next run before it costs anything
+        self.settings.set("nb_limit", 0.2)
+        jid = self.st.run({"mode": "create", "image": src, "text": "x", "variations": 1, "engine": "standard"})
+        self.assertFalse(jid)
+        self.assertIn("limit", [d for k, d in self.events if k == "studio-job"][-1]["message"])
+
     @unittest.skipIf(sys.platform == "darwin", "the Mac has its own image engine")
     def test_relight_preset_varies(self):
         src = os.path.join(self.tmp.name, "cab.png")
