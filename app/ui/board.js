@@ -77,7 +77,7 @@
     if (!first && saveT) { clearTimeout(saveT); saveT = 0; call("studio_board_save", B, P.id); }
     P = { id: pid || "myboard", name: name || P.name };
     if (VS() && VS().S) VS().S.project = { id: P.id, name: P.name };
-    loaded = false; multi = []; lastHTML = ""; B = { tiles: [], view: { x: 60, y: 90, z: 0.8 } };
+    loaded = false; multi = []; lastHTML = null; B = { tiles: [], view: { x: 60, y: 90, z: 0.8 } };
     if (root) root.querySelector("#b-title").textContent = P.name;
     return call("studio_board_get", P.id).then(function (b) {
       B = b && b.tiles ? b : { tiles: [], view: { x: 60, y: 90, z: 0.8 } };
@@ -88,7 +88,7 @@
       }
       if (!B.view) B.view = { x: 60, y: 90, z: 0.8 };
       (B.nodes || []).forEach(function (n) { n.busy = false; n.status = ""; n.job = null; });
-      ensureLive(); loaded = true; lastHTML = ""; render();
+      ensureLive(); loaded = true; lastHTML = null; render();
     });
   }
 
@@ -172,7 +172,7 @@
     return d + nodeLinks() + (portDrag && portDrag.moved ? portDrag.path : "");
   }
 
-  var lastHTML = "", portDrag = null;
+  var lastHTML = null, portDrag = null;
   function render() {
     if (!root || !loaded) return;
     ensureLive();
@@ -202,7 +202,7 @@
       '<button type="button" data-g="clear" title="Deselect (Esc)">×</button>';
     if (g.getAttribute("data-h") !== h) { g.innerHTML = h; g.setAttribute("data-h", h); }
   }
-  function clearMulti() { if (multi.length) { multi = []; lastHTML = ""; render(); } }
+  function clearMulti() { if (multi.length) { multi = []; lastHTML = null; render(); } }
   function groupAction(a) {
     var tiles = multi.map(byId).filter(Boolean);
     if (a === "clear") { clearMulti(); return; }
@@ -217,7 +217,7 @@
     B.tiles.forEach(function (k) { if (ids.indexOf(k.from) >= 0) { var p = byId(k.from); k.from = p && p.from || null; } });
     B.tiles = B.tiles.filter(function (k) { return ids.indexOf(k.id) < 0; });
     multi = []; if (ids.indexOf(B.sel) >= 0) B.sel = null; mixClose();
-    lastHTML = ""; save(); render();
+    lastHTML = null; save(); render();
     if (ids.length > 1) VS().toast("Removed " + ids.length + " from the board (the files stay)");
   }
 
@@ -897,7 +897,7 @@
     var x0 = rest.length ? Math.max.apply(null, rest.map(function (t) { return t.x; })) + W + GAP_X : 0, y0 = rest.length ? Math.min.apply(null, rest.map(function (t) { return t.y; })) : 0;
     list.forEach(function (t) { t.x = x0 + t.x - minX; t.y = y0 + t.y - minY; B.tiles.push(t); });
     multi = list.length > 1 ? list.map(function (t) { return t.id; }) : []; B.sel = list[0].id;
-    save(); lastHTML = ""; render(); show(list[0]);
+    save(); lastHTML = null; render(); show(list[0]);
     VS().toast(list.length === 1 ? "Pasted" : "Pasted " + list.length + " pictures");
   }
   function moveMenu(list) {
@@ -916,7 +916,7 @@
           var gone = list.map(function (t) { return t.id; });
           B.tiles = B.tiles.filter(function (k) { return gone.indexOf(k.id) < 0; });
           B.tiles.forEach(function (k) { if (gone.indexOf(k.from) >= 0) k.from = null; });
-          multi = []; save(); lastHTML = ""; render();
+          multi = []; save(); lastHTML = null; render();
           VS().toast("Moved to “" + name + "”");
         });
       };
@@ -952,7 +952,7 @@
     });
     if (lv) (kids[lv.id] || []).forEach(function (c, i) { lay(c, 0, tileH(lv) + GAP_Y + i * (tileH(c) + GAP_Y)); });
     world.classList.add("anim"); setTimeout(function () { world.classList.remove("anim"); }, 450);
-    lastHTML = ""; save(); render(); fit();
+    lastHTML = null; save(); render(); fit();
   }
 
   function fit() {
@@ -1013,7 +1013,7 @@
           call("studio_live", true, app).then(function (r) { S.live.on = !!(r && r.on); S.live.app = app; S.live.frames = 0; S.live.msg = r && r.error || ""; render(); });
           render();
         }
-        else if (a === "livefold") { B.liveOpen = !liveOpen(); lastHTML = ""; save(); render(); }
+        else if (a === "livefold") { B.liveOpen = !liveOpen(); lastHTML = null; save(); render(); }
 
         return;
       }
@@ -1116,9 +1116,9 @@
         if (!multi.length && B.sel && B.sel !== t.id && B.sel !== "live" && byId(B.sel)) multi.push(B.sel);
         var k = multi.indexOf(t.id);
         if (k >= 0) multi.splice(k, 1); else multi.push(t.id);
-        lastHTML = ""; render(); return;
+        lastHTML = null; render(); return;
       }
-      if (t && multi.length && multi.indexOf(t.id) < 0) { multi = []; lastHTML = ""; }
+      if (t && multi.length && multi.indexOf(t.id) < 0) { multi = []; lastHTML = null; }
       if (t) userSel = true;
       if (t) { B.sel = t.id; el.parentNode && world.querySelectorAll(".b-tile.sel").forEach(function (n) { n.classList.remove("sel"); }); el.classList.add("sel"); }
       // Empty canvas: drag selects (a box); Space or the middle button pans.
@@ -1126,7 +1126,7 @@
       var group = t && multi.length > 1 && multi.indexOf(t.id) >= 0 ? multi.map(byId).filter(Boolean).map(function (k) { return { k: k, x: k.x, y: k.y }; }) : null;
       drag = { t: t, group: group, box: !t && !pan, add: e.shiftKey || e.ctrlKey, keep: multi.slice(), sx: e.clientX, sy: e.clientY,
                x: t ? t.x : B.view.x, y: t ? t.y : B.view.y, moved: false };
-      if (drag.box && !drag.add) { if (multi.length) { multi = []; lastHTML = ""; render(); } B.sel = null; world.querySelectorAll(".b-tile.sel").forEach(function (n) { n.classList.remove("sel"); }); }
+      if (drag.box && !drag.add) { if (multi.length) { multi = []; lastHTML = null; render(); } B.sel = null; world.querySelectorAll(".b-tile.sel").forEach(function (n) { n.classList.remove("sel"); }); }
       cv.setPointerCapture(e.pointerId);
     });
     cv.addEventListener("pointermove", function (e) {
@@ -1165,7 +1165,7 @@
         var wx0 = (ax - v.x) / v.z, wy0 = (ay - v.y) / v.z, wx1 = (ax + bw - v.x) / v.z, wy1 = (ay + bh - v.y) / v.z;
         var inBox = B.tiles.filter(function (k) { return k.kind !== "live" && k.kind !== "frame" && k.x < wx1 && k.x + tileW(k) > wx0 && k.y < wy1 && k.y + tileH(k) > wy0; }).map(function (k) { return k.id; });
         var next = drag.add ? drag.keep.concat(inBox.filter(function (id) { return drag.keep.indexOf(id) < 0; })) : inBox;
-        if (next.join() !== multi.join()) { multi = next; lastHTML = ""; render(); }
+        if (next.join() !== multi.join()) { multi = next; lastHTML = null; render(); }
         return;
       }
       if (drag.group) {
@@ -1173,12 +1173,12 @@
           g.k.x = Math.round(g.x + dx / B.view.z); g.k.y = Math.round(g.y + dy / B.view.z);
           var n = world.querySelector('[data-id="' + g.k.id + '"],.b-frame[data-fid="' + g.k.id + '"]'); if (n) { n.style.left = g.k.x + "px"; n.style.top = g.k.y + "px"; }
         });
-        svgEl.innerHTML = linksSVG(); lastHTML = "";
+        svgEl.innerHTML = linksSVG(); lastHTML = null;
       } else if (drag.t) {
         drag.t.x = Math.round(drag.x + dx / B.view.z); drag.t.y = Math.round(drag.y + dy / B.view.z);
         var n = world.querySelector('.b-tile[data-id="' + drag.t.id + '"]');
         if (n) { n.style.left = drag.t.x + "px"; n.style.top = drag.t.y + "px"; }
-        svgEl.innerHTML = linksSVG(); lastHTML = "";
+        svgEl.innerHTML = linksSVG(); lastHTML = null;
       } else { B.view.x = drag.x + dx; B.view.y = drag.y + dy; applyView(); }
       if (mix) mixRender();
       cv.classList.add("grab");
@@ -1194,7 +1194,7 @@
       if (drag && (drag.node || drag.ghost)) { if (drag.moved) save(); drag = null; try { cv.releasePointerCapture(e.pointerId); } catch (x) {} return; }
       if (drag && drag.box) {
         root.querySelector("#b-marq").hidden = true;
-        if (multi.length === 1) { B.sel = multi[0]; multi = []; lastHTML = ""; render(); }
+        if (multi.length === 1) { B.sel = multi[0]; multi = []; lastHTML = null; render(); }
       } else if (drag && drag.moved) save();
       drag = null; cv.classList.remove("grab");
       try { cv.releasePointerCapture(e.pointerId); } catch (x) {}
@@ -1235,7 +1235,7 @@
 
   // A new picture from the + menu in Focus view: on the board, and open it.
   // A sketch branched off another tile (Live): sits next to it, joined by a line.
-  function refreshThumb(path) { if (thumbs[path] !== undefined) { delete thumbs[path]; lastHTML = ""; render(); } }
+  function refreshThumb(path) { if (thumbs[path] !== undefined) { delete thumbs[path]; lastHTML = null; render(); } }
   // A 3D view: next to the picture it was made from, joined by a line, like any result.
   function addBeside(res, src) {
     if (!res || has(res.path)) return;

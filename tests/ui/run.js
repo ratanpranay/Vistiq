@@ -235,6 +235,11 @@ const frame = (n, name) => ({ path: "live://photoshop/" + n, name: name || "flat
     await p.ev("studio-dropped", { target: "board", images: [{ path: "C:/a/sketch.png", name: "sketch.png", w: 1600, h: 900, preview: img }] });
     await p.waitForTimeout(150);
     check("a dropped image becomes a tile", await p.evaluate(() => document.querySelectorAll(".b-tile:not([data-id=live])").length) === 1, await p.evaluate(() => document.querySelectorAll(".b-tile").length));
+    // a new, empty project shows an empty board (it showed the last project's tiles, Nov 2026)
+    await p.evaluate(() => { window.__boards = window.__boards || {}; window.__boards.pempty = { tiles: [], view: { x: 60, y: 40, z: 0.8 } }; });
+    await p.evaluate(() => window.VSBoard.load("pempty", "Empty")); await p.waitForTimeout(200);
+    check("an empty project shows no tiles from another board", await p.evaluate(() => document.querySelectorAll('#b-world .b-tile:not([data-id="live"])').length === 0), String(await p.evaluate(() => document.querySelectorAll("#b-world .b-tile").length)));
+    await p.evaluate(() => window.VSBoard.load("myboard", "My board")); await p.waitForTimeout(200);
     await p.evaluate(() => { window.__reg = null; window.pywebview.api.studio_region = (path, u0, v0, u1, v1, w) => { window.__reg = [path, w]; const c = document.createElement("canvas"); c.width = 8; c.height = 8; return Promise.resolve({ src: c.toDataURL(), u0, v0, u1, v1 }); };
       const st = window.VSBoard._state(), v = st.view; window.__v0 = Object.assign({}, v); const t = st.tiles.filter((k) => k.id !== "live")[0]; v.z = 9; v.x = -(t.x + 40) * 9 + 100; v.y = -(t.y + 60) * 9 + 100; window.VSBoard.render(); });
     await p.waitForTimeout(700);
