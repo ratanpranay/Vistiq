@@ -1,5 +1,13 @@
 # Vistiq Studio (test build)
 
+## 0.6.2
+- New look: a side bar with words (Projects, Library, Assets, Trash, Settings) in the same grey as the page; smaller, calmer text and buttons.
+- Upscale and 3D views are no longer tabs: use them from a tile on the board (right-click or drag its +).
+- Inside a project the board and the picture use the whole window.
+- Create: Layers sit in the right panel, with + for a new layer; other layer settings from each layer's menu.
+- First start: Local $19.99 · Own key $11.99 · Plus $9.99/month (coming soon); licence key and friends & family code links. (Payments are not switched on yet: everything stays free while testing.)
+- Fix: a new, empty project showed the previous board's tiles.
+
 ## 0.6.1
 - Board tool windows: press the button again while it works to queue more runs; they start by themselves.
 - Create: the engine as tiles (Local / Standard / Pro) with credits and cost, like the board windows.

@@ -19,6 +19,7 @@
     create: '<path d="M4 20l4-1 11-11-3-3L5 16z"/><path d="M14 6l3 3"/>',
     reference: '<rect x="3" y="5" width="8" height="14" rx="2"/><rect x="13" y="5" width="8" height="14" rx="2"/>',
     upscale: '<path d="M12 19V5M5 12l7-7 7 7"/>',
+    assets: '<path d="M4 6a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2z"/><circle cx="9" cy="9" r="2"/><path d="M20 15l-5-5L5 20"/>',
     library: '<rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/>',
     settings: '<circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1L7 17M17 7l2.1-2.1"/>',
     cmf: '<circle cx="8" cy="8" r="4"/><circle cx="16" cy="16" r="4"/><path d="M14 6h6v6"/>',
@@ -193,6 +194,7 @@
       '<div class="s-rail-foot"><div class="s-err" id="' + id + '-err" hidden></div>' +
       // What to do with the chosen result, right above Create.
       // Nov 2026: Upscale · Photoshop · 3D (To board left out: add to the board from the layers)
+      (id === "c" ? '<div id="c-layers"></div>' : "") +
       '<div class="s-acts3">' +
       '<button type="button" class="s-btn" id="' + id + '-up" title="Upscale this result" disabled>' + svg("upscale") + '<span>Upscale</span></button>' +
       '<button type="button" class="s-btn" id="' + id + '-tops" title="Send this result to Photoshop as a new layer" disabled><span class="m-ico ps">Ps</span><span>Photoshop</span></button>' +
@@ -346,9 +348,10 @@
     document.body.classList.add("studio");
     var nav = document.createElement("nav");
     nav.className = "s-nav";
-    nav.innerHTML = '<div class="s-logo" title="Vistiq Studio"><img src="assets/mark.png" alt=""></div>' +
-      ["projects", "3d", "upscale", "library"].map(function (p) {      // no Create tab (Nov 2026): open a picture from a project
-        return '<button type="button" data-page="' + p + '">' + svg(p) + (p === "3d" ? "3D views" : p.charAt(0).toUpperCase() + p.slice(1)) + "</button>";
+    // Nov 27 2026: a side bar with words; Upscale and 3D views live on the board (tile windows), not as tabs.
+    nav.innerHTML = '<div class="s-logo" title="Vistiq Studio"><img src="assets/mark.png" alt=""><b>Vistiq Studio</b></div>' +
+      ["projects", "library", "assets"].map(function (p) {
+        return '<button type="button" data-page="' + (p === "assets" ? "library" : p) + '"' + (p === "assets" ? ' data-f="assets"' : "") + ">" + svg(p) + "<span>" + p.charAt(0).toUpperCase() + p.slice(1) + "</span></button>";
       }).join("") + '<div class="s-sp"></div><button type="button" data-page="trash">' + svg("trash") + 'Trash</button><button type="button" data-page="settings">' + svg("settings") + "Settings</button>" +
       '<button type="button" class="s-min s-navmin" data-min="nav" title="Collapse / expand"><svg viewBox="0 0 24 24"><path d="M15 6l-6 6 6 6"/></svg></button>';
     document.body.insertBefore(nav, document.body.firstChild);
@@ -701,7 +704,7 @@
     if (p === "board" || (p === "create" && S.create.src)) S.lastWork = p;      // where Projects brings you back to
     else if (p === "projects") S.lastWork = null;
     document.body.setAttribute("data-page", p);
-    document.querySelectorAll(".s-nav button").forEach(function (b) { var bp = b.getAttribute("data-page"); b.classList.toggle("on", bp === p || (bp === "projects" && (p === "board" || p === "create"))); });
+    navOn();
     document.querySelectorAll(".s-page").forEach(function (el) { el.classList.toggle("on", el.id === "p-" + p); });
     if (api()) api().studio_drop_target(p);
     if (p === "library") loadLibrary();
@@ -730,6 +733,13 @@
     });
   }
 
+  function navOn() {
+    var p = S.page, asv = p === "library" && S.lib && S.lib.filter === "assets";
+    document.querySelectorAll(".s-nav button[data-page]").forEach(function (b) {
+      var bp = b.getAttribute("data-page"), f = b.getAttribute("data-f");
+      b.classList.toggle("on", f ? asv : (bp === p && !(bp === "library" && asv)) || (bp === "projects" && (p === "board" || p === "create" || p === "3d" || p === "upscale")));
+    });
+  }
   function loadLibrary() {
     S.lib.loading = true; render();
     api().studio_library().then(function (items) { S.lib.items = items || []; S.lib.loading = false; render(); });
@@ -1127,6 +1137,8 @@
         var back = S.lastWork && S.page !== "create" && S.page !== "board" && S.page !== "projects" ? S.lastWork : "projects";
         go(back);
       }
+      else if (b && b.getAttribute("data-f")) { S.lib.filter = "assets"; loadAssets(); go("library"); }
+      else if (b && b.getAttribute("data-page") === "library") { if (S.lib.filter === "assets") S.lib.filter = "all"; go("library"); }
       else if (b) go(b.getAttribute("data-page"));
     });
     // Create
@@ -1323,7 +1335,7 @@
     });
     // Library
     $("l-filters").addEventListener("click", function (e) {
-      var b = e.target.closest("button"); if (!b) return; S.lib.filter = b.getAttribute("data-v"); if (S.lib.filter === "assets") loadAssets(); render();
+      var b = e.target.closest("button"); if (!b) return; S.lib.filter = b.getAttribute("data-v"); if (S.lib.filter === "assets") loadAssets(); navOn(); render();
     });
     $("l-open").addEventListener("click", function () { if (S.lib.filter === "assets") api().studio_open_assets(); else api().studio_open_outputs(); });
     $("l-assets").addEventListener("click", function (e) {
@@ -1405,6 +1417,8 @@
     document.body.addEventListener("click", function (e) {
       var b = e.target.closest("[data-su]"); if (!b) return;
       var a = b.getAttribute("data-su");
+      if (a === "code-lic" || a === "code-ff") { S.codeOpen = a === "code-lic" ? "lic" : "ff"; S.codeMsg = ""; render(); return; }
+      if (a === "code-ok") { var ci = document.querySelector("[data-wcode]"); if (ci && ci.value.trim()) { try { localStorage.setItem("vs.code", ci.value.trim()); } catch (x) {} S.codeMsg = "Thanks — kept. During the test phase everything is free, so you can start right away."; S.codeOpen = ""; render(); } return; }
       if (a === "nb-add") {
         var kin = document.querySelector('[data-nbkey]:not([hidden])'), key = kin ? kin.value.trim() : "";
         if (!key) { S.nbMsg = "Paste your key first."; render(); return; }
@@ -2887,27 +2901,32 @@
       "<span><small>System</small><b>" + (mac ? "macOS" : "Windows") + "</b></span>" +
       (big ? '<em class="ok">✓ Runs everything locally</em>' : '<em>Smaller ' + (mac ? "Mac" : "graphics card") + ": online is the better fit</em>") + "</div>";
     var o = st.online || {};
-    var local = '<div class="w-card' + (big ? " rec" : "") + '"><span class="w-tag' + (big ? " rec" : "") + '">' + (big ? "Recommended for this computer" : "Free") + "</span><h2>On this computer</h2>" +
-      "<p>Free, offline and private. Your pictures never leave the " + (mac ? "Mac" : "PC") + ".</p><ul>" +
-      ck(1, "Sketch to render, materials, light, views") + ck(1, "Selections, board, Photoshop / Affinity live") + ck(1, "Upscale up to 16K") +
+    var local = '<div class="w-card' + (big ? " rec" : "") + '"><span class="w-tag' + (big ? " rec" : "") + '">' + (big ? "Recommended for this computer" : "Local") + "</span><h2>Local</h2>" +
+      '<div class="w-price">$19.99 <small>once · yours to keep</small></div><ul>' +
+      ck(1, "Local models, offline and private") + ck(1, "Your own LoRAs: copy them into the folder") + ck(1, "Your own Google key too (Standard / Pro)") + ck(1, "Free upscaler, board, Photoshop") +
       ck(0, (mac ? esc(name) + " package for this Mac" : esc(name) + " package" + (g ? " for " + Math.round(g.total) + " GB cards" : ""))) + "</ul>" +
       (mac ? macTierCards(st) : "") + (!mac ? '<div class="w-tiers">' + ["best", "good"].map(function (k) { return '<button type="button" class="s-tier' + (t === k ? " on" : "") + '" data-su="tier" data-t="' + k + '"><b>' + TIER_TEXT[k][0] + "</b><small>about " + gb(setupGB(st, k)) + "</small></button>"; }).join("") + "</div>" : "") +
-      '<button type="button" class="w-btn grad" data-su="download">Download · ' + gb(need) + "</button><small class=\"w-sub\">runs in the background · resumes after a restart</small>" + err + "</div>";
-    var plus = '<div class="w-card off"><span class="w-tag g">No download</span><h2>Vistiq Plus</h2><p>Nano Banana online — the strongest at new designs and lighting. Works on any computer.</p>' +
-      '<div class="w-price">from €10 <small>/ month · 150 credits included</small></div><ul>' +
-      ck(1, "Standard 1 credit · Pro 4 credits") + ck(1, "≈ 150 Standard 1K · 100 Standard 2K · 37 Pro") + ck(1, "Up to 2K · Upscaling stays free on your PC") + "</ul>" +
-      '<button type="button" class="w-btn dark" disabled>Coming soon</button><small class="w-sub">pay with PayPal or card</small></div>';
-    var keyc = '<div class="w-card"><span class="w-tag n">Advanced</span><h2>Your own key</h2><p>Already have a Google AI Studio key? Use Nano Banana with it and pay Google directly.</p><ul>' +
-      ck(1, "No subscription") + ck(0, "You manage billing at Google") + ck(0, "The key stays on this computer") + "</ul>" +
+      '<button type="button" class="w-btn grad" data-su="download">Download · ' + gb(need) + "</button><small class=\"w-sub\">runs in the background · <button type=\"button\" class=\"s-link\" data-su=\"take-other\">have the files already?</button></small>" + err + "</div>";
+    var plus = '<div class="w-card off"><span class="w-tag n">Coming soon</span><h2>Vistiq Plus</h2>' +
+      '<div class="w-price">$9.99 <small>/ month</small></div><ul>' +
+      ck(1, "No key, no strong PC needed") + ck(1, "150 credits a month, top up any time") + ck(1, "Free upscaler, board, Photoshop") + "</ul>" +
+      '<p class="w-opt">Want more later? Get access to the local model workflow for $10 one time and run offline, free and private, whenever you like.</p>' +
+      '<button type="button" class="w-btn dark" disabled>Subscribe</button><small class="w-sub">PayPal or card</small></div>';
+    var keyc = '<div class="w-card"><span class="w-tag n">No big download</span><h2>Own key</h2>' +
+      '<div class="w-price">$11.99 <small>once</small></div><ul>' +
+      ck(1, "Nano Banana with your Google key") + ck(1, "Google bills you directly") + ck(1, "Free upscaler, board, Photoshop") + "</ul>" +
+      '<p class="w-opt">Want more later? Get access to the local model workflow for $8 one time and run offline, free and private, whenever you like.</p>' +
       (S.keyOpen ? '<input type="password" class="w-key" data-nbkey placeholder="Paste your key (AIza…)" autocomplete="off">' +
         '<button type="button" class="w-btn light" data-su="nb-add">Add my key</button><small class="w-sub">No key yet? <button type="button" class="s-link" data-su="nb-guide">aistudio.google.com</button> › Get API key</small>'
         : '<button type="button" class="w-btn light" data-su="nb-open">Add my key</button><small class="w-sub">2-minute guide included</small>') +
       (S.nbMsg ? '<div class="s-err">' + esc(S.nbMsg) + "</div>" : "") + "</div>";
-    return '<div class="w-page"><div class="w-logo"><i></i>VISTIQ STUDIO</div><h1>Welcome. Let\'s set up Vistiq for this computer.</h1>' +
-      "<p class=\"w-lead\">We checked what your computer can run. Pick one way to make images — you can add the others any time in Settings.</p>" + spec +
-      '<div class="w-cards">' + local + plus + keyc + "</div>" +
-      '<div class="w-foot"><span class="w-up"><i>✓</i>The free upscaler comes with every option — needed for <b>Upscale</b></span>' +
-      (st.comfy_models || true ? '<span><button type="button" class="s-link" data-su="take-other">Have the files already?</button> · <button type="button" class="s-link" data-su="skip-setup">Skip for now ›</button></span>' : "") + "</div></div>";
+    var code = S.codeOpen ? '<span class="w-code"><input data-wcode placeholder="' + (S.codeOpen === "lic" ? "Licence key" : "Code") + '" autocomplete="off"><button type="button" class="s-link" data-su="code-ok">OK</button></span>' : "";
+    return '<div class="w-page"><div class="w-logo"><i></i>VISTIQ STUDIO</div><h1>Welcome. How do you want to make images?</h1>' +
+      "<p class=\"w-lead\">We checked this computer. Pick one — you can upgrade any time by paying the difference.</p>" + spec +
+      '<div class="w-cards">' + local + keyc + plus + "</div>" +
+      '<div class="w-links"><span>Have a licence key? <button type="button" class="s-link" data-su="code-lic">Enter it</button></span>' +
+      '<span>Friends &amp; family code? <button type="button" class="s-link" data-su="code-ff">Enter it</button></span>' +
+      '<span><button type="button" class="s-link" data-su="skip-setup">Skip for now</button></span></div>' + code + (S.codeMsg ? '<p class="w-codemsg">' + esc(S.codeMsg) + "</p>" : "") + "</div>";
   }
   function setupCard() {
     var st = S.status, running = !!S.setup.run;

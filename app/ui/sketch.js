@@ -78,7 +78,10 @@
     catcher = document.createElement("div"); catcher.className = "sk-catch"; fit.appendChild(catcher); order();
     ring = ring || document.createElement("div"); ring.className = "sk-ring"; ring.hidden = true; view.appendChild(ring);
     wireCatcher();
+    var oldp = document.getElementById("sk-panel"); if (oldp) oldp.remove();
     view.insertAdjacentHTML("beforeend", toolbarHTML() + '<div class="sk-panel" id="sk-panel"></div>' + optsHTML());
+    // Nov 27 2026: Layers live in Create's right panel
+    var home = document.getElementById("c-layers"); if (home && view.id === "c-view") home.appendChild(document.getElementById("sk-panel"));
     wireToolbar();
     panel();
     cursor();
@@ -687,13 +690,13 @@
   function thumbs() {
     scheduleSave();
     if (!view) return;
-    view.querySelectorAll("#sk-panel canvas[data-th]").forEach(function (t) {
+    document.querySelectorAll("#sk-panel canvas[data-th]").forEach(function (t) {
       var L = byId(doc, t.getAttribute("data-th")); if (!L || !L.canvas) return;
       var g = t.getContext("2d"); g.clearRect(0, 0, t.width, t.height); g.drawImage(L.canvas, 0, 0, t.width, t.height);
     });
   }
   function panel() {
-    var el = view && view.querySelector("#sk-panel"); if (!el) return;
+    var el = view && document.getElementById("sk-panel"); if (!el) return;
     var base = fit.querySelector(".sk-base");
     var rows = doc.layers.slice().reverse().map(function (L) {
       var th = L.kind === "base" ? '<img src="' + base.getAttribute("src") + '" alt="">' : '<canvas data-th="' + L.id + '" width="88" height="' + Math.round(88 * doc.h / doc.w) + '"></canvas>';
@@ -706,17 +709,16 @@
         '<button type="button" class="m" data-a="menu" title="More">' + ic("dots", 15) + "</button></div>";
     }).join("");
     el.innerHTML = '<div class="hd">' + ic("layers", 15) + "<span>Layers</span>" +
-      '<button type="button" class="pin' + (T.folded ? "" : " on") + '" data-a="pin" title="' + (T.folded ? "Keep Layers open" : "Unpin: open Layers on hover") + '">' +
-      '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 17v5"/><path d="M9 3h6l-1 6 3 3H7l3-3z"/></svg></button></div>' + rows +
+      '<button type="button" class="plus" data-a="add" title="New layer">+</button></div>' + rows +
       '<div class="ft"><button type="button" data-a="add">' + ic("plus", 13) + "<span>Layer</span></button><button type=\"button\" data-a=\"merge\"><span>Merge down</span></button></div>";
-    el.classList.toggle("open", !T.folded || el.matches(":hover"));
+    el.classList.toggle("open", !T.folded || el.matches(":hover") || !!el.closest("#c-layers"));
     thumbs();
     if (!el._w) wirePanel(el);
   }
   function wirePanel(el) {
     el._w = 1;
     el.addEventListener("mouseenter", function () { el.classList.add("open"); });
-    el.addEventListener("mouseleave", function () { if (T.folded && !el.querySelector(".n b[contenteditable]")) el.classList.remove("open"); });
+    el.addEventListener("mouseleave", function () { if (el.closest("#c-layers")) return; if (T.folded && !el.querySelector(".n b[contenteditable]")) el.classList.remove("open"); });
     el.addEventListener("click", function (e) {
       var a = e.target.closest("[data-a]"), row = e.target.closest("[data-l]");
       var L = row && byId(doc, row.getAttribute("data-l")), act = a && a.getAttribute("data-a");
@@ -786,7 +788,7 @@
       "<hr>" + it("del", "Delete", base, "Del", "red");
     V().pop(anchor, html, function (v) {
       if (v === "board") { toBoard(L); return; }
-      if (v === "rename") { var row = view.querySelector('#sk-panel [data-l="' + L.id + '"] [data-a=name]'); if (row) rename(L, row); }
+      if (v === "rename") { var row = document.querySelector('#sk-panel [data-l="' + L.id + '"] [data-a=name]'); if (row) rename(L, row); }
       else if (v === "dup") { var n = addLayer(doc, L.name + " copy"); n.canvas.getContext("2d").drawImage(L.canvas, 0, 0); n.opacity = L.opacity; n.blend = L.blend; n.canvas.className = "sk-layer"; fit.appendChild(n.canvas); }
       else if (v === "merge") mergeDown(L);
       else if (v.indexOf("blend:") === 0) L.blend = v.slice(6);

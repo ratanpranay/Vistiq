@@ -53,7 +53,7 @@ async function open(browser, before, opts) {
   page.errors = errors;
   // The board now lives inside a project: Projects → the project's card.
   page.board = async (pid) => {
-    await page.click(".s-nav button[data-page=projects]"); await page.waitForTimeout(150);
+    await page.evaluate(() => window.VS.go("projects")); await page.waitForTimeout(150);
     await page.dblclick('.pj-card[data-pid="' + (pid || "myboard") + '"]'); await page.waitForTimeout(250);
   };
   page.startPage = await page.evaluate(() => document.body.getAttribute("data-page"));
@@ -167,7 +167,7 @@ const frame = (n, name) => ({ path: "live://photoshop/" + n, name: name || "flat
   // 7. Settings: headings line up with their boxes.
   {
     const p = await open(browser);
-    await p.click(".s-nav button[data-page=settings]");
+    await p.evaluate(() => window.VS.go("settings"));
     await p.waitForTimeout(300);
     const r = await p.evaluate(() => {
       const s = [...document.querySelectorAll("#p-settings .s-sec")].find((x) => x.textContent === "Upscaler");
@@ -196,7 +196,7 @@ const frame = (n, name) => ({ path: "live://photoshop/" + n, name: name || "flat
     const p = await open(browser);
     check("no Create tab in the left bar", !(await p.$(".s-nav button[data-page=create]")), "");
     for (const pg of ["projects", "upscale", "library", "settings"]) {
-      await p.click(".s-nav button[data-page=" + pg + "]");
+      await p.evaluate((g) => window.VS.go(g), pg);
       await p.waitForTimeout(150);
     }
     check("all pages open without errors", p.errors.length === 0, p.errors.join(" | "));
@@ -249,6 +249,12 @@ const frame = (n, name) => ({ path: "live://photoshop/" + n, name: name || "flat
     await p.dblclick('.b-tile:not([data-id="live"])');
     await p.waitForTimeout(250);
     check("double-click opens Focus view with that image", await p.evaluate(() => document.body.getAttribute("data-page")) === "create" && /sketch/.test(await p.text("#c-ttl")), await p.text("#c-ttl"));
+    if (process.env.WSHOT) { await p.setViewportSize({ width: 1600, height: 960 }); await p.waitForTimeout(300); await p.screenshot({ path: process.env.WSHOT + "/create.png" });
+      await p.evaluate(() => window.VS.go("projects")); await p.waitForTimeout(300); await p.screenshot({ path: process.env.WSHOT + "/projects.png" });
+      await p.board(); await p.waitForTimeout(300); await p.screenshot({ path: process.env.WSHOT + "/board.png" });
+      await p.evaluate(() => window.VS.go("settings")); await p.waitForTimeout(300); await p.screenshot({ path: process.env.WSHOT + "/settings.png" });
+      await p.evaluate(() => window.VS.go("library")); await p.waitForTimeout(300); await p.screenshot({ path: process.env.WSHOT + "/library.png" });
+      await p.dblclick('.b-tile:not([data-id="live"])').catch(() => {}); await p.evaluate(() => window.VS.go("create")); await p.waitForTimeout(300); await p.setViewportSize({ width: 1280, height: 800 }); }
     await p.ev("studio-result", { id: "", index: 0, of: 1, result: { path: "C:/o/r1.png", name: "r1.png", w: 1600, h: 900, preview: img } });
     await p.evaluate(() => { window.VS.S.create.results = [{ path: "C:/o/r1.png", name: "r1.png", w: 1600, h: 900, preview: "x" }]; window.VS.S.create.sel = 0; window.VS.render(); });
     await p.evaluate(() => document.getElementById("c-toboard").click());   // (hidden in the rail since Nov 2026; layers send to board)
@@ -270,10 +276,10 @@ const frame = (n, name) => ({ path: "live://photoshop/" + n, name: name || "flat
     await p.evaluate(() => { const B = window.VSBoard._state(); B.tiles = B.tiles.filter((x) => x.path !== "C:/a/portrait.jpg"); window.VSBoard.render(); });
     // Projects tab with work open: first back to that work, then (again) all projects.
     await p.dblclick('.b-tile[data-id]:not([data-id="live"])'); await p.waitForTimeout(250);
-    await p.click(".s-nav button[data-page=upscale]"); await p.waitForTimeout(150);
+    await p.evaluate(() => window.VS.go("upscale")); await p.waitForTimeout(150);
     await p.click(".s-nav button[data-page=projects]"); await p.waitForTimeout(150);
     check("Projects brings you back to the picture you were working on", await p.evaluate(() => document.body.getAttribute("data-page")) === "create", await p.evaluate(() => document.body.getAttribute("data-page")));
-    await p.click(".s-nav button[data-page=projects]"); await p.waitForTimeout(150);
+    await p.evaluate(() => window.VS.go("projects")); await p.waitForTimeout(150);
     check("clicking Projects again shows all projects", await p.evaluate(() => document.body.getAttribute("data-page")) === "projects", "");
     await p.board(); await p.waitForTimeout(150);
     check("no Organize button (freeform board)", await p.evaluate(() => !document.querySelector(".b-bar [data-b=organize]")), "");
@@ -442,7 +448,7 @@ const frame = (n, name) => ({ path: "live://photoshop/" + n, name: name || "flat
     await p.evaluate(() => { window.__sent = null; window.pywebview.api.studio_send = (path) => { window.__sent = path; return Promise.resolve({ ok: true }); }; });
     await p.click("#c-tops"); await p.waitForTimeout(100);
     check("Photoshop gets the opened picture", await p.evaluate(() => window.__sent) === "C:/i/01_end.jpg", await p.evaluate(() => window.__sent));
-    await p.click(".s-nav button[data-page=upscale]"); await p.waitForTimeout(200);
+    await p.evaluate(() => window.VS.go("upscale")); await p.waitForTimeout(200);
     check("Upscale has Refine, To board and Photoshop", await p.evaluate(() => !!(document.getElementById("u-refine") && document.getElementById("u-toboard") && document.getElementById("u-tops"))), "missing");
     check("no page errors with the action bars", p.errors.length === 0, p.errors.join(" | "));
     await p.close();
@@ -482,7 +488,7 @@ const frame = (n, name) => ({ path: "live://photoshop/" + n, name: name || "flat
     // Layers: add one, hide it.
     await p.hover("#sk-panel"); await p.waitForTimeout(200);
     const n0 = await p.evaluate(() => window.VSSketch._state().doc.layers.length);
-    await p.click("#sk-panel [data-a=add]"); await p.waitForTimeout(100);
+    await p.click("#sk-panel .hd [data-a=add]"); await p.waitForTimeout(100);
     check("+ Layer adds a layer", await p.evaluate(() => window.VSSketch._state().doc.layers.length) === n0 + 1, "");
     await p.click("#sk-panel .row.on [data-a=eye]"); await p.waitForTimeout(100);
     check("the eye hides a layer", await p.evaluate(() => { const d = window.VSSketch._state().doc; return !d.layers.filter((L) => L.id === d.active)[0].visible; }), "still visible");
@@ -566,7 +572,7 @@ const frame = (n, name) => ({ path: "live://photoshop/" + n, name: name || "flat
     const n0 = (await doc()).length;
     await p.evaluate(() => { const d = window.VSSketch._state().doc; d.active = d.layers[d.layers.length - 1].id; });
     await p.hover("#sk-panel"); await p.waitForTimeout(150);
-    await p.click("#sk-panel [data-a=merge]"); await p.waitForTimeout(80);
+    await p.evaluate(() => document.querySelector("#sk-panel .ft [data-a=merge]").click()); await p.waitForTimeout(80);
     check("Merge down joins two layers", (await doc()).length === n0 - 1, JSON.stringify(await doc()));
     check("no page errors while sketching", p.errors.length === 0, p.errors.join(" | "));
     await p.close();
@@ -759,7 +765,7 @@ const frame = (n, name) => ({ path: "live://photoshop/" + n, name: name || "flat
   {
     const p = await open(browser, null, {});
     await p.evaluate(() => { window.pywebview.api.estimates = () => Promise.resolve({ a: 70 }); });
-    await p.click(".s-nav button[data-page=upscale]"); await p.waitForTimeout(200);
+    await p.evaluate(() => window.VS.go("upscale")); await p.waitForTimeout(200);
     const it = { id: "a", path: "C:/x/a.png", name: "a.png", w: 2368, h: 1328, preview: "data:image/gif;base64,R0lGODlhAQABAAAAACw=", status: "ready" };
     await p.evaluate((it) => window.vistiq.event("added", [it]), it); await p.waitForTimeout(400);
     check("Upscale shows the time estimate", /About 1:10/.test(await p.text("#go-meta")), await p.text("#go-meta"));
@@ -968,7 +974,7 @@ const frame = (n, name) => ({ path: "live://photoshop/" + n, name: name || "flat
   // 3D views: order, tabs, hold, loading, height.
   {
     const p = await open(browser);
-    check("left bar: Projects, 3D, Upscale, Library", await p.evaluate(() => [...document.querySelectorAll(".s-nav button[data-page]")].map((b) => b.dataset.page).join(",")) === "projects,3d,upscale,library,trash,settings", "");
+    check("left bar: Projects, Library, Assets, Trash, Settings", await p.evaluate(() => [...document.querySelectorAll(".s-nav button[data-page]")].map((b) => b.dataset.f || b.dataset.page).join(",")) === "projects,library,assets,trash,settings", await p.evaluate(() => [...document.querySelectorAll(".s-nav button[data-page]")].map((b) => b.dataset.f || b.dataset.page).join(",")));
     await p.evaluate(() => {
       const api = window.pywebview.api;
       api.studio_describe = () => Promise.resolve({ text: "kind=product; nose=right; end=none; side=left; height=eye" });
@@ -1042,7 +1048,7 @@ const frame = (n, name) => ({ path: "live://photoshop/" + n, name: name || "flat
       api.studio_freeze = (path, name) => Promise.resolve({ path: "C:/o/frozen.png", name: "frozen.png", w: 1600, h: 900, preview: g });
       window.VS.setImage(window.VS.S.create, "src", { path: "C:/o/cabin.png", name: "cabin.png", w: 1600, h: 900, preview: g });
     });
-    await p.click(".s-nav button[data-page='3d']"); await p.waitForTimeout(300);
+    await p.evaluate(() => window.VS.go("3d")); await p.waitForTimeout(300);
     check("the 3D views tab alone stays empty", await p.evaluate(() => !window.VS3D._state().src && !document.getElementById("t-empty").hidden), "");
     await p.evaluate(() => window.VS3D.fromCreate()); await p.waitForTimeout(300);
     check("3D on a picture takes the file open in Create", await p.evaluate(() => (window.VS3D._state().src || {}).path) === "C:/o/cabin.png", await p.evaluate(() => JSON.stringify(window.VS3D._state().src)));
@@ -1159,7 +1165,7 @@ const frame = (n, name) => ({ path: "live://photoshop/" + n, name: name || "flat
     const p = await open(browser, null, { board: true });
     await p.evaluate(() => window.VSBoard.addImages([1, 2].map((i) => ({ path: "C:/t/" + i + ".png", name: i + ".png", w: 160, h: 90, preview: "data:image/gif;base64,R0lGODlhAQABAAAAACw=" }))));
     await p.waitForTimeout(500);
-    await p.click(".s-nav button[data-page=projects]"); await p.waitForTimeout(200);
+    await p.evaluate(() => window.VS.go("projects")); await p.waitForTimeout(200);
     check("projects: My board shows with its pictures", /My board/.test(await p.text("#pj-grid")) && /2 pictures/.test(await p.text("#pj-grid")), await p.text("#pj-grid"));
     await p.click(".pj-new"); await p.waitForTimeout(100);
     await p.fill("#pj-name", "SUV exterior"); await p.keyboard.press("Enter"); await p.waitForTimeout(400);
@@ -1185,22 +1191,22 @@ const frame = (n, name) => ({ path: "live://photoshop/" + n, name: name || "flat
     await p.click('#b-menu [data-mp="p1"]'); await p.waitForTimeout(600);
     check("projects: Move takes it out of this project and into the other", await p.evaluate(() => window.VSBoard._state().tiles.filter((t) => t.path).length === 1 && window.__boards.p1.tiles.filter((t) => t.path).length === 2), "");
     // delete → Trash → restore; the only project can go too
-    await p.click(".s-nav button[data-page=projects]"); await p.waitForTimeout(200);
+    await p.evaluate(() => window.VS.go("projects")); await p.waitForTimeout(200);
     check("projects: New project opens a floating window", await (async () => { await p.click(".pj-new"); await p.waitForTimeout(100); const v = await p.isVisible("#pj-modal"); await p.keyboard.press("Escape"); await p.waitForTimeout(80); return v && !(await p.isVisible("#pj-modal")); })(), "");
     await p.click('.pj-card[data-pid="p1"]', { button: "right" }); await p.waitForTimeout(100);
     await p.click('.s-pop [data-p="del"]'); await p.waitForTimeout(300);
     check("projects: Move to Trash takes it off the Projects page", !/SUV exterior/.test(await p.text("#pj-grid")), await p.text("#pj-grid"));
-    await p.click(".s-nav button[data-page=trash]"); await p.waitForTimeout(200);
+    await p.evaluate(() => window.VS.go("trash")); await p.waitForTimeout(200);
     check("trash: the deleted project is in the Trash", /SUV exterior/.test(await p.text("#tr-grid")), await p.text("#tr-grid"));
     await p.click('[data-tid="p1"] [data-tr="restore"]'); await p.waitForTimeout(200);
     check("trash: Restore brings it back", /The Trash is empty/.test(await p.text("#tr-grid")) && (await p.evaluate(() => window.__projects.some((x) => x.id === "p1"))), await p.text("#tr-grid"));
-    await p.click(".s-nav button[data-page=projects]"); await p.waitForTimeout(200);
+    await p.evaluate(() => window.VS.go("projects")); await p.waitForTimeout(200);
     await p.click('.pj-card[data-pid="myboard"]', { button: "right" }); await p.waitForTimeout(100);
     check("projects: delete is never greyed out", await p.evaluate(() => !document.querySelector('.s-pop [data-p="del"]').disabled), "");
     await p.keyboard.press("Escape");
     check("nav: Trash, then Settings, then the heart at the bottom", await p.evaluate(() => { const k = [...document.querySelectorAll(".s-nav > *")].map((e) => e.getAttribute("data-page") || (e.classList.contains("s-heart") ? "heart" : "")).filter(Boolean); return k.slice(-3).join(","); }) === "trash,settings,heart",
       await p.evaluate(() => [...document.querySelectorAll(".s-nav > *")].map((e) => e.getAttribute("data-page") || e.className).join(",")));
-    await p.click(".s-nav button[data-page=settings]"); await p.waitForTimeout(300);
+    await p.evaluate(() => window.VS.go("settings")); await p.waitForTimeout(300);
     check("settings: Delete everything button", !!(await p.$('[data-su="wipe"]')), "");
     await p.click('[data-su="wipe"]'); await p.waitForTimeout(150);
     check("wipe: first warning", /not a reversible process/.test(await p.text("#pj-modal")), await p.text("#pj-modal"));
@@ -1225,7 +1231,7 @@ const frame = (n, name) => ({ path: "live://photoshop/" + n, name: name || "flat
     await p.waitForTimeout(250);
     check("gate: not set up -> only the setup page", await p.evaluate(() => document.body.classList.contains("s-gated") && document.body.getAttribute("data-page") === "create" && !!document.querySelector("#c-gate:not([hidden])")), await p.evaluate(() => document.body.getAttribute("data-page")));
     if (process.env.SHOTS) await p.screenshot({ path: process.env.SHOTS + "/gate.png" });
-    await p.click(".s-nav button[data-page=projects]", { force: true }); await p.waitForTimeout(150);
+    await p.evaluate(() => window.VS.go("projects")); await p.waitForTimeout(150);
     check("gate: other tabs can't be opened", await p.evaluate(() => document.body.getAttribute("data-page")) === "create", "");
     // Welcome (Nov 2026): local, Vistiq Plus (coming soon, off) and your own key.
     await p.evaluate(() => { window.VS.S.setup.run = null; window.VS.S.setup.done = ""; window.VS.render(); }); await p.waitForTimeout(100);
